@@ -23,7 +23,6 @@ import OtpInput from "@/components/ui/otp-input";
 import {
   Eye,
   EyeOff,
-  Building2,
   Check,
   ArrowRight,
   ArrowLeft,

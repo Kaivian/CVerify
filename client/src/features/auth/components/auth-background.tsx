@@ -28,9 +28,11 @@ export const AuthBackground: React.FC = () => {
     const border = style.getPropertyValue('--border').trim();
     const hover = style.getPropertyValue('--default').trim(); // Maps to --default in globals.css
 
-    setColors({
-      borderColor: border || (theme === 'dark' ? '#2d2d2dff' : '#e6e6e6ff'),
-      hoverFillColor: hover || (theme === 'dark' ? '#3d3d3dff' : '#f0f0f0ff'),
+    Promise.resolve().then(() => {
+      setColors({
+        borderColor: border || (theme === 'dark' ? '#2d2d2dff' : '#e6e6e6ff'),
+        hoverFillColor: hover || (theme === 'dark' ? '#3d3d3dff' : '#f0f0f0ff'),
+      });
     });
   }, [theme]);
 

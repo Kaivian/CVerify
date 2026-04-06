@@ -1,0 +1,261 @@
+"use client";
+
+import React, { useEffect } from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SelectDropdown } from "@/components/ui/select-dropdown";
+import { SettingsSection } from "./SettingsSection";
+import { Typography, Switch } from "@heroui/react";
+import { Checkbox } from "@heroui/react";
+
+// 1. Zod career schema definition
+const careerSchema = z.object({
+  availableForHire: z.boolean(),
+  employmentPreferences: z
+    .array(z.string())
+    .min(1, "Select at least one employment preference"),
+  preferredLanguage: z.enum(["en", "vi", "ja", "ko", "zh"]),
+});
+
+type CareerFormValues = z.infer<typeof careerSchema>;
+
+interface CareerTabProps {
+  onDirtyChange: (isDirty: boolean) => void;
+  onSaveSuccess: () => void;
+}
+
+export const CareerTab: React.FC<CareerTabProps> = ({
+  onDirtyChange,
+  onSaveSuccess,
+}) => {
+  const methods = useForm<CareerFormValues>({
+    resolver: zodResolver(careerSchema),
+    defaultValues: {
+      availableForHire: true,
+      employmentPreferences: ["full_time", "contract"],
+      preferredLanguage: "en",
+    },
+    mode: "onChange",
+  });
+
+  const {
+    handleSubmit,
+    watch,
+    reset,
+    setValue,
+    formState: { isDirty, isSubmitting, errors },
+  } = methods;
+
+  const currentValues = watch();
+
+  useEffect(() => {
+    onDirtyChange(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  const handleReset = () => {
+    reset();
+  };
+
+  const handleFormSubmit = async (data: CareerFormValues) => {
+    try {
+      // Simulate API submit delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Save data locally in memory
+      reset(data);
+      onSaveSuccess();
+    } catch (error) {
+      console.error("Failed to save career preferences:", error);
+    }
+  };
+
+  const employmentOptions = [
+    { value: "full_time", label: "Full-time" },
+    { value: "part_time", label: "Part-time" },
+    { value: "contract", label: "Contract" },
+    { value: "freelance", label: "Freelance" },
+    { value: "internship", label: "Internship" },
+  ];
+
+  const languageOptions = [
+    { value: "en", label: "English" },
+    { value: "vi", label: "Vietnamese" },
+    { value: "ja", label: "Japanese" },
+    { value: "ko", label: "Korean" },
+    { value: "zh", label: "Chinese" },
+  ];
+
+  const handleCheckboxChange = (value: string, isSelected: boolean) => {
+    const current = currentValues.employmentPreferences || [];
+    let updated;
+    if (isSelected) {
+      updated = [...current, value];
+    } else {
+      updated = current.filter((v) => v !== value);
+    }
+    setValue("employmentPreferences", updated, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  return (
+    <FormProvider {...methods}>
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-10">
+        {/* Hiring preferences section */}
+        <SettingsSection
+          title="Hiring Preferences"
+          description="Signal to companies, recruiters, and the CVerify network if you are currently open to new job contracts."
+        >
+          <Card className="flex items-center justify-between gap-6 py-6 text-left select-none">
+            <div className="flex flex-col gap-0.5">
+              <Typography
+                type="body-sm"
+                className="font-bold text-foreground font-outfit"
+              >
+                Available for Hire
+              </Typography>
+              <Typography type="body-xs" className="text-muted max-w-md">
+                When active, your public developer profile card will display a
+                vibrant “Open to Work” badge to recruiters.
+              </Typography>
+            </div>
+            <Switch
+              isSelected={currentValues.availableForHire}
+              onChange={(isSelected: boolean) => {
+                setValue("availableForHire", isSelected, { shouldDirty: true });
+              }}
+              aria-label="Available for hire toggle"
+              className="cursor-pointer"
+            >
+              <Switch.Control className="w-11 h-6 rounded-full bg-separator data-[selected=true]:bg-success relative flex items-center transition-all">
+                <Switch.Thumb className="w-4.5 h-4.5 bg-foreground rounded-full absolute left-0.5 data-[selected=true]:left-6 transition-all" />
+              </Switch.Control>
+            </Switch>
+          </Card>
+        </SettingsSection>
+
+        {/* Employment Preferences section */}
+        <SettingsSection
+          title="Employment Arrangements"
+          description="Select your preferred job models. You can choose multiple options to maximize recruiter relevance."
+        >
+          <Card className="flex flex-col gap-4 text-left">
+            <Typography
+              type="body-sm"
+              className="font-bold text-foreground font-outfit mb-1 select-none"
+            >
+              Preferred Arrangements
+            </Typography>
+
+            <div className="flex flex-col gap-3">
+              {employmentOptions.map((option) => {
+                const isSelected = currentValues.employmentPreferences.includes(
+                  option.value,
+                );
+                return (
+                  <label
+                    key={option.value}
+                    className="flex items-center gap-3 cursor-pointer select-none text-xs font-semibold py-1 group"
+                  >
+                    <Checkbox
+                      isSelected={isSelected}
+                      onChange={(checked: boolean) =>
+                        handleCheckboxChange(option.value, checked)
+                      }
+                      aria-label={option.label}
+                      className="cursor-pointer"
+                    >
+                      <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                        <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                          <svg
+                            className="w-2.5 h-2.5 fill-none stroke-current stroke-3"
+                            viewBox="0 0 24 24"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </Checkbox.Indicator>
+                      </Checkbox.Control>
+                    </Checkbox>
+                    <span className="text-foreground/90 font-semibold">
+                      {option.label}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {errors.employmentPreferences && (
+              <Typography
+                type="body-xs"
+                className="text-danger pl-1 font-semibold block"
+                role="alert"
+              >
+                {errors.employmentPreferences.message}
+              </Typography>
+            )}
+          </Card>
+        </SettingsSection>
+
+        {/* Localization preferences */}
+        <SettingsSection
+          title="Localization Settings"
+          description="Choose your primary spoken language for profile indexing and system notifications."
+        >
+          <Card className="text-left gap-4 flex flex-col">
+            <div className="flex flex-col gap-1.5 w-full md:max-w-md">
+              <SelectDropdown
+                label="Preferred Spoken Language"
+                value={currentValues.preferredLanguage}
+                onChange={(val: string) =>
+                  setValue(
+                    "preferredLanguage",
+                    val as "en" | "vi" | "ja" | "ko" | "zh",
+                    { shouldDirty: true },
+                  )
+                }
+                options={languageOptions}
+                placeholder="Select language"
+              />
+            </div>
+          </Card>
+        </SettingsSection>
+
+        {/* Sticky Actions Bar */}
+        {isDirty && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-4xl bg-overlay/95 backdrop-blur-md border border-border shadow-modal rounded-2xl p-4 flex items-center justify-between gap-4 z-40 animate-fade-in">
+            <Typography
+              type="body-xs"
+              className="text-foreground font-bold font-outfit select-none pl-2"
+            >
+              You have unsaved career setting changes.
+            </Typography>
+            <div className="flex items-center gap-2.5">
+              <Button
+                variant="bordered"
+                onClick={handleReset}
+                disabled={isSubmitting}
+                className="rounded-xl font-bold h-9 px-4 text-xs select-none"
+              >
+                Reset
+              </Button>
+              <Button
+                variant="solid"
+                type="submit"
+                isLoading={isSubmitting}
+                className="rounded-xl font-bold h-9 px-4 text-xs select-none"
+              >
+                Save career settings
+              </Button>
+            </div>
+          </div>
+        )}
+      </form>
+    </FormProvider>
+  );
+};
+
+export default CareerTab;
