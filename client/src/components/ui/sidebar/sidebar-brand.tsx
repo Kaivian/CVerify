@@ -33,7 +33,7 @@ export const SidebarBrand: React.FC<SidebarBrandProps> = ({ collapsed }) => {
     <div className="flex h-16 items-center px-3 select-none border-b border-separator gap-2 overflow-hidden transition-all duration-300">
       {/* Brand Logo Image */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={logoSrc} alt="CVerify Logo" className="w-9.5 h-auto" />
+      <img src={logoSrc} alt="CVerify Logo" className="w-9 h-auto" />
 
       {/* Brand Name Text */}
       <div
