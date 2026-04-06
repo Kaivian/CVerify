@@ -1,0 +1,125 @@
+import { 
+  LayoutDashboard,
+  Building2, 
+  ShieldAlert, 
+  Users, 
+  Shield, 
+  FileText,
+  Briefcase 
+} from 'lucide-react';
+import { NavigationNode } from '../types/navigation.types';
+
+export const navigationConfig: NavigationNode[] = [
+  {
+    id: 'general-section',
+    type: 'section',
+    label: 'General',
+    translationKey: 'common:dashboard.sections.general',
+    children: [
+      {
+        id: 'job-board',
+        type: 'item',
+        label: 'Job Board',
+        translationKey: 'common:dashboard.jobBoard',
+        href: '/jobs',
+        icon: Briefcase,
+      },
+    ],
+  },
+  {
+    id: 'candidate-section',
+    type: 'section',
+    label: 'Candidate',
+    translationKey: 'common:dashboard.sections.candidate',
+    requiredRoles: ['USER', 'ADMIN'],
+    children: [
+      {
+        id: 'candidate-dashboard',
+        type: 'item',
+        label: 'Dashboard',
+        translationKey: 'common:dashboard.candidateDashboard',
+        href: '/user',
+        icon: LayoutDashboard,
+      },
+      {
+        id: 'candidate-cv',
+        type: 'item',
+        label: 'My CV',
+        translationKey: 'common:dashboard.cv',
+        href: '/cv',
+        icon: FileText,
+      },
+    ],
+  },
+  {
+    id: 'business-section',
+    type: 'section',
+    label: 'Business',
+    translationKey: 'common:dashboard.sections.business',
+    requiredRoles: ['BUSINESS', 'ADMIN'],
+    children: [
+      {
+        id: 'business-dashboard',
+        type: 'item',
+        label: 'Dashboard',
+        translationKey: 'common:dashboard.businessDashboard',
+        href: '/business',
+        icon: Building2,
+      },
+    ],
+  },
+  {
+    id: 'admin-section',
+    type: 'section',
+    label: 'Administration',
+    translationKey: 'common:dashboard.systemAdmin',
+    requiredRoles: ['ADMIN'],
+    children: [
+      {
+        id: 'admin-group',
+        type: 'group',
+        label: 'System Admin',
+        translationKey: 'common:dashboard.systemAdmin',
+        icon: ShieldAlert,
+        children: [
+          {
+            id: 'admin-overview',
+            type: 'item',
+            label: 'Admin',
+            translationKey: 'common:admin.dashboard',
+            href: '/admin',
+            exactMatch: true,
+            icon: LayoutDashboard,
+          },
+          {
+            id: 'admin-users',
+            type: 'item',
+            label: 'Users',
+            translationKey: 'common:admin.users',
+            href: '/admin/users',
+            icon: Users,
+            requiredPermissions: ['users:view:list'],
+          },
+          {
+            id: 'admin-roles',
+            type: 'item',
+            label: 'Roles Matrix',
+            translationKey: 'common:admin.rolesMatrix',
+            href: '/admin/roles',
+            icon: Shield,
+            requiredPermissions: ['roles:view:list'],
+          },
+          {
+            id: 'admin-audit-logs',
+            type: 'item',
+            label: 'Audit Trail',
+            translationKey: 'common:admin.auditTrail',
+            href: '/admin/audit-logs',
+            icon: FileText,
+            requiredPermissions: ['ai:audit:view'],
+          },
+        ],
+      },
+    ],
+  },
+];

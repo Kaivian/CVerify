@@ -1,0 +1,81 @@
+"use client";
+
+import { create } from 'zustand';
+import { getCookie, setCookie } from '../services/axios-client';
+
+export type ThemeType = 'light' | 'dark' | 'ocean' | 'emerald' | string;
+
+interface ThemeState {
+  theme: ThemeType;
+  setTheme: (theme: ThemeType) => void;
+  toggleTheme: () => void;
+  initializeTheme: () => void;
+}
+
+// Helper to sanitize theme string
+const cleanTheme = (theme: string | undefined): ThemeType => {
+  if (!theme) return 'dark';
+  return theme;
+};
+
+// Extensible list of theme class names to remove when switching themes
+const KNOWN_THEMES = ['light', 'dark', 'ocean', 'emerald'];
+
+export const useThemeStore = create<ThemeState>((set, get) => ({
+  theme: 'dark', // Default fallback is dark
+
+  setTheme: (newTheme: ThemeType) => {
+    if (typeof window === 'undefined') return;
+
+    const currentTheme = get().theme;
+    if (currentTheme === newTheme) return;
+
+    // 1. Update State
+    set({ theme: newTheme });
+
+    // 2. Synchronize to DOM Element
+    const root = document.documentElement;
+    
+    // Remove all previous known theme classes to avoid conflict
+    KNOWN_THEMES.forEach(t => root.classList.remove(t));
+    if (!KNOWN_THEMES.includes(currentTheme)) {
+      root.classList.remove(currentTheme);
+    }
+
+    // Add the new theme class
+    root.classList.add(newTheme);
+    root.setAttribute('data-theme', newTheme);
+
+    // 3. Persist Theme in Storage & Cookie (1 year max-age)
+    localStorage.setItem('theme', newTheme);
+    setCookie('theme', newTheme, 31536000);
+  },
+
+  toggleTheme: () => {
+    const currentTheme = get().theme;
+    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    get().setTheme(nextTheme);
+  },
+
+  initializeTheme: () => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Read theme from cookie first (highest SSR sync parity), then localStorage, fallback to dark
+    const cookieTheme = getCookie('theme');
+    const localTheme = localStorage.getItem('theme');
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    
+    const activeTheme = cleanTheme(cookieTheme || localTheme || systemTheme);
+
+    // 2. Apply theme without triggers to state if already active
+    set({ theme: activeTheme });
+
+    const root = document.documentElement;
+    KNOWN_THEMES.forEach(t => root.classList.remove(t));
+    root.classList.add(activeTheme);
+    root.setAttribute('data-theme', activeTheme);
+    
+    // 3. Ensure persistent cookies match
+    setCookie('theme', activeTheme, 31536000);
+  }
+}));

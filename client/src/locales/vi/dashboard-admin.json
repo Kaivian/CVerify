@@ -1,0 +1,153 @@
+{
+  "title": "Hệ Thống Quản Trị CVerify",
+  "welcome": "Chào mừng quản trị viên, {{name}}!",
+  "metrics": {
+    "users": "Tổng số người dùng",
+    "partners": "Đối tác hoạt động",
+    "aiQueries": "Lượt truy vấn AI",
+    "revenue": "Tổng giao dịch nền tảng"
+  },
+  "widgets": {
+    "systemSecurity": "Bảo mật hệ thống",
+    "threatLevel": "Mức độ đe dọa: Thấp",
+    "diagnosticLogs": "Nhật ký chẩn đoán bảo mật",
+    "rateLimiter": "Bộ giới hạn tốc độ API",
+    "rateLimitDesc": "Giới hạn brute-force: 5 lần/phút",
+    "aiServicePool": "Nhóm mô hình AI hoạt động"
+  },
+  "logs": {
+    "bypassSandbox": "Quản trị viên đã kích hoạt hộp cát kiểm soát quyền lực hệ thống...",
+    "initialized": "Hệ thống CVerify đã sẵn sàng kiểm tra phiên...",
+    "authHydration": "Đang xác thực bảo mật traveler profile..."
+  },
+  "actions": {
+    "viewSystemLogs": "Xem nhật ký chi tiết",
+    "configureRateLimits": "Cấu hình giới hạn tốc độ",
+    "manageUsers": "Quản lý người dùng"
+  },
+  "banner": {
+    "title": "Bảng Điều Khiển Quản Trị Hệ Thống",
+    "subtitle": "Trung tâm kiểm soát nền tảng. Giám sát sức khỏe máy chủ, quản lý cơ sở dữ liệu người dùng và thực thi các chính sách xác thực.",
+    "lockApi": "Khóa API"
+  },
+  "kpis": {
+    "platformLoad": "TẢI NỀN TẢNG",
+    "platformLoadSub": "Sử dụng bộ nhớ: {{used}}GB / {{total}}GB",
+    "apiHealth": "SỨC KHỎE API",
+    "apiHealthSub": "Độ trễ trung bình: {{ms}}ms",
+    "totalUsers": "TỔNG TÀI KHOẢN NGƯỜI DÙNG",
+    "totalUsersSub": "Phiên hoạt động hiện tại: {{count}}"
+  },
+  "console": {
+    "title": "Nhật ký Bảo mật Hệ thống Gần đây",
+    "subtitle": "Giả lập các sự kiện trạng thái xác thực bảo mật live",
+    "auditTrail": "Kiểm toán hệ thống",
+    "logs": {
+      "successRotation": "Silent Token Rotation hoàn thành. Gia hạn phiên cho {{email}}",
+      "warnBruteForce": "Chặn Brute-force: Khóa RateLimit 429 kích hoạt trên IP {{ip}} (Cổng đăng nhập)",
+      "successOAuth": "Đăng nhập Google OAuth thành công cho tài khoản {{email}}",
+      "infoJwt": "Đã xác thực & giải mã chữ ký JWT. Cấp quyền truy cập /business (Vai trò đối tác)"
+    }
+  },
+  "users": {
+    "title": "Danh Mục Quản Lý Người Dùng",
+    "subtitle": "Kiểm soát hồ sơ người dùng, chuyển đổi trạng thái khóa hoạt động và phân quyền bảo mật.",
+    "syncRecords": "Đồng bộ Bản ghi",
+    "searchPlaceholder": "Tìm kiếm theo họ tên hoặc địa chỉ email...",
+    "status": {
+      "all": "Tất cả trạng thái",
+      "active": "Đang hoạt động",
+      "suspended": "Đang bị khóa",
+      "banned": "Đã bị cấm"
+    },
+    "roles": {
+      "all": "Tất cả vai trò"
+    },
+    "empty": {
+      "title": "Không tìm thấy hành khách nào",
+      "description": "Chúng tôi không tìm thấy hồ sơ cá nhân nào khớp với tiêu chí tìm kiếm của bạn."
+    },
+    "table": {
+      "fullName": "Họ và Tên",
+      "email": "Địa chỉ Email",
+      "status": "Trạng thái Hiện tại",
+      "roles": "Vai trò Đã Gán",
+      "session": "Thu hồi Phiên",
+      "actions": "Hành động",
+      "adjust": "Điều chỉnh Vai trò & Trạng thái"
+    },
+    "modal": {
+      "title": "Điều chỉnh Vai trò & Trạng thái Bảo mật",
+      "cancel": "Hủy bỏ",
+      "apply": "Áp dụng & Hủy bỏ Phiên",
+      "warningTitle": "Cảnh báo Thu hồi Phiên",
+      "warningDesc": "Việc sửa đổi vai trò đã gán hoặc trạng thái chuyển tiếp của người dùng này sẽ tăng phiên bản bảo mật của họ, ngay lập tức vô hiệu hóa tất cả các JWT đang hoạt động. Họ sẽ buộc phải đăng xuất ngay lập tức.",
+      "targetDetails": "Chi tiết Người dùng Mục tiêu",
+      "name": "Họ tên:",
+      "email": "Email:",
+      "statusLabel": "Trạng thái Tài khoản Người dùng",
+      "rolesLabel": "Sơ đồ Ánh xạ Vai trò đã Gán",
+      "statusOptions": {
+        "active": "HOẠT ĐỘNG",
+        "suspended": "ĐANG BỊ KHÓA (Tạm thời)",
+        "banned": "ĐÃ BỊ CẤM (Vĩnh viễn)"
+      }
+    }
+  },
+  "roles": {
+    "title": "Vai Trò & Kiểm Soát Quyền Truy Cập Chi Tiết",
+    "subtitle": "Cấu hình động các mô hình quyền hệ thống và bản đồ phân quyền ủy quyền.",
+    "syncSchemas": "Đồng bộ Bản mẫu",
+    "createCustomRole": "Tạo Vai trò Tùy chỉnh",
+    "allPermissions": "Tất cả Quyền (*)",
+    "granularPermissions": "{{count}} Quyền Chi tiết",
+    "noDescription": "Không có mô tả tùy chỉnh nào được cung cấp cho ánh xạ vai trò bảo mật này.",
+    "editMatrix": "Sửa Ma trận",
+    "delete": "Xóa",
+    "deleteConfirm": "Bạn có chắc chắn muốn xóa vai trò tùy chỉnh này không? Hành động này không thể hoàn tác.",
+    "deleteError": "Không thể xóa vai trò. Hãy đảm bảo không có người dùng nào được gán vai trò này.",
+    "errors": {
+      "displayNameRequired": "Tên hiển thị là bắt buộc.",
+      "codeNameRequired": "Mã định danh vai trò là bắt buộc.",
+      "concurrencyConflict": "Xung đột kiểm soát đồng thời: Vai trò này đã bị thay đổi bởi một quản trị viên khác. Vui lòng làm mới trang và thử lại.",
+      "saveFailed": "Đã xảy ra lỗi khi lưu vai trò."
+    },
+    "builder": {
+      "editTitle": "Sửa Ma trận Phân quyền: {{name}}",
+      "createTitle": "Thiết lập Vai trò Tùy chỉnh",
+      "close": "Đóng Ma trận",
+      "saveChanges": "Lưu Thay đổi",
+      "roleKey": "Mã Vai trò (Mã định danh duy nhất không đổi)",
+      "roleKeyPlaceholder": "Ví dụ: TRAVEL_MANAGER",
+      "displayTitle": "Tên Hiển thị Vai trò",
+      "displayTitlePlaceholder": "Ví dụ: Quản lý Chuyến đi",
+      "purposeDesc": "Mô tả Mục đích Vai trò",
+      "purposeDescPlaceholder": "Cung cấp một bản tóm tắt chi tiết về các trách nhiệm quản trị mà vai trò bảo mật này đảm nhận...",
+      "matrixLabel": "Ma trận Ánh xạ Quyền Chi tiết",
+      "bypassWildcard": "Bỏ qua & Dùng Quyền Toàn cục (*)",
+      "moduleLabel": "Phân hệ {{name}}",
+      "clearModule": "Hủy Phân hệ",
+      "grantModule": "Cấp Phân hệ"
+    }
+  },
+  "auditLogs": {
+    "title": "Nhật Ký Kiểm Toán Hệ Thống",
+    "subtitle": "Nhật ký bất biến ghi lại các hoạt động điều chỉnh vai trò, thu hồi token và các sự kiện xác thực quan trọng.",
+    "syncRecords": "Đồng bộ Bản ghi",
+    "searchPlaceholder": "Tìm kiếm theo email người dùng, tên sự kiện hoặc chi tiết...",
+    "systemContext": "Ngữ cảnh Hệ thống",
+    "empty": {
+      "title": "Không tìm thấy nhật ký nào",
+      "description": "Chúng tôi không tìm thấy sự kiện nhật ký nào khớp với truy vấn của bạn. Hãy thử mở rộng từ khóa tìm kiếm."
+    },
+    "table": {
+      "timestamp": "Mốc thời gian",
+      "triggeredBy": "Kích hoạt Bởi",
+      "eventType": "Loại Sự kiện",
+      "actionDetail": "Chi tiết Hành động",
+      "connectionOrigin": "Nguồn Kết nối",
+      "ariaLabel": "Bản ghi Nhật ký Kiểm toán Hệ thống",
+      "ariaLabelContent": "Nội dung Bảng Bản ghi Nhật ký Kiểm toán Hệ thống"
+    }
+  }
+}

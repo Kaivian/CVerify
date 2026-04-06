@@ -1,0 +1,66 @@
+{
+  "title": "Traveler Hub",
+  "welcome": "Welcome back, {{name}}!",
+  "widgets": {
+    "itineraries": {
+      "title": "My Itineraries",
+      "count": "{{count}} trips",
+      "empty": "No itineraries created yet. Talk to our AI to plan one now!"
+    },
+    "bookings": {
+      "title": "Upcoming Bookings",
+      "count": "{{count}} bookings",
+      "empty": "No upcoming bookings scheduled."
+    },
+    "points": {
+      "title": "Genie Rewards",
+      "value": "{{points}} pts",
+      "loyalty": "Membership Status: {{tier}}"
+    }
+  },
+  "sections": {
+    "recentItineraries": "Recent Itineraries",
+    "recommendedDestinations": "Recommended for You",
+    "specialOffers": "Exclusive Partner Offers"
+  },
+  "actions": {
+    "createTrip": "Plan a New Trip",
+    "viewAllItineraries": "View All Trips",
+    "exploreOffers": "Explore Offers"
+  },
+  "banner": {
+    "welcome": "Welcome back, {{name}}! 👤",
+    "subtitle": "Plan your next journey or search custom itineraries using our AI Travel Guide.",
+    "createPrompt": "Create Prompt"
+  },
+  "profile": {
+    "title": "Profile Details",
+    "subtitle": "Your registered account details",
+    "fullName": "FULL NAME",
+    "email": "EMAIL",
+    "accountId": "ACCOUNT ID",
+    "status": "STATUS",
+    "verified": "Verified Account",
+    "pending": "Pending Verification"
+  },
+  "security": {
+    "title": "Active Role & Permissions",
+    "subtitle": "Assigned RBAC capability limits",
+    "currentRole": "CURRENT ROLE",
+    "grantedAccess": "GRANTED SYSTEM ACCESS",
+    "fullPrivilege": "*:* (Full Privilege Bypass)"
+  },
+  "sandbox": {
+    "title": "Feature Sandbox",
+    "subtitle": "PermissionGuard demonstration",
+    "gatedComponent": "GATED COMPONENT",
+    "gatedComponentDesc": "Requires `trips:create` permission. Add this permission or elevate role to test.",
+    "creatorEnabled": "CREATOR PANEL ENABLED",
+    "creatorEnabledDesc": "You are authorized to write custom itinerary configurations to the central CVerify repository.",
+    "newItinerary": "New Itinerary",
+    "systemControls": "SYSTEM CONTROLS",
+    "systemControlsDesc": "Requires `admin:system:view` permission. Locked for standard travelers.",
+    "systemUnlocked": "SYSTEM CONSOLE UNLOCKED",
+    "systemUnlockedDesc": "You have administrative privileges to monitor platform CPU, database tables, and memory usage."
+  }
+}

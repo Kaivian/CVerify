@@ -1,0 +1,153 @@
+{
+  "title": "CVerify Administration System",
+  "welcome": "Welcome back, {{name}}!",
+  "metrics": {
+    "users": "Total Platform Users",
+    "partners": "Active Vendors",
+    "aiQueries": "Total AI Requests",
+    "revenue": "Gross Merchandise Value"
+  },
+  "widgets": {
+    "systemSecurity": "System Security Node",
+    "threatLevel": "Threat Level: Minimal",
+    "diagnosticLogs": "Security Diagnostics Logs",
+    "rateLimiter": "Brute-Force Rate Limiter",
+    "rateLimitDesc": "Threshold: 5 attempts/min",
+    "aiServicePool": "Active AI Model Cluster"
+  },
+  "logs": {
+    "bypassSandbox": "Administrator activated sandboxed safety controls bypass...",
+    "initialized": "CVerify system security successfully checked dynamic session...",
+    "authHydration": "Verifying secure hydration of traveler profile metadata..."
+  },
+  "actions": {
+    "viewSystemLogs": "Open Detailed Console",
+    "configureRateLimits": "Configure Thresholds",
+    "manageUsers": "Manage Accounts"
+  },
+  "banner": {
+    "title": "System Administrator Console",
+    "subtitle": "Platform control center. Monitor server health, manage users database, and enforce auth policies.",
+    "lockApi": "Lock API"
+  },
+  "kpis": {
+    "platformLoad": "PLATFORM LOAD",
+    "platformLoadSub": "Memory usage: {{used}}GB / {{total}}GB",
+    "apiHealth": "API HEALTH",
+    "apiHealthSub": "Mean latency: {{ms}}ms",
+    "totalUsers": "TOTAL USER RECORDS",
+    "totalUsersSub": "Active sessions right now: {{count}}"
+  },
+  "console": {
+    "title": "Recent System Security Logs",
+    "subtitle": "Simulated live edge-guard authentication status events",
+    "auditTrail": "Audit trail",
+    "logs": {
+      "successRotation": "Silent Token Rotation completed. Session Extended for {{email}}",
+      "warnBruteForce": "Brute-force block: 429 RateLimit lock engaged on IP {{ip}} (Login Endpoint)",
+      "successOAuth": "Google OAuth Login processed for user {{email}}",
+      "infoJwt": "Edge verified & decoded signed JWT. Access granted to /business (Partner role)"
+    }
+  },
+  "users": {
+    "title": "Users Management Directory",
+    "subtitle": "Control user profiles, toggle active locks, and provision security credentials.",
+    "syncRecords": "Sync Records",
+    "searchPlaceholder": "Search by full name or email address...",
+    "status": {
+      "all": "All Statuses",
+      "active": "Active",
+      "suspended": "Suspended",
+      "banned": "Banned"
+    },
+    "roles": {
+      "all": "All Roles"
+    },
+    "empty": {
+      "title": "No travelers found",
+      "description": "We couldn't find any profile directories matching your search criteria."
+    },
+    "table": {
+      "fullName": "Full Name",
+      "email": "Email Address",
+      "status": "Current Status",
+      "roles": "Roles Mapped",
+      "session": "Session Revocation",
+      "actions": "Actions",
+      "adjust": "Adjust Roles & Status"
+    },
+    "modal": {
+      "title": "Adjust Roles & Security Status",
+      "cancel": "Cancel",
+      "apply": "Apply & Force Revoke",
+      "warningTitle": "Session Revocation Warning",
+      "warningDesc": "Modifying this user's assigned roles or transition status will increment their security version, instantly invalidating all active JWTs. They will be forced to log out immediately.",
+      "targetDetails": "Target User Details",
+      "name": "Name:",
+      "email": "Email:",
+      "statusLabel": "User Account Status",
+      "rolesLabel": "Assigned Roles Mapping",
+      "statusOptions": {
+        "active": "ACTIVE",
+        "suspended": "SUSPENDED (Locked Out)",
+        "banned": "BANNED (Permanently Disabled)"
+      }
+    }
+  },
+  "roles": {
+    "title": "Roles & Granular Access Control",
+    "subtitle": "Dynamically configure system permission models and authorization layout maps.",
+    "syncSchemas": "Sync Schemas",
+    "createCustomRole": "Create Custom Role",
+    "allPermissions": "All Permissions (*)",
+    "granularPermissions": "{{count}} Granular Permissions",
+    "noDescription": "No custom description provided for this security role mapping.",
+    "editMatrix": "Edit Matrix",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this custom role? This action cannot be undone.",
+    "deleteError": "Failed to delete role. Ensure no users are assigned to it.",
+    "errors": {
+      "displayNameRequired": "Display name is required.",
+      "codeNameRequired": "Role code name is required.",
+      "concurrencyConflict": "Optimistic Concurrency Conflict: This role has been modified by another administrator. Please refresh and try again.",
+      "saveFailed": "An error occurred while saving the role."
+    },
+    "builder": {
+      "editTitle": "Edit Role Permission Matrix: {{name}}",
+      "createTitle": "Build Custom Role",
+      "close": "Close Matrix",
+      "saveChanges": "Save Changes",
+      "roleKey": "Role Key (Immutable code-name)",
+      "roleKeyPlaceholder": "E.g. TRAVEL_MANAGER",
+      "displayTitle": "Display Title Name",
+      "displayTitlePlaceholder": "E.g. Travel Manager",
+      "purposeDesc": "Role Purpose Description",
+      "purposeDescPlaceholder": "Provide a detailed summary of what administrative responsibilities this security role entails...",
+      "matrixLabel": "Visual Permission Mappings Matrix",
+      "bypassWildcard": "Bypass to System Wildcard (*)",
+      "moduleLabel": "{{name}} Module",
+      "clearModule": "Clear Module",
+      "grantModule": "Grant Module"
+    }
+  },
+  "auditLogs": {
+    "title": "System Audit Trail",
+    "subtitle": "Immutable log trail capturing role adjustments, token revoking, and key auth events.",
+    "syncRecords": "Sync Records",
+    "searchPlaceholder": "Search by user email, event name, or detail...",
+    "systemContext": "System Context",
+    "empty": {
+      "title": "No logs found",
+      "description": "We couldn't find any log occurrences matching your query. Try broadening your keywords."
+    },
+    "table": {
+      "timestamp": "Timestamp",
+      "triggeredBy": "Triggered By",
+      "eventType": "Event Type",
+      "actionDetail": "Action Detail",
+      "connectionOrigin": "Connection Origin",
+      "ariaLabel": "System Audit Trail Records",
+      "ariaLabelContent": "System Audit Trail Records Table Content"
+    }
+  }
+}

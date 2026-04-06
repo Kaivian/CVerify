@@ -1,0 +1,23 @@
+{
+  "title": "Dashboard",
+  "navigation": {
+    "dashboard": "Overview",
+    "aiChat": "AI Chat",
+    "bookings": "My Bookings",
+    "settings": "Settings",
+    "partnerPanel": "Partner Panel",
+    "adminPanel": "Admin Panel"
+  },
+  "sections": {
+    "personal": "Personal",
+    "business": "Business",
+    "system": "System"
+  },
+  "session": {
+    "activeBanner": "Active traveler session",
+    "timeoutWarn": "Session timeout warning",
+    "roleGated": "Role Gated Controls"
+  },
+  "expand": "Expand Sidebar",
+  "collapse": "Collapse Sidebar"
+}

@@ -1,0 +1,37 @@
+{
+  "title": "Account Settings",
+  "subtitle": "Configure your profile details, platform security settings, dynamic preferences, and notification rules.",
+  "tabs": {
+    "profile": "Profile Info",
+    "security": "Security Credentials",
+    "preferences": "User Preferences"
+  },
+  "profile": {
+    "avatar": "Profile Avatar",
+    "uploadAvatar": "Upload New Photo",
+    "removeAvatar": "Remove",
+    "personalInfo": "Personal Details",
+    "fullName": "Full Name",
+    "phone": "Phone Number",
+    "saveChanges": "Save Configurations",
+    "successUpdate": "Your profile information has been updated successfully."
+  },
+  "security": {
+    "changePassword": "Modify Credentials",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmNewPassword": "Confirm New Password",
+    "updatePassword": "Save Credentials",
+    "successUpdate": "Your password has been changed successfully.",
+    "twoFactor": "Two-Factor Verification (2FA)",
+    "twoFactorDesc": "Boost protection by adding dynamic OTP verification via mobile authentication utilities."
+  },
+  "preferences": {
+    "language": "Platform Language",
+    "theme": "Color Scheme Mode",
+    "themeDark": "Dark Theme Style",
+    "themeLight": "Light Theme Style",
+    "currency": "Preferred Currency",
+    "marketingEmails": "Receive custom promotional itineraries recommendations from CVerify AI"
+  }
+}

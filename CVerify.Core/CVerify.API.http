@@ -1,0 +1,129 @@
+﻿@HostAddress = http://localhost:5000
+
+### =========================================================
+### System Endpoints
+### =========================================================
+
+### Get Database Status
+GET {{HostAddress}}/api/system/database-status
+Accept: application/json
+
+###
+
+### Get System Status
+GET {{HostAddress}}/api/system/status
+Accept: application/json
+
+###
+
+### Get System Health
+GET {{HostAddress}}/api/system/health
+Accept: application/json
+
+###
+
+### Get System Version
+GET {{HostAddress}}/api/system/version
+Accept: application/json
+
+###
+
+### Get System Info
+GET {{HostAddress}}/api/system/info
+Accept: application/json
+
+###
+
+### Get System Time
+GET {{HostAddress}}/api/system/time
+Accept: application/json
+
+###
+
+
+### =========================================================
+### Enterprise Authentication & Recovery Endpoints
+### =========================================================
+
+### 1. Register a new user
+POST {{HostAddress}}/api/auth/register
+Content-Type: application/json
+User-Agent: VSCode HTTP Client
+
+{
+  "email": "testuser@cverify.ai",
+  "password": "Password123!",
+  "confirmPassword": "Password123!",
+  "fullName": "Test User"
+}
+
+###
+
+### 2. Verify Email Address (Use token from outbox/email)
+POST {{HostAddress}}/api/auth/verify-email
+Content-Type: application/json
+
+{
+  "token": "REPLACE_WITH_ACTUAL_TOKEN_HERE"
+}
+
+###
+
+### 3. Resend Verification Link (Enforces 1-minute cooldown)
+POST {{HostAddress}}/api/auth/resend-verification
+Content-Type: application/json
+
+{
+  "email": "testuser@cverify.ai"
+}
+
+###
+
+### 4. Login (Successful only after email is verified)
+POST {{HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@cverify.ai",
+  "password": "Password123!"
+}
+
+###
+
+### 5. Forgot Password / Request Recovery (Enforces cooldown & enumeration prevention)
+POST {{HostAddress}}/api/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "testuser@cverify.ai"
+}
+
+###
+
+### 6. Reset Password
+POST {{HostAddress}}/api/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "REPLACE_WITH_ACTUAL_TOKEN_HERE",
+  "password": "NewPassword456!",
+  "confirmPassword": "NewPassword456!"
+}
+
+###
+
+### 7. Get Current User Profile (Requires Login HTTP Cookie)
+GET {{HostAddress}}/api/auth/me
+Accept: application/json
+
+###
+
+### 8. Refresh Token (Rotates session tokens)
+POST {{HostAddress}}/api/auth/refresh-token
+Content-Type: application/json
+
+###
+
+### 9. Logout (Globally invalidates active session)
+POST {{HostAddress}}/api/auth/logout
+Content-Type: application/json

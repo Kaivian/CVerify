@@ -1,0 +1,94 @@
+{
+  "branding": {
+    "title": "CVerify",
+    "tagline": "Người bạn đồng hành du lịch thế hệ mới",
+    "description": "Lên kế hoạch, đặt dịch vụ và trải nghiệm hành trình tùy chỉnh được thiết kế trong vài giây bởi trí tuệ nhân tạo tiên tiến.",
+    "journeyPrompt": "Hành trình của bạn bắt đầu bằng một câu lệnh."
+  },
+  "navigation": {
+    "home": "Trang chủ",
+    "dashboard": "Bảng điều khiển",
+    "login": "Đăng nhập",
+    "register": "Đăng ký",
+    "logout": "Đăng xuất",
+    "terms": "Điều khoản",
+    "privacy": "Bảo mật"
+  },
+  "buttons": {
+    "submit": "Gửi đi",
+    "cancel": "Hủy bỏ",
+    "save": "Lưu lại",
+    "close": "Đóng",
+    "back": "Quay lại",
+    "continue": "Tiếp tục",
+    "loading": "Đang tải...",
+    "retry": "Thử lại",
+    "confirm": "Xác nhận",
+    "next": "Tiếp theo",
+    "previous": "Trước đó"
+  },
+  "status": {
+    "active": "Hoạt động",
+    "inactive": "Không hoạt động",
+    "pending": "Đang chờ",
+    "completed": "Hoàn thành",
+    "failed": "Thất bại",
+    "expired": "Hết hạn",
+    "success": "Thành công",
+    "error": "Lỗi"
+  },
+  "misc": {
+    "loadingSession": "Đang xác thực trạng thái phiên...",
+    "hydratingProfile": "Đang tải thông tin cá nhân...",
+    "copyright": "© 2026 CVerify AI Inc. Bảo lưu mọi quyền."
+  },
+  "sessionVerification": {
+    "initializing": "Đang khởi tạo phiên bảo mật...",
+    "establishing": "Đang thiết lập kênh xác thực...",
+    "verifying": "Đang xác minh token danh tính...",
+    "verified": "Phiên đã xác thực — đang chuyển hướng...",
+    "preparing": "Đang chuẩn bị xác thực...",
+    "securityBadge": "Phiên được mã hóa",
+    "protocol": "PROTOCOL V1.0.0"
+  },
+  "landing": {
+    "liveBadge": "Tính năng xác thực & phân quyền cấp doanh nghiệp đã sẵn sàng",
+    "headline": "Bảo mật phân vai phi tập trung cho ứng dụng TravelTech hiện đại.",
+    "description": "CVerify AI tích hợp quản lý trạng thái đồng bộ với Zustand, mã hóa JWT, chống tấn công CSRF, đồng bộ phiên bằng Broadcast và khóa cảnh báo không hoạt động.",
+    "enterHub": "Vào Traveler Hub",
+    "accessConsole": "Vào Bảng Điều Khiển",
+    "goConsole": "Đến Bảng Điều Khiển",
+    "roles": {
+      "userTitle": "Hành khách (USER)",
+      "userDesc": "Bảng điều khiển cho hành khách tiêu chuẩn, cho phép lập kế hoạch du lịch, tìm kiếm gợi ý bằng AI và xem lịch sử chuyến đi cá nhân.",
+      "businessTitle": "Đối tác dịch vụ (BUSINESS)",
+      "businessDesc": "Bảng điều khiển cho đối tác để quản lý các gói khách sạn, niêm yết tour du lịch và đánh giá dòng doanh thu từ hành khách đặt lịch.",
+      "adminTitle": "Quản trị hệ thống (ADMIN)",
+      "adminDesc": "Bảng điều khiển quản trị toàn cầu cung cấp phân tích chẩn đoán sức khỏe máy chủ, quản lý tài khoản và cổng khóa API trực tiếp."
+    },
+    "footerNote": "Tích hợp Cổng Xác thực CVerify AI. Đã xác thực cho Next.js 16 + HeroUI v3 + Tailwind v4."
+  },
+  "dashboard": {
+    "travelerHub": "Traveler Hub",
+    "aiPlanner": "AI Planner Chat",
+    "partnerConsole": "Partner Console",
+    "systemAdmin": "System Admin",
+    "sessionProtected": "Phiên được bảo vệ",
+    "pages": "Trang",
+    "sections": {
+      "general": "Chung",
+      "candidate": "Ứng viên",
+      "business": "Doanh nghiệp"
+    },
+    "jobBoard": "Bảng tin tuyển dụng",
+    "cv": "CV của tôi",
+    "candidateDashboard": "Bảng điều khiển",
+    "businessDashboard": "Bảng điều khiển doanh nghiệp"
+  },
+  "admin": {
+    "dashboard": "Quản trị",
+    "users": "Người dùng",
+    "rolesMatrix": "Ma trận phân quyền",
+    "auditTrail": "Nhật ký kiểm toán"
+  }
+}

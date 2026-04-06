@@ -1,0 +1,24 @@
+{
+  "general": {
+    "success": "Thành công!",
+    "error": "Lỗi!",
+    "warning": "Cảnh báo!",
+    "info": "Thông tin"
+  },
+  "session": {
+    "timeoutTitle": "Hết hạn phiên đăng nhập",
+    "timeoutDesc": "Do bạn không hoạt động trong một thời gian dài, phiên của bạn sắp kết thúc để bảo vệ tài khoản.",
+    "timeoutCountdown": "Phiên làm việc sẽ tự động đóng trong {{count}} giây.",
+    "keepActive": "Tiếp tục làm việc",
+    "logoutNow": "Đăng xuất ngay",
+    "hydratingProfile": "Đang xác thực bảo mật traveler profile..."
+  },
+  "rateLimit": {
+    "bruteForceTitle": "Đăng nhập bị khóa tạm thời",
+    "bruteForceDesc": "Bạn đã nhập sai mật khẩu quá nhiều lần. Để bảo mật hệ thống, vui lòng chờ {{count}} giây trước khi thử lại."
+  },
+  "clipboard": {
+    "copySuccessTitle": "Sao chép thành công",
+    "copySuccessDesc": "Nội dung hành trình đã được sao chép vào khay nhớ tạm."
+  }
+}

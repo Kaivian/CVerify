@@ -1,0 +1,94 @@
+{
+  "branding": {
+    "title": "CVerify",
+    "tagline": "Next-Gen Travel Companion",
+    "description": "Plan, book, and explore custom itineraries designed in seconds by advanced intelligence. Experience travel re-imagined.",
+    "journeyPrompt": "Your journey begins with a single prompt."
+  },
+  "navigation": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "login": "Sign In",
+    "register": "Sign Up",
+    "logout": "Logout",
+    "terms": "Terms",
+    "privacy": "Privacy"
+  },
+  "buttons": {
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "close": "Close",
+    "back": "Back",
+    "continue": "Continue",
+    "loading": "Loading...",
+    "retry": "Retry",
+    "confirm": "Confirm",
+    "next": "Next",
+    "previous": "Previous"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive",
+    "pending": "Pending",
+    "completed": "Completed",
+    "failed": "Failed",
+    "expired": "Expired",
+    "success": "Success",
+    "error": "Error"
+  },
+  "misc": {
+    "loadingSession": "Verifying session status...",
+    "hydratingProfile": "Hydrating traveler profile...",
+    "copyright": "© 2026 CVerify AI Inc. All rights reserved."
+  },
+  "sessionVerification": {
+    "initializing": "Initializing secure session...",
+    "establishing": "Establishing authentication channel...",
+    "verifying": "Verifying identity token...",
+    "verified": "Session verified — redirecting...",
+    "preparing": "Preparing authentication...",
+    "securityBadge": "Encrypted Session",
+    "protocol": "PROTOCOL V1.0.0"
+  },
+  "landing": {
+    "liveBadge": "Production-grade AuthN & AuthZ Module Live",
+    "headline": "Decoupled Role-Based Security for modern TravelTech.",
+    "description": "CVerify AI integrates Zustand state hydration, edge JWT cryptography, anti-CSRF protections, Broadcast session syncing, and inactivity warning locks.",
+    "enterHub": "Enter Traveler Hub",
+    "accessConsole": "Access Console",
+    "goConsole": "Go to Console",
+    "roles": {
+      "userTitle": "Traveler (USER)",
+      "userDesc": "Standard traveler dashboard giving full access to planning, searching prompts, and reviewing personal travel history details.",
+      "businessTitle": "Service Partner (BUSINESS)",
+      "businessDesc": "Partner dashboard to manage hotel packages, list excursions, and evaluate incoming travelers reservation revenue pools.",
+      "adminTitle": "System Admin (ADMIN)",
+      "adminDesc": "Global system control dashboard offering server health diagnostic analytics, account registries, and direct API lock gates."
+    },
+    "footerNote": "CVerify AI Auth Portal Integration. Verified for Next.js 16 + HeroUI v3 + Tailwind v4."
+  },
+  "dashboard": {
+    "travelerHub": "Dashboard",
+    "aiPlanner": "AI Planner Chat",
+    "partnerConsole": "Partner Console",
+    "systemAdmin": "System Admin",
+    "sessionProtected": "Session Protected",
+    "pages": "Pages",
+    "sections": {
+      "general": "General",
+      "candidate": "Candidate",
+      "business": "Business"
+    },
+    "jobBoard": "Job Board",
+    "cv": "My CV",
+    "candidateDashboard": "Candidate Dashboard",
+    "businessDashboard": "Business Dashboard"
+  },
+  "admin": {
+    "dashboard": "Admin",
+    "users": "Users",
+    "rolesMatrix": "Roles Matrix",
+    "auditTrail": "Audit Trail"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "UNKNOWN_ERROR": "An unknown error occurred. Please try again later.",
+  "NETWORK_ERROR": "Could not connect to server. Please check your internet connection.",
+  "UNAUTHORIZED": "You are unauthorized to access this. Please sign in again.",
+  "FORBIDDEN": "You are forbidden from performing this operational query.",
+  "NOT_FOUND": "The requested resource could not be found.",
+  "BAD_REQUEST": "Invalid request inputs.",
+  "SERVER_ERROR": "System server exception occurred. Core engineering team alerted.",
+  "RATE_LIMIT_EXCEEDED": "Too many requests. Please try again in a few minutes.",
+  "AUTH_EXPIRED_TOKEN": "The authorization token has expired. Please request a new link.",
+  "INVALID_CREDENTIALS": "The email or password details are incorrect.",
+  "BRUTE_FORCE_LOCKED": "Account locked temporarily. Please try again in {{count}}s.",
+  "EMAIL_ALREADY_EXISTS": "This email is already associated with an active traveler profile.",
+  "VALIDATION_ERROR": "Input formats failed standard verification schemas."
+}
