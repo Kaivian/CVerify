@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { MoreHorizontal, LucideIcon } from 'lucide-react';
+import { MoreHorizontal, type LucideIcon } from 'lucide-react';
 import { Dropdown, Label, Typography } from '@heroui/react';
 import { Button } from './button';
 import { DialogModal } from './dialog-modal';

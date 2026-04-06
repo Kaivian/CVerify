@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Button, Input, Link } from "@heroui/react";
-import { Typography } from "@heroui/react";
+import { Button, Input, Link, Typography } from "@heroui/react";
 import {
   Globe,
   Plus,
@@ -120,6 +119,7 @@ const DynamicBrandIcon: React.FC<{ url: string; className?: string }> = ({ url, 
 
   // Fetch from thesvg.org CDN. Handles dynamic fallback beautifully if the brand doesn't exist
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={`https://thesvg.org/icons/${slug}/default.svg`}
       alt={`${slug} logo`}

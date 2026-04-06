@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '@/services/admin.service';
-import { UserListItem, RoleListItem } from '@/types/admin.types';
+import { type UserListItem, type RoleListItem } from '@/types/admin.types';
 import { Spinner, Checkbox, Label, Typography } from '@heroui/react';
 import { Search, RotateCw, Users, Edit2, AlertCircle } from 'lucide-react';
 import { DialogModal } from '@/components/ui/dialog-modal';

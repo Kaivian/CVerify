@@ -19,7 +19,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   return (
     <div className="relative">
       {hasHeader && (
-        <div className="bg-background z-30 flex flex-col text-left pl-4 py-2 rounded-b-2xl">
+        <div className="bg-background z-30 flex flex-col text-left pl-4 pb-2">
           {title && (
             <Typography type="body-sm" className="font-bold uppercase text-sm">
               {title}

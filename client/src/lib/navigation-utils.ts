@@ -1,5 +1,5 @@
-import { NavigationNode } from '../types/navigation.types';
-import { ResourceActionPermission, UserRole } from '../types/auth.types';
+import { type NavigationNode } from '../types/navigation.types';
+import { type ResourceActionPermission, type UserRole } from '../types/auth.types';
 
 /**
  * Checks if a navigation item's href matches the current route pathname.

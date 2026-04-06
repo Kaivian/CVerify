@@ -1,17 +1,17 @@
 import 'i18next';
 
-import common from '../locales/vi/common.json';
-import auth from '../locales/vi/auth.json';
-import navbar from '../locales/vi/navbar.json';
-import sidebar from '../locales/vi/sidebar.json';
-import dashboardUser from '../locales/vi/dashboard-user.json';
-import dashboardBusiness from '../locales/vi/dashboard-business.json';
-import dashboardAdmin from '../locales/vi/dashboard-admin.json';
-import chatVerification from '../locales/vi/chat-verification.json';
-import bookings from '../locales/vi/bookings.json';
-import settings from '../locales/vi/settings.json';
-import notifications from '../locales/vi/notifications.json';
-import errors from '../locales/vi/errors.json';
+import type common from '../locales/vi/common.json';
+import type auth from '../locales/vi/auth.json';
+import type navbar from '../locales/vi/navbar.json';
+import type sidebar from '../locales/vi/sidebar.json';
+import type dashboardUser from '../locales/vi/dashboard-user.json';
+import type dashboardBusiness from '../locales/vi/dashboard-business.json';
+import type dashboardAdmin from '../locales/vi/dashboard-admin.json';
+import type chatVerification from '../locales/vi/chat-verification.json';
+import type bookings from '../locales/vi/bookings.json';
+import type settings from '../locales/vi/settings.json';
+import type notifications from '../locales/vi/notifications.json';
+import type errors from '../locales/vi/errors.json';
 
 declare module 'i18next' {
   interface CustomTypeOptions {

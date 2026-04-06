@@ -1,8 +1,8 @@
-import { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { axiosClient } from './axios-client';
 import { normalizeError } from './error-normalizer';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
-import { ApiError } from '@/types/api.types';
+import { type ApiError } from '@/types/api.types';
 
 // Single-flight refresh queue to prevent thundering herd on token expiry
 let isRefreshing = false;

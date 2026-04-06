@@ -9,8 +9,8 @@ import { ChevronDown } from "lucide-react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
 import { isActiveRoute } from "../../../lib/navigation-utils";
 import {
-  NavigationGroupItem,
-  NavigationNode,
+  type NavigationGroupItem,
+  type NavigationNode,
 } from "../../../types/navigation.types";
 import SidebarLink from "./sidebar-link";
 
@@ -198,8 +198,8 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
             {/* Active descendant indication dot on top-right of the icon */}
             {hasActiveDescendant && (
               <span className="absolute top-2 right-2 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent" />
               </span>
             )}
 

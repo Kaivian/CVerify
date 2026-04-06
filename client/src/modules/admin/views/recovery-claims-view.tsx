@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { recoveryApi, ClaimDetailsResponseData } from '@/features/auth/services/recovery.service';
+import { recoveryApi, type ClaimDetailsResponseData } from '@/features/auth/services/recovery.service';
 import {
   Card,
   Typography,

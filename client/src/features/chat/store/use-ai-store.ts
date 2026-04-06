@@ -156,7 +156,7 @@ export const useAiStore = create<AIState>((set, get) => ({
         headers,
         body: JSON.stringify({
           conversationId: activeConversationId || undefined,
-          prompt: prompt
+          prompt
         }),
         credentials: 'include',
         signal: controller.signal

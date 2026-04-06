@@ -1,19 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { recoveryApi } from "@/features/auth/services/recovery.service";
-import {
-  Card,
-  Typography,
-  Button,
-  Form,
-  toast,
-  Spinner,
-} from "@heroui/react";
+import { Card, Typography, Button, Form, toast, Spinner } from "@heroui/react";
 import {
   ShieldCheck,
   AlertTriangle,
@@ -46,37 +39,20 @@ export function AdminVoteView() {
   const router = useRouter();
   const token = searchParams.get("token") || "";
 
-  const [parsedPayload, setParsedPayload] = useState<ParsedTokenPayload | null>(null);
-  const [tokenError, setTokenError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [voteReceipt, setVoteReceipt] = useState<{
-    decision: "approve" | "reject";
-    timestamp: string;
-  } | null>(null);
+  const { parsedPayload, tokenError } = useMemo(() => {
+    let parsedPayload: ParsedTokenPayload | null = null;
+    let tokenError: string | null = null;
 
-  const {
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<VoteInput>({
-    resolver: zodResolver(voteSchema),
-  });
-
-  const selectedDecision = watch("decision");
-
-  // Client-side base64 token parsing for presentation details
-  useEffect(() => {
     if (!token) {
-      setTokenError("Security token is missing from the URL. Please verify your voting link.");
-      return;
+      tokenError = "Security token is missing from the URL. Please verify your voting link.";
+      return { parsedPayload, tokenError };
     }
 
     try {
       const parts = token.split(".");
       if (parts.length !== 2) {
-        setTokenError("Cryptographic token has invalid structure.");
-        return;
+        tokenError = "Cryptographic token has invalid structure.";
+        return { parsedPayload, tokenError };
       }
 
       const payloadBase64 = parts[0];
@@ -86,16 +62,36 @@ export function AdminVoteView() {
       // Verify expiration client-side for UX feedback
       const currentTime = Math.floor(Date.now() / 1000);
       if (currentTime > payload.exp) {
-        setTokenError("This voting link has expired (48-hour validity exceeded).");
-        return;
+        tokenError = "This voting link has expired (48-hour validity exceeded).";
+        return { parsedPayload, tokenError };
       }
 
-      setParsedPayload(payload);
+      parsedPayload = payload;
     } catch (err) {
       console.error("Token decoding error", err);
-      setTokenError("Failed to parse the cryptographic security token.");
+      tokenError = "Failed to parse the cryptographic security token.";
     }
+
+    return { parsedPayload, tokenError };
   }, [token]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [voteReceipt, setVoteReceipt] = useState<{
+    decision: "approve" | "reject";
+    timestamp: string;
+  } | null>(null);
+
+  const form = useForm<VoteInput>({
+    resolver: zodResolver(voteSchema),
+  });
+
+  const {
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = form;
+
+  const selectedDecision = useWatch({ control: form.control, name: "decision" });
 
   const onSubmitVote = async (data: VoteInput) => {
     setIsSubmitting(true);
@@ -136,7 +132,10 @@ export function AdminVoteView() {
             <XCircle className="size-8 text-danger" />
           </div>
 
-          <Typography.Heading level={3} className="text-2xl font-extrabold text-foreground text-center">
+          <Typography.Heading
+            level={3}
+            className="text-2xl font-extrabold text-foreground text-center"
+          >
             Invalid Voting Link
           </Typography.Heading>
 
@@ -162,33 +161,49 @@ export function AdminVoteView() {
     const isApproved = voteReceipt.decision === "approve";
     return (
       <Card className="w-full relative overflow-hidden max-h-[85vh] flex flex-col premium-glass border-accent/20">
-        <div className={`absolute top-0 left-0 w-full h-1.5 shrink-0 ${isApproved ? "bg-success" : "bg-danger"}`} />
+        <div
+          className={`absolute top-0 left-0 w-full h-1.5 shrink-0 ${isApproved ? "bg-success" : "bg-danger"}`}
+        />
         <div className="flex flex-col items-center p-8 overflow-y-auto">
-          <div className={`w-16 h-16 flex items-center justify-center rounded-2xl mb-6 border ${
-            isApproved
-              ? "bg-success/15 border-success/35 text-success"
-              : "bg-danger/15 border-danger/35 text-danger"
-          }`}>
-            {isApproved ? <CheckCircle2 className="size-8" /> : <XCircle className="size-8" />}
+          <div
+            className={`w-16 h-16 flex items-center justify-center rounded-2xl mb-6 border ${
+              isApproved
+                ? "bg-success/15 border-success/35 text-success"
+                : "bg-danger/15 border-danger/35 text-danger"
+            }`}
+          >
+            {isApproved ? (
+              <CheckCircle2 className="size-8" />
+            ) : (
+              <XCircle className="size-8" />
+            )}
           </div>
 
-          <Typography.Heading level={3} className="text-2xl font-extrabold text-foreground text-center">
+          <Typography.Heading
+            level={3}
+            className="text-2xl font-extrabold text-foreground text-center"
+          >
             Decision Successfully Registered
           </Typography.Heading>
 
           <Typography className="text-sm text-muted text-center mt-2 max-w-md leading-relaxed">
-            Your decision has been digitally signed and logged in the immutable compliance audit logs.
+            Your decision has been digitally signed and logged in the immutable
+            compliance audit logs.
           </Typography>
 
           <div className="w-full mt-6 space-y-4 p-5 rounded-2xl bg-surface-secondary border border-border select-none">
             <div className="flex justify-between items-center text-xs">
               <span className="text-muted">Decision Action</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                isApproved
-                  ? "bg-success/15 text-success border-success/20"
-                  : "bg-danger/15 text-danger border-danger/20"
-              }`}>
-                {isApproved ? "Approved Representative Change" : "Rejected Representative Change"}
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                  isApproved
+                    ? "bg-success/15 text-success border-success/20"
+                    : "bg-danger/15 text-danger border-danger/20"
+                }`}
+              >
+                {isApproved
+                  ? "Approved Representative Change"
+                  : "Rejected Representative Change"}
               </span>
             </div>
 
@@ -243,7 +258,7 @@ export function AdminVoteView() {
   return (
     <Card className="w-full relative overflow-hidden max-h-[85vh] flex flex-col premium-glass border-accent/20">
       <div className="absolute top-0 left-0 w-full h-1.5 bg-accent shrink-0" />
-      
+
       {/* Premium Governance Header */}
       <div className="w-full flex items-center justify-between px-6 py-4 border-b border-border shrink-0 select-none">
         <div className="flex items-center gap-2.5">
@@ -270,9 +285,14 @@ export function AdminVoteView() {
           <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 flex gap-3 text-left items-start select-none">
             <AlertTriangle className="size-5 text-warning shrink-0 mt-0.5" />
             <div>
-              <Typography className="text-xs font-bold text-warning">Irreversible Administrative Override</Typography>
+              <Typography className="text-xs font-bold text-warning">
+                Irreversible Administrative Override
+              </Typography>
               <Typography className="text-[10px] text-muted mt-1 leading-normal">
-                Approving this action authorizes a complete rotation of the official representative. Active user sessions, refresh tokens, and integration credentials will be revoked to secure workspace transition.
+                Approving this action authorizes a complete rotation of the
+                official representative. Active user sessions, refresh tokens,
+                and integration credentials will be revoked to secure workspace
+                transition.
               </Typography>
             </div>
           </div>
@@ -282,7 +302,9 @@ export function AdminVoteView() {
             <div className="flex items-center gap-3">
               <Building2 className="size-5 text-muted shrink-0" />
               <div>
-                <Typography className="text-[10px] text-muted leading-none">Registered Role</Typography>
+                <Typography className="text-[10px] text-muted leading-none">
+                  Registered Role
+                </Typography>
                 <Typography className="text-sm font-bold text-foreground mt-1 capitalize leading-none">
                   {parsedPayload.approverRole.replace("_", " ")}
                 </Typography>
@@ -292,7 +314,9 @@ export function AdminVoteView() {
             <div className="flex items-center gap-3">
               <Clock className="size-5 text-muted shrink-0" />
               <div>
-                <Typography className="text-[10px] text-muted leading-none">Link Validity Expiration</Typography>
+                <Typography className="text-[10px] text-muted leading-none">
+                  Link Validity Expiration
+                </Typography>
                 <Typography className="text-xs font-semibold text-foreground mt-1 leading-none">
                   {new Date(parsedPayload.exp * 1000).toLocaleString()}
                 </Typography>
@@ -302,7 +326,9 @@ export function AdminVoteView() {
             <div className="flex items-center gap-3">
               <ArrowRightLeft className="size-5 text-muted shrink-0" />
               <div>
-                <Typography className="text-[10px] text-muted leading-none">Governance Request ID</Typography>
+                <Typography className="text-[10px] text-muted leading-none">
+                  Governance Request ID
+                </Typography>
                 <Typography className="text-[10px] font-mono font-bold text-muted/80 mt-1 select-all leading-none">
                   {parsedPayload.requestId}
                 </Typography>

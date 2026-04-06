@@ -11,7 +11,7 @@ export function formatCurrency(amount: number, currency: string = 'VND', locale:
   try {
     return new Intl.NumberFormat(locale, {
       style: 'currency',
-      currency: currency,
+      currency,
       minimumFractionDigits: currency === 'VND' ? 0 : 2,
       maximumFractionDigits: currency === 'VND' ? 0 : 2,
     }).format(amount);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { forwardRef } from 'react';
-import { Button as HeroButton, ButtonProps as HeroButtonProps } from '@heroui/react';
+import { Button as HeroButton, type ButtonProps as HeroButtonProps } from '@heroui/react';
 
 interface ButtonProps extends Omit<HeroButtonProps, 'variant' | 'children'> {
   variant?: 'solid' | 'bordered' | 'light' | 'flat' | 'ghost' | 'outline' | 'primary' | 'secondary' | 'danger';

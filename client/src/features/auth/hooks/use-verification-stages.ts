@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../store/use-auth-store';
-import { BootstrapState } from '../../../types/auth.types';
+import { type BootstrapState } from '../../../types/auth.types';
 import { useTranslation } from 'react-i18next';
 
 /** Union of all session verification i18n keys used in stage definitions */

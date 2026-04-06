@@ -381,7 +381,7 @@ const ShapeGrid = ({
     };
   }, [direction, speed, borderColor, hoverFillColor, squareSize, shape, hoverTrailAmount]);
 
-  return <canvas ref={canvasRef} className={`shapegrid-canvas ${className}`}></canvas>;
+  return <canvas ref={canvasRef} className={`shapegrid-canvas ${className}`} />;
 };
 
 export default ShapeGrid;

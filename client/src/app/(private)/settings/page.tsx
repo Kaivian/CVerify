@@ -1,21 +1,27 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Typography, Tabs, Separator } from "@heroui/react";
+import {
+  Typography,
+  Tabs,
+  Separator,
+  Button,
+  AlertDialog,
+} from "@heroui/react";
 import {
   User,
   Briefcase,
   Settings,
   AlertTriangle,
   CheckCircle,
+  BookOpen,
 } from "lucide-react";
 import { ProfileTab } from "./components/ProfileTab";
+import { PersonalInfoTab } from "./components/PersonalInfoTab";
 import { CareerTab } from "./components/CareerTab";
 import { AccountTab } from "./components/AccountTab";
-import { DialogModal } from "@/components/ui/dialog-modal";
-import { Button } from "@/components/ui/button";
 
-type TabId = "profile" | "career" | "account";
+type TabId = "profile" | "personal-info" | "career" | "account";
 
 interface TabItem {
   id: TabId;
@@ -36,6 +42,7 @@ export default function SettingsPage() {
 
   const tabs: TabItem[] = [
     { id: "profile", label: "Profile Settings", icon: User },
+    { id: "personal-info", label: "Personal Information", icon: BookOpen },
     { id: "career", label: "Career Preferences", icon: Briefcase },
     { id: "account", label: "Account & Security", icon: Settings },
   ];
@@ -108,6 +115,7 @@ export default function SettingsPage() {
             className="text-accent font-extrabold uppercase tracking-widest"
           >
             {activeTab === "profile" && "Profile Information"}
+            {activeTab === "personal-info" && "Personal Information"}
             {activeTab === "career" && "Career Preferences"}
             {activeTab === "account" && "Account & Security"}
           </Typography>
@@ -119,6 +127,12 @@ export default function SettingsPage() {
               <span>
                 Update your name, public contact email, location,
                 <br /> and write a small bio detailing your work.
+              </span>
+            )}
+            {activeTab === "personal-info" && (
+              <span>
+                Manage your academic credentials, education history,
+                <br /> and degrees verified by CVerify.
               </span>
             )}
             {activeTab === "career" && (
@@ -171,10 +185,18 @@ export default function SettingsPage() {
             })}
           </Tabs.List>
         </Tabs.ListContainer>
-        <main className="w-full flex-1 min-h-0 overflow-y-auto pr-2 pb-6 flex flex-col">
+        <main className="w-full flex-1 min-h-0 overflow-y-auto pr-2 flex flex-col">
           <Tabs.Panel id="profile" className="p-0">
             {activeTab === "profile" && (
               <ProfileTab
+                onDirtyChange={setIsFormDirty}
+                onSaveSuccess={triggerSaveNotification}
+              />
+            )}
+          </Tabs.Panel>
+          <Tabs.Panel id="personal-info" className="p-0">
+            {activeTab === "personal-info" && (
+              <PersonalInfoTab
                 onDirtyChange={setIsFormDirty}
                 onSaveSuccess={triggerSaveNotification}
               />
@@ -200,53 +222,61 @@ export default function SettingsPage() {
       </Tabs>
 
       {/* 1. Tab Switching Danger Warning Modal */}
-      <DialogModal
+      <AlertDialog.Backdrop
         isOpen={isConfirmModalOpen}
-        onOpenChange={setIsConfirmModalOpen}
-        title="Discard Unsaved Changes?"
-        footer={
-          <div className="flex items-center gap-2.5 w-full justify-end select-none">
-            <Button
-              variant="bordered"
-              onClick={() => {
-                setIsConfirmModalOpen(false);
-                setPendingTab(null);
-              }}
-              className="rounded-xl font-bold text-xs h-9 px-4 cursor-pointer"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="solid"
-              onClick={confirmTabSwitch}
-              className="rounded-xl font-bold bg-danger border border-danger text-danger-foreground text-xs h-9 px-4 cursor-pointer hover:opacity-90"
-            >
-              Discard modifications
-            </Button>
-          </div>
-        }
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsConfirmModalOpen(false);
+            setPendingTab(null);
+          }
+        }}
       >
-        <div className="flex items-start gap-3.5 py-1 text-left select-none">
-          <div className="w-10 h-10 rounded-xl bg-danger/10 text-danger flex items-center justify-center shrink-0 border border-danger/25">
-            <AlertTriangle size={18} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Typography
-              type="body-sm"
-              className="font-bold text-foreground font-outfit"
-            >
-              You have unsaved changes.
-            </Typography>
-            <Typography
-              type="body-xs"
-              className="text-muted leading-relaxed font-medium"
-            >
-              Switching tabs will discard all changes made to your active forms.
-              Are you sure you want to proceed and lose these edits?
-            </Typography>
-          </div>
-        </div>
-      </DialogModal>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog className="sm:max-w-[400px]">
+            {(renderProps) => (
+              <>
+                <AlertDialog.CloseTrigger />
+                <AlertDialog.Header>
+                  <AlertDialog.Icon status="warning">
+                    <AlertTriangle className="size-5" />
+                  </AlertDialog.Icon>
+                  <AlertDialog.Heading>
+                    Discard Unsaved Changes?
+                  </AlertDialog.Heading>
+                </AlertDialog.Header>
+                <AlertDialog.Body>
+                  <p>
+                    Switching tabs will discard all changes made to your active
+                    forms. Are you sure you want to proceed and lose these
+                    edits?
+                  </p>
+                </AlertDialog.Body>
+                <AlertDialog.Footer>
+                  <Button
+                    variant="tertiary"
+                    onPress={() => {
+                      setPendingTab(null);
+                      renderProps.close();
+                    }}
+                    className="rounded-xl"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onPress={() => {
+                      confirmTabSwitch();
+                      renderProps.close();
+                    }}
+                    className="bg-warning-soft text-warning rounded-xl"
+                  >
+                    Discard modifications
+                  </Button>
+                </AlertDialog.Footer>
+              </>
+            )}
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
 
       {/* 2. Success Toast Alert Banner */}
       {showSuccessToast && (

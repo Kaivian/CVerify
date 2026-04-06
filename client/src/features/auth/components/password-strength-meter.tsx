@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   evaluatePasswordStrength, 
   passwordPoliciesRegistry,
-  PasswordRule
+  type PasswordRule
 } from '../security/password-policy';
 
 interface PasswordStrengthMeterProps {

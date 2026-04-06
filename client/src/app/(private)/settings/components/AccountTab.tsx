@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import {
   AlertTriangle,
   ShieldX,
 } from "lucide-react";
-import { SessionInfoData } from "@/types/auth.types";
+import { type SessionInfoData } from "@/types/auth.types";
 
 // Reserved usernames
 const RESERVED_USERNAMES = [
@@ -88,13 +88,12 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   const {
     handleSubmit,
-    watch,
     reset,
     setValue,
     formState: { isDirty, isSubmitting, errors },
   } = methods;
 
-  const currentValues = watch();
+  const currentValues = useWatch({ control: methods.control });
 
   useEffect(() => {
     onDirtyChange(isDirty);
@@ -358,7 +357,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
             <div className="flex flex-col gap-1.5 w-full md:max-w-md">
               <SelectDropdown
                 label="Profile Visibility"
-                value={currentValues.profileVisibility}
+                value={currentValues.profileVisibility || "public"}
                 onChange={(val: string) =>
                   setValue(
                     "profileVisibility",
@@ -388,7 +387,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                 </Typography>
               </div>
               <Switch
-                isSelected={currentValues.recruiterVisibility}
+                isSelected={currentValues.recruiterVisibility ?? true}
                 onChange={(isSelected: boolean) => {
                   setValue("recruiterVisibility", isSelected, {
                     shouldDirty: true,

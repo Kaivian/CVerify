@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { Google } from "@thesvg/react";
@@ -23,7 +23,6 @@ import {
   Link,
 } from "@heroui/react";
 import { Eye, EyeOff } from "lucide-react";
-import { Suspense } from "react";
 
 function LoginContent() {
   const router = useRouter();

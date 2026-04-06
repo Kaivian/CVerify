@@ -1,15 +1,14 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { SettingsSection } from "./SettingsSection";
-import { Typography, Switch } from "@heroui/react";
-import { Checkbox } from "@heroui/react";
+import { Typography, Switch, Checkbox } from "@heroui/react";
 
 // 1. Zod career schema definition
 const careerSchema = z.object({
@@ -43,13 +42,12 @@ export const CareerTab: React.FC<CareerTabProps> = ({
 
   const {
     handleSubmit,
-    watch,
     reset,
     setValue,
     formState: { isDirty, isSubmitting, errors },
   } = methods;
 
-  const currentValues = watch();
+  const currentValues = useWatch({ control: methods.control });
 
   useEffect(() => {
     onDirtyChange(isDirty);
@@ -124,7 +122,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
               </Typography>
             </div>
             <Switch
-              isSelected={currentValues.availableForHire}
+              isSelected={currentValues.availableForHire ?? true}
               onChange={(isSelected: boolean) => {
                 setValue("availableForHire", isSelected, { shouldDirty: true });
               }}
@@ -153,7 +151,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
 
             <div className="flex flex-col gap-3">
               {employmentOptions.map((option) => {
-                const isSelected = currentValues.employmentPreferences.includes(
+                const isSelected = (currentValues.employmentPreferences || []).includes(
                   option.value,
                 );
                 return (
@@ -209,7 +207,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
             <div className="flex flex-col gap-1.5 w-full md:max-w-md">
               <SelectDropdown
                 label="Preferred Spoken Language"
-                value={currentValues.preferredLanguage}
+                value={currentValues.preferredLanguage || "en"}
                 onChange={(val: string) =>
                   setValue(
                     "preferredLanguage",

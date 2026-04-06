@@ -1,5 +1,5 @@
 import { axiosClient } from '../../../services/axios-client';
-import { LoginResponseData } from '../../../types/auth.types';
+import { type LoginResponseData } from '../../../types/auth.types';
 
 export interface SubmitClaimPayload {
   representativeFullName: string;

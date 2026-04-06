@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../../../features/auth/hooks/use-auth";
-import { recoveryApi, VerifyBootstrapResponseData } from "../../../../features/auth/services/recovery.service";
+import { recoveryApi, type VerifyBootstrapResponseData } from "../../../../features/auth/services/recovery.service";
 import {
   Card,
   Typography,

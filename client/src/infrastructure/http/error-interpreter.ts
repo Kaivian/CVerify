@@ -1,4 +1,4 @@
-import { ApiError } from '@/types/api.types';
+import { type ApiError } from '@/types/api.types';
 import { useErrorLifecycle } from '@/stores/use-error-lifecycle';
 import { NotificationHub } from '../notifications/orchestrator';
 import i18n from '@/lib/i18n';

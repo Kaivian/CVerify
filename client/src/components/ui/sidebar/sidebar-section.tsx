@@ -3,7 +3,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Separator, Typography, Tooltip } from "@heroui/react";
-import { NavigationSectionItem } from "../../../types/navigation.types";
+import { type NavigationSectionItem } from "../../../types/navigation.types";
 import SidebarLink from "./sidebar-link";
 import SidebarGroup from "./sidebar-group";
 

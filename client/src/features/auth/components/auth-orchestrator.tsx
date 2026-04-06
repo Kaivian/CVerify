@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import { useEffect, type FC } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../hooks/use-auth';
 import { isValidInternalPath } from '../../../lib/utils/auth-utils';
 
-export const AuthOrchestrator: React.FC = () => {
+export const AuthOrchestrator: FC = () => {
   const { isAuthenticated, bootstrapState, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
