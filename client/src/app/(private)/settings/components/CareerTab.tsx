@@ -5,10 +5,10 @@ import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { SettingsSection } from "./SettingsSection";
 import { Typography, Switch, Checkbox } from "@heroui/react";
+import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
 
 // 1. Zod career schema definition
 const careerSchema = z.object({
@@ -44,14 +44,15 @@ export const CareerTab: React.FC<CareerTabProps> = ({
     handleSubmit,
     reset,
     setValue,
-    formState: { isDirty, isSubmitting, errors },
+    formState: { errors },
   } = methods;
 
   const currentValues = useWatch({ control: methods.control });
 
   useEffect(() => {
-    onDirtyChange(isDirty);
-  }, [isDirty, onDirtyChange]);
+    const hasChanges = !isDeepEqual(currentValues, methods.formState.defaultValues);
+    onDirtyChange(hasChanges);
+  }, [currentValues, methods.formState.defaultValues, onDirtyChange]);
 
   const handleReset = () => {
     reset();
@@ -223,34 +224,10 @@ export const CareerTab: React.FC<CareerTabProps> = ({
         </SettingsSection>
 
         {/* Sticky Actions Bar */}
-        {isDirty && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-4xl bg-overlay/95 backdrop-blur-md border border-border shadow-modal rounded-2xl p-4 flex items-center justify-between gap-4 z-40 animate-fade-in">
-            <Typography
-              type="body-xs"
-              className="text-foreground font-bold font-outfit select-none pl-2"
-            >
-              You have unsaved career setting changes.
-            </Typography>
-            <div className="flex items-center gap-2.5">
-              <Button
-                variant="bordered"
-                onClick={handleReset}
-                disabled={isSubmitting}
-                className="rounded-xl font-bold h-9 px-4 text-xs select-none"
-              >
-                Reset
-              </Button>
-              <Button
-                variant="solid"
-                type="submit"
-                isLoading={isSubmitting}
-                className="rounded-xl font-bold h-9 px-4 text-xs select-none"
-              >
-                Save career settings
-              </Button>
-            </div>
-          </div>
-        )}
+        <UnsavedChangesBar
+          message="You have unsaved career setting changes."
+          onReset={handleReset}
+        />
       </form>
     </FormProvider>
   );
