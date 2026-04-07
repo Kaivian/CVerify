@@ -93,6 +93,16 @@ public static class EnvValidator
         // 7. Super Admin Settings
         config.SuperAdmin.Email = (configuration["SuperAdmin:Email"] ?? configuration["SUPER_ADMIN_EMAIL"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.SuperAdmin.Email;
 
+        // 8. Cloudflare R2 Settings
+        config.R2.AccessKeyId = (configuration["R2:AccessKeyId"] ?? configuration["ACCESS_KEY_ID"])?.ResolveEnvironmentVariables()?.Trim('"')
+            ?? throw new InvalidOperationException("Environment variable 'ACCESS_KEY_ID' or setting 'R2:AccessKeyId' is missing.");
+        config.R2.SecretAccessKey = (configuration["R2:SecretAccessKey"] ?? configuration["SECRET_ACCESS_KEY"])?.ResolveEnvironmentVariables()?.Trim('"')
+            ?? throw new InvalidOperationException("Environment variable 'SECRET_ACCESS_KEY' or setting 'R2:SecretAccessKey' is missing.");
+        config.R2.Endpoint = (configuration["R2:Endpoint"] ?? configuration["R2_ENDPOINT"])?.ResolveEnvironmentVariables()?.Trim('"')
+            ?? throw new InvalidOperationException("Environment variable 'R2_ENDPOINT' or setting 'R2:Endpoint' is missing.");
+        config.R2.BucketName = (configuration["R2:BucketName"] ?? configuration["R2_BUCKET"])?.ResolveEnvironmentVariables()?.Trim('"')
+            ?? throw new InvalidOperationException("Environment variable 'R2_BUCKET' or setting 'R2:BucketName' is missing.");
+
         return config;
     }
 }

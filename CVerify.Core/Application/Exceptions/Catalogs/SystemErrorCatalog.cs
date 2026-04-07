@@ -12,6 +12,8 @@ public static class SystemErrorCatalog
     public const string ValidationError = "VALIDATION_ERROR";
     public const string RateLimitExceeded = "RATE_LIMIT_EXCEEDED";
     public const string NetworkTimeout = "SYSTEM_NETWORK_TIMEOUT";
+    public const string StorageServiceError = "STORAGE_SERVICE_ERROR";
+    public const string StorageValidationError = "STORAGE_VALIDATION_ERROR";
 
     public static readonly Dictionary<string, ErrorDefinition> Definitions = new()
     {
@@ -46,6 +48,14 @@ public static class SystemErrorCatalog
         {
             NetworkTimeout,
             new(NetworkTimeout, ErrorCategory.NETWORK, "system.toast.error.network_timeout", "Request timed out. Please check your network connection.", true)
+        },
+        {
+            StorageServiceError,
+            new(StorageServiceError, ErrorCategory.EXTERNAL_SERVICE, "system.toast.error.storage_service", "Cloud storage interface error. Retrying command shortly...", true)
+        },
+        {
+            StorageValidationError,
+            new(StorageValidationError, ErrorCategory.VALIDATION, "system.toast.error.storage_validation", "The uploaded file does not meet security or size constraints.")
         }
     };
 }

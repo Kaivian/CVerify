@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.Json.Serialization;
 
 namespace CVerify.API.Application.DTOs;
@@ -37,4 +37,10 @@ public class HealthServices
 
     [JsonPropertyName("redis")]
     public string Redis { get; set; } = string.Empty;
+
+    [JsonPropertyName("ai")]
+    public string Ai { get; set; } = string.Empty;
+
+    [JsonPropertyName("cloudflare")]
+    public string Cloudflare { get; set; } = string.Empty;
 }

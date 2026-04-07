@@ -14,7 +14,8 @@ import {
   Compass,
   ArrowUpRight,
   Zap,
-  Gauge
+  Gauge,
+  Cloud
 } from 'lucide-react';
 import { systemApi } from '../../../services/system.service';
 import { type SystemTelemetryData } from '../../../types/system.types';
@@ -133,8 +134,10 @@ export default function SystemStatusPage() {
     const db = telemetry.health.services.database;
     const redis = telemetry.health.services.redis;
     const auth = telemetry.health.services.auth;
+    const ai = telemetry.health.services.ai || 'unhealthy';
+    const cloudflare = telemetry.health.services.cloudflare || 'unhealthy';
 
-    if (db === 'healthy' && redis === 'healthy' && auth === 'healthy') {
+    if (db === 'healthy' && redis === 'healthy' && auth === 'healthy' && ai === 'healthy' && cloudflare === 'healthy') {
       return 'healthy';
     }
     return 'degraded';
@@ -303,7 +306,33 @@ export default function SystemStatusPage() {
             {/* 3. CORE SERVICE GRID SUMMARY */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-              {/* A. DATABASE SERVICE */}
+              {/* 1. CORE BACKEND SERVICE */}
+              <div className="p-5 rounded-xl bg-surface-secondary/40 border border-border backdrop-blur-md shadow-lg transition-all duration-300 hover:border-border/85 group">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="p-2.5 rounded-lg bg-surface border border-border text-accent group-hover:text-foreground transition-colors">
+                    <Server size={18} />
+                  </div>
+                  {telemetry.ping ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      online
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                      offline
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-sm font-bold text-foreground mb-1">CVerify Core Backend</h3>
+                <p className="text-xs text-muted mb-3">
+                  Confirms that the client dashboard is successfully connected to the ASP.NET Core backend gateway.
+                </p>
+                <div className="text-[10px] text-muted flex justify-between items-center border-t border-border pt-2.5">
+                  <span>Probing status:</span>
+                  <span className="font-mono text-foreground/80">/api/system/ping</span>
+                </div>
+              </div>
+
+              {/* 2. DATABASE SERVICE */}
               <div className="p-5 rounded-xl bg-surface-secondary/40 border border-border backdrop-blur-md shadow-lg transition-all duration-300 hover:border-border/85 group">
                 <div className="flex justify-between items-start mb-4">
                   <div className="p-2.5 rounded-lg bg-surface border border-border text-accent group-hover:text-foreground transition-colors">
@@ -324,7 +353,7 @@ export default function SystemStatusPage() {
                 </div>
                 <h3 className="text-sm font-bold text-foreground mb-1">PostgreSQL Database</h3>
                 <p className="text-xs text-muted mb-3">
-                  Hosts traveler registrations, customizable itineraries, and security access logs.
+                  Hosts traveler registrations, customizable credentials, evaluation logs, and metadata.
                 </p>
                 <div className="text-[10px] text-muted flex justify-between items-center border-t border-border pt-2.5">
                   <span>Probing status:</span>
@@ -332,7 +361,7 @@ export default function SystemStatusPage() {
                 </div>
               </div>
 
-              {/* B. REDIS DISTRIBUTED STATE */}
+              {/* 3. REDIS DISTRIBUTED STATE */}
               <div className="p-5 rounded-xl bg-surface-secondary/40 border border-border backdrop-blur-md shadow-lg transition-all duration-300 hover:border-border/85 group">
                 <div className="flex justify-between items-start mb-4">
                   <div className="p-2.5 rounded-lg bg-surface border border-border text-accent group-hover:text-foreground transition-colors">
@@ -353,7 +382,7 @@ export default function SystemStatusPage() {
                 </div>
                 <h3 className="text-sm font-bold text-foreground mb-1">Redis In-Memory Cache</h3>
                 <p className="text-xs text-muted mb-3">
-                  Handles session validation buffers, security throttling rates, and caching policies.
+                  Handles session validation buffers, rate-limiting session pools, and caching policies.
                 </p>
                 <div className="text-[10px] text-muted flex justify-between items-center border-t border-border pt-2.5">
                   <span>Multiplexer:</span>
@@ -361,7 +390,7 @@ export default function SystemStatusPage() {
                 </div>
               </div>
 
-              {/* C. SECURITY AUTH INFRASTRUCTURE */}
+              {/* 4. SECURITY AUTH INFRASTRUCTURE */}
               <div className="p-5 rounded-xl bg-surface-secondary/40 border border-border backdrop-blur-md shadow-lg transition-all duration-300 hover:border-border/85 group">
                 <div className="flex justify-between items-start mb-4">
                   <div className="p-2.5 rounded-lg bg-surface border border-border text-accent group-hover:text-foreground transition-colors">
@@ -387,6 +416,64 @@ export default function SystemStatusPage() {
                 <div className="text-[10px] text-muted flex justify-between items-center border-t border-border pt-2.5">
                   <span>Mechanism:</span>
                   <span className="font-mono text-foreground/80">Secure HttpOnly Cookies</span>
+                </div>
+              </div>
+
+              {/* 5. AI PLANNER MICROSERVICE */}
+              <div className="p-5 rounded-xl bg-surface-secondary/40 border border-border backdrop-blur-md shadow-lg transition-all duration-300 hover:border-border/85 group">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="p-2.5 rounded-lg bg-surface border border-border text-accent group-hover:text-foreground transition-colors">
+                    <Zap size={18} />
+                  </div>
+                  {telemetry.health ? (
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${(telemetry.health.services.ai || 'unhealthy') === 'healthy'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      }`}>
+                      {telemetry.health.services.ai || 'unhealthy'}
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-surface text-muted border border-border">
+                      offline
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-sm font-bold text-foreground mb-1">AI Travel Planner Brain</h3>
+                <p className="text-xs text-muted mb-3">
+                  Powers qualification assessment brains, metadata sanitization, and classification engines.
+                </p>
+                <div className="text-[10px] text-muted flex justify-between items-center border-t border-border pt-2.5">
+                  <span>Connection check:</span>
+                  <span className="font-mono text-foreground/80">/health/ready</span>
+                </div>
+              </div>
+
+              {/* 6. CLOUDFLARE R2 STORAGE */}
+              <div className="p-5 rounded-xl bg-surface-secondary/40 border border-border backdrop-blur-md shadow-lg transition-all duration-300 hover:border-border/85 group">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="p-2.5 rounded-lg bg-surface border border-border text-accent group-hover:text-foreground transition-colors">
+                    <Cloud size={18} />
+                  </div>
+                  {telemetry.health ? (
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${(telemetry.health.services.cloudflare || 'unhealthy') === 'healthy'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      }`}>
+                      {telemetry.health.services.cloudflare || 'unhealthy'}
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-surface text-muted border border-border">
+                      offline
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-sm font-bold text-foreground mb-1">Cloudflare R2 Storage</h3>
+                <p className="text-xs text-muted mb-3">
+                  Stores qualification evidence, certificate backups, user profile images, and binary blobs.
+                </p>
+                <div className="text-[10px] text-muted flex justify-between items-center border-t border-border pt-2.5">
+                  <span>Connection check:</span>
+                  <span className="font-mono text-foreground/80">ListObjectsV2 API</span>
                 </div>
               </div>
 

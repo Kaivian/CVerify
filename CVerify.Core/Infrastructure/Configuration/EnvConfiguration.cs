@@ -9,6 +9,7 @@ public class EnvConfiguration
     public AuthRateLimitSettings RateLimit { get; set; } = new();
     public AiSettings Ai { get; set; } = new();
     public SuperAdminSettings SuperAdmin { get; set; } = new();
+    public CloudflareR2Settings R2 { get; set; } = new();
 }
 
 public class DatabaseSettings
@@ -72,4 +73,12 @@ public class AiSettings
 public class SuperAdminSettings
 {
     public string Email { get; set; } = "admin@system.com";
+}
+
+public class CloudflareR2Settings
+{
+    public string AccessKeyId { get; set; } = null!;
+    public string SecretAccessKey { get; set; } = null!;
+    public string Endpoint { get; set; } = null!;
+    public string BucketName { get; set; } = null!;
 }
