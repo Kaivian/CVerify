@@ -35,6 +35,10 @@ export function AuthAvatar() {
   const { theme, setTheme } = useThemeStore();
 
   React.useEffect(() => {
+    console.log("[Navbar Avatar Render Diagnostics] user.avatarUrl:", user?.avatarUrl);
+  }, [user?.avatarUrl]);
+
+  React.useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l") {
         e.preventDefault();
@@ -105,7 +109,7 @@ export function AuthAvatar() {
     <Dropdown>
       <Dropdown.Trigger>
         <div className="w-full flex gap-2 items-center">
-          <Avatar>
+          <Avatar key={user.avatarUrl || "default"}>
             {user.avatarUrl && (
               <Avatar.Image src={user.avatarUrl} alt={user.fullName} />
             )}

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using CVerify.API.Application.Interfaces;
 using CVerify.API.Application.Services;
 
@@ -75,13 +75,5 @@ public class SystemController : ControllerBase {
             OS = System.Runtime.InteropServices.RuntimeInformation.OSDescription
         });
     }
-
-    [HttpGet("time")]
-    public IActionResult GetTime() {
-        return Ok(new {
-            UtcNow = DateTime.UtcNow,
-            LocalTime = DateTime.Now,
-            TimeZone = TimeZoneInfo.Local.DisplayName
-        });
-    }
 }
+
