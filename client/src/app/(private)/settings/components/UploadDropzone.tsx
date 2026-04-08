@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button, Typography, Label, FieldError } from "@heroui/react";
 import { PersonalInfoFormValues, EvidenceFile } from "./types";
+import { profileApi } from "@/services/profile.service";
 
 interface UploadDropzoneProps {
   achievementIndex: number;
@@ -46,62 +47,76 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
     };
   }, []);
 
-  const triggerMockUpload = (fileId: string) => {
-    // Clear any existing timer for this file
-    if (intervalsRef.current[fileId]) {
-      clearInterval(intervalsRef.current[fileId]);
-    }
+  const triggerRealUpload = async (fileId: string) => {
+    const file = fileInstancesRef.current[fileId];
+    if (!file) return;
 
-    let progress = 0;
-    
-    // Simulate gradual progress ticking
-    const interval = setInterval(() => {
-      const currentEvidence =
-        getValues(`achievements.${achievementIndex}.evidence`) || [];
+    try {
+      const result = await profileApi.uploadEvidence(
+        file,
+        "AcademicAchievement",
+        undefined,
+        (progressEvent) => {
+          const loaded = progressEvent.loaded;
+          const total = progressEvent.total ?? file.size;
+          const progress = Math.round((loaded * 100) / total);
+
+          const currentEvidence = getValues(`achievements.${achievementIndex}.evidence`) || [];
+          const fileIndex = currentEvidence.findIndex((f) => f.id === fileId);
+
+          if (fileIndex !== -1) {
+            const updated = [...currentEvidence];
+            updated[fileIndex] = {
+              ...updated[fileIndex],
+              progress,
+            };
+            setValue(`achievements.${achievementIndex}.evidence`, updated, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+          }
+        }
+      );
+
+      const currentEvidence = getValues(`achievements.${achievementIndex}.evidence`) || [];
       const fileIndex = currentEvidence.findIndex((f) => f.id === fileId);
 
-      if (fileIndex === -1) {
-        // File has been removed during upload, cancel timer
-        clearInterval(interval);
-        delete intervalsRef.current[fileId];
-        return;
-      }
-
-      progress += Math.floor(Math.random() * 15) + 8; // Tick up between 8% and 23%
-      
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        delete intervalsRef.current[fileId];
-
-        // Mark as success
+      if (fileIndex !== -1) {
         const updated = [...currentEvidence];
         updated[fileIndex] = {
           ...updated[fileIndex],
+          id: result.id, // Update temporary id with the actual database Guid ID
           progress: 100,
           status: "success",
+          url: result.fileUrl,
         };
 
-        setValue(`achievements.${achievementIndex}.evidence`, updated, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      } else {
-        // Update progress
-        const updated = [...currentEvidence];
-        updated[fileIndex] = {
-          ...updated[fileIndex],
-          progress,
-        };
+        // Transfer fileInstance mapping to the new database ID in ref
+        fileInstancesRef.current[result.id] = file;
+        delete fileInstancesRef.current[fileId];
 
         setValue(`achievements.${achievementIndex}.evidence`, updated, {
           shouldDirty: true,
           shouldValidate: true,
         });
       }
-    }, 200);
+    } catch (error) {
+      console.error("Upload failed:", error);
+      const currentEvidence = getValues(`achievements.${achievementIndex}.evidence`) || [];
+      const fileIndex = currentEvidence.findIndex((f) => f.id === fileId);
 
-    intervalsRef.current[fileId] = interval;
+      if (fileIndex !== -1) {
+        const updated = [...currentEvidence];
+        updated[fileIndex] = {
+          ...updated[fileIndex],
+          status: "failed",
+        };
+        setValue(`achievements.${achievementIndex}.evidence`, updated, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+    }
   };
 
   const handleFilesUpload = (files: FileList | File[]) => {
@@ -158,9 +173,9 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
       shouldValidate: true,
     });
 
-    // Fire off mock upload simulation for each file
+    // Fire off real upload for each file
     validFiles.forEach((fileInfo) => {
-      triggerMockUpload(fileInfo.id);
+      triggerRealUpload(fileInfo.id);
     });
   };
 
@@ -200,13 +215,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
     }
   };
 
-  const handleCancelUpload = (fileId: string) => {
-    // Abort active simulation timer
-    if (intervalsRef.current[fileId]) {
-      clearInterval(intervalsRef.current[fileId]);
-      delete intervalsRef.current[fileId];
-    }
-
+  const handleCancelUpload = async (fileId: string) => {
     const current =
       getValues(`achievements.${achievementIndex}.evidence`) || [];
     const targetFile = current.find((f) => f.id === fileId);
@@ -223,6 +232,15 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
       current.filter((f) => f.id !== fileId),
       { shouldDirty: true, shouldValidate: true }
     );
+
+    // If it was already successfully uploaded, delete it from backend too
+    if (targetFile?.status === "success" && !fileId.startsWith("ev-")) {
+      try {
+        await profileApi.deleteEvidence(fileId);
+      } catch (err) {
+        console.error("Failed to delete attachment from server:", err);
+      }
+    }
   };
 
   const handleRetryUpload = (fileId: string) => {
@@ -243,7 +261,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
         shouldValidate: true,
       });
 
-      triggerMockUpload(fileId);
+      triggerRealUpload(fileId);
     }
   };
 

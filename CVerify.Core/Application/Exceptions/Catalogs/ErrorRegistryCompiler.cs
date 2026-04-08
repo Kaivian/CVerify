@@ -17,6 +17,9 @@ public static class ErrorRegistryCompiler
         
         // Register System catalog
         MergeCatalog(SystemErrorCatalog.Definitions);
+
+        // Register Profile catalog
+        MergeCatalog(ProfileErrorCatalog.Definitions);
     }
 
     private static void MergeCatalog(Dictionary<string, ErrorDefinition> catalog)

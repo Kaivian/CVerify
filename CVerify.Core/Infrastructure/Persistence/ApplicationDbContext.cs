@@ -86,6 +86,16 @@ public class ApplicationDbContext : DbContext
     public DbSet<RepresentativeApprovalVote> RepresentativeApprovalVotes => Set<RepresentativeApprovalVote>();
     public DbSet<RepresentativeAuthorityHistory> RepresentativeAuthorityHistories => Set<RepresentativeAuthorityHistory>();
 
+    public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
+    public DbSet<UserSkill> UserSkills => Set<UserSkill>();
+    public DbSet<UserPreferredLocation> UserPreferredLocations => Set<UserPreferredLocation>();
+    public DbSet<UserEmploymentPreference> UserEmploymentPreferences => Set<UserEmploymentPreference>();
+    public DbSet<SocialLink> SocialLinks => Set<SocialLink>();
+    public DbSet<EducationEntry> EducationEntries => Set<EducationEntry>();
+    public DbSet<AcademicAchievement> AcademicAchievements => Set<AcademicAchievement>();
+    public DbSet<ProfileAttachment> ProfileAttachments => Set<ProfileAttachment>();
+    public DbSet<ProfileActivityLog> ProfileActivityLogs => Set<ProfileActivityLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -97,6 +107,17 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Permission>().Property(p => p.Id).ValueGeneratedNever();
         modelBuilder.Entity<RefreshToken>().Property(rt => rt.Id).ValueGeneratedNever();
         modelBuilder.Entity<VerificationToken>().Property(vt => vt.Id).ValueGeneratedNever();
+
+        modelBuilder.Entity<UserProfile>().Property(up => up.UserId).ValueGeneratedNever();
+        modelBuilder.Entity<CareerPreference>().Property(cp => cp.UserId).ValueGeneratedNever();
+        modelBuilder.Entity<UserSkill>().Property(us => us.Id).ValueGeneratedNever();
+        modelBuilder.Entity<UserPreferredLocation>().Property(upl => upl.Id).ValueGeneratedNever();
+        modelBuilder.Entity<UserEmploymentPreference>().Property(uep => uep.Id).ValueGeneratedNever();
+        modelBuilder.Entity<SocialLink>().Property(sl => sl.Id).ValueGeneratedNever();
+        modelBuilder.Entity<EducationEntry>().Property(ee => ee.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AcademicAchievement>().Property(aa => aa.Id).ValueGeneratedNever();
+        modelBuilder.Entity<ProfileAttachment>().Property(pa => pa.Id).ValueGeneratedNever();
+        modelBuilder.Entity<ProfileActivityLog>().Property(pal => pal.Id).ValueGeneratedNever();
         modelBuilder.Entity<ResetPasswordToken>().Property(rt => rt.Id).ValueGeneratedNever();
         modelBuilder.Entity<OutboxMessage>().Property(om => om.Id).ValueGeneratedNever();
         modelBuilder.Entity<AuditLog>().Property(al => al.Id).ValueGeneratedNever();
@@ -538,6 +559,136 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(h => h.OrganizationId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // UserProfile configurations
+        modelBuilder.Entity<UserProfile>(entity =>
+        {
+            entity.ToTable("user_profiles");
+            entity.HasQueryFilter(up => up.DeletedAt == null);
+            entity.HasIndex(up => up.Username)
+                  .IsUnique()
+                  .HasFilter("deleted_at IS NULL")
+                  .HasDatabaseName("idx_user_profiles_username_active");
+            entity.Property(up => up.Version)
+                  .HasColumnName("xmin")
+                  .HasColumnType("xid")
+                  .ValueGeneratedOnAddOrUpdate()
+                  .IsConcurrencyToken();
+            entity.HasOne(up => up.User)
+                  .WithOne()
+                  .HasForeignKey<UserProfile>(up => up.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // CareerPreference configurations
+        modelBuilder.Entity<CareerPreference>(entity =>
+        {
+            entity.ToTable("career_preferences");
+            entity.HasQueryFilter(cp => cp.DeletedAt == null);
+            entity.Property(cp => cp.Version)
+                  .HasColumnName("xmin")
+                  .HasColumnType("xid")
+                  .ValueGeneratedOnAddOrUpdate()
+                  .IsConcurrencyToken();
+            entity.HasOne(cp => cp.User)
+                  .WithOne()
+                  .HasForeignKey<CareerPreference>(cp => cp.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // UserSkill configurations
+        modelBuilder.Entity<UserSkill>(entity =>
+        {
+            entity.ToTable("user_skills");
+            entity.HasOne(us => us.User)
+                  .WithMany()
+                  .HasForeignKey(us => us.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(us => us.UserId).HasDatabaseName("idx_user_skills_user_id");
+            entity.HasIndex(us => us.Skill).HasDatabaseName("idx_user_skills_name");
+        });
+
+        // UserPreferredLocation configurations
+        modelBuilder.Entity<UserPreferredLocation>(entity =>
+        {
+            entity.ToTable("user_preferred_locations");
+            entity.HasOne(upl => upl.User)
+                  .WithMany()
+                  .HasForeignKey(upl => upl.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(upl => upl.UserId).HasDatabaseName("idx_user_preferred_locations_user_id");
+        });
+
+        // UserEmploymentPreference configurations
+        modelBuilder.Entity<UserEmploymentPreference>(entity =>
+        {
+            entity.ToTable("user_employment_preferences");
+            entity.HasOne(uep => uep.User)
+                  .WithMany()
+                  .HasForeignKey(uep => uep.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(uep => uep.UserId).HasDatabaseName("idx_user_employment_preferences_user_id");
+        });
+
+        // SocialLink configurations
+        modelBuilder.Entity<SocialLink>(entity =>
+        {
+            entity.ToTable("social_links");
+            entity.HasQueryFilter(sl => sl.DeletedAt == null);
+            entity.HasOne(sl => sl.User)
+                  .WithMany()
+                  .HasForeignKey(sl => sl.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(sl => sl.UserId).HasDatabaseName("idx_social_links_user_id");
+        });
+
+        // EducationEntry configurations
+        modelBuilder.Entity<EducationEntry>(entity =>
+        {
+            entity.ToTable("education_entries");
+            entity.HasQueryFilter(ee => ee.DeletedAt == null);
+            entity.HasOne(ee => ee.User)
+                  .WithMany()
+                  .HasForeignKey(ee => ee.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(ee => ee.UserId).HasDatabaseName("idx_education_entries_user_id");
+        });
+
+        // AcademicAchievement configurations
+        modelBuilder.Entity<AcademicAchievement>(entity =>
+        {
+            entity.ToTable("academic_achievements");
+            entity.HasQueryFilter(aa => aa.DeletedAt == null);
+            entity.HasOne(aa => aa.User)
+                  .WithMany()
+                  .HasForeignKey(aa => aa.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(aa => aa.UserId).HasDatabaseName("idx_academic_achievements_user_id");
+        });
+
+        // ProfileAttachment configurations
+        modelBuilder.Entity<ProfileAttachment>(entity =>
+        {
+            entity.ToTable("profile_attachments");
+            entity.HasQueryFilter(pa => pa.DeletedAt == null);
+            entity.HasOne(pa => pa.User)
+                  .WithMany()
+                  .HasForeignKey(pa => pa.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(pa => pa.UserId).HasDatabaseName("idx_profile_attachments_user_id");
+            entity.HasIndex(pa => new { pa.EntityType, pa.EntityId }).HasDatabaseName("idx_profile_attachments_entity");
+        });
+
+        // ProfileActivityLog configurations
+        modelBuilder.Entity<ProfileActivityLog>(entity =>
+        {
+            entity.ToTable("profile_activity_logs");
+            entity.HasOne(pal => pal.User)
+                  .WithMany()
+                  .HasForeignKey(pal => pal.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(pal => pal.UserId).HasDatabaseName("idx_profile_activity_logs_user_id");
         });
     }
 }

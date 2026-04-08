@@ -7,8 +7,10 @@ import { z } from "zod";
 import { Card } from "@/components/ui/card";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { SettingsSection } from "./SettingsSection";
-import { Typography, Switch, Checkbox } from "@heroui/react";
+import { Typography, Switch, Checkbox, Spinner, toast } from "@heroui/react";
 import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
+import { useCareerPreferences } from "@/hooks/use-career-preferences";
+import { type UpdateCareerPreferenceRequest } from "@/types/profile.types";
 
 // 1. Zod career schema definition
 const careerSchema = z.object({
@@ -17,6 +19,7 @@ const careerSchema = z.object({
     .array(z.string())
     .min(1, "Select at least one employment preference"),
   preferredLanguage: z.enum(["en", "vi", "ja", "ko", "zh"]),
+  version: z.number(),
 });
 
 type CareerFormValues = z.infer<typeof careerSchema>;
@@ -30,12 +33,15 @@ export const CareerTab: React.FC<CareerTabProps> = ({
   onDirtyChange,
   onSaveSuccess,
 }) => {
+  const { career, isLoading, isUpdating, updateCareer } = useCareerPreferences();
+
   const methods = useForm<CareerFormValues>({
     resolver: zodResolver(careerSchema),
     defaultValues: {
       availableForHire: true,
-      employmentPreferences: ["full_time", "contract"],
+      employmentPreferences: [],
       preferredLanguage: "en",
+      version: 0,
     },
     mode: "onChange",
   });
@@ -49,6 +55,18 @@ export const CareerTab: React.FC<CareerTabProps> = ({
 
   const currentValues = useWatch({ control: methods.control });
 
+  // Reset form when database preferences finish loading
+  useEffect(() => {
+    if (career && !methods.formState.isDirty) {
+      reset({
+        availableForHire: career.availableForHire,
+        employmentPreferences: career.employmentPreferences || [],
+        preferredLanguage: (career.preferredLanguage as any) || "en",
+        version: career.version || 0,
+      });
+    }
+  }, [career, reset]);
+
   useEffect(() => {
     const hasChanges = !isDeepEqual(currentValues, methods.formState.defaultValues);
     onDirtyChange(hasChanges);
@@ -60,16 +78,40 @@ export const CareerTab: React.FC<CareerTabProps> = ({
 
   const handleFormSubmit = async (data: CareerFormValues) => {
     try {
-      // Simulate API submit delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const request: UpdateCareerPreferenceRequest = {
+        availableForHire: data.availableForHire,
+        preferredLanguage: data.preferredLanguage,
+        jobTitlePreferences: career?.jobTitlePreferences || null,
+        salaryExpectations: career?.salaryExpectations || null,
+        remotePreference: career?.remotePreference || null,
+        openToWorkStatus: career?.openToWorkStatus || null,
+        skills: career?.skills || [],
+        preferredLocations: career?.preferredLocations || [],
+        employmentPreferences: data.employmentPreferences,
+        version: data.version || career?.version || 0,
+      };
 
-      // Save data locally in memory
-      reset(data);
+      const updated = await updateCareer(request);
+
+      reset({
+        ...data,
+        version: updated.version,
+      });
       onSaveSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save career preferences:", error);
+      const errMsg = error.response?.data?.message || error.message || "Failed to save career preferences.";
+      toast.danger(errMsg);
     }
   };
+
+  if (isLoading && !career) {
+    return (
+      <div className="flex items-center justify-center py-20 w-full h-full">
+        <Spinner size="lg" color="accent" />
+      </div>
+    );
+  }
 
   const employmentOptions = [
     { value: "full_time", label: "Full-time" },
