@@ -12,6 +12,8 @@ using CVerify.API.Core.Entities;
 using CVerify.API.Infrastructure.Persistence;
 using CVerify.API.Infrastructure.Diagnostics;
 using CVerify.API.Application.Exceptions;
+using CVerify.API.Application.Storage.Interfaces;
+using CVerify.API.Application.Storage.Enums;
 
 namespace CVerify.API.Application.Services;
 
@@ -19,15 +21,18 @@ public class ProfileService : IProfileService
 {
     private readonly ApplicationDbContext _context;
     private readonly ICacheService _cacheService;
+    private readonly IStorageService _storageService;
     private readonly IAppLogger _logger;
 
     public ProfileService(
         ApplicationDbContext context,
         ICacheService cacheService,
+        IStorageService storageService,
         IAppLogger logger)
     {
         _context = context;
         _cacheService = cacheService;
+        _storageService = storageService;
         _logger = logger;
     }
 
@@ -248,5 +253,56 @@ public class ProfileService : IProfileService
             profile.Version,
             socialLinks
         );
+    }
+
+    public async Task<(string SignedUrl, string ObjectKey)> UploadAvatarAsync(
+        Guid userId,
+        System.IO.Stream fileStream,
+        string fileName,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user == null)
+        {
+            throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "User not found.");
+        }
+
+        // Delete old avatar from R2 storage physically if it is an object key we managed
+        if (!string.IsNullOrEmpty(user.AvatarUrl) && 
+            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+            !user.AvatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await _storageService.DeleteFileAsync(user.AvatarUrl, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(LogLevel.Warning, "Profile", $"Failed to delete old avatar key: {user.AvatarUrl}", ex);
+            }
+        }
+
+        // Physical upload to R2
+        var uploadedFile = await _storageService.UploadFileAsync(
+            fileStream,
+            fileName,
+            contentType,
+            StorageModule.Profile,
+            null,
+            cancellationToken);
+
+        // Update user record
+        user.AvatarUrl = uploadedFile.ObjectKey;
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Generate signed URL
+        var signedUrl = await _storageService.GetSignedUrlAsync(
+            uploadedFile.ObjectKey,
+            TimeSpan.FromHours(24),
+            cancellationToken);
+
+        return (signedUrl, uploadedFile.ObjectKey);
     }
 }

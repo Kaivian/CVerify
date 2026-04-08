@@ -24,6 +24,7 @@ export function useAchievements() {
   return {
     achievements,
     isLoading: !!loading.achievements,
+    isFetched: !!fetched.achievements,
     isAdding: !!loading.addAchievement,
     isUpdating: !!loading.updateAchievement,
     isDeleting: !!loading.deleteAchievement,

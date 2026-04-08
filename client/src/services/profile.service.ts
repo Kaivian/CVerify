@@ -120,4 +120,28 @@ export const profileApi = {
   deleteEvidence: async (id: string): Promise<void> => {
     await axiosClient.delete(`/v1/users/evidence/${id}`);
   },
+
+  // Avatar picture upload
+  uploadAvatar: async (
+    file: File,
+    onUploadProgress?: (progressEvent: { loaded: number; total?: number }) => void
+  ): Promise<{ avatarUrl: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await axiosClient.post<{ avatarUrl: string }>('/v1/users/profile/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onUploadProgress) {
+          onUploadProgress({
+            loaded: progressEvent.loaded,
+            total: progressEvent.total ?? undefined,
+          });
+        }
+      },
+    });
+    return response.data;
+  },
 };

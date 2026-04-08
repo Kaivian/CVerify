@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using CVerify.API.Application.DTOs;
 using CVerify.API.Application.Interfaces;
+using CVerify.API.Application.Storage.Constants;
 
 namespace CVerify.API.API.Controllers;
 
@@ -90,5 +91,39 @@ public class ProfileController : ControllerBase
         var (ip, ua) = RequestMetadata;
         await _profileService.UpdateUsernameAsync(CurrentUserId, request.NewUsername, ip, ua, cancellationToken);
         return NoContent();
+    }
+
+    [HttpPost("avatar")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AvatarUploadResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UploadAvatar([FromForm] IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest("File payload is empty or missing.");
+        }
+
+        // Validate file size limit
+        if (file.Length > StorageConstants.MaxProfileSize)
+        {
+            return BadRequest($"File size exceeds the maximum allowed limit of {StorageConstants.MaxProfileSize / (1024 * 1024)}MB.");
+        }
+
+        // Validate MIME type
+        if (!StorageConstants.AllowedImageTypes.Contains(file.ContentType))
+        {
+            return BadRequest($"MIME type '{file.ContentType}' is not supported. Only JPEG, PNG, WebP, and GIF are allowed.");
+        }
+
+        using var fileStream = file.OpenReadStream();
+        var (signedUrl, objectKey) = await _profileService.UploadAvatarAsync(
+            CurrentUserId, 
+            fileStream, 
+            file.FileName, 
+            file.ContentType, 
+            cancellationToken);
+
+        return Ok(new AvatarUploadResponse(signedUrl));
     }
 }

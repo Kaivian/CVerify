@@ -22,6 +22,7 @@ using CVerify.API.Infrastructure.Persistence;
 using CVerify.API.Infrastructure.Security;
 using Google.Apis.Auth;
 using Microsoft.AspNetCore.Identity;
+using CVerify.API.Application.Storage.Interfaces;
 
 namespace CVerify.API.Application.Services;
 
@@ -44,6 +45,7 @@ public class AuthService : IAuthService
     private readonly IIdentityStateResolver _identityStateResolver;
     private readonly IPasswordPolicyService _passwordPolicyService;
     private readonly IOtpPolicyService _otpPolicyService;
+    private readonly IStorageService _storageService;
 
     public AuthService(
         ApplicationDbContext context,
@@ -59,7 +61,8 @@ public class AuthService : IAuthService
         IHttpClientFactory httpClientFactory,
         IIdentityStateResolver identityStateResolver,
         IPasswordPolicyService passwordPolicyService,
-        IOtpPolicyService otpPolicyService)
+        IOtpPolicyService otpPolicyService,
+        IStorageService storageService)
     {
         _context = context;
         _tokenService = tokenService;
@@ -75,6 +78,38 @@ public class AuthService : IAuthService
         _identityStateResolver = identityStateResolver;
         _passwordPolicyService = passwordPolicyService;
         _otpPolicyService = otpPolicyService;
+        _storageService = storageService;
+    }
+
+    private async Task<string?> GetSignedAvatarUrlAsync(string? avatarUrl, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(avatarUrl)) return null;
+        if (avatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+            avatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return avatarUrl;
+        }
+        try
+        {
+            return await _storageService.GetSignedUrlAsync(avatarUrl, TimeSpan.FromHours(24), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sign avatar URL key: {Key}", avatarUrl);
+            return null;
+        }
+    }
+
+    private async Task<AuthResponse> CreateAuthResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
+    {
+        var signedAvatar = await GetSignedAvatarUrlAsync(user.AvatarUrl, cancellationToken);
+        return new AuthResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep);
+    }
+
+    private async Task<UserProfileResponse> CreateUserProfileResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
+    {
+        var signedAvatar = await GetSignedAvatarUrlAsync(user.AvatarUrl, cancellationToken);
+        return new UserProfileResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep);
     }
 
     /// <summary>
@@ -128,7 +163,7 @@ public class AuthService : IAuthService
         if (user.Status == UserStatus.EMAIL_VERIFY_PENDING && !isSuperAdmin)
         {
             await LogAuditEventAsync(user.Id, "USER_LOGIN_UNVERIFIED", $"User {user.Email} attempted to login but email is unverified.");
-            return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions, false, "EMAIL_VERIFY_PENDING", "VERIFY_EMAIL");
+            return await CreateAuthResponseAsync(user, roles, permissions, false, "EMAIL_VERIFY_PENDING", "VERIFY_EMAIL");
         }
 
         await CacheUserAuthDataAsync(user.Id, roles, permissions);
@@ -146,7 +181,7 @@ public class AuthService : IAuthService
 
         _metrics.RecordLoginSuccess();
         await LogAuditEventAsync(user.Id, "USER_LOGIN_SUCCESS", $"User {user.Email} logged in successfully.");
-        return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions, true, "ACTIVE", "DASHBOARD");
+        return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD");
     }
 
     /// <summary>
@@ -293,7 +328,7 @@ public class AuthService : IAuthService
                 _metrics.RecordLoginSuccess();
                 await LogAuditEventAsync(user.Id, "USER_GOOGLE_LOGIN_SUCCESS", $"User {user.Email} logged in successfully via Google OAuth.");
 
-                return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions, true, "ACTIVE", "DASHBOARD");
+                return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD");
             }
             catch (Exception ex)
             {
@@ -415,7 +450,7 @@ public class AuthService : IAuthService
                     _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
                     _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
 
-                    return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions,
+                    return await CreateAuthResponseAsync(user, roles, permissions,
                         user.Status == UserStatus.ACTIVE, user.Status.ToString(),
                         user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
                 }
@@ -458,7 +493,7 @@ public class AuthService : IAuthService
 
             await LogAuditEventAsync(oldUser.Id, "TOKEN_ROTATED", $"Token rotated successfully. New token issued for Session {storedToken.SessionId}.");
 
-            return new AuthResponse(oldUser.Id, oldUser.Email, oldUser.FullName, oldUser.AvatarUrl, oldRoles, oldPermissions,
+            return await CreateAuthResponseAsync(oldUser, oldRoles, oldPermissions,
                 oldUser.Status == UserStatus.ACTIVE, oldUser.Status.ToString(),
                 oldUser.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
         }
@@ -580,7 +615,7 @@ public class AuthService : IAuthService
         var user = await _context.Users.FindAsync(userId);
         if (user == null) return null;
 
-        return new UserProfileResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions, user.Status == UserStatus.ACTIVE, user.Status.ToString(), user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+        return await CreateUserProfileResponseAsync(user, roles, permissions, user.Status == UserStatus.ACTIVE, user.Status.ToString(), user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
     }
 
     /// <summary>
@@ -810,7 +845,7 @@ public class AuthService : IAuthService
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Email successfully verified for user {UserId} and auto-logged in.", correlationId, user.Id);
             _metrics.RecordVerification();
             
-            return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions, true, "ACTIVE", "DASHBOARD");
+            return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD", cancellationToken);
         }
 
         catch (DbUpdateConcurrencyException ex)
@@ -1130,7 +1165,7 @@ public class AuthService : IAuthService
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Password reset successfully and user {UserId} auto-logged in.", correlationId, user.Id);
             _metrics.RecordPasswordReset();
             
-            return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions, true, "ACTIVE", "DASHBOARD");
+            return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD", cancellationToken);
         }
 
         catch (DbUpdateConcurrencyException ex)
@@ -1639,7 +1674,7 @@ public class AuthService : IAuthService
 
             await LogAuditEventAsync(user.Id, "PASSWORD_CREDENTIAL_CREATED", $"Password credential established successfully for user {user.Email}.");
 
-            return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions, true, "ACTIVE", "DASHBOARD");
+            return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD", cancellationToken);
         }
         catch (Exception ex)
         {
