@@ -5,6 +5,9 @@ using System.ComponentModel.DataAnnotations;
 namespace CVerify.API.Application.DTOs;
 
 public record UpdateProfileRequest(
+    [MaxLength(100)]
+    string? FullName,
+
     [MaxLength(160)]
     string? Bio,
 
@@ -48,6 +51,7 @@ public record UpdateProfileRequest(
 public record ProfileResponse(
     Guid UserId,
     string? Username,
+    string? FullName,
     string? Bio,
     string? Location,
     string? PhoneNumber,

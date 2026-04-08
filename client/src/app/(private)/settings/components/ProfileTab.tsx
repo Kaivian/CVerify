@@ -34,6 +34,7 @@ import { type UpdateProfileRequest } from "@/types/profile.types";
 import { profileApi } from "@/services/profile.service";
 import { AvatarCropperModal } from "./AvatarCropperModal";
 import { useAuthStore } from "@/features/auth/store/use-auth-store";
+import { useProfileStore } from "@/stores/use-profile-store";
 
 // 1. Define schema using Zod
 const profileSchema = z.object({
@@ -254,7 +255,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   useEffect(() => {
     if (profile && !isDirty) {
       reset({
-        fullName: user?.fullName || "",
+        fullName: profile.fullName || user?.fullName || "",
         publicEmail: profile.publicEmail || "none",
         bio: profile.bio || "",
         pronouns: (profile.pronouns as any) || "prefer_not",
@@ -288,6 +289,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       });
 
       const request: UpdateProfileRequest = {
+        fullName: data.fullName || null,
         bio: data.bio || null,
         location: data.location || null,
         phoneNumber: data.phoneNumber || null,
@@ -300,7 +302,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         profileVisibility: profile?.profileVisibility || "public",
         recruiterVisibility: profile?.recruiterVisibility ?? true,
         socialLinks: (data.socialLinks || []).map((l) => l.url),
-        version: data.version || profile?.version || 0,
+        version: useProfileStore.getState().profile?.version || data.version || profile?.version || 0,
       };
 
       const updated = await updateProfile(request);
@@ -443,6 +445,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        <input type="hidden" {...methods.register("version")} />
         <SettingsSection title="General Information">
           <Card className="flex flex-col">
             <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-8 items-start">

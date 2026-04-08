@@ -1,6 +1,7 @@
 export interface ProfileResponse {
   userId: string;
   username: string | null;
+  fullName: string | null;
   bio: string | null;
   location: string | null;
   phoneNumber: string | null;
@@ -19,6 +20,7 @@ export interface ProfileResponse {
 }
 
 export interface UpdateProfileRequest {
+  fullName?: string | null;
   bio: string | null;
   location: string | null;
   phoneNumber: string | null;

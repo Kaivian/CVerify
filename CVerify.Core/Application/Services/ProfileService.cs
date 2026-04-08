@@ -39,18 +39,18 @@ public class ProfileService : IProfileService
     public async Task<ProfileResponse> GetProfileByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var profile = await _context.UserProfiles
+            .Include(up => up.User)
             .FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
 
         if (profile == null)
         {
-            // Verify if user exists in database
+            // Auto-provision if user exists but profile is missing
             var userExists = await _context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
             if (!userExists)
             {
-                throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, $"User with ID {userId} not found.");
+                throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "User not found.");
             }
 
-            // Create default profile for the user
             profile = new UserProfile
             {
                 UserId = userId,
@@ -62,6 +62,7 @@ public class ProfileService : IProfileService
 
             _context.UserProfiles.Add(profile);
             await _context.SaveChangesAsync(cancellationToken);
+            await _context.Entry(profile).Reference(p => p.User).LoadAsync(cancellationToken);
         }
 
         var socialLinks = await _context.SocialLinks
@@ -80,6 +81,7 @@ public class ProfileService : IProfileService
         CancellationToken cancellationToken = default)
     {
         var profile = await _context.UserProfiles
+            .Include(up => up.User)
             .FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
 
         if (profile == null)
@@ -95,6 +97,13 @@ public class ProfileService : IProfileService
 
         // Keep old state for activity logging
         var oldStateJson = JsonSerializer.Serialize(MapToResponse(profile, new List<string>()));
+
+        // Update associated User properties
+        if (!string.IsNullOrWhiteSpace(request.FullName))
+        {
+            profile.User.FullName = request.FullName.Trim();
+            profile.User.UpdatedAt = DateTimeOffset.UtcNow;
+        }
 
         // Update properties
         profile.Bio = request.Bio;
@@ -135,8 +144,8 @@ public class ProfileService : IProfileService
         }
 
         // Log the state transition
-        var newStateResponse = MapToResponse(profile, newSocialUrls);
-        var newStateJson = JsonSerializer.Serialize(newStateResponse);
+        var logResponse = MapToResponse(profile, newSocialUrls);
+        var newStateJson = JsonSerializer.Serialize(logResponse);
 
         var log = new ProfileActivityLog
         {
@@ -160,7 +169,7 @@ public class ProfileService : IProfileService
             throw new ProfileException(ProfileErrorCodes.ProfileConcurrencyConflict, "A concurrency conflict occurred. Please try again.", ex);
         }
 
-        return newStateResponse;
+        return MapToResponse(profile, newSocialUrls);
     }
 
     public async Task UpdateUsernameAsync(
@@ -237,6 +246,7 @@ public class ProfileService : IProfileService
         return new ProfileResponse(
             profile.UserId,
             profile.Username,
+            profile.User?.FullName,
             profile.Bio,
             profile.Location,
             profile.PhoneNumber,

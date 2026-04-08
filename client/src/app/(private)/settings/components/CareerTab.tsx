@@ -11,6 +11,7 @@ import { Typography, Switch, Checkbox, Spinner, toast } from "@heroui/react";
 import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
 import { useCareerPreferences } from "@/hooks/use-career-preferences";
 import { type UpdateCareerPreferenceRequest } from "@/types/profile.types";
+import { useProfileStore } from "@/stores/use-profile-store";
 
 // 1. Zod career schema definition
 const careerSchema = z.object({
@@ -88,7 +89,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
         skills: career?.skills || [],
         preferredLocations: career?.preferredLocations || [],
         employmentPreferences: data.employmentPreferences,
-        version: data.version || career?.version || 0,
+        version: useProfileStore.getState().career?.version || data.version || career?.version || 0,
       };
 
       const updated = await updateCareer(request);
@@ -146,6 +147,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-10">
+        <input type="hidden" {...methods.register("version")} />
         {/* Hiring preferences section */}
         <SettingsSection
           title="Hiring Preferences"
