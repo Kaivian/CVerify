@@ -12,6 +12,7 @@ using CVerify.API.Core.Entities;
 using CVerify.API.Infrastructure.Configuration;
 using CVerify.API.Infrastructure.Persistence;
 using CVerify.API.Infrastructure.Security;
+using CVerify.API.Application.Security.OtpPolicies;
 
 namespace CVerify.API.Application.Services;
 
@@ -24,6 +25,7 @@ public class OrganizationReclaimService : IOrganizationReclaimService
     private readonly TimeProvider _timeProvider;
     private readonly ICacheService _cacheService;
     private readonly ILogger<OrganizationReclaimService> _logger;
+    private readonly IOtpPolicyService _otpPolicyService;
 
     public OrganizationReclaimService(
         ApplicationDbContext context,
@@ -32,7 +34,8 @@ public class OrganizationReclaimService : IOrganizationReclaimService
         EnvConfiguration envConfig,
         TimeProvider timeProvider,
         ICacheService cacheService,
-        ILogger<OrganizationReclaimService> logger)
+        ILogger<OrganizationReclaimService> logger,
+        IOtpPolicyService otpPolicyService)
     {
         _context = context;
         _encryptedFileStorageService = encryptedFileStorageService;
@@ -41,6 +44,7 @@ public class OrganizationReclaimService : IOrganizationReclaimService
         _timeProvider = timeProvider;
         _cacheService = cacheService;
         _logger = logger;
+        _otpPolicyService = otpPolicyService;
     }
 
     public async Task<SubmitClaimResponse> SubmitClaimAsync(
@@ -418,6 +422,113 @@ public class OrganizationReclaimService : IOrganizationReclaimService
 
         var stream = await _encryptedFileStorageService.ReadAndDecryptFileAsync(doc.StoragePath, doc.EncryptionIv);
         return (stream, doc.FileName, doc.ContentType);
+    }
+
+    public async Task<VerifyOtpResponse> VerifyRecoveryOtpAsync(VerifyOtpRequest request, string taxCode, CancellationToken cancellationToken = default)
+    {
+        _otpPolicyService.ValidateAndThrow(request.Code, "Default");
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+        var verification = await _context.OtpVerifications
+            .Where(v => v.ChallengeId == request.ChallengeId && v.Email == normalizedEmail && v.Purpose == request.Purpose)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (verification == null)
+        {
+            throw new InvalidOperationException("The OTP challenge is invalid or does not match.");
+        }
+
+        if (verification.ConsumedAt != null)
+        {
+            throw new InvalidOperationException("This OTP has already been verified.");
+        }
+
+        if (verification.ExpiresAt <= _timeProvider.GetUtcNow())
+        {
+            throw new InvalidOperationException("This OTP has expired.");
+        }
+
+        if (verification.Attempts >= 5)
+        {
+            throw new InvalidOperationException("Too many failed attempts. This OTP has been blocked.");
+        }
+
+        var inputHash = GenerateHmacSha256OtpHash(request.Code);
+        bool matches = string.Equals(verification.OtpHash, inputHash, StringComparison.OrdinalIgnoreCase);
+
+        verification.Attempts += 1;
+        verification.LastAttemptAt = _timeProvider.GetUtcNow();
+
+        if (!matches)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            throw new InvalidOperationException("The OTP entered is incorrect.");
+        }
+
+        verification.ConsumedAt = _timeProvider.GetUtcNow();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var verifiedToken = RecoveryTokenHelper.GenerateOtpVerifiedToken(taxCode, normalizedEmail, _envConfig.Jwt.Key);
+
+        return new VerifyOtpResponse(request.ChallengeId, normalizedEmail, verifiedToken);
+    }
+
+    public async Task<RecoveryEmailValidationResult> ValidateRecoveryEmailOwnershipAsync(string taxCode, string email, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(taxCode) || string.IsNullOrWhiteSpace(email))
+        {
+            throw new ArgumentException("Tax Code and Email are required.");
+        }
+
+        var normalizedTax = taxCode.Trim();
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        var org = await _context.Organizations
+            .FirstOrDefaultAsync(o => o.TaxCode == normalizedTax && o.DeletedAt == null, cancellationToken);
+
+        if (org == null)
+        {
+            return new RecoveryEmailValidationResult(
+                RecoveryEmailValidationStatus.OrganizationNotFound,
+                "The requested organization was not found in the registry."
+            );
+        }
+
+        // Check 1: Check if it matches RepresentativeEmail of the organization
+        if (!string.IsNullOrEmpty(org.RepresentativeEmail) && 
+            string.Equals(org.RepresentativeEmail.Trim(), normalizedEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            return new RecoveryEmailValidationResult(
+                RecoveryEmailValidationStatus.DuplicateOldOwnerEmail,
+                "This email cannot be used for account recovery."
+            );
+        }
+
+        // Check 2: Check if it matches any active user holding organization_owner role in this organization (optimized via direct database check)
+        var isDuplicate = await _context.OrganizationAuthorities
+            .AnyAsync(oa => oa.OrganizationId == org.Id && 
+                            oa.Role == "organization_owner" && 
+                            oa.User != null && 
+                            oa.User.DeletedAt == null && 
+                            oa.User.Email.Trim().ToLower() == normalizedEmail, 
+                      cancellationToken);
+
+        if (isDuplicate)
+        {
+            return new RecoveryEmailValidationResult(
+                RecoveryEmailValidationStatus.DuplicateOldOwnerEmail,
+                "This email cannot be used for account recovery."
+            );
+        }
+
+        return new RecoveryEmailValidationResult(RecoveryEmailValidationStatus.Valid, null);
+    }
+
+    private string GenerateHmacSha256OtpHash(string plainOtp)
+    {
+        using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(_envConfig.Jwt.Key));
+        var hashBytes = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(plainOtp));
+        return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
     private async Task LogAuditEventAsync(Guid? userId, string eventType, string description, string? ipAddress, string? userAgent)

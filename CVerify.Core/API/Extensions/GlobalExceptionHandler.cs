@@ -65,6 +65,17 @@ public class GlobalExceptionHandler : IExceptionHandler
             {
                 responsePayload.Status = StatusCodes.Status404NotFound;
             }
+            else if (domainEx.ErrorCode == AuthErrorCodes.EmailAlreadyExists)
+            {
+                responsePayload.Status = StatusCodes.Status409Conflict;
+            }
+            else if (domainEx.ErrorCode == AuthErrorCodes.ExpiredToken ||
+                     domainEx.ErrorCode == AuthErrorCodes.InvalidToken ||
+                     domainEx.ErrorCode == AuthErrorCodes.TokenAlreadyConsumed ||
+                     domainEx.ErrorCode == AuthErrorCodes.CooldownActive)
+            {
+                responsePayload.Status = StatusCodes.Status400BadRequest;
+            }
 
             responsePayload.Code = domainEx.ErrorCode;
             responsePayload.Category = domainEx.Category.ToString();

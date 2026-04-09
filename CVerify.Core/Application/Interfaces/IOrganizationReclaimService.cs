@@ -26,5 +26,9 @@ public interface IOrganizationReclaimService
 
     Task<AuthResponse> ExecuteRecoveryAsync(ExecuteRecoveryRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default);
 
+    Task<VerifyOtpResponse> VerifyRecoveryOtpAsync(VerifyOtpRequest request, string taxCode, CancellationToken cancellationToken = default);
+
+    Task<RecoveryEmailValidationResult> ValidateRecoveryEmailOwnershipAsync(string taxCode, string email, CancellationToken cancellationToken = default);
+
     Task<(Stream fileStream, string fileName, string contentType)> DownloadDocumentAsync(Guid docId, string reviewerName, CancellationToken cancellationToken = default);
 }

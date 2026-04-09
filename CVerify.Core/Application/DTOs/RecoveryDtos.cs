@@ -128,3 +128,39 @@ public class ResetOrganizationPasswordRequest
     [System.ComponentModel.DataAnnotations.Compare(nameof(NewPassword), ErrorMessage = "Passwords do not match.")]
     public string ConfirmPassword { get; init; } = null!;
 }
+
+public enum RecoveryEmailValidationStatus
+{
+    Valid,
+    DuplicateOldOwnerEmail,
+    OrganizationNotFound
+}
+
+public record RecoveryEmailValidationResult(
+    RecoveryEmailValidationStatus Status,
+    string? Reason
+);
+
+public record ValidateEmailOwnershipRequest(
+    [System.ComponentModel.DataAnnotations.Required]
+    string TaxCode,
+
+    [System.ComponentModel.DataAnnotations.Required]
+    [System.ComponentModel.DataAnnotations.EmailAddress]
+    string Email
+);
+
+public record ValidateEmailOwnershipResponse(
+    bool IsDuplicate,
+    string Message
+);
+
+public record ReclaimSendOtpRequest(
+    [System.ComponentModel.DataAnnotations.Required]
+    string TaxCode,
+
+    [System.ComponentModel.DataAnnotations.Required]
+    [System.ComponentModel.DataAnnotations.EmailAddress]
+    string Email
+);
+
