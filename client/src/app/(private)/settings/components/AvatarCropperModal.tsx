@@ -219,7 +219,8 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
           className="relative w-full aspect-square max-w-[280px] bg-neutral-950 overflow-hidden rounded-2xl flex items-center justify-center cursor-move border border-border shadow-inner"
         >
           {imageSrc ? (
-            <img
+            // eslint-disable-next-line @next/next/no-img-element
+                <img
               ref={imgRef}
               src={imageSrc}
               alt="Crop Source"

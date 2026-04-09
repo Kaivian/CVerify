@@ -13,7 +13,7 @@ import {
 } from "@heroui/react";
 import { Trash2, Award } from "lucide-react";
 import { UploadDropzone } from "./UploadDropzone";
-import { PersonalInfoFormValues } from "./types";
+import type { PersonalInfoFormValues } from "./types";
 
 interface AchievementCardProps {
   index: number;

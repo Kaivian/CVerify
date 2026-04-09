@@ -1,24 +1,32 @@
 "use client";
 
-import React, { useEffect } from 'react';
-import { useAuth } from '../features/auth/hooks/use-auth';
-import { usePathname } from 'next/navigation';
-import { Toast } from '@heroui/react';
-import i18n from '../lib/i18n';
-import { useThemeStore } from '../stores/use-theme-store';
-import { useSidebarStore } from '../stores/use-sidebar-store';
-import { AuthOrchestrator } from '../features/auth/components/auth-orchestrator';
-import { NotificationHub } from '../infrastructure/notifications/orchestrator';
-import { HeroUIToastRenderer } from '../infrastructure/notifications/renderers/heroui-toast-renderer';
+import React, { useEffect } from "react";
+import { useAuth } from "../features/auth/hooks/use-auth";
+import { usePathname } from "next/navigation";
+import { Toast } from "@heroui/react";
+import i18n from "../lib/i18n";
+import { useThemeStore } from "../stores/use-theme-store";
+import { useSidebarStore } from "../stores/use-sidebar-store";
+import { AuthOrchestrator } from "../features/auth/components/auth-orchestrator";
+import { NotificationHub } from "../infrastructure/notifications/orchestrator";
+import { HeroUIToastRenderer } from "../infrastructure/notifications/renderers/heroui-toast-renderer";
 
-export function Providers({ children, locale }: { children: React.ReactNode; locale: string }) {
+export function Providers({
+  children,
+  locale,
+}: {
+  children: React.ReactNode;
+  locale: string;
+}) {
   const { initializeSession } = useAuth();
-  const initializeTheme = useThemeStore(state => state.initializeTheme);
-  const initializeCollapsed = useSidebarStore(state => state.initializeCollapsed);
+  const initializeTheme = useThemeStore((state) => state.initializeTheme);
+  const initializeCollapsed = useSidebarStore(
+    (state) => state.initializeCollapsed,
+  );
   const pathname = usePathname();
 
   // Synchronize server-resolved locale to client i18n instance before hydration (Server only)
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     if (i18n.language !== locale) {
       i18n.changeLanguage(locale);
     }
@@ -38,8 +46,47 @@ export function Providers({ children, locale }: { children: React.ReactNode; loc
   }, [locale]);
 
   // Run secure session hydration immediately on app boots
+  // Includes resilience against BFCache restoration and browser history navigation freezes
   useEffect(() => {
     initializeSession();
+
+    // Revalidate on visibility change (e.g. user returns to the tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        initializeSession(true);
+      }
+    };
+
+    // Revalidate on page restore (e.g. BFCache / Browser Back Button from external site)
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        console.log("[Auth System] App restored from BFCache. Force revalidating session.");
+        initializeSession(true);
+      }
+    };
+
+    // Detect browser back/forward navigation within the same session
+    const handlePopState = () => {
+      console.log("[Auth System] Browser popstate detected. Force revalidating session.");
+      initializeSession(true);
+    };
+
+    // Detect when the window regains focus (e.g., clicking back into the app)
+    const handleFocus = () => {
+      initializeSession(true);
+    };
+
+    window.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [initializeSession]);
 
   // Register decoupled HeroUI renderer to the abstract system NotificationHub
@@ -62,18 +109,24 @@ export function Providers({ children, locale }: { children: React.ReactNode; loc
       const error = event.reason;
       if (
         error &&
-        (error.name === 'InvalidStateError' ||
-         error.message?.includes('Transition was aborted') ||
-         error.message?.includes('transition was aborted'))
+        (error.name === "InvalidStateError" ||
+          error.message?.includes("Transition was aborted") ||
+          error.message?.includes("transition was aborted"))
       ) {
         event.preventDefault();
-        console.warn('[View Transition] Handled and absorbed harmless view transition abortion:', error.message);
+        console.warn(
+          "[View Transition] Handled and absorbed harmless view transition abortion:",
+          error.message,
+        );
       }
     };
 
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
     return () => {
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener(
+        "unhandledrejection",
+        handleUnhandledRejection,
+      );
     };
   }, []);
 

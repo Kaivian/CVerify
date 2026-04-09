@@ -7,7 +7,6 @@ import { SettingsSection } from "./SettingsSection";
 import { SocialLinksEditor } from "./SocialLinksEditor";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { parseDate } from "@internationalized/date";
-import { type User } from "@/types/auth.types";
 import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
 
 import {
@@ -90,7 +89,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   onSaveSuccess,
 }) => {
   const { user, updateProfile: updateLocalAuthUser } = useAuth();
-  const { profile, isLoading, isFetched, isUpdating, updateProfile, error: apiError } = useProfile();
+  const { profile, isLoading, isFetched, updateProfile } = useProfile();
 
   // Avatar upload states
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -139,9 +138,12 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       toast.success("Avatar updated successfully.");
       setAvatarPreview(null); // Clear preview to fallback to newly returned signed URL
       setLastSelectedFile(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to upload avatar:", error);
-      const errMsg = error.response?.data?.message || error.message || "Failed to upload avatar.";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const errMsg = (err as any).response?.data?.message || (err as any).message || "Failed to upload avatar.";
       
       toast.danger(errMsg);
       
@@ -258,7 +260,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         fullName: profile.fullName || user?.fullName || "",
         publicEmail: profile.publicEmail || "none",
         bio: profile.bio || "",
-        pronouns: (profile.pronouns as any) || "prefer_not",
+        pronouns: (profile.pronouns as "he_him" | "she_her" | "they_them" | "prefer_not" | "custom") || "prefer_not",
         customPronouns: profile.customPronouns || "",
         company: profile.company || "",
         location: profile.location || "",
@@ -313,9 +315,12 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         version: updated.version,
       });
       onSaveSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save profile:", error);
-      const errorMsg = error.response?.data?.message || error.message || "Failed to update profile settings.";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const errorMsg = (err as any).response?.data?.message || (err as any).message || "Failed to update profile settings.";
       toast.danger(errorMsg);
     }
   };

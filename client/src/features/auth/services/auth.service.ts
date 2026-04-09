@@ -86,8 +86,8 @@ export const authApi = {
   /**
    * Retrieve the active user's profile and roles/permissions
    */
-  fetchMe: async (): Promise<UserProfileResponseData> => {
-    const response = await axiosClient.get<UserProfileResponseData>('/auth/me');
+  fetchMe: async (signal?: AbortSignal): Promise<UserProfileResponseData> => {
+    const response = await axiosClient.get<UserProfileResponseData>('/auth/me', { signal });
     return response.data;
   },
 

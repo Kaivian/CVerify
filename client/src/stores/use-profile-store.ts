@@ -11,6 +11,19 @@ import {
   type UpdateCareerPreferenceRequest,
 } from '@/types/profile.types';
 
+interface AxiosErrorLike {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+}
+
+const getErrorMessage = (err: unknown, defaultMessage: string): string => {
+  const axiosError = err as AxiosErrorLike;
+  return axiosError.response?.data?.message || defaultMessage;
+};
+
 interface ProfileState {
   profile: ProfileResponse | null;
   education: EducationEntryResponse[];
@@ -57,9 +70,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       const profile = await profileApi.fetchProfile();
       set((state) => ({ profile, fetched: { ...state.fetched, profile: true } }));
-    } catch (err: any) {
+    } catch (err: unknown) {
       set((state) => ({ 
-        error: err.response?.data?.message || 'Failed to load profile settings.',
+        error: getErrorMessage(err, 'Failed to load profile settings.'),
         fetched: { ...state.fetched, profile: true }
       }));
     } finally {
@@ -73,8 +86,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const updated = await profileApi.updateProfile(data);
       set({ profile: updated });
       return updated;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to update profile settings.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to update profile settings.');
       set({ error: errMsg });
       throw err;
     } finally {
@@ -91,8 +104,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       if (currentProfile) {
         set({ profile: { ...currentProfile, username } });
       }
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to update username.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to update username.');
       set({ error: errMsg });
       throw err;
     } finally {
@@ -106,9 +119,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       const education = await profileApi.fetchEducation();
       set((state) => ({ education, fetched: { ...state.fetched, education: true } }));
-    } catch (err: any) {
+    } catch (err: unknown) {
       set((state) => ({ 
-        error: err.response?.data?.message || 'Failed to load educational history.',
+        error: getErrorMessage(err, 'Failed to load educational history.'),
         fetched: { ...state.fetched, education: true }
       }));
     } finally {
@@ -122,8 +135,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const newEntry = await profileApi.addEducation(data);
       set((state) => ({ education: [...state.education, newEntry].sort((a, b) => a.displayOrder - b.displayOrder) }));
       return newEntry;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to add education entry.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to add education entry.');
       set({ error: errMsg });
       throw err;
     } finally {
@@ -139,8 +152,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         education: state.education.map((ee) => (ee.id === id ? updated : ee)).sort((a, b) => a.displayOrder - b.displayOrder),
       }));
       return updated;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to update education entry.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to update education entry.');
       set({ error: errMsg });
       throw err;
     } finally {
@@ -153,8 +166,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       await profileApi.deleteEducation(id);
       set((state) => ({ education: state.education.filter((ee) => ee.id !== id) }));
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to delete education entry.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to delete education entry.');
       set({ error: errMsg });
       throw err;
     } finally {
@@ -176,9 +189,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
     try {
       await profileApi.reorderEducation(ids);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Revert on error
-      set({ education: currentList, error: err.response?.data?.message || 'Failed to save new education order.' });
+      set({ education: currentList, error: getErrorMessage(err, 'Failed to save new education order.') });
       throw err;
     }
   },
@@ -189,9 +202,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       const achievements = await profileApi.fetchAchievements();
       set((state) => ({ achievements, fetched: { ...state.fetched, achievements: true } }));
-    } catch (err: any) {
+    } catch (err: unknown) {
       set((state) => ({ 
-        error: err.response?.data?.message || 'Failed to load achievements.',
+        error: getErrorMessage(err, 'Failed to load achievements.'),
         fetched: { ...state.fetched, achievements: true }
       }));
     } finally {
@@ -205,8 +218,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const newEntry = await profileApi.addAchievement(data);
       set((state) => ({ achievements: [...state.achievements, newEntry].sort((a, b) => a.displayOrder - b.displayOrder) }));
       return newEntry;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to add achievement.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to add achievement.');
       set({ error: errMsg });
       throw err;
     } finally {
@@ -222,8 +235,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         achievements: state.achievements.map((aa) => (aa.id === id ? updated : aa)).sort((a, b) => a.displayOrder - b.displayOrder),
       }));
       return updated;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to update achievement.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to update achievement.');
       set({ error: errMsg });
       throw err;
     } finally {
@@ -236,8 +249,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       await profileApi.deleteAchievement(id);
       set((state) => ({ achievements: state.achievements.filter((aa) => aa.id !== id) }));
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to delete achievement.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to delete achievement.');
       set({ error: errMsg });
       throw err;
     } finally {
@@ -259,9 +272,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
     try {
       await profileApi.reorderAchievements(ids);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Revert on error
-      set({ achievements: currentList, error: err.response?.data?.message || 'Failed to save new achievements order.' });
+      set({ achievements: currentList, error: getErrorMessage(err, 'Failed to save new achievements order.') });
       throw err;
     }
   },
@@ -271,9 +284,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     try {
       const career = await profileApi.fetchCareer();
       set((state) => ({ career, fetched: { ...state.fetched, career: true } }));
-    } catch (err: any) {
+    } catch (err: unknown) {
       set((state) => ({ 
-        error: err.response?.data?.message || 'Failed to load career preferences.',
+        error: getErrorMessage(err, 'Failed to load career preferences.'),
         fetched: { ...state.fetched, career: true }
       }));
     } finally {
@@ -287,8 +300,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const updated = await profileApi.updateCareer(data);
       set({ career: updated });
       return updated;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'Failed to update career preferences.';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to update career preferences.');
       set({ error: errMsg });
       throw err;
     } finally {

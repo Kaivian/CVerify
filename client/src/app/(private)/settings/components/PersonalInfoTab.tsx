@@ -4,7 +4,7 @@ import React, { useEffect } from "react";
 import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { parseDate } from "@internationalized/date";
-import { Spinner, toast, Skeleton } from "@heroui/react";
+import { toast, Skeleton } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import { SettingsSection } from "./SettingsSection";
 import {
@@ -88,20 +88,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
     reorderAchievements,
   } = useAchievements();
 
-  // Temporary diagnostics render/mount tracking
-  const renderCountRef = React.useRef(0);
-  renderCountRef.current += 1;
-  
-  useEffect(() => {
-    console.log(`[PersonalInfoTab] Mounted. Render #${renderCountRef.current}`);
-    return () => console.log(`[PersonalInfoTab] Unmounted.`);
-  }, []);
-
-  useEffect(() => {
-    console.log(
-      `[PersonalInfoTab] Rendered #${renderCountRef.current}. education: ${education.length}, achievements: ${achievements.length}, isEduLoading: ${isEduLoading}, isAchLoading: ${isAchLoading}`
-    );
-  });
+  // Removed temporary diagnostics render/mount tracking
 
   const methods = useForm<PersonalInfoFormValues>({
     resolver: zodResolver(personalInfoSchema),
@@ -124,7 +111,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
         achievements: achievements.map(mapAchievementFromDb),
       });
     }
-  }, [education, achievements, isEduLoading, isAchLoading, reset]);
+  }, [education, achievements, isEduLoading, isAchLoading, reset, methods.formState.isDirty]);
 
   useEffect(() => {
     const hasChanges = !isDeepEqual(
@@ -211,7 +198,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
           issueDate: item.issueDate ? new Date(item.issueDate).toISOString() : new Date().toISOString(),
           description: item.description,
           credentialUrl: item.credentialUrl || null,
-          attachmentId: attachmentId,
+          attachmentId,
         };
 
         if (item.id && dbAchIds.includes(item.id)) {
@@ -236,9 +223,12 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
       });
 
       onSaveSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save personal settings:", error);
-      const errMsg = error.response?.data?.message || error.message || "Failed to save personal information.";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const errMsg = (err as any).response?.data?.message || (err as any).message || "Failed to save personal information.";
       toast.danger(errMsg);
     }
   };

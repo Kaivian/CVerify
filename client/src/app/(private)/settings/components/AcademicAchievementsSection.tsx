@@ -5,7 +5,7 @@ import { Button, Typography } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import { SettingsSection } from "./SettingsSection";
 import { AchievementCard } from "./AchievementCard";
-import { PersonalInfoFormValues } from "./types";
+import type { PersonalInfoFormValues } from "./types";
 
 export const AcademicAchievementsSection: React.FC = () => {
   const { control } = useFormContext<PersonalInfoFormValues>();
