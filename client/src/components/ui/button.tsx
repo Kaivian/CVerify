@@ -4,7 +4,7 @@ import React, { forwardRef } from 'react';
 import { Button as HeroButton, type ButtonProps as HeroButtonProps } from '@heroui/react';
 
 interface ButtonProps extends Omit<HeroButtonProps, 'variant' | 'children'> {
-  variant?: 'solid' | 'bordered' | 'light' | 'flat' | 'ghost' | 'outline' | 'primary' | 'secondary' | 'danger';
+  variant?: 'solid' | 'bordered' | 'light' | 'flat' | 'ghost' | 'outline' | 'primary' | 'secondary' | 'danger' | 'danger-soft';
   isLoading?: boolean;
   disabled?: boolean;
   children?: React.ReactNode;
@@ -19,11 +19,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
   isDisabled = false,
   ...props
 }, ref) => {
-  // Map our premium styles
-  const baseClasses = "font-semibold transition-all duration-200 active:scale-[0.98] select-none flex items-center justify-center rounded-xl focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-hidden";
-  
   let variantClasses = "";
-  
+
   if (variant === 'solid') {
     variantClasses = [
       "bg-foreground text-background hover:opacity-90",
@@ -67,7 +64,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
       ref={ref}
       {...props}
       variant={mappedVariant}
-      className={`${baseClasses} ${variantClasses} ${className}`}
+      className={`${variantClasses} ${className}`}
       isDisabled={disabled || isLoading || isDisabled}
     >
       {isLoading && (

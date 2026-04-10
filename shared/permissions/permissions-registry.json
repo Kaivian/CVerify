@@ -16,7 +16,8 @@
         "roles:create:role",
         "roles:update:role",
         "verification:view:list",
-        "ai:audit:view"
+        "ai:audit:view",
+        "components:system:read"
       ]
     },
     "BUSINESS": {
@@ -185,6 +186,15 @@
         "name": "evidence:collaborator:comment",
         "displayName": "Review & Commend",
         "description": "Allows providing technical validation comments on candidate evidence graph blocks",
+        "system": false,
+        "dangerous": false
+      }
+    ],
+    "components": [
+      {
+        "name": "components:system:read",
+        "displayName": "View Component Intelligence Platform",
+        "description": "Allows access to the internal components intelligence platform and visual component architecture explorer",
         "system": false,
         "dangerous": false
       }

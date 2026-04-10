@@ -96,7 +96,7 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       {Icon && (
         <Icon
           size={isMobile ? 20 : 20}
-          className="shrink-0 transition-transform duration-200"
+          className="shrink-0 transition-transform duration-200 ml-1"
         />
       )}
 
