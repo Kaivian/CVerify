@@ -43,6 +43,17 @@ public interface IAuthService
     // Active session and revocation contracts
     Task<IEnumerable<SessionInfo>> GetActiveSessionsAsync();
     Task<bool> RevokeSessionAsync(Guid sessionId);
+
+    // Linked provider integration contracts
+    Task<IEnumerable<LinkedProviderDto>> GetLinkedProvidersAsync();
+    Task<bool> UnlinkProviderAsync(string providerName);
+    Task<bool> ValidateProviderScopesAsync(string providerName);
+
+    // Password change contract
+    Task<bool> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default);
+
+    // Google linking contract
+    Task<bool> LinkGoogleAccountAsync(LinkGoogleRequest request, CancellationToken cancellationToken = default);
 }
 
 

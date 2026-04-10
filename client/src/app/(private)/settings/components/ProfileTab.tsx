@@ -165,12 +165,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       setLastSelectedFile(null);
     } catch (error: unknown) {
       console.error("Failed to upload avatar:", error);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const err = error as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
       const errMsg =
-        (err as any).response?.data?.message ||
-        (err as any).message ||
+        err.response?.data?.message ||
+        err.message ||
         "Failed to upload avatar.";
 
       toast.danger(errMsg);
@@ -355,6 +356,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         publicEmail: data.publicEmail === "none" ? null : data.publicEmail,
         profileVisibility: profile?.profileVisibility || "public",
         recruiterVisibility: profile?.recruiterVisibility ?? true,
+        aiTalentDiscovery: profile?.aiTalentDiscovery || "disabled",
         socialLinks: (data.socialLinks || []).map((l) => l.url),
         version:
           useProfileStore.getState().profile?.version ||
@@ -373,12 +375,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       onSaveSuccess();
     } catch (error: unknown) {
       console.error("Failed to save profile:", error);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const err = error as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
       const errorMsg =
-        (err as any).response?.data?.message ||
-        (err as any).message ||
+        err.response?.data?.message ||
+        err.message ||
         "Failed to update profile settings.";
       toast.danger(errorMsg);
     }

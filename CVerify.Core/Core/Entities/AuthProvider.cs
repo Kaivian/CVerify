@@ -24,6 +24,25 @@ public class AuthProvider
     [MaxLength(255)]
     public string ProviderKey { get; set; } = null!;
 
+    [MaxLength(100)]
+    public string? ProviderAccountId { get; set; }
+
+    [MaxLength(500)]
+    public string? GrantedScopes { get; set; }
+
+    public DateTimeOffset? LastScopeValidationAt { get; set; }
+
+    [Required]
+    public CVerify.API.Core.Enums.ProviderScopeStatus ScopeValidationStatus { get; set; } = CVerify.API.Core.Enums.ProviderScopeStatus.Valid;
+
+    public DateTimeOffset? LastSuccessfulRefreshAt { get; set; }
+
+    public int RefreshFailureCount { get; set; } = 0;
+
+    public DateTimeOffset? LastProviderSyncAt { get; set; }
+
+    public virtual OAuthCredential? OAuthCredential { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? DeletedAt { get; set; }

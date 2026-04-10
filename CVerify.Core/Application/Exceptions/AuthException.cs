@@ -20,6 +20,7 @@ public class AuthException : AuthenticationException
 public static class AuthErrorCodes
 {
     public const string EmailAlreadyExists = "AUTH_EMAIL_ALREADY_EXISTS";
+    public const string AccountConflict = "AUTH_ACCOUNT_CONFLICT";
     public const string InvalidToken = "AUTH_INVALID_TOKEN";
     public const string ExpiredToken = "AUTH_EXPIRED_TOKEN";
     public const string TokenAlreadyConsumed = "AUTH_TOKEN_ALREADY_CONSUMED";

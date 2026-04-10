@@ -49,6 +49,10 @@ public class UserProfile
 
     public bool RecruiterVisibility { get; set; } = true;
 
+    [Required]
+    [MaxLength(20)]
+    public string AiTalentDiscovery { get; set; } = "disabled";
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

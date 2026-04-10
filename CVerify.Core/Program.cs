@@ -63,9 +63,18 @@ if (envPath != null) {
 
 // 2. Validate & Resolve Configuration (Enterprise Clean Code: Fail Fast)
 var envConfig = EnvValidator.Validate(builder.Configuration);
-if (builder.Environment.IsProduction() && envConfig.Security.DisableRateLimits)
+if (builder.Environment.IsProduction())
 {
-    throw new InvalidOperationException("Fatal: Rate limits cannot be disabled in the Production environment.");
+    if (envConfig.Security.DisableRateLimits)
+    {
+        throw new InvalidOperationException("Fatal: Rate limits cannot be disabled in the Production environment.");
+    }
+    if (string.IsNullOrWhiteSpace(envConfig.Security.TokenEncryptionKey) ||
+        envConfig.Security.TokenEncryptionKey == "DEVELOPMENT_TOKEN_ENCRYPTION_KEY" ||
+        envConfig.Security.TokenEncryptionKey == "your_32_byte_token_encryption_key_here")
+    {
+        throw new InvalidOperationException("Fatal: TokenEncryptionKey is missing or is a default fallback key in the Production environment.");
+    }
 }
 builder.Services.AddSingleton(envConfig);
 

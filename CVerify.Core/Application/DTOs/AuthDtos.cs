@@ -253,3 +253,39 @@ public record OtpSessionResponse(
     string Status
 );
 
+public record LinkedProviderDto(
+    string ProviderName, 
+    string? ProviderEmail, 
+    string? ProviderUsername, 
+    bool Connected,
+    string ScopeValidationStatus,
+    string? GrantedScopes
+);
+
+public class ChangePasswordRequest
+{
+    [Required]
+    public string CurrentPassword { get; init; } = null!;
+
+    [Required]
+    public string NewPassword { get; init; } = null!;
+
+    [Required]
+    [Compare(nameof(NewPassword), ErrorMessage = "Passwords do not match.")]
+    public string ConfirmNewPassword { get; init; } = null!;
+
+    public ChangePasswordRequest() { }
+
+    public ChangePasswordRequest(string currentPassword, string newPassword, string confirmNewPassword)
+    {
+        CurrentPassword = currentPassword;
+        NewPassword = newPassword;
+        ConfirmNewPassword = confirmNewPassword;
+    }
+}
+
+public record LinkGoogleRequest(
+    [Required]
+    string IdToken
+);
+

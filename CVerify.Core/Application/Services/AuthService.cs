@@ -32,6 +32,13 @@ namespace CVerify.API.Application.Services;
 /// </summary>
 public class AuthService : IAuthService
 {
+    private static readonly Dictionary<string, string> CanonicalProviders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "github", "github" },
+        { "gitlab", "gitlab" },
+        { "google", "google" }
+    };
+
     private readonly ApplicationDbContext _context;
     private readonly ITokenService _tokenService;
     private readonly ICacheService _cacheService;
@@ -1246,6 +1253,14 @@ public class AuthService : IAuthService
         var userId = Guid.Parse(userIdClaim.Value);
         var user = await _context.Users.FindAsync(userId);
         if (user == null || user.DeletedAt != null) return false;
+
+        // Prevent deletion if they are an active organization owner
+        var isOrgOwner = await _context.OrganizationAuthorities
+            .AnyAsync(oa => oa.UserId == userId && oa.Role == "organization_owner" && oa.Organization.DeletedAt == null);
+        if (isOrgOwner)
+        {
+            throw new BusinessRuleException("ORGANIZATION_OWNER_PREVENT_DELETE", "Cannot delete account because you are the owner of one or more active organizations. Transfer ownership or delete the organizations first.");
+        }
 
         // Perform soft deletion
         user.DeletedAt = _timeProvider.GetUtcNow();
@@ -2894,6 +2909,433 @@ public class AuthService : IAuthService
 
         await _context.SaveChangesAsync();
         await LogAuditEventAsync(userId, "SESSION_REVOKED", $"Session {sessionId} successfully revoked by owner.");
+        return true;
+    }
+
+    public async Task<IEnumerable<LinkedProviderDto>> GetLinkedProvidersAsync()
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        var linked = await _context.AuthProviders
+            .Where(ap => ap.UserId == userId && ap.DeletedAt == null)
+            .ToListAsync();
+
+        var result = new List<LinkedProviderDto>();
+        var supported = new[] { "google", "github", "gitlab" };
+
+        foreach (var providerName in supported)
+        {
+            var matched = linked.FirstOrDefault(ap => string.Equals(ap.ProviderName, providerName, StringComparison.OrdinalIgnoreCase));
+            if (matched != null)
+            {
+                var email = matched.ProviderAccountId?.Contains('@') == true ? matched.ProviderAccountId : null;
+                var username = matched.ProviderAccountId?.Contains('@') == false ? matched.ProviderAccountId : null;
+                if (string.Equals(providerName, "google", StringComparison.OrdinalIgnoreCase))
+                {
+                    email = matched.ProviderAccountId ?? matched.ProviderKey;
+                }
+                result.Add(new LinkedProviderDto(
+                    ProviderName: matched.ProviderName.ToLowerInvariant(),
+                    ProviderEmail: email,
+                    ProviderUsername: username,
+                    Connected: true,
+                    ScopeValidationStatus: matched.ScopeValidationStatus.ToString(),
+                    GrantedScopes: matched.GrantedScopes
+                ));
+            }
+            else
+            {
+                result.Add(new LinkedProviderDto(
+                    ProviderName: providerName,
+                    ProviderEmail: null,
+                    ProviderUsername: null,
+                    Connected: false,
+                    ScopeValidationStatus: "Valid",
+                    GrantedScopes: null
+                ));
+            }
+        }
+
+        return result;
+    }
+
+    public async Task<bool> UnlinkProviderAsync(string providerName)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        if (!CanonicalProviders.TryGetValue(providerName, out var canonicalName))
+        {
+            throw new ArgumentException($"Unsupported provider: {providerName}", nameof(providerName));
+        }
+
+        var activeProviders = await _context.AuthProviders
+            .Where(ap => ap.UserId == userId && ap.DeletedAt == null)
+            .ToListAsync();
+
+        var hasPassword = await _context.PasswordCredentials
+            .AnyAsync(pc => pc.UserId == userId && pc.IsActive && pc.DeletedAt == null);
+
+        var totalMethods = activeProviders.Count + (hasPassword ? 1 : 0);
+        if (totalMethods <= 1)
+        {
+            throw new InvalidOperationException("Cannot unlink provider because it is your only login method.");
+        }
+
+        var matchedProvider = activeProviders.FirstOrDefault(ap => string.Equals(ap.ProviderName, canonicalName, StringComparison.OrdinalIgnoreCase));
+        if (matchedProvider == null)
+        {
+            throw new ResourceNotFoundException("PROVIDER_NOT_LINKED", "This provider is not linked to your account.");
+        }
+
+        var credential = await _context.OAuthCredentials
+            .FirstOrDefaultAsync(oc => oc.AuthProviderId == matchedProvider.Id);
+
+        string? decryptedAccessToken = null;
+        if (credential != null && !string.IsNullOrEmpty(credential.EncryptedAccessToken) && !string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
+        {
+            try
+            {
+                decryptedAccessToken = EncryptionHelper.Decrypt(credential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to decrypt access token for provider {ProviderName} during unlinking.", canonicalName);
+            }
+        }
+
+        // Trigger token invalidation request to GitLab (GitHub doesn't support anonymous revocation)
+        if (!string.IsNullOrEmpty(decryptedAccessToken))
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            if (string.Equals(canonicalName, "gitlab", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                    {
+                        { "token", decryptedAccessToken }
+                    });
+                    var response = await httpClient.PostAsync("https://gitlab.com/oauth/revoke", content);
+                    _logger.LogInformation("GitLab token revocation response status: {StatusCode}", response.StatusCode);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to revoke GitLab OAuth token via API.");
+                }
+            }
+            else if (string.Equals(canonicalName, "github", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("GitHub unlinking requested. Local token removed.");
+            }
+        }
+
+        matchedProvider.DeletedAt = _timeProvider.GetUtcNow();
+        if (credential != null)
+        {
+            _context.OAuthCredentials.Remove(credential);
+        }
+
+        await _context.SaveChangesAsync();
+        await _identityStateResolver.InvalidateCacheAsync(matchedProvider.User?.Email ?? "");
+        await LogAuditEventAsync(userId, "PROVIDER_UNLINKED", $"Unlinked provider {canonicalName} from user account.");
+
+        return true;
+    }
+
+    public async Task<bool> ValidateProviderScopesAsync(string providerName)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        if (!CanonicalProviders.TryGetValue(providerName, out var canonicalName))
+        {
+            throw new ArgumentException($"Unsupported provider: {providerName}", nameof(providerName));
+        }
+
+        var matchedProvider = await _context.AuthProviders
+            .Include(ap => ap.User)
+            .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName == canonicalName && ap.DeletedAt == null);
+
+        if (matchedProvider == null)
+        {
+            throw new ResourceNotFoundException("PROVIDER_NOT_LINKED", "This provider is not linked to your account.");
+        }
+
+        var throttleKey = $"validate_scopes_throttle:{userId}:{canonicalName}";
+        if (await _cacheService.ExistsAsync(throttleKey))
+        {
+            return true; // Throttle: skip external API check
+        }
+        await _cacheService.SetAsync(throttleKey, true, TimeSpan.FromMinutes(2));
+
+        var credential = await _context.OAuthCredentials
+            .FirstOrDefaultAsync(oc => oc.AuthProviderId == matchedProvider.Id);
+
+        if (credential == null || string.IsNullOrEmpty(credential.EncryptedAccessToken) || string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
+        {
+            matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+            matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+            await _context.SaveChangesAsync();
+            return false;
+        }
+
+        string decryptedAccessToken;
+        try
+        {
+            decryptedAccessToken = EncryptionHelper.Decrypt(credential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to decrypt access token for provider {ProviderName} during scope validation.", canonicalName);
+            matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+            matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+            await _context.SaveChangesAsync();
+            return false;
+        }
+
+        var httpClient = _httpClientFactory.CreateClient();
+        if (string.Equals(canonicalName, "github", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", decryptedAccessToken);
+                request.Headers.UserAgent.ParseAdd("CVerify-Core");
+                var response = await httpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    if (response.Headers.TryGetValues("X-OAuth-Scopes", out var values))
+                    {
+                        var scopesHeader = string.Join(",", values);
+                        var actualScopes = scopesHeader.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        var requiredScopes = new[] { "repo", "read:user", "user:email", "read:org" };
+                        var hasAll = requiredScopes.All(req => actualScopes.Contains(req, StringComparer.OrdinalIgnoreCase));
+
+                        matchedProvider.GrantedScopes = string.Join(",", actualScopes);
+                        matchedProvider.ScopeValidationStatus = hasAll ? ProviderScopeStatus.Valid : ProviderScopeStatus.Degraded;
+                    }
+                    else
+                    {
+                        matchedProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
+                    }
+                    matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                    matchedProvider.RefreshFailureCount = 0;
+                    matchedProvider.LastSuccessfulRefreshAt = _timeProvider.GetUtcNow();
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized || response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    matchedProvider.ScopeValidationStatus = ProviderScopeStatus.Revoked;
+                    matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                }
+                else
+                {
+                    matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+                    matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error occurred validating GitHub token scopes.");
+                matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+                matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+            }
+        }
+        else if (string.Equals(canonicalName, "gitlab", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, "https://gitlab.com/api/v4/user");
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", decryptedAccessToken);
+                var response = await httpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    matchedProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
+                    matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                    matchedProvider.RefreshFailureCount = 0;
+                    matchedProvider.LastSuccessfulRefreshAt = _timeProvider.GetUtcNow();
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized || response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    matchedProvider.ScopeValidationStatus = ProviderScopeStatus.Revoked;
+                    matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                }
+                else
+                {
+                    matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+                    matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error occurred validating GitLab token scopes.");
+                matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+                matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+            }
+        }
+
+        await _context.SaveChangesAsync();
+        return matchedProvider.ScopeValidationStatus == ProviderScopeStatus.Valid;
+    }
+
+    public async Task<bool> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        var user = await _context.Users
+            .Include(u => u.PasswordCredentials)
+            .FirstOrDefaultAsync(u => u.Id == userId && u.DeletedAt == null, cancellationToken);
+
+        if (user == null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
+        }
+
+        var activeCred = user.PasswordCredentials
+            .Where(pc => pc.IsActive && pc.DeletedAt == null)
+            .OrderByDescending(pc => pc.CreatedAt)
+            .FirstOrDefault();
+
+        if (activeCred == null)
+        {
+            throw new AuthException(AuthErrorCodes.InvalidCredentials, "No active password credential found to change.");
+        }
+
+        if (!VerifyPassword(user, activeCred.PasswordHash, request.CurrentPassword))
+        {
+            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Incorrect current password.");
+        }
+
+        if (VerifyPassword(user, activeCred.PasswordHash, request.NewPassword))
+        {
+            throw new AuthException(AuthErrorCodes.PasswordPolicyViolation, "New password cannot be the same as your current password.");
+        }
+
+        await _passwordPolicyService.ValidateAndThrowAsync(request.NewPassword, "Default");
+
+        // Deactivate active credentials
+        foreach (var cred in user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null))
+        {
+            cred.IsActive = false;
+            cred.RevokedAt = _timeProvider.GetUtcNow();
+            cred.RevokedReason = "PASSWORD_CHANGED";
+            cred.UpdatedAt = _timeProvider.GetUtcNow();
+        }
+
+        // Add new password credential
+        var newCred = new PasswordCredential
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = user.Id,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword),
+            IsActive = true,
+            PasswordChangedAt = _timeProvider.GetUtcNow(),
+            CreatedAt = _timeProvider.GetUtcNow(),
+            UpdatedAt = _timeProvider.GetUtcNow()
+        };
+        _context.PasswordCredentials.Add(newCred);
+
+        // Revoke all other refresh tokens for user
+        var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+        var activeTokens = await _context.RefreshTokens
+            .Where(t => t.UserId == user.Id && t.RevokedAt == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var token in activeTokens)
+        {
+            if (token.Token != currentRefreshToken)
+            {
+                token.RevokedAt = _timeProvider.GetUtcNow();
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        await LogAuditEventAsync(user.Id, "PASSWORD_CHANGED", "User successfully changed their password. Other active sessions revoked.");
+
+        return true;
+    }
+
+    public async Task<bool> LinkGoogleAccountAsync(LinkGoogleRequest request, CancellationToken cancellationToken = default)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        var user = await _context.Users
+            .Include(u => u.AuthProviders)
+            .FirstOrDefaultAsync(u => u.Id == userId && u.DeletedAt == null, cancellationToken);
+
+        if (user == null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
+        }
+
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var settings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { _envConfig.Auth.GoogleClientId }
+            };
+            payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Invalid Google ID Token provided for linking: {Message}", ex.Message);
+            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Google ID token validation failed.");
+        }
+
+        if (payload == null)
+        {
+            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Google ID token validation failed.");
+        }
+
+        var conflictProvider = await _context.AuthProviders
+            .FirstOrDefaultAsync(ap => ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject && ap.DeletedAt == null, cancellationToken);
+        if (conflictProvider != null && conflictProvider.UserId != user.Id)
+        {
+            throw new AuthException(AuthErrorCodes.AccountConflict, "This Google account is already linked to another CVerify profile.");
+        }
+
+        var googleProvider = user.AuthProviders
+            .FirstOrDefault(ap => ap.ProviderName.ToLower() == "google" && ap.DeletedAt == null);
+
+        if (googleProvider == null)
+        {
+            googleProvider = new AuthProvider
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = user.Id,
+                ProviderName = "google",
+                ProviderKey = payload.Subject,
+                ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject,
+                ScopeValidationStatus = ProviderScopeStatus.Valid,
+                LastScopeValidationAt = _timeProvider.GetUtcNow(),
+                LastProviderSyncAt = _timeProvider.GetUtcNow(),
+                LastSuccessfulRefreshAt = _timeProvider.GetUtcNow(),
+                CreatedAt = _timeProvider.GetUtcNow(),
+            };
+            _context.AuthProviders.Add(googleProvider);
+        }
+        else
+        {
+            googleProvider.ProviderKey = payload.Subject;
+            googleProvider.ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject;
+            googleProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
+            googleProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+            googleProvider.LastProviderSyncAt = _timeProvider.GetUtcNow();
+            googleProvider.LastSuccessfulRefreshAt = _timeProvider.GetUtcNow();
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        await LogAuditEventAsync(user.Id, "PROVIDER_LINKED", "Successfully linked Google account via client-side ID Token flow.");
+
         return true;
     }
 

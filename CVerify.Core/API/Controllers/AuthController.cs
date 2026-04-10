@@ -9,6 +9,16 @@ using Microsoft.AspNetCore.RateLimiting;
 using CVerify.API.Application.DTOs;
 using CVerify.API.Application.Exceptions;
 using CVerify.API.Application.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
+using CVerify.API.Infrastructure.Persistence;
+using CVerify.API.Core.Entities;
+using CVerify.API.Core.Enums;
+using CVerify.API.Infrastructure.Configuration;
+using CVerify.API.Infrastructure.Security;
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
+using System.Net.Http;
+using System.Text.Json;
 
 namespace CVerify.API.API.Controllers;
 
@@ -187,6 +197,460 @@ public class AuthController : ControllerBase
             return Ok(new { message = "Account successfully deleted." });
         }
         throw new BusinessRuleException("ACCOUNT_DELETION_FAILED", "Account deletion failed.");
+    }
+
+    [HttpGet("providers")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<LinkedProviderDto>))]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetLinkedProviders()
+    {
+        var result = await _authService.GetLinkedProvidersAsync();
+        return Ok(result);
+    }
+
+    [HttpDelete("providers/{providerName}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UnlinkProvider(string providerName)
+    {
+        try
+        {
+            var result = await _authService.UnlinkProviderAsync(providerName);
+            return Ok(new { success = result, message = "Provider successfully unlinked." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("providers/{providerName}/validate-scopes")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ValidateProviderScopes(string providerName)
+    {
+        try
+        {
+            var result = await _authService.ValidateProviderScopesAsync(providerName);
+            return Ok(new { valid = result });
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("providers/google")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> LinkGoogleAccount([FromBody] LinkGoogleRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var result = await _authService.LinkGoogleAccountAsync(request, cancellationToken);
+            return Ok(new { success = result, message = "Google account successfully linked." });
+        }
+        catch (AuthException ex)
+        {
+            return BadRequest(new { code = ex.Code, message = ex.Message });
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var result = await _authService.ChangePasswordAsync(request, cancellationToken);
+            return Ok(new { success = result, message = "Password successfully changed." });
+        }
+        catch (AuthException ex)
+        {
+            return BadRequest(new { code = ex.Code, message = ex.Message });
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("connect/{providerName}")]
+    [Authorize]
+    public IActionResult ConnectProvider(string providerName)
+    {
+        var envConfig = HttpContext.RequestServices.GetRequiredService<EnvConfiguration>();
+        var canonicalName = providerName.ToLowerInvariant();
+
+        if (canonicalName != "github" && canonicalName != "gitlab" && canonicalName != "google")
+        {
+            return BadRequest(new { message = $"Unsupported provider: {providerName}" });
+        }
+
+        var state = Guid.NewGuid().ToString("N");
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = HttpContext.Request.IsHttps || HttpContext.Request.Headers["X-Forwarded-Proto"] == "https",
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddMinutes(5)
+        };
+        Response.Cookies.Append($"oauth_state_{canonicalName}", state, cookieOptions);
+
+        var callbackUri = $"{Request.Scheme}://{Request.Host}/api/auth/callback/{canonicalName}";
+
+        string redirectUrl;
+        if (canonicalName == "github")
+        {
+            var clientId = envConfig.Auth.GithubClientId;
+            if (string.IsNullOrEmpty(clientId))
+            {
+                return BadRequest(new { message = "GitHub Client ID is not configured." });
+            }
+            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo,read:user,user:email,read:org&state={state}";
+        }
+        else if (canonicalName == "gitlab")
+        {
+            var clientId = envConfig.Auth.GitlabClientId;
+            if (string.IsNullOrEmpty(clientId))
+            {
+                return BadRequest(new { message = "GitLab Client ID is not configured." });
+            }
+            redirectUrl = $"https://gitlab.com/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&response_type=code&state={state}&scope=read_repository+read_api";
+        }
+        else // google
+        {
+            var clientId = envConfig.Auth.GoogleClientId;
+            if (string.IsNullOrEmpty(clientId))
+            {
+                return BadRequest(new { message = "Google Client ID is not configured." });
+            }
+            redirectUrl = $"https://accounts.google.com/o/oauth2/v2/auth?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&response_type=code&scope=openid%20email%20profile&state={state}";
+        }
+
+        return Redirect(redirectUrl);
+    }
+
+    [HttpGet("callback/{providerName}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> OAuthCallback(string providerName, [FromQuery] string code, [FromQuery] string state, CancellationToken cancellationToken)
+    {
+        var envConfig = HttpContext.RequestServices.GetRequiredService<EnvConfiguration>();
+        var canonicalName = providerName.ToLowerInvariant();
+
+        if (canonicalName != "github" && canonicalName != "gitlab" && canonicalName != "google")
+        {
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=unsupported_provider");
+        }
+
+        var savedState = Request.Cookies[$"oauth_state_{canonicalName}"];
+        if (string.IsNullOrEmpty(savedState) || savedState != state)
+        {
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=state_mismatch");
+        }
+
+        Response.Cookies.Delete($"oauth_state_{canonicalName}");
+
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=unauthenticated");
+        }
+
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+        var timeProvider = HttpContext.RequestServices.GetRequiredService<TimeProvider>();
+        var httpClientFactory = HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
+
+        string? accessToken = null;
+        string? refreshToken = null;
+        int? expiresIn = null;
+
+        var callbackUri = $"{Request.Scheme}://{Request.Host}/api/auth/callback/{canonicalName}";
+        var httpClient = httpClientFactory.CreateClient();
+
+        string providerKey = "";
+        string? providerEmail = null;
+        string? providerUsername = null;
+
+        try
+        {
+            if (canonicalName == "github")
+            {
+                var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "client_id", envConfig.Auth.GithubClientId ?? "" },
+                    { "client_secret", envConfig.Auth.GithubClientSecret ?? "" },
+                    { "code", code },
+                    { "redirect_uri", callbackUri }
+                });
+
+                var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://github.com/login/oauth/access_token")
+                {
+                    Content = content
+                };
+                tokenRequest.Headers.Accept.ParseAdd("application/json");
+
+                var tokenResponse = await httpClient.SendAsync(tokenRequest, cancellationToken);
+                if (!tokenResponse.IsSuccessStatusCode)
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=token_exchange_failed");
+                }
+
+                var jsonStr = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+                var tokenData = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonStr);
+                if (tokenData == null || !tokenData.ContainsKey("access_token"))
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=token_exchange_failed");
+                }
+
+                accessToken = tokenData["access_token"].ToString();
+
+                // Fetch User Details
+                var profileRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
+                profileRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                profileRequest.Headers.UserAgent.ParseAdd("CVerify-Core");
+
+                var profileResponse = await httpClient.SendAsync(profileRequest, cancellationToken);
+                if (!profileResponse.IsSuccessStatusCode)
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=profile_fetch_failed");
+                }
+
+                var profileJson = await profileResponse.Content.ReadAsStringAsync(cancellationToken);
+                var profileData = JsonSerializer.Deserialize<Dictionary<string, object>>(profileJson);
+                if (profileData == null || !profileData.ContainsKey("id"))
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=profile_fetch_failed");
+                }
+
+                providerKey = profileData["id"].ToString() ?? "";
+                providerUsername = profileData.ContainsKey("login") ? profileData["login"]?.ToString() : null;
+                providerEmail = profileData.ContainsKey("email") ? profileData["email"]?.ToString() : null;
+            }
+            else if (canonicalName == "gitlab")
+            {
+                var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "client_id", envConfig.Auth.GitlabClientId ?? "" },
+                    { "client_secret", envConfig.Auth.GitlabClientSecret ?? "" },
+                    { "code", code },
+                    { "grant_type", "authorization_code" },
+                    { "redirect_uri", callbackUri }
+                });
+
+                var tokenResponse = await httpClient.PostAsync("https://gitlab.com/oauth/token", content, cancellationToken);
+                if (!tokenResponse.IsSuccessStatusCode)
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=token_exchange_failed");
+                }
+
+                var jsonStr = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+                var tokenData = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonStr);
+                if (tokenData == null || !tokenData.ContainsKey("access_token"))
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=token_exchange_failed");
+                }
+
+                accessToken = tokenData["access_token"].ToString();
+                refreshToken = tokenData.ContainsKey("refresh_token") ? tokenData["refresh_token"]?.ToString() : null;
+                if (tokenData.ContainsKey("expires_in") && int.TryParse(tokenData["expires_in"]?.ToString(), out var parsedExpires))
+                {
+                    expiresIn = parsedExpires;
+                }
+
+                // Fetch User Details
+                var profileRequest = new HttpRequestMessage(HttpMethod.Get, "https://gitlab.com/api/v4/user");
+                profileRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+                var profileResponse = await httpClient.SendAsync(profileRequest, cancellationToken);
+                if (!profileResponse.IsSuccessStatusCode)
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=profile_fetch_failed");
+                }
+
+                var profileJson = await profileResponse.Content.ReadAsStringAsync(cancellationToken);
+                var profileData = JsonSerializer.Deserialize<Dictionary<string, object>>(profileJson);
+                if (profileData == null || !profileData.ContainsKey("id"))
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=profile_fetch_failed");
+                }
+
+                providerKey = profileData["id"].ToString() ?? "";
+                providerUsername = profileData.ContainsKey("username") ? profileData["username"]?.ToString() : null;
+                providerEmail = profileData.ContainsKey("email") ? profileData["email"]?.ToString() : null;
+            }
+            else // google
+            {
+                var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "client_id", envConfig.Auth.GoogleClientId ?? "" },
+                    { "client_secret", envConfig.Auth.GoogleClientSecret ?? "" },
+                    { "code", code },
+                    { "grant_type", "authorization_code" },
+                    { "redirect_uri", callbackUri }
+                });
+
+                var tokenResponse = await httpClient.PostAsync("https://oauth2.googleapis.com/token", content, cancellationToken);
+                if (!tokenResponse.IsSuccessStatusCode)
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=token_exchange_failed");
+                }
+
+                var jsonStr = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+                var tokenData = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonStr);
+                if (tokenData == null || !tokenData.ContainsKey("access_token"))
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=token_exchange_failed");
+                }
+
+                accessToken = tokenData["access_token"].ToString();
+                if (tokenData.ContainsKey("expires_in") && int.TryParse(tokenData["expires_in"]?.ToString(), out var parsedExpires))
+                {
+                    expiresIn = parsedExpires;
+                }
+
+                // Fetch User Details
+                var profileResponse = await httpClient.GetAsync($"https://www.googleapis.com/oauth2/v3/userinfo?access_token={accessToken}", cancellationToken);
+                if (!profileResponse.IsSuccessStatusCode)
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=profile_fetch_failed");
+                }
+
+                var profileJson = await profileResponse.Content.ReadAsStringAsync(cancellationToken);
+                var profileData = JsonSerializer.Deserialize<Dictionary<string, object>>(profileJson);
+                if (profileData == null || !profileData.ContainsKey("sub"))
+                {
+                    return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=profile_fetch_failed");
+                }
+
+                providerKey = profileData["sub"].ToString() ?? "";
+                providerEmail = profileData.ContainsKey("email") ? profileData["email"]?.ToString() : null;
+                providerUsername = providerEmail; // Google doesn't have usernames, fallback to email
+            }
+        }
+        catch (Exception ex)
+        {
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=exception&details={Uri.EscapeDataString(ex.Message)}");
+        }
+
+        if (string.IsNullOrEmpty(accessToken))
+        {
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=token_exchange_failed");
+        }
+
+        // Check if provider accounts are already linked to someone else
+        var duplicateProvider = await dbContext.AuthProviders
+            .FirstOrDefaultAsync(ap => ap.ProviderName == canonicalName && ap.ProviderKey == providerKey && ap.UserId != userId && ap.DeletedAt == null, cancellationToken);
+
+        if (duplicateProvider != null)
+        {
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=provider_already_linked");
+        }
+
+        // Encrypt credentials
+        if (string.IsNullOrEmpty(envConfig.Security.TokenEncryptionKey))
+        {
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=encryption_key_missing");
+        }
+
+        var encryptedAccess = EncryptionHelper.Encrypt(accessToken, envConfig.Security.TokenEncryptionKey);
+        var encryptedRefresh = !string.IsNullOrEmpty(refreshToken) ? EncryptionHelper.Encrypt(refreshToken, envConfig.Security.TokenEncryptionKey) : null;
+        var expiryTime = expiresIn.HasValue ? timeProvider.GetUtcNow().AddSeconds(expiresIn.Value) : (DateTimeOffset?)null;
+
+        var existingProvider = await dbContext.AuthProviders
+            .Include(ap => ap.OAuthCredential)
+            .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName == canonicalName && ap.DeletedAt == null, cancellationToken);
+
+        if (existingProvider != null)
+        {
+            existingProvider.ProviderKey = providerKey;
+            existingProvider.ProviderAccountId = providerEmail ?? providerUsername ?? providerKey;
+            existingProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
+            existingProvider.LastScopeValidationAt = timeProvider.GetUtcNow();
+            existingProvider.LastProviderSyncAt = timeProvider.GetUtcNow();
+            existingProvider.LastSuccessfulRefreshAt = timeProvider.GetUtcNow();
+            existingProvider.RefreshFailureCount = 0;
+
+            if (existingProvider.OAuthCredential != null)
+            {
+                existingProvider.OAuthCredential.EncryptedAccessToken = encryptedAccess;
+                existingProvider.OAuthCredential.EncryptedRefreshToken = encryptedRefresh;
+                existingProvider.OAuthCredential.ExpiresAt = expiryTime;
+                existingProvider.OAuthCredential.UpdatedAt = timeProvider.GetUtcNow();
+            }
+            else
+            {
+                existingProvider.OAuthCredential = new OAuthCredential
+                {
+                    AuthProviderId = existingProvider.Id,
+                    EncryptedAccessToken = encryptedAccess,
+                    EncryptedRefreshToken = encryptedRefresh,
+                    ExpiresAt = expiryTime,
+                    UpdatedAt = timeProvider.GetUtcNow()
+                };
+            }
+        }
+        else
+        {
+            var newProvider = new AuthProvider
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                ProviderName = canonicalName,
+                ProviderKey = providerKey,
+                ProviderAccountId = providerEmail ?? providerUsername ?? providerKey,
+                ScopeValidationStatus = ProviderScopeStatus.Valid,
+                LastScopeValidationAt = timeProvider.GetUtcNow(),
+                LastProviderSyncAt = timeProvider.GetUtcNow(),
+                LastSuccessfulRefreshAt = timeProvider.GetUtcNow(),
+                CreatedAt = timeProvider.GetUtcNow()
+            };
+
+            var credential = new OAuthCredential
+            {
+                AuthProviderId = newProvider.Id,
+                EncryptedAccessToken = encryptedAccess,
+                EncryptedRefreshToken = encryptedRefresh,
+                ExpiresAt = expiryTime,
+                UpdatedAt = timeProvider.GetUtcNow()
+            };
+
+            newProvider.OAuthCredential = credential;
+            dbContext.AuthProviders.Add(newProvider);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await _identityStateResolver.InvalidateCacheAsync(User.FindFirst(ClaimTypes.Email)?.Value ?? "");
+
+        return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&link_success=true&provider={canonicalName}");
     }
 
     [HttpPost("send-otp")]

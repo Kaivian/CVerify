@@ -16,6 +16,7 @@ public class EnvConfiguration
 public class SecuritySettings
 {
     public bool DisableRateLimits { get; set; } = false;
+    public string? TokenEncryptionKey { get; set; }
 }
 
 
@@ -48,6 +49,11 @@ public class AuthSettings
     public string VerifyEmailUrlFormat => $"{FrontendUrl.TrimEnd('/')}/verify-email?token={{token}}";
     public string TrustedDomains { get; set; } = "cverify.ai;localhost;127.0.0.1";
     public string GoogleClientId { get; set; } = null!;
+    public string? GoogleClientSecret { get; set; }
+    public string? GithubClientId { get; set; }
+    public string? GithubClientSecret { get; set; }
+    public string? GitlabClientId { get; set; }
+    public string? GitlabClientSecret { get; set; }
     public bool DisableCsrf { get; set; } = false;
 }
 

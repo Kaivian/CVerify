@@ -13,6 +13,7 @@ export interface ProfileResponse {
   publicEmail: string | null;
   profileVisibility: string;
   recruiterVisibility: boolean;
+  aiTalentDiscovery: string;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -32,6 +33,7 @@ export interface UpdateProfileRequest {
   publicEmail: string | null;
   profileVisibility: string;
   recruiterVisibility: boolean;
+  aiTalentDiscovery: string;
   socialLinks: string[];
   version: number;
 }

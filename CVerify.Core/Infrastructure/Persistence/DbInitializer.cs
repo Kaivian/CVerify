@@ -135,12 +135,29 @@ public static class DbInitializer
                 user_id UUID NOT NULL,
                 provider_name VARCHAR(50) NOT NULL,
                 provider_key VARCHAR(255) NOT NULL,
+                provider_account_id VARCHAR(100),
+                granted_scopes VARCHAR(500),
+                last_scope_validation_at TIMESTAMP WITH TIME ZONE,
+                scope_validation_status INTEGER NOT NULL DEFAULT 0,
+                last_successful_refresh_at TIMESTAMP WITH TIME ZONE,
+                refresh_failure_count INTEGER NOT NULL DEFAULT 0,
+                last_provider_sync_at TIMESTAMP WITH TIME ZONE,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE,
                 CONSTRAINT fk_auth_providers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_key_active ON auth_providers(provider_name, provider_key) WHERE deleted_at IS NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_user_type_active ON auth_providers(user_id, provider_name) WHERE deleted_at IS NULL;
+
+            -- Stores encrypted OAuth credentials separated from provider metadata
+            CREATE TABLE IF NOT EXISTS oauth_credentials (
+                auth_provider_id UUID PRIMARY KEY,
+                encrypted_access_token VARCHAR(1000) NOT NULL,
+                encrypted_refresh_token VARCHAR(1000),
+                expires_at TIMESTAMP WITH TIME ZONE,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_oauth_credentials_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
+            );
 
             -- Stores active/inactive historical password credentials to prevent reuse
             CREATE TABLE IF NOT EXISTS password_credentials (
@@ -605,6 +622,84 @@ public static class DbInitializer
                 ) THEN
                     ALTER TABLE otp_verifications ADD COLUMN invalidated_at TIMESTAMP WITH TIME ZONE;
                 END IF;
+
+                -- Safely provision ai_talent_discovery column to user_profiles if missing
+                IF EXISTS (
+                    SELECT 1 
+                    FROM information_schema.tables 
+                    WHERE table_name = 'user_profiles'
+                ) THEN
+                    IF NOT EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'user_profiles' AND column_name = 'ai_talent_discovery'
+                    ) THEN
+                        ALTER TABLE user_profiles ADD COLUMN ai_talent_discovery VARCHAR(20) NOT NULL DEFAULT 'disabled';
+                    END IF;
+                END IF;
+
+                -- Safely provision provider_account_id column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'provider_account_id'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN provider_account_id VARCHAR(100);
+                END IF;
+
+                -- Safely provision granted_scopes column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'granted_scopes'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN granted_scopes VARCHAR(500);
+                END IF;
+
+                -- Safely provision last_scope_validation_at column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'last_scope_validation_at'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN last_scope_validation_at TIMESTAMP WITH TIME ZONE;
+                END IF;
+
+                -- Safely provision scope_validation_status column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'scope_validation_status'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN scope_validation_status INTEGER NOT NULL DEFAULT 0;
+                END IF;
+
+                -- Safely provision last_successful_refresh_at column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'last_successful_refresh_at'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN last_successful_refresh_at TIMESTAMP WITH TIME ZONE;
+                END IF;
+
+                -- Safely provision refresh_failure_count column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'refresh_failure_count'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN refresh_failure_count INTEGER NOT NULL DEFAULT 0;
+                END IF;
+
+                -- Safely provision last_provider_sync_at column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'last_provider_sync_at'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN last_provider_sync_at TIMESTAMP WITH TIME ZONE;
+                END IF;
             END $$;
 
             -- Granular permissions using a hierarchical naming convention
@@ -811,6 +906,7 @@ public static class DbInitializer
                 public_email VARCHAR(255),
                 profile_visibility VARCHAR(20) NOT NULL DEFAULT 'public',
                 recruiter_visibility BOOLEAN NOT NULL DEFAULT TRUE,
+                ai_talent_discovery VARCHAR(20) NOT NULL DEFAULT 'disabled',
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE,

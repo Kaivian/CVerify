@@ -5,14 +5,12 @@ import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
-import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { SettingsSection } from "./SettingsSection";
 import { LinkedAccountsList } from "./LinkedAccountsList";
 import { SignInMethod } from "./SignInMethod";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import {
   Typography,
-  Switch,
   Chip,
   toast,
   Spinner,
@@ -26,14 +24,13 @@ import {
   Button,
   Separator,
   Modal,
+  FieldError,
 } from "@heroui/react";
 import {
   ShieldAlert,
-  Key,
   Laptop,
   Trash2,
   AlertTriangle,
-  ShieldX,
   Info,
   X,
 } from "lucide-react";
@@ -70,7 +67,7 @@ const accountSchema = z.object({
       (val) => !RESERVED_USERNAMES.includes(val),
       "This username is reserved",
     ),
-  profileVisibility: z.enum(["public", "members", "private"]),
+  profileVisibility: z.enum(["public", "connections", "private"]),
   recruiterVisibility: z.boolean(),
   aiTalentDiscovery: z.enum(["enabled", "limited", "disabled"]),
 });
@@ -86,13 +83,20 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   onDirtyChange,
   onSaveSuccess,
 }) => {
-  const { user, fetchSessions, revokeSession } = useAuth();
+  const { user, fetchSessions, revokeSession, deleteAccount } = useAuth();
   const { profile, isLoading, updateProfile, updateUsername } = useProfile();
 
   // Local states
   const [sessions, setSessions] = useState<SessionInfoData[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [profileOrigin, setProfileOrigin] = useState("https://cverify.com");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setProfileOrigin(window.location.origin);
+    }
+  }, []);
 
   // Modals state
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -119,20 +123,17 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     handleSubmit,
     reset,
     setValue,
-    formState: { errors },
   } = methods;
 
   const currentValues = useWatch({ control: methods.control });
 
-  // Reset form when profile data loads from DB
   useEffect(() => {
     if (profile && !methods.formState.isDirty) {
       reset({
         username: profile.username || "",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        profileVisibility: (profile.profileVisibility as any) || "public",
+        profileVisibility: (profile.profileVisibility as AccountFormValues["profileVisibility"]) || "public",
         recruiterVisibility: profile.recruiterVisibility ?? true,
-        aiTalentDiscovery: "disabled",
+        aiTalentDiscovery: (profile.aiTalentDiscovery as AccountFormValues["aiTalentDiscovery"]) || "disabled",
       });
     }
   }, [profile, reset, methods.formState.isDirty]);
@@ -175,7 +176,8 @@ export const AccountTab: React.FC<AccountTabProps> = ({
       // 2. If visibility preferences changed, call updateProfile API
       if (
         data.profileVisibility !== profile?.profileVisibility ||
-        data.recruiterVisibility !== profile?.recruiterVisibility
+        data.recruiterVisibility !== profile?.recruiterVisibility ||
+        data.aiTalentDiscovery !== profile?.aiTalentDiscovery
       ) {
         const request: UpdateProfileRequest = {
           fullName: profile?.fullName || user?.fullName || null,
@@ -190,6 +192,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           publicEmail: profile?.publicEmail || null,
           profileVisibility: data.profileVisibility,
           recruiterVisibility: data.recruiterVisibility,
+          aiTalentDiscovery: data.aiTalentDiscovery,
           socialLinks: profile?.socialLinks || [],
           version:
             useProfileStore.getState().profile?.version ||
@@ -204,9 +207,22 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     } catch (error: unknown) {
       console.error("Failed to save account settings:", error);
       const axiosError = error as {
-        response?: { data?: { message?: string } };
+        response?: { status?: number; data?: { message?: string } };
         message?: string;
       };
+      
+      const isConflict = axiosError.response?.status === 409 || 
+        axiosError.response?.data?.message?.toLowerCase().includes("taken") ||
+        axiosError.response?.data?.message?.toLowerCase().includes("already exists");
+        
+      if (isConflict) {
+        methods.setError("username", {
+          type: "manual",
+          message: axiosError.response?.data?.message || "This username is already taken."
+        });
+        return;
+      }
+
       const errMsg =
         axiosError.response?.data?.message ||
         axiosError.message ||
@@ -240,16 +256,21 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   // Delete account action
   const handleDeleteAccount = async () => {
-    if (deleteConfirmationText !== "DELETE") return;
+    if (deleteConfirmationText !== (profile?.username || "")) return;
     setIsDeleting(true);
     try {
-      // Simulate delete call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setIsDeleteModalOpen(false);
-      // Force trigger logout and redirect
-      window.location.href = "/login";
+      const response = await deleteAccount();
+      if (response.success) {
+        setIsDeleteModalOpen(false);
+        toast.success("Account successfully deleted.");
+        window.location.assign("/login");
+      } else {
+        toast.danger(response.error?.message || "Failed to delete account.");
+        setIsDeleting(false);
+      }
     } catch (err) {
       console.error("Failed to delete account:", err);
+      toast.danger("An error occurred during account deletion.");
       setIsDeleting(false);
     }
   };
@@ -285,18 +306,32 @@ export const AccountTab: React.FC<AccountTabProps> = ({
               <div className="flex flex-col gap-2 w-full">
                 <TextField
                   className="w-full"
-                  value={currentValues.username}
+                  isInvalid={!!methods.formState.errors.username}
                   name="username"
                 >
                   <Label>Username</Label>
                   <InputGroup>
-                    <InputGroup.Input maxLength={25} />
+                    <InputGroup.Input
+                      maxLength={25}
+                      value={currentValues.username || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const normalized = val.toLowerCase().trim();
+                        setValue("username", normalized, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }}
+                    />
                   </InputGroup>
+                  {methods.formState.errors.username && (
+                    <FieldError>{methods.formState.errors.username.message}</FieldError>
+                  )}
                 </TextField>
                 <Description>
                   Your public profile link will be:{" "}
                   <span className="font-bold text-foreground">
-                    cverify.com/
+                    {profileOrigin.replace(/^https?:\/\//, "")}/
                     {currentValues.username || "username"}
                   </span>
                 </Description>
@@ -308,7 +343,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                   onChange={(val) =>
                     setValue(
                       "profileVisibility",
-                      val as "public" | "members" | "private",
+                      val as "public" | "connections" | "private",
                       { shouldDirty: true },
                     )
                   }
@@ -718,8 +753,10 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                 <Button
                   variant="danger"
                   onClick={() => {
+                    if (sessionToRevoke) {
+                      handleRevokeSession(sessionToRevoke.sessionId);
+                    }
                     setIsRevokeModalOpen(false);
-                    toast.success("Session revocation request simulated.");
                   }}
                   className="rounded-xl font-bold text-xs h-9 px-4 select-none"
                 >
@@ -808,12 +845,11 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                 <Button
                   variant="danger"
                   isDisabled={
+                    isDeleting ||
                     deleteConfirmationText !== (profile?.username || "")
                   }
-                  onClick={() => {
-                    setIsDeleteModalOpen(false);
-                    toast.success("Account deletion simulated.");
-                  }}
+                  isPending={isDeleting}
+                  onClick={handleDeleteAccount}
                   className="rounded-xl font-bold text-xs h-9 px-4 flex items-center gap-1.5 select-none"
                 >
                   <Trash2 size={13} />
