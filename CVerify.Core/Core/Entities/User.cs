@@ -57,6 +57,8 @@ public class User
 
     public virtual ICollection<PasswordCredential> PasswordCredentials { get; set; } = new List<PasswordCredential>();
 
+    public virtual ICollection<UserEmail> LinkedEmails { get; set; } = new List<UserEmail>();
+
     /// <summary>
     /// Transition the user to a new status using a formal domain state machine.
     /// Throws an InvalidOperationException if the transition is invalid.

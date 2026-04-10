@@ -45,6 +45,7 @@ public class AuthSettings
     public int VerificationTokenDurationInHours { get; set; } = 24;
     public int ResetPasswordTokenDurationInMinutes { get; set; } = 30;
     public string FrontendUrl { get; set; } = "http://localhost:3000";
+    public string? BackendUrl { get; set; }
     public string ResetPasswordUrlFormat => $"{FrontendUrl.TrimEnd('/')}/reset-password?token={{token}}";
     public string VerifyEmailUrlFormat => $"{FrontendUrl.TrimEnd('/')}/verify-email?token={{token}}";
     public string TrustedDomains { get; set; } = "cverify.ai;localhost;127.0.0.1";

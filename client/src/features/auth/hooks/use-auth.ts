@@ -62,6 +62,7 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
       };
 
       login(user);
@@ -97,6 +98,7 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
       };
 
       login(user);
@@ -293,6 +295,7 @@ export const useAuth = () => {
           role: normalizeRole(response.roles),
           permissions: response.permissions,
           isEmailVerified: response.isEmailVerified,
+          passwordChangedAt: response.passwordChangedAt,
         };
 
         stateStore.login(user);
@@ -734,6 +737,134 @@ export const useAuth = () => {
     }
   }, [setLoading]);
 
+  // Send Recovery OTP action
+  const sendRecoveryOtp = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.sendRecoveryOtp();
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Verify Recovery OTP action
+  const verifyRecoveryOtp = useCallback(async (otp: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyRecoveryOtp(otp);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Change Password via Recovery action
+  const changePasswordViaRecovery = useCallback(async (payload: { recoveryToken: string; newPassword?: string; confirmPassword?: string }) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.changePasswordViaRecovery(payload);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Fetch linked emails
+  const fetchLinkedEmails = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.fetchLinkedEmails();
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Send link email OTP
+  const sendLinkEmailOtp = useCallback(async (email: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.sendLinkEmailOtp(email);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Verify link email OTP
+  const verifyLinkEmailOtp = useCallback(async (challengeId: string, email: string, code: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyLinkEmailOtp(challengeId, email, code);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Promote email to primary
+  const makeEmailPrimary = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.makeEmailPrimary(email, password);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Delete linked email
+  const deleteLinkedEmail = useCallback(async (id: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.deleteLinkedEmail(id);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
   return {
     // Zustand States
     user: storeUser,
@@ -775,6 +906,18 @@ export const useAuth = () => {
     changePassword,
     linkGoogleAccount,
     
+    // Settings password recovery actions
+    sendRecoveryOtp,
+    verifyRecoveryOtp,
+    changePasswordViaRecovery,
+    
+    // Linked email management actions
+    fetchLinkedEmails,
+    sendLinkEmailOtp,
+    verifyLinkEmailOtp,
+    makeEmailPrimary,
+    deleteLinkedEmail,
+
     // Unified Onboarding flow
     verifyCompanyOnboarding,
     verifyOnboardingOtp,

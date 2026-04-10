@@ -11,6 +11,7 @@ export interface User {
   permissions: ResourceActionPermission[];
   avatarUrl?: string;
   isEmailVerified?: boolean;
+  passwordChangedAt?: string;
 }
 
 export type BootstrapState = 'IDLE' | 'BOOTSTRAPPING' | 'VALIDATING' | 'READY';
@@ -43,6 +44,7 @@ export interface LoginResponseData {
   isEmailVerified: boolean;
   status: string;
   nextStep: string;
+  passwordChangedAt?: string;
 }
 
 export interface UserProfileResponseData {
@@ -55,6 +57,7 @@ export interface UserProfileResponseData {
   isEmailVerified: boolean;
   status: string;
   nextStep: string;
+  passwordChangedAt?: string;
 }
 
 export interface AuthSuccessResponse {
@@ -111,4 +114,12 @@ export type EmailAuthState =
 export interface ResolveEmailAuthStateResponseData {
   authState: EmailAuthState;
 }
+
+export interface LinkedEmail {
+  id: string;
+  email: string;
+  isPrimary: boolean;
+  isVerified: boolean;
+}
+
 

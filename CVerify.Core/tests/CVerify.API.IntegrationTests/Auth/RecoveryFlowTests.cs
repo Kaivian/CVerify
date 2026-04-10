@@ -243,19 +243,19 @@ public class RecoveryFlowTests : BaseIntegrationTest
     {
         var taxCode = "1234512345";
         var companyName = "Test Normalization Corp";
-        var normalizedEmail = "ownername@gmail.com";
-        var rawEmailInRequest = " owner.name+reclaim@gmail.com ";
+        var expectedEmail = "owner.name+reclaim@gmail.com";
+        var rawEmailInRequest = " OWNER.NAME+reclaim@gmail.com ";
         var username = "normalization-corp";
         
-        var org = await SeedOrganizationAsync(taxCode, companyName, normalizedEmail, username);
+        var org = await SeedOrganizationAsync(taxCode, companyName, expectedEmail, username);
 
         // Generate valid OTP verification token using the normalized email format
         using var scope = Factory.Services.CreateScope();
         var config = scope.ServiceProvider.GetRequiredService<CVerify.API.Infrastructure.Configuration.EnvConfiguration>();
         
-        var token = RecoveryTokenHelper.GenerateOtpVerifiedToken(taxCode, normalizedEmail, config.Jwt.Key);
+        var token = RecoveryTokenHelper.GenerateOtpVerifiedToken(taxCode, expectedEmail, config.Jwt.Key);
 
-        // Submit claim with non-normalized recovery email containing dots and + subaddressing
+        // Submit claim with non-normalized recovery email containing casing and whitespace differences
         var boundary = $"----Boundary{Guid.NewGuid():N}";
         using var content = new MultipartFormDataContent(boundary);
         content.Add(new StringContent(companyName), "CompanyName");

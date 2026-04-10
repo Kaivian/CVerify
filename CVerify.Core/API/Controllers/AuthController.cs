@@ -10,6 +10,7 @@ using CVerify.API.Application.DTOs;
 using CVerify.API.Application.Exceptions;
 using CVerify.API.Application.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using CVerify.API.Infrastructure.Persistence;
 using CVerify.API.Core.Entities;
 using CVerify.API.Core.Enums;
@@ -19,6 +20,7 @@ using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Http;
 using System.Text.Json;
+using System.ComponentModel.DataAnnotations;
 
 namespace CVerify.API.API.Controllers;
 
@@ -26,13 +28,19 @@ namespace CVerify.API.API.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
+    private const string ProviderGitHub = "github";
+    private const string ProviderGitLab = "gitlab";
+    private const string ProviderGoogle = "google";
+
     private readonly IAuthService _authService;
     private readonly IIdentityStateResolver _identityStateResolver;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService, IIdentityStateResolver identityStateResolver)
+    public AuthController(IAuthService authService, IIdentityStateResolver identityStateResolver, ILogger<AuthController> logger)
     {
         _authService = authService;
         _identityStateResolver = identityStateResolver;
+        _logger = logger;
     }
 
     [HttpPost("login")]
@@ -310,7 +318,7 @@ public class AuthController : ControllerBase
         var envConfig = HttpContext.RequestServices.GetRequiredService<EnvConfiguration>();
         var canonicalName = providerName.ToLowerInvariant();
 
-        if (canonicalName != "github" && canonicalName != "gitlab" && canonicalName != "google")
+        if (canonicalName != ProviderGitHub && canonicalName != ProviderGitLab && canonicalName != ProviderGoogle)
         {
             return BadRequest(new { message = $"Unsupported provider: {providerName}" });
         }
@@ -319,32 +327,35 @@ public class AuthController : ControllerBase
         var cookieOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = HttpContext.Request.IsHttps || HttpContext.Request.Headers["X-Forwarded-Proto"] == "https",
+            Secure = true,
             SameSite = SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddMinutes(5)
         };
         Response.Cookies.Append($"oauth_state_{canonicalName}", state, cookieOptions);
 
-        var callbackUri = $"{Request.Scheme}://{Request.Host}/api/auth/callback/{canonicalName}";
+        var baseUri = string.IsNullOrEmpty(envConfig.Auth.BackendUrl) 
+            ? $"{Request.Scheme}://{Request.Host}" 
+            : envConfig.Auth.BackendUrl.TrimEnd('/');
+        var callbackUri = $"{baseUri}/api/auth/callback/{canonicalName}";
 
         string redirectUrl;
-        if (canonicalName == "github")
+        if (canonicalName == ProviderGitHub)
         {
             var clientId = envConfig.Auth.GithubClientId;
             if (string.IsNullOrEmpty(clientId))
             {
                 return BadRequest(new { message = "GitHub Client ID is not configured." });
             }
-            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo,read:user,user:email,read:org&state={state}";
+            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org&state={state}";
         }
-        else if (canonicalName == "gitlab")
+        else if (canonicalName == ProviderGitLab)
         {
             var clientId = envConfig.Auth.GitlabClientId;
             if (string.IsNullOrEmpty(clientId))
             {
                 return BadRequest(new { message = "GitLab Client ID is not configured." });
             }
-            redirectUrl = $"https://gitlab.com/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&response_type=code&state={state}&scope=read_repository+read_api";
+            redirectUrl = $"https://gitlab.com/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&response_type=code&state={state}&scope=read_api%20read_repository";
         }
         else // google
         {
@@ -366,7 +377,7 @@ public class AuthController : ControllerBase
         var envConfig = HttpContext.RequestServices.GetRequiredService<EnvConfiguration>();
         var canonicalName = providerName.ToLowerInvariant();
 
-        if (canonicalName != "github" && canonicalName != "gitlab" && canonicalName != "google")
+        if (canonicalName != ProviderGitHub && canonicalName != ProviderGitLab && canonicalName != ProviderGoogle)
         {
             return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=unsupported_provider");
         }
@@ -393,16 +404,20 @@ public class AuthController : ControllerBase
         string? refreshToken = null;
         int? expiresIn = null;
 
-        var callbackUri = $"{Request.Scheme}://{Request.Host}/api/auth/callback/{canonicalName}";
+        var baseUri = string.IsNullOrEmpty(envConfig.Auth.BackendUrl) 
+            ? $"{Request.Scheme}://{Request.Host}" 
+            : envConfig.Auth.BackendUrl.TrimEnd('/');
+        var callbackUri = $"{baseUri}/api/auth/callback/{canonicalName}";
         var httpClient = httpClientFactory.CreateClient();
 
         string providerKey = "";
         string? providerEmail = null;
         string? providerUsername = null;
+        string? providerAvatarUrl = null;
 
         try
         {
-            if (canonicalName == "github")
+            if (canonicalName == ProviderGitHub)
             {
                 var content = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
@@ -454,6 +469,7 @@ public class AuthController : ControllerBase
                 providerKey = profileData["id"].ToString() ?? "";
                 providerUsername = profileData.ContainsKey("login") ? profileData["login"]?.ToString() : null;
                 providerEmail = profileData.ContainsKey("email") ? profileData["email"]?.ToString() : null;
+                providerAvatarUrl = profileData.ContainsKey("avatar_url") ? profileData["avatar_url"]?.ToString() : null;
             }
             else if (canonicalName == "gitlab")
             {
@@ -555,11 +571,6 @@ public class AuthController : ControllerBase
                 providerEmail = profileData.ContainsKey("email") ? profileData["email"]?.ToString() : null;
                 providerUsername = providerEmail; // Google doesn't have usernames, fallback to email
             }
-        }
-        catch (Exception ex)
-        {
-            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=exception&details={Uri.EscapeDataString(ex.Message)}");
-        }
 
         if (string.IsNullOrEmpty(accessToken))
         {
@@ -593,6 +604,8 @@ public class AuthController : ControllerBase
         {
             existingProvider.ProviderKey = providerKey;
             existingProvider.ProviderAccountId = providerEmail ?? providerUsername ?? providerKey;
+            existingProvider.ProviderUsername = providerUsername;
+            existingProvider.ProviderAvatarUrl = providerAvatarUrl;
             existingProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
             existingProvider.LastScopeValidationAt = timeProvider.GetUtcNow();
             existingProvider.LastProviderSyncAt = timeProvider.GetUtcNow();
@@ -627,6 +640,8 @@ public class AuthController : ControllerBase
                 ProviderName = canonicalName,
                 ProviderKey = providerKey,
                 ProviderAccountId = providerEmail ?? providerUsername ?? providerKey,
+                ProviderUsername = providerUsername,
+                ProviderAvatarUrl = providerAvatarUrl,
                 ScopeValidationStatus = ProviderScopeStatus.Valid,
                 LastScopeValidationAt = timeProvider.GetUtcNow(),
                 LastProviderSyncAt = timeProvider.GetUtcNow(),
@@ -651,6 +666,93 @@ public class AuthController : ControllerBase
         await _identityStateResolver.InvalidateCacheAsync(User.FindFirst(ClaimTypes.Email)?.Value ?? "");
 
         return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&link_success=true&provider={canonicalName}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "OAuth callback failed for provider {ProviderName}", providerName);
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=exception&details={Uri.EscapeDataString(ex.Message)}");
+        }
+    }
+
+    [HttpGet("github/connection-status")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetGithubConnectionStatus(CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+        var provider = await dbContext.AuthProviders
+            .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName == ProviderGitHub && ap.DeletedAt == null, cancellationToken);
+
+        if (provider != null)
+        {
+            long? githubUserId = null;
+            if (long.TryParse(provider.ProviderKey, out var parsedId))
+            {
+                githubUserId = parsedId;
+            }
+
+            return Ok(new
+            {
+                isConnected = true,
+                providerId = provider.Id.ToString(),
+                githubUserId = githubUserId,
+                githubUsername = provider.ProviderUsername ?? provider.ProviderAccountId ?? string.Empty,
+                githubAvatarUrl = provider.ProviderAvatarUrl ?? string.Empty
+            });
+        }
+
+        return Ok(new
+        {
+            isConnected = false
+        });
+    }
+
+    [HttpDelete("github/connection")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DisconnectGithub(CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+        var provider = await dbContext.AuthProviders
+            .Include(ap => ap.OAuthCredential)
+            .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName == ProviderGitHub && ap.DeletedAt == null, cancellationToken);
+
+        if (provider == null)
+        {
+            return NotFound(new { message = "GitHub account is not connected." });
+        }
+
+        var timeProvider = HttpContext.RequestServices.GetRequiredService<TimeProvider>();
+        provider.DeletedAt = timeProvider.GetUtcNow();
+        if (provider.OAuthCredential != null)
+        {
+            dbContext.OAuthCredentials.Remove(provider.OAuthCredential);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var identityStateResolver = HttpContext.RequestServices.GetRequiredService<IIdentityStateResolver>();
+        await identityStateResolver.InvalidateCacheAsync(User.FindFirst(ClaimTypes.Email)?.Value ?? "");
+
+        // Logging the audit event
+        _logger.LogInformation("PROVIDER_UNLINKED: GitHub account successfully unlinked for user {UserId}", userId);
+
+        return Ok(new { success = true, message = "GitHub account successfully disconnected." });
     }
 
     [HttpPost("send-otp")]
@@ -921,5 +1023,314 @@ public class AuthController : ControllerBase
             return Ok(new { message = "Session revoked successfully" });
         }
         return BadRequest(new { message = "Failed to revoke session" });
+    }
+
+    [HttpGet("emails")]
+    [Authorize]
+    public async Task<IActionResult> GetEmails(CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+        var user = await dbContext.Users
+            .Include(u => u.LinkedEmails)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        var list = new List<object>
+        {
+            new { id = Guid.Empty, email = user.Email, isPrimary = true, isVerified = true }
+        };
+
+        foreach (var le in user.LinkedEmails.OrderBy(e => e.CreatedAt))
+        {
+            list.Add(new { id = le.Id, email = le.Email, isPrimary = false, isVerified = le.IsVerified });
+        }
+
+        return Ok(list);
+    }
+
+    public class SendEmailLinkOtpRequest
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = null!;
+    }
+
+    [HttpPost("emails/send-otp")]
+    [Authorize]
+    public async Task<IActionResult> SendLinkEmailOtp([FromBody] SendEmailLinkOtpRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+        // 1. Global uniqueness validation (Users & UserEmails)
+        var emailExists = await dbContext.Users.AnyAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken) ||
+                          await dbContext.UserEmails.AnyAsync(ue => ue.Email == normalizedEmail, cancellationToken);
+
+        if (emailExists)
+        {
+            return BadRequest(new { message = "This email is already associated with another account." });
+        }
+
+        // 2. Count limits (Max 3 including primary)
+        var secondaryCount = await dbContext.UserEmails.CountAsync(ue => ue.UserId == userId, cancellationToken);
+        if (secondaryCount >= 2) // 1 primary + 2 secondary = 3 max
+        {
+            return BadRequest(new { message = "You have reached the maximum of 3 linked email addresses." });
+        }
+
+        // 3. Dispatch challenge OTP using core AuthService
+        var userAgent = Request.Headers["User-Agent"].ToString();
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        
+        var otpRequest = new SendOtpRequest(normalizedEmail, "LINK_EMAIL");
+        var result = await _authService.SendOtpAsync(otpRequest, userAgent, ipAddress, cancellationToken);
+
+        return Ok(result);
+    }
+
+    public class VerifyEmailLinkOtpRequest
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = null!;
+
+        [Required]
+        public string Code { get; set; } = null!;
+
+        [Required]
+        public Guid ChallengeId { get; set; }
+    }
+
+    [HttpPost("emails/verify-otp")]
+    [Authorize]
+    public async Task<IActionResult> VerifyLinkEmailOtp([FromBody] VerifyEmailLinkOtpRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+        // 1. TOCTOU Protection - re-validate global uniqueness before verification
+        var emailExists = await dbContext.Users.AnyAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken) ||
+                          await dbContext.UserEmails.AnyAsync(ue => ue.Email == normalizedEmail, cancellationToken);
+
+        if (emailExists)
+        {
+            return BadRequest(new { message = "This email is already associated with another account." });
+        }
+
+        // 2. Count limits validation
+        var secondaryCount = await dbContext.UserEmails.CountAsync(ue => ue.UserId == userId, cancellationToken);
+        if (secondaryCount >= 2)
+        {
+            return BadRequest(new { message = "You have reached the maximum of 3 linked email addresses." });
+        }
+
+        try
+        {
+            // 3. Verify OTP code using core AuthService
+            var verifyRequest = new VerifyOtpRequest(request.ChallengeId, normalizedEmail, request.Code, "LINK_EMAIL");
+            var verifyResult = await _authService.VerifyOtpAsync(verifyRequest, cancellationToken);
+
+            // 4. Create and save verified UserEmail record
+            var userEmail = new UserEmail
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                Email = normalizedEmail,
+                IsVerified = true,
+                VerifiedAt = DateTimeOffset.UtcNow,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+
+            dbContext.UserEmails.Add(userEmail);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            // 5. Invalidate cache
+            await _identityStateResolver.InvalidateCacheAsync(normalizedEmail);
+
+            return Ok(new { success = true, message = "Email successfully linked to your account." });
+        }
+        catch (AuthException ex)
+        {
+            return BadRequest(new { code = ex.Code, message = ex.Message });
+        }
+    }
+
+    public class MakePrimaryEmailRequest
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = null!;
+
+        [Required]
+        public string Password { get; set; } = null!;
+    }
+
+    [HttpPost("emails/make-primary")]
+    [Authorize]
+    public async Task<IActionResult> MakeEmailPrimary([FromBody] MakePrimaryEmailRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var newPrimaryEmail = request.Email.Trim().ToLowerInvariant();
+
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+        var user = await dbContext.Users
+            .Include(u => u.LinkedEmails)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        // 1. Password verification for high-impact action re-authentication
+        if (!VerifyPassword(user, user.PasswordHash, request.Password))
+        {
+            return BadRequest(new { message = "Incorrect password confirmation." });
+        }
+
+        // 2. Validate that the email to promote exists and is verified in secondary list
+        var secondaryEmail = user.LinkedEmails.FirstOrDefault(ue => ue.Email == newPrimaryEmail);
+        if (secondaryEmail == null)
+        {
+            return BadRequest(new { message = "The specified email is not linked to your account." });
+        }
+
+        if (!secondaryEmail.IsVerified)
+        {
+            return BadRequest(new { message = "Secondary email must be verified before it can be promoted to primary." });
+        }
+
+        var oldPrimaryEmail = user.Email;
+
+        // 3. Strict transactional boundary for swap promotion
+        using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // Remove the newly promoted secondary email from secondary table
+            dbContext.UserEmails.Remove(secondaryEmail);
+
+            // Add the old primary email to secondary emails table as a verified email
+            var oldPrimaryAsSecondary = new UserEmail
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                Email = oldPrimaryEmail,
+                IsVerified = true,
+                VerifiedAt = DateTimeOffset.UtcNow,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            dbContext.UserEmails.Add(oldPrimaryAsSecondary);
+
+            // Set users.email to the new primary email
+            user.Email = newPrimaryEmail;
+            user.UpdatedAt = DateTimeOffset.UtcNow.UtcDateTime;
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _logger.LogError(ex, "Transaction failed during email promotion to primary for user {UserId}", userId);
+            throw;
+        }
+
+        // 4. Invalidate cache entries for both email identities
+        await _identityStateResolver.InvalidateCacheAsync(oldPrimaryEmail);
+        await _identityStateResolver.InvalidateCacheAsync(newPrimaryEmail);
+
+        return Ok(new { success = true, message = $"Email {newPrimaryEmail} is now promoted as your primary email." });
+    }
+
+    [HttpDelete("emails/{id:guid}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteLinkedEmail([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+        var userEmail = await dbContext.UserEmails
+            .FirstOrDefaultAsync(ue => ue.Id == id && ue.UserId == userId, cancellationToken);
+
+        if (userEmail == null)
+        {
+            return NotFound(new { message = "Linked email not found." });
+        }
+
+        var oldEmail = userEmail.Email;
+
+        // Perform removal
+        dbContext.UserEmails.Remove(userEmail);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Invalidate identity cache entry
+        await _identityStateResolver.InvalidateCacheAsync(oldEmail);
+
+        return Ok(new { success = true, message = "Email address successfully removed from your account." });
+    }
+
+    private bool VerifyPassword(User user, string? hash, string inputPassword)
+    {
+        if (string.IsNullOrEmpty(hash)) return false;
+
+        if (hash.StartsWith("$2a$") || hash.StartsWith("$2b$") || hash.StartsWith("$2y$"))
+        {
+            return BCrypt.Net.BCrypt.Verify(inputPassword, hash);
+        }
+
+        var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<User>();
+        var result = hasher.VerifyHashedPassword(user, hash, inputPassword);
+        return result == Microsoft.AspNetCore.Identity.PasswordVerificationResult.Success || 
+               result == Microsoft.AspNetCore.Identity.PasswordVerificationResult.SuccessRehashNeeded;
     }
 }

@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using System;
 using System.Threading.Tasks;
 
@@ -17,7 +19,14 @@ public static class DbInitializer
             throw new ArgumentNullException(nameof(context));
         }
 
-        // 1. Fail fast if we cannot connect to the database
+        // 1. Ensure database exists
+        var databaseCreator = context.Database.GetService<IRelationalDatabaseCreator>();
+        if (!await databaseCreator.ExistsAsync())
+        {
+            await databaseCreator.CreateAsync();
+        }
+
+        // 1b. Fail fast if we cannot connect to the database
         if (!await context.Database.CanConnectAsync())
         {
             throw new InvalidOperationException("Database connectivity check failed. Please ensure PostgreSQL is running and the connection string is correct.");
@@ -58,6 +67,7 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS organizations CASCADE;
                 DROP TABLE IF EXISTS password_credentials CASCADE;
                 DROP TABLE IF EXISTS auth_providers CASCADE;
+                DROP TABLE IF EXISTS user_emails CASCADE;
                 DROP TABLE IF EXISTS users CASCADE;
                 DROP TABLE IF EXISTS roles CASCADE;
                 DROP TYPE IF EXISTS user_status CASCADE;
@@ -129,6 +139,19 @@ public static class DbInitializer
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_active ON users(email) WHERE deleted_at IS NULL;
 
+            -- Stores linked secondary emails
+            CREATE TABLE IF NOT EXISTS user_emails (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                email CITEXT NOT NULL,
+                is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+                verified_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_user_emails_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_emails_email_active ON user_emails(email);
+            CREATE INDEX IF NOT EXISTS idx_user_emails_lookup ON user_emails(email, is_verified);
+
             -- Stores authentication provider linkage information
             CREATE TABLE IF NOT EXISTS auth_providers (
                 id UUID PRIMARY KEY,
@@ -136,6 +159,8 @@ public static class DbInitializer
                 provider_name VARCHAR(50) NOT NULL,
                 provider_key VARCHAR(255) NOT NULL,
                 provider_account_id VARCHAR(100),
+                provider_username VARCHAR(255),
+                provider_avatar_url VARCHAR(500),
                 granted_scopes VARCHAR(500),
                 last_scope_validation_at TIMESTAMP WITH TIME ZONE,
                 scope_validation_status INTEGER NOT NULL DEFAULT 0,
@@ -645,6 +670,24 @@ public static class DbInitializer
                     WHERE table_name = 'auth_providers' AND column_name = 'provider_account_id'
                 ) THEN
                     ALTER TABLE auth_providers ADD COLUMN provider_account_id VARCHAR(100);
+                END IF;
+
+                -- Safely provision provider_username column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'provider_username'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN provider_username VARCHAR(255);
+                END IF;
+
+                -- Safely provision provider_avatar_url column to auth_providers if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'provider_avatar_url'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN provider_avatar_url VARCHAR(500);
                 END IF;
 
                 -- Safely provision granted_scopes column to auth_providers if missing
@@ -1372,6 +1415,44 @@ public static class DbInitializer
             {
                 Console.WriteLine($"[PermissionSeeding] Error dynamically seeding registry: {ex.Message}");
             }
+        }
+
+        // One-time compatibility migration for Google OAuth users created under the old normalization rules
+        await MigrateLegacyGoogleEmailsAsync(context);
+    }
+
+    private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)
+    {
+        var usersToMigrate = await context.Users
+            .Include(u => u.AuthProviders)
+            .Where(u => u.AuthProviders.Any(ap => 
+                ap.ProviderName == "Google" && 
+                ap.ProviderAccountId != null && 
+                ap.ProviderAccountId.Contains("@") &&
+                ap.ProviderAccountId != u.Email))
+            .ToListAsync();
+
+        foreach (var user in usersToMigrate)
+        {
+            var googleProvider = user.AuthProviders.First(ap => ap.ProviderName == "Google");
+            var originalEmail = googleProvider.ProviderAccountId!.Trim().ToLowerInvariant();
+
+            // Conflict Protection: check if another user already has the original email
+            var conflictExists = await context.Users.AnyAsync(u => u.Id != user.Id && u.Email == originalEmail);
+            if (conflictExists)
+            {
+                Console.WriteLine($"[Migration Warning] Cannot migrate user {user.Id} from email '{user.Email}' to original Google email '{originalEmail}' because another user account with that email already exists. Skipping.");
+                continue;
+            }
+
+            Console.WriteLine($"[Migration] Migrating user {user.Id} email from '{user.Email}' to original Google email '{originalEmail}'.");
+            user.Email = originalEmail;
+            user.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (usersToMigrate.Any())
+        {
+            await context.SaveChangesAsync();
         }
     }
 }

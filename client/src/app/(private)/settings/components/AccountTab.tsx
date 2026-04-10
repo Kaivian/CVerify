@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,6 +9,8 @@ import { SettingsSection } from "./SettingsSection";
 import { LinkedAccountsList } from "./LinkedAccountsList";
 import { SignInMethod } from "./SignInMethod";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { axiosClient } from "@/services/axios-client";
+import { Github } from "@thesvg/react";
 import {
   Typography,
   Chip,
@@ -92,6 +94,66 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [profileOrigin, setProfileOrigin] = useState("https://cverify.com");
 
+  const [githubStatus, setGithubStatus] = useState<{
+    isConnected: boolean;
+    githubUsername?: string;
+    githubAvatarUrl?: string;
+  } | null>(null);
+  const [loadingGithubStatus, setLoadingGithubStatus] = useState(true);
+  const [linkingGithub, setLinkingGithub] = useState(false);
+  const [unlinkingGithub, setUnlinkingGithub] = useState(false);
+
+  const fetchGithubStatus = useCallback(async () => {
+    try {
+      const response = await axiosClient.get("/auth/github/connection-status");
+      setGithubStatus(response.data);
+    } catch (err) {
+      console.error("Failed to fetch GitHub connection status:", err);
+    } finally {
+      setLoadingGithubStatus(false);
+    }
+  }, []);
+
+  const handleConnectGithub = () => {
+    setLinkingGithub(true);
+    const API_URL =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
+    window.location.assign(`${API_URL}/auth/connect/github`);
+  };
+
+  const handleDisconnectGithub = async () => {
+    setUnlinkingGithub(true);
+    try {
+      const response = await axiosClient.delete("/auth/github/connection");
+      if (response.data?.success) {
+        toast.success("GitHub successfully disconnected.");
+        await fetchGithubStatus();
+      } else {
+        toast.danger("Failed to disconnect GitHub.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.danger("An error occurred while disconnecting GitHub.");
+    } finally {
+      setUnlinkingGithub(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGithubStatus();
+  }, [fetchGithubStatus]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const linkSuccess = params.get("link_success") === "true";
+      const provider = params.get("provider");
+      if (linkSuccess && provider === "github") {
+        fetchGithubStatus();
+      }
+    }
+  }, [fetchGithubStatus]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       setProfileOrigin(window.location.origin);
@@ -119,11 +181,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     mode: "onChange",
   });
 
-  const {
-    handleSubmit,
-    reset,
-    setValue,
-  } = methods;
+  const { handleSubmit, reset, setValue } = methods;
 
   const currentValues = useWatch({ control: methods.control });
 
@@ -131,9 +189,13 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     if (profile && !methods.formState.isDirty) {
       reset({
         username: profile.username || "",
-        profileVisibility: (profile.profileVisibility as AccountFormValues["profileVisibility"]) || "public",
+        profileVisibility:
+          (profile.profileVisibility as AccountFormValues["profileVisibility"]) ||
+          "public",
         recruiterVisibility: profile.recruiterVisibility ?? true,
-        aiTalentDiscovery: (profile.aiTalentDiscovery as AccountFormValues["aiTalentDiscovery"]) || "disabled",
+        aiTalentDiscovery:
+          (profile.aiTalentDiscovery as AccountFormValues["aiTalentDiscovery"]) ||
+          "disabled",
       });
     }
   }, [profile, reset, methods.formState.isDirty]);
@@ -210,15 +272,20 @@ export const AccountTab: React.FC<AccountTabProps> = ({
         response?: { status?: number; data?: { message?: string } };
         message?: string;
       };
-      
-      const isConflict = axiosError.response?.status === 409 || 
+
+      const isConflict =
+        axiosError.response?.status === 409 ||
         axiosError.response?.data?.message?.toLowerCase().includes("taken") ||
-        axiosError.response?.data?.message?.toLowerCase().includes("already exists");
-        
+        axiosError.response?.data?.message
+          ?.toLowerCase()
+          .includes("already exists");
+
       if (isConflict) {
         methods.setError("username", {
           type: "manual",
-          message: axiosError.response?.data?.message || "This username is already taken."
+          message:
+            axiosError.response?.data?.message ||
+            "This username is already taken.",
         });
         return;
       }
@@ -295,7 +362,8 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   return (
     <FormProvider {...methods}>
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+      <div className="space-y-6">
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
         {/* Username section */}
         <SettingsSection
           title="Username & Profile Privacy"
@@ -325,7 +393,9 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                     />
                   </InputGroup>
                   {methods.formState.errors.username && (
-                    <FieldError>{methods.formState.errors.username.message}</FieldError>
+                    <FieldError>
+                      {methods.formState.errors.username.message}
+                    </FieldError>
                   )}
                 </TextField>
                 <Description>
@@ -434,10 +504,17 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           </Card>
         </SettingsSection>
 
+        {/* Sticky Actions Bar */}
+          <UnsavedChangesBar
+            message="You have unsaved account setting changes."
+            onReset={handleReset}
+          />
+        </form>
+
         {/* Linked accounts section */}
         <SettingsSection
-          title="Linked Auth Accounts"
-          description="Manage connected single sign-on authentication methods to access your CVerify workspace."
+          title="Source Code Providers"
+          description="Connect your GitHub account to enable repository analysis and proof-of-work verifications."
         >
           <Card>
             <LinkedAccountsList />
@@ -631,12 +708,6 @@ export const AccountTab: React.FC<AccountTabProps> = ({
             </div>
           </Card>
         </SettingsSection>
-
-        {/* Sticky Actions Bar */}
-        <UnsavedChangesBar
-          message="You have unsaved account setting changes."
-          onReset={handleReset}
-        />
 
         {/* 1. Reset Password Mock Confirmation Modal */}
         <Modal.Backdrop
@@ -859,7 +930,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>
-      </form>
+      </div>
     </FormProvider>
   );
 };

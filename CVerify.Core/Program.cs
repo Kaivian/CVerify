@@ -311,6 +311,7 @@ builder.Services.AddScoped<ISystemService, SystemService>();
 builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEncryptedFileStorageService, EncryptedFileStorageService>();
+builder.Services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
 
 
 // Register Cloudflare R2 Object Storage Stack (IAmazonS3 + IStorageService)
@@ -331,6 +332,7 @@ builder.Services.AddScoped<IStorageService, R2StorageService>();
 // Register Application Services
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPasswordRecoveryService, PasswordRecoveryService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IIdentityStateResolver, IdentityStateResolver>();
 builder.Services.AddScoped<IRecoveryExecutionEngine, RecoveryExecutionEngine>();

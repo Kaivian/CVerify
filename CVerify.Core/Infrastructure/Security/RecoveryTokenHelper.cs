@@ -11,25 +11,7 @@ public static class RecoveryTokenHelper
     public static string NormalizeEmail(string email)
     {
         if (string.IsNullOrWhiteSpace(email)) return string.Empty;
-
-        var trimmed = email.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
-        var parts = trimmed.Split('@');
-        if (parts.Length != 2) return trimmed;
-
-        var local = parts[0];
-        var domain = parts[1];
-
-        if (domain == "gmail.com")
-        {
-            var plusIndex = local.IndexOf('+');
-            if (plusIndex >= 0)
-            {
-                local = local[..plusIndex];
-            }
-            local = local.Replace(".", "");
-        }
-
-        return $"{local}@{domain}";
+        return email.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
     }
 
     public static string NormalizeTaxCode(string taxCode)

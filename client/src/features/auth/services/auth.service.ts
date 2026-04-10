@@ -9,6 +9,7 @@ import {
   type SessionInfoData,
   type ResolveEmailAuthStateResponseData,
   type OtpSessionResponseData,
+  type LinkedEmail,
 } from '../../../types/auth.types';
 import { type z } from 'zod';
 import {
@@ -345,6 +346,70 @@ export const authApi = {
    */
   changePassword: async (payload: ChangePasswordPayload): Promise<{ success: boolean; message: string }> => {
     const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/change-password', payload);
+    return response.data;
+  },
+
+  /**
+   * Send verification OTP for password recovery inside settings
+   */
+  sendRecoveryOtp: async (): Promise<{ success: boolean; cooldownSeconds: number; cooldownUntil: string; otpExpiresIn: number }> => {
+    const response = await axiosClient.post<{ success: boolean; cooldownSeconds: number; cooldownUntil: string; otpExpiresIn: number }>('/auth/password-recovery/send-otp');
+    return response.data;
+  },
+
+  /**
+   * Verify password recovery OTP inside settings
+   */
+  verifyRecoveryOtp: async (otp: string): Promise<{ success: boolean; verified: boolean; recoveryToken: string; expiresIn: number }> => {
+    const response = await axiosClient.post<{ success: boolean; verified: boolean; recoveryToken: string; expiresIn: number }>('/auth/password-recovery/verify-otp', { otp });
+    return response.data;
+  },
+
+  /**
+   * Complete password recovery password change
+   */
+  changePasswordViaRecovery: async (payload: { recoveryToken: string; newPassword?: string; confirmPassword?: string }): Promise<{ success: boolean }> => {
+    const response = await axiosClient.post<{ success: boolean }>('/auth/password-recovery/change-password', payload);
+    return response.data;
+  },
+
+  /**
+   * Fetch all linked emails associated with the active account
+   */
+  fetchLinkedEmails: async (): Promise<LinkedEmail[]> => {
+    const response = await axiosClient.get<LinkedEmail[]>('/auth/emails');
+    return response.data;
+  },
+
+  /**
+   * Dispatch challenge OTP to link a new secondary email
+   */
+  sendLinkEmailOtp: async (email: string): Promise<SendOtpResponseData> => {
+    const response = await axiosClient.post<SendOtpResponseData>('/auth/emails/send-otp', { email });
+    return response.data;
+  },
+
+  /**
+   * Verify link email OTP and save the verified email
+   */
+  verifyLinkEmailOtp: async (challengeId: string, email: string, code: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/emails/verify-otp', { challengeId, email, code });
+    return response.data;
+  },
+
+  /**
+   * Promote secondary email to primary (requires re-authentication password)
+   */
+  makeEmailPrimary: async (email: string, password: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/emails/make-primary', { email, password });
+    return response.data;
+  },
+
+  /**
+   * Delete / Unlink a secondary email by GUID id
+   */
+  deleteLinkedEmail: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.delete<{ success: boolean; message: string }>(`/auth/emails/${id}`);
     return response.data;
   },
 };
