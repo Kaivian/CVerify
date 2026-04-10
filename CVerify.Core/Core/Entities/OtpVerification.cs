@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using CVerify.API.Core.Enums;
 
 namespace CVerify.API.Core.Entities;
 
@@ -40,4 +41,11 @@ public class OtpVerification
     public DateTimeOffset? LastSentAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? LastResentAt { get; set; }
+
+    [Required]
+    public OtpSessionStatus Status { get; set; } = OtpSessionStatus.ACTIVE;
+
+    public DateTimeOffset? CooldownUntil { get; set; }
+
+    public DateTimeOffset? InvalidatedAt { get; set; }
 }

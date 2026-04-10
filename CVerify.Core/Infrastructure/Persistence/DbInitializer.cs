@@ -370,7 +370,10 @@ public static class DbInitializer
                 last_attempt_at TIMESTAMP WITH TIME ZONE,
                 resend_count INTEGER DEFAULT 0,
                 last_sent_at TIMESTAMP WITH TIME ZONE,
-                last_resent_at TIMESTAMP WITH TIME ZONE
+                last_resent_at TIMESTAMP WITH TIME ZONE,
+                status INTEGER NOT NULL DEFAULT 0,
+                cooldown_until TIMESTAMP WITH TIME ZONE,
+                invalidated_at TIMESTAMP WITH TIME ZONE
             );
             CREATE INDEX IF NOT EXISTS idx_otp_verifications_challenge_id ON otp_verifications(challenge_id);
             CREATE INDEX IF NOT EXISTS idx_otp_verifications_email ON otp_verifications(email);
@@ -574,6 +577,33 @@ public static class DbInitializer
                     WHERE table_name = 'organization_authorities'
                 ) THEN
                     ALTER TABLE organization_members RENAME TO organization_authorities;
+                END IF;
+
+                -- Safely provision status column to otp_verifications if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'otp_verifications' AND column_name = 'status'
+                ) THEN
+                    ALTER TABLE otp_verifications ADD COLUMN status INTEGER NOT NULL DEFAULT 0;
+                END IF;
+
+                -- Safely provision cooldown_until column to otp_verifications if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'otp_verifications' AND column_name = 'cooldown_until'
+                ) THEN
+                    ALTER TABLE otp_verifications ADD COLUMN cooldown_until TIMESTAMP WITH TIME ZONE;
+                END IF;
+
+                -- Safely provision invalidated_at column to otp_verifications if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'otp_verifications' AND column_name = 'invalidated_at'
+                ) THEN
+                    ALTER TABLE otp_verifications ADD COLUMN invalidated_at TIMESTAMP WITH TIME ZONE;
                 END IF;
             END $$;
 

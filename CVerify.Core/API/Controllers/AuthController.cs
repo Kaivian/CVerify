@@ -238,6 +238,29 @@ public class AuthController : ControllerBase
         }
     }
 
+    [HttpGet("otp/session")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(OtpSessionResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetOtpSession([FromQuery] string email, [FromQuery] string purpose, [FromQuery] Guid challengeId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(email) || challengeId == Guid.Empty)
+        {
+            return BadRequest(new { message = "Invalid query parameters." });
+        }
+
+        try
+        {
+            var response = await _authService.GetActiveOtpSessionAsync(email, purpose, challengeId, cancellationToken);
+            return Ok(response);
+        }
+        catch (AuthException)
+        {
+            // Safe, generic response to mask presence of actual account structure
+            return Ok(new OtpSessionResponse(false, null, purpose, null, null, string.Empty, "INVALIDATED"));
+        }
+    }
+
     [HttpPost("create-password")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AuthResponse))]

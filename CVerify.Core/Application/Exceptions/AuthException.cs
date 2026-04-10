@@ -33,4 +33,7 @@ public static class AuthErrorCodes
     public const string UntrustedRedirect = "AUTH_UNTRUSTED_REDIRECT";
     public const string SuspiciousActivity = "AUTH_SUSPICIOUS_ACTIVITY";
     public const string MaxAttemptsReached = "AUTH_MAX_ATTEMPTS_REACHED";
+    public const string RateLimitExceeded = "AUTH_RATE_LIMIT_EXCEEDED";
+    public const string ConcurrencyConflict = "AUTH_CONCURRENCY_CONFLICT";
+    public const string TooManyResends = "AUTH_TOO_MANY_RESENDS";
 }

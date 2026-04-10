@@ -8,13 +8,42 @@ namespace CVerify.API.Infrastructure.Security;
 
 public static class RecoveryTokenHelper
 {
+    public static string NormalizeEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return string.Empty;
+
+        var trimmed = email.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+        var parts = trimmed.Split('@');
+        if (parts.Length != 2) return trimmed;
+
+        var local = parts[0];
+        var domain = parts[1];
+
+        if (domain == "gmail.com")
+        {
+            var plusIndex = local.IndexOf('+');
+            if (plusIndex >= 0)
+            {
+                local = local[..plusIndex];
+            }
+            local = local.Replace(".", "");
+        }
+
+        return $"{local}@{domain}";
+    }
+
+    public static string NormalizeTaxCode(string taxCode)
+    {
+        return string.IsNullOrWhiteSpace(taxCode) ? string.Empty : taxCode.Trim().ToLowerInvariant();
+    }
+
     public static string GenerateOtpVerifiedToken(string taxCode, string email, string secretKey)
     {
         var payload = new Dictionary<string, string>
         {
             { "step", "OTP_VERIFIED" },
-            { "taxCode", taxCode },
-            { "email", email },
+            { "taxCode", NormalizeTaxCode(taxCode) },
+            { "email", NormalizeEmail(email) },
             { "exp", DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds().ToString() }
         };
         return SignPayload(payload, secretKey);

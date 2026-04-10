@@ -19,7 +19,6 @@ import {
 import {
   Eye,
   EyeOff,
-  ShieldCheck,
   Mail,
   ArrowLeft,
   KeyRound,

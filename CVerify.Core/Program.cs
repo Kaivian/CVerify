@@ -63,7 +63,12 @@ if (envPath != null) {
 
 // 2. Validate & Resolve Configuration (Enterprise Clean Code: Fail Fast)
 var envConfig = EnvValidator.Validate(builder.Configuration);
+if (builder.Environment.IsProduction() && envConfig.Security.DisableRateLimits)
+{
+    throw new InvalidOperationException("Fatal: Rate limits cannot be disabled in the Production environment.");
+}
 builder.Services.AddSingleton(envConfig);
+
 
 // Clear default loggers to prevent duplicate output and console noise
 builder.Logging.ClearProviders();
@@ -175,67 +180,92 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     options.AddPolicy("ForgotPasswordLimit", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
+    {
+        var config = context.RequestServices.GetRequiredService<EnvConfiguration>();
+        var limit = config.Security.DisableRateLimits ? 99999 : config.RateLimit.ForgotPasswordPermitLimit;
+        return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? context.Request.Headers["X-Forwarded-For"].ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = envConfig.RateLimit.ForgotPasswordPermitLimit,
-                Window = TimeSpan.FromMinutes(envConfig.RateLimit.ForgotPasswordWindowMinutes),
+                PermitLimit = limit,
+                Window = TimeSpan.FromMinutes(config.RateLimit.ForgotPasswordWindowMinutes),
                 QueueLimit = 0
-            }));
+            });
+    });
 
     options.AddPolicy("ResetPasswordLimit", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
+    {
+        var config = context.RequestServices.GetRequiredService<EnvConfiguration>();
+        var limit = config.Security.DisableRateLimits ? 99999 : config.RateLimit.ResetPasswordPermitLimit;
+        return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? context.Request.Headers["X-Forwarded-For"].ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = envConfig.RateLimit.ResetPasswordPermitLimit,
-                Window = TimeSpan.FromMinutes(envConfig.RateLimit.ResetPasswordWindowMinutes),
+                PermitLimit = limit,
+                Window = TimeSpan.FromMinutes(config.RateLimit.ResetPasswordWindowMinutes),
                 QueueLimit = 0
-            }));
+            });
+    });
 
     options.AddPolicy("ResendVerificationLimit", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
+    {
+        var config = context.RequestServices.GetRequiredService<EnvConfiguration>();
+        var limit = config.Security.DisableRateLimits ? 99999 : config.RateLimit.ResendVerificationPermitLimit;
+        return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? context.Request.Headers["X-Forwarded-For"].ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = envConfig.RateLimit.ResendVerificationPermitLimit,
-                Window = TimeSpan.FromMinutes(envConfig.RateLimit.ResendVerificationWindowMinutes),
+                PermitLimit = limit,
+                Window = TimeSpan.FromMinutes(config.RateLimit.ResendVerificationWindowMinutes),
                 QueueLimit = 0
-            }));
+            });
+    });
 
     options.AddPolicy("VerifyEmailLimit", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
+    {
+        var config = context.RequestServices.GetRequiredService<EnvConfiguration>();
+        var limit = config.Security.DisableRateLimits ? 99999 : config.RateLimit.VerifyEmailPermitLimit;
+        return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? context.Request.Headers["X-Forwarded-For"].ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = envConfig.RateLimit.VerifyEmailPermitLimit,
-                Window = TimeSpan.FromMinutes(envConfig.RateLimit.VerifyEmailWindowMinutes),
+                PermitLimit = limit,
+                Window = TimeSpan.FromMinutes(config.RateLimit.VerifyEmailWindowMinutes),
                 QueueLimit = 0
-            }));
+            });
+    });
 
     options.AddPolicy("RegisterLimit", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
+    {
+        var config = context.RequestServices.GetRequiredService<EnvConfiguration>();
+        var limit = config.Security.DisableRateLimits ? 99999 : config.RateLimit.RegisterPermitLimit;
+        return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? context.Request.Headers["X-Forwarded-For"].ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = envConfig.RateLimit.RegisterPermitLimit,
-                Window = TimeSpan.FromMinutes(envConfig.RateLimit.RegisterWindowMinutes),
+                PermitLimit = limit,
+                Window = TimeSpan.FromMinutes(config.RateLimit.RegisterWindowMinutes),
                 QueueLimit = 0
-            }));
+            });
+    });
 
     options.AddPolicy("AiChatLimit", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
+    {
+        var config = context.RequestServices.GetRequiredService<EnvConfiguration>();
+        var limit = config.Security.DisableRateLimits ? 99999 : 10;
+        return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
                           ?? context.Connection.RemoteIpAddress?.ToString() 
                           ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 10,
+                PermitLimit = limit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
-            }));
+            });
+    });
 });
+
 
 // Configure EF Core with PostgreSQL (MapEnum inside UseNpgsql handles both EF Core + ADO.NET layers)
 builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
@@ -266,11 +296,13 @@ builder.Services.AddSingleton<ILoggerProvider, AppLoggingProvider>();
 builder.Services.AddHostedService<AppLoggingBackgroundWorker>();
 
 // Register Infrastructure & Data Services
+builder.Services.AddSingleton<IRateLimitPolicyService, RateLimitPolicyService>();
 builder.Services.AddScoped<IIdentityRepository, IdentityRepository>();
 builder.Services.AddScoped<ISystemService, SystemService>();
 builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEncryptedFileStorageService, EncryptedFileStorageService>();
+
 
 // Register Cloudflare R2 Object Storage Stack (IAmazonS3 + IStorageService)
 builder.Services.AddSingleton<IAmazonS3>(sp =>
@@ -323,6 +355,7 @@ builder.Services.AddEmailInfrastructure(builder.Configuration);
 builder.Services.AddHostedService<EmailOutboxBackgroundProcessor>();
 builder.Services.AddHostedService<TokenCleanupBackgroundJob>();
 builder.Services.AddHostedService<RecoveryClaimBackgroundWorker>();
+builder.Services.AddHostedService<OtpCleanupBackgroundWorker>();
 
 
 // Configure JWT Authentication

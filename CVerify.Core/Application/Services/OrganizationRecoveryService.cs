@@ -34,6 +34,7 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
     private readonly TimeProvider _timeProvider;
     private readonly IPasswordPolicyService _passwordPolicyService;
     private readonly IOtpPolicyService _otpPolicyService;
+    private readonly IRateLimitPolicyService _rateLimitPolicyService;
 
     public OrganizationRecoveryService(
         ApplicationDbContext context,
@@ -47,7 +48,8 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
         AuthMetrics metrics,
         TimeProvider timeProvider,
         IPasswordPolicyService passwordPolicyService,
-        IOtpPolicyService otpPolicyService)
+        IOtpPolicyService otpPolicyService,
+        IRateLimitPolicyService rateLimitPolicyService)
     {
         _context = context;
         _recoveryTokenService = recoveryTokenService;
@@ -61,6 +63,7 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
         _timeProvider = timeProvider;
         _passwordPolicyService = passwordPolicyService;
         _otpPolicyService = otpPolicyService;
+        _rateLimitPolicyService = rateLimitPolicyService;
     }
 
     public async Task<OrganizationForgotResponse> ForgotPasswordAsync(OrganizationForgotRequest request, CancellationToken cancellationToken = default)
@@ -75,8 +78,15 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
         var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
         if (isCooldown != null)
         {
-            _logger.LogWarning("[CorrelationID: {CorrelationId}] Business recovery cooldown active for Tax Code: {TaxCode}.", correlationId, normalizedTax);
-            throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery OTP.");
+            if (_rateLimitPolicyService.DisableRateLimits)
+            {
+                _rateLimitPolicyService.LogBypass("Business recovery cooldown", "ForgotPasswordAsync", normalizedTax);
+            }
+            else
+            {
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Business recovery cooldown active for Tax Code: {TaxCode}.", correlationId, normalizedTax);
+                throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery OTP.");
+            }
         }
 
         var org = await _context.Organizations
@@ -87,7 +97,8 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
         if (org == null)
         {
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Tax Code {TaxCode} does not exist in registry. Returning mock success.", correlationId, normalizedTax);
-            return new OrganizationForgotResponse(Guid.NewGuid(), "o***@company.vn", 60);
+            var mockCooldown = _rateLimitPolicyService.DisableRateLimits ? 0 : 60;
+            return new OrganizationForgotResponse(Guid.NewGuid(), "o***@company.vn", mockCooldown);
         }
 
         // Resolve trusted corporate destination mailboxes internally on the backend
@@ -110,7 +121,8 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
         if (!trustedEmails.Any())
         {
             _logger.LogWarning("[CorrelationID: {CorrelationId}] No active trust mailboxes found for organization {OrgId}.", correlationId, org.Id);
-            return new OrganizationForgotResponse(Guid.NewGuid(), "o***@company.vn", 60);
+            var mockCooldown = _rateLimitPolicyService.DisableRateLimits ? 0 : 60;
+            return new OrganizationForgotResponse(Guid.NewGuid(), "o***@company.vn", mockCooldown);
         }
 
         using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -171,7 +183,8 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
             }
 
             // Set 1-minute rate limiting cooldown in Cache
-            await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromMinutes(1));
+            var cooldownTime = _rateLimitPolicyService.DisableRateLimits ? TimeSpan.Zero : TimeSpan.FromMinutes(1);
+            await _cacheService.SetAsync(cooldownKey, "active", cooldownTime);
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -180,7 +193,8 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
 
             var maskedConfirmation = MaskEmail(org.Email);
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Business recovery OTP dispatched successfully for organization {OrgId}.", correlationId, org.Id);
-            return new OrganizationForgotResponse(firstChallengeId, maskedConfirmation, 60);
+            var actualCooldown = _rateLimitPolicyService.DisableRateLimits ? 0 : 60;
+            return new OrganizationForgotResponse(firstChallengeId, maskedConfirmation, actualCooldown);
         }
         catch (Exception ex)
         {
@@ -221,10 +235,18 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
             throw new AuthException(AuthErrorCodes.ExpiredToken, "The recovery OTP challenge has expired.");
         }
 
-        if (verification.Attempts >= 5)
+        var maxAttempts = _rateLimitPolicyService.DisableRateLimits ? 9999 : 5;
+        if (verification.Attempts >= maxAttempts)
         {
-            _logger.LogWarning("[CorrelationID: {CorrelationId}] Corporate OTP verification failed: too many attempts.", correlationId);
-            throw new AuthException(AuthErrorCodes.MaxAttemptsReached, "Too many failed attempts. This OTP has been blocked.");
+            if (_rateLimitPolicyService.DisableRateLimits)
+            {
+                _rateLimitPolicyService.LogBypass("Corporate OTP verification attempts limit", "VerifyRecoveryOtpAsync", request.ChallengeId.ToString());
+            }
+            else
+            {
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Corporate OTP verification failed: too many attempts.", correlationId);
+                throw new AuthException(AuthErrorCodes.MaxAttemptsReached, "Too many failed attempts. This OTP has been blocked.");
+            }
         }
 
         var inputHash = GenerateHmacSha256OtpHash(request.Code);

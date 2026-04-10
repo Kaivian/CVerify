@@ -1,7 +1,6 @@
 "use client";
 
-import React from 'react';
-import { Typography } from '@heroui/react';
+
 
 interface AuthContentProps {
   children: React.ReactNode;

@@ -243,3 +243,13 @@ public record GoogleOnboardingLinkRequest(
     [Required] string Step1Token
 );
 
+public record OtpSessionResponse(
+    bool HasActiveOtp,
+    Guid? ChallengeId,
+    string Purpose,
+    DateTimeOffset? ExpiresAt,
+    DateTimeOffset? CooldownUntil,
+    string MaskedEmail,
+    string Status
+);
+

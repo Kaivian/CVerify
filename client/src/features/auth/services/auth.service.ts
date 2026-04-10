@@ -8,6 +8,7 @@ import {
   type VerifyCompanyLinkResponseData,
   type SessionInfoData,
   type ResolveEmailAuthStateResponseData,
+  type OtpSessionResponseData,
 } from '../../../types/auth.types';
 import { type z } from 'zod';
 import {
@@ -127,11 +128,19 @@ export const authApi = {
     return response.data;
   },
 
+  sendOtp: async (email: string, purpose: string, idempotencyKey?: string): Promise<SendOtpResponseData> => {
+    const headers = idempotencyKey ? { 'X-Idempotency-Key': idempotencyKey } : undefined;
+    const response = await axiosClient.post<SendOtpResponseData>('/auth/send-otp', { email, purpose }, { headers });
+    return response.data;
+  },
+
   /**
-   * Request OTP code via email
+   * Fetch active OTP session status for anti-enumeration session check
    */
-  sendOtp: async (email: string, purpose: string): Promise<SendOtpResponseData> => {
-    const response = await axiosClient.post<SendOtpResponseData>('/auth/send-otp', { email, purpose });
+  fetchOtpSession: async (email: string, purpose: string, challengeId: string): Promise<OtpSessionResponseData> => {
+    const response = await axiosClient.get<OtpSessionResponseData>('/auth/otp/session', {
+      params: { email, purpose, challengeId },
+    });
     return response.data;
   },
 

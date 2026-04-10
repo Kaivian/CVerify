@@ -51,11 +51,13 @@ public interface IEmailService
     /// <param name="toEmail">The target email address.</param>
     /// <param name="fullName">The recipient's full name.</param>
     /// <param name="otpCode">The 6-digit verification code.</param>
+    /// <param name="templateName">The optional name of the custom HTML template.</param>
     /// <param name="cancellationToken">Cancellation token trace.</param>
     Task SendOtpEmailAsync(
         string toEmail,
         string fullName,
         string otpCode,
+        string? templateName = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

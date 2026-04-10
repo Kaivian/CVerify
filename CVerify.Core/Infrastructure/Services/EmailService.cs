@@ -205,6 +205,7 @@ public class EmailService : IEmailService
         string toEmail,
         string fullName,
         string otpCode,
+        string? templateName = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(toEmail);
@@ -219,12 +220,24 @@ public class EmailService : IEmailService
             { "otp_code", otpCode }
         };
 
-        var htmlBody = await _templateService.RenderTemplateAsync("OtpVerificationEmail.html", model, cancellationToken).ConfigureAwait(false);
+        var resolvedTemplate = string.IsNullOrWhiteSpace(templateName) ? "OtpVerificationEmail.html" : templateName;
+        var htmlBody = await _templateService.RenderTemplateAsync(resolvedTemplate, model, cancellationToken).ConfigureAwait(false);
+
+        var subject = resolvedTemplate switch
+        {
+            "BusinessVerificationEmail.html" => "Confirm Company Domain Registration - CVerify",
+            "EmailChangeVerificationEmail.html" => "Confirm Email Change - CVerify",
+            "PasswordResetEmail.html" => "Your Password Reset Code - CVerify",
+            "Login2FaEmail.html" => "Your 2FA Login Code - CVerify",
+            "CompanyOwnerVerificationEmail.html" => "Verify Your Business Ownership - CVerify",
+            "SecurityActionEmail.html" => "Verify Security Action - CVerify",
+            _ => "Your Verification Code - CVerify"
+        };
 
         var message = new EmailMessage(
             ToEmail: toEmail,
             ToName: fullName,
-            Subject: "Your Verification Code - CVerify",
+            Subject: subject,
             HtmlContent: htmlBody,
             PlainTextContent: $"Hi {fullName}, your CVerify verification code is: {otpCode}",
             CorrelationId: correlationId,

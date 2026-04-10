@@ -75,6 +75,16 @@ export interface VerifyOtpResponseData {
   verificationToken: string;
 }
 
+export interface OtpSessionResponseData {
+  hasActiveOtp: boolean;
+  challengeId: string | null;
+  purpose: string;
+  expiresAt: string | null;
+  cooldownUntil: string | null;
+  maskedEmail: string;
+  status: string;
+}
+
 export interface VerifyCompanyLinkResponseData {
   companyName: string;
   taxCode: string;

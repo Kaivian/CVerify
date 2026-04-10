@@ -21,20 +21,35 @@ let bootstrapPromise: Promise<{ authenticated: boolean; user: User | null; isUnv
 let activeAuthAbortController: AbortController | null = null;
 
 export const useAuth = () => {
-  const store = useAuthStore();
+  const storeUser = useAuthStore(s => s.user);
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
+  const isLoading = useAuthStore(s => s.isLoading);
+  const isInitialized = useAuthStore(s => s.isInitialized);
+  const bootstrapState = useAuthStore(s => s.bootstrapState);
+
+  // Store actions destructured with individual selectors for absolute stability
+  const setLoading = useAuthStore(s => s.setLoading);
+  const setPendingVerificationEmail = useAuthStore(s => s.setPendingVerificationEmail);
+  const setAuthStatusAndNextStep = useAuthStore(s => s.setAuthStatusAndNextStep);
+  const login = useAuthStore(s => s.login);
+  const logout = useAuthStore(s => s.logout);
+  const updateUserStore = useAuthStore(s => s.updateUser);
+  const storeHasRole = useAuthStore(s => s.hasRole);
+  const storeHasPermission = useAuthStore(s => s.hasPermission);
+
   const [authError, setAuthError] = useState<string | null>(null);
   
   // Wrapper for Login operation
-  const loginUser = async (credentials: LoginPayload) => {
-    store.setLoading(true);
+  const loginUser = useCallback(async (credentials: LoginPayload) => {
+    setLoading(true);
     setAuthError(null);
     try {
       const response = await authApi.login(credentials);
       
       if (response.status === 'EMAIL_VERIFY_PENDING' || response.nextStep === 'VERIFY_EMAIL') {
-        store.setPendingVerificationEmail(response.email);
-        store.setAuthStatusAndNextStep(response.status, response.nextStep);
-        store.setLoading(false);
+        setPendingVerificationEmail(response.email);
+        setAuthStatusAndNextStep(response.status, response.nextStep);
+        setLoading(false);
         return { success: true, isUnverified: true, nextStep: response.nextStep, email: response.email };
       }
 
@@ -48,28 +63,28 @@ export const useAuth = () => {
         isEmailVerified: response.isEmailVerified,
       };
 
-      store.login(user);
-      store.setAuthStatusAndNextStep(response.status, response.nextStep);
+      login(user);
+      setAuthStatusAndNextStep(response.status, response.nextStep);
       return { success: true, user, nextStep: response.nextStep };
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
-      store.setLoading(false);
+      setLoading(false);
       return { success: false, error: parsedError };
     }
-  };
+  }, [setLoading, setPendingVerificationEmail, setAuthStatusAndNextStep, login]);
 
   // Wrapper for Google Sign-in operation
-  const loginUserWithGoogle = async (idToken: string) => {
-    store.setLoading(true);
+  const loginUserWithGoogle = useCallback(async (idToken: string) => {
+    setLoading(true);
     setAuthError(null);
     try {
       const response = await authApi.loginWithGoogle(idToken);
       
       if (response.status === 'EMAIL_VERIFY_PENDING' || response.nextStep === 'VERIFY_EMAIL') {
-        store.setPendingVerificationEmail(response.email);
-        store.setAuthStatusAndNextStep(response.status, response.nextStep);
-        store.setLoading(false);
+        setPendingVerificationEmail(response.email);
+        setAuthStatusAndNextStep(response.status, response.nextStep);
+        setLoading(false);
         return { success: true, isUnverified: true, nextStep: response.nextStep, email: response.email };
       }
 
@@ -83,24 +98,24 @@ export const useAuth = () => {
         isEmailVerified: response.isEmailVerified,
       };
 
-      store.login(user);
-      store.setAuthStatusAndNextStep(response.status, response.nextStep);
+      login(user);
+      setAuthStatusAndNextStep(response.status, response.nextStep);
       return { success: true, user, nextStep: response.nextStep };
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
-      store.setLoading(false);
+      setLoading(false);
       return { success: false, error: parsedError };
     }
-  };
+  }, [setLoading, setPendingVerificationEmail, setAuthStatusAndNextStep, login]);
 
   // Wrapper for Registration operation
-  const registerUser = async (details: RegisterPayload) => {
-    store.setLoading(true);
+  const registerUser = useCallback(async (details: RegisterPayload) => {
+    setLoading(true);
     setAuthError(null);
     try {
       const response = await authApi.register(details);
-      store.setLoading(false);
+      setLoading(false);
       return {
         success: true,
         message: response.message || 'Registration successful!',
@@ -110,14 +125,14 @@ export const useAuth = () => {
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
-      store.setLoading(false);
+      setLoading(false);
       return { success: false, error: parsedError };
     }
-  };
+  }, [setLoading]);
 
   // Wrapper for Email Verification operation
-  const verifyEmailUser = async (token: string) => {
-    store.setLoading(true);
+  const verifyEmailUser = useCallback(async (token: string) => {
+    setLoading(true);
     setAuthError(null);
     try {
       const response = await authApi.verifyEmail(token);
@@ -132,21 +147,21 @@ export const useAuth = () => {
         isEmailVerified: response.isEmailVerified,
       };
 
-      store.login(user);
-      store.setAuthStatusAndNextStep(response.status, response.nextStep);
-      store.setLoading(false);
+      login(user);
+      setAuthStatusAndNextStep(response.status, response.nextStep);
+      setLoading(false);
       return { success: true, user, nextStep: response.nextStep };
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
-      store.setLoading(false);
+      setLoading(false);
       return { success: false, error: parsedError };
     }
-  };
+  }, [setLoading, login, setAuthStatusAndNextStep]);
 
   // Wrapper for Password Reset operation
-  const resetPasswordUser = async (payload: ResetPasswordPayload) => {
-    store.setLoading(true);
+  const resetPasswordUser = useCallback(async (payload: ResetPasswordPayload) => {
+    setLoading(true);
     setAuthError(null);
     try {
       const response = await authApi.resetPassword(payload);
@@ -161,29 +176,29 @@ export const useAuth = () => {
         isEmailVerified: response.isEmailVerified,
       };
 
-      store.login(user);
-      store.setAuthStatusAndNextStep(response.status, response.nextStep);
-      store.setLoading(false);
+      login(user);
+      setAuthStatusAndNextStep(response.status, response.nextStep);
+      setLoading(false);
       return { success: true, user, nextStep: response.nextStep };
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
-      store.setLoading(false);
+      setLoading(false);
       return { success: false, error: parsedError };
     }
-  };
+  }, [setLoading, login, setAuthStatusAndNextStep]);
 
   // Wrapper for Logout operation (calls API then clears state)
-  const logoutUser = async (broadcast = true) => {
-    store.setLoading(true);
+  const logoutUser = useCallback(async (broadcast = true) => {
+    setLoading(true);
     try {
       await authApi.logout();
     } catch (err) {
       console.warn('[Session System] Invalidation request on server failed or bypassed:', err);
     } finally {
-      store.logout(broadcast);
+      logout(broadcast);
     }
-  };
+  }, [setLoading, logout]);
 
   // Bootstraps local profile on app boot or token refresh, locking concurrent parallel calls
   const initializeUserSession = useCallback(async (forceRevalidate = false) => {
@@ -329,273 +344,289 @@ export const useAuth = () => {
     return bootstrapPromise;
   }, []);
 
-    // Send OTP
-    const sendOtp = async (email: string, purpose: string) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.sendOtp(email, purpose);
-        store.setLoading(false);
-        return { success: true, data: response };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Send OTP
+  const sendOtp = useCallback(async (email: string, purpose: string, idempotencyKey?: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.sendOtp(email, purpose, idempotencyKey);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
 
-    // Resolve identity state for email (lightweight, no loading indicator)
-    const resolveEmailAuthState = async (email: string) => {
-      setAuthError(null);
-      try {
-        const response = await authApi.resolveEmailAuthState(email);
-        return { success: true as const, data: response };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        return { success: false as const, error: parsedError };
-      }
-    };
+  // Fetch OTP active session status
+  const fetchOtpSession = useCallback(async (email: string, purpose: string, challengeId: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.fetchOtpSession(email, purpose, challengeId);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
 
-    // Verify OTP
-    const verifyOtp = async (challengeId: string, email: string, code: string, purpose: string) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.verifyOtp(challengeId, email, code, purpose);
-        store.setLoading(false);
-        return { success: true, data: response };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Resolve identity state for email (lightweight, no loading indicator)
+  const resolveEmailAuthState = useCallback(async (email: string) => {
+    setAuthError(null);
+    try {
+      const response = await authApi.resolveEmailAuthState(email);
+      return { success: true as const, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      return { success: false as const, error: parsedError };
+    }
+  }, []);
 
-    // Create Password
-    const createPassword = async (payload: CreatePasswordPayload) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.createPassword(payload);
-        const user: User = {
-          id: response.id,
-          email: response.email,
-          fullName: response.fullName,
-          avatarUrl: response.avatarUrl,
-          role: normalizeRole(response.roles),
-          permissions: response.permissions,
-          isEmailVerified: response.isEmailVerified,
-        };
-        store.login(user);
-        store.setAuthStatusAndNextStep(response.status, response.nextStep);
-        return { success: true, user, nextStep: response.nextStep };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Verify OTP
+  const verifyOtp = useCallback(async (challengeId: string, email: string, code: string, purpose: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyOtp(challengeId, email, code, purpose);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
 
-    // Register Company
-    const registerCompany = async (payload: RegisterCompanyPayload) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.registerCompany(payload);
-        store.setLoading(false);
-        return { success: true, data: response };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Create Password
+  const createPassword = useCallback(async (payload: CreatePasswordPayload) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.createPassword(payload);
+      const user: User = {
+        id: response.id,
+        email: response.email,
+        fullName: response.fullName,
+        avatarUrl: response.avatarUrl,
+        role: normalizeRole(response.roles),
+        permissions: response.permissions,
+        isEmailVerified: response.isEmailVerified,
+      };
+      login(user);
+      setAuthStatusAndNextStep(response.status, response.nextStep);
+      return { success: true, user, nextStep: response.nextStep };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading, login, setAuthStatusAndNextStep]);
 
-    // Verify Company Link
-    const verifyCompanyLink = async (token: string) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.verifyCompanyLink(token);
-        store.setLoading(false);
-        return { success: true, data: response };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Register Company
+  const registerCompany = useCallback(async (payload: RegisterCompanyPayload) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.registerCompany(payload);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
 
-    // Setup Workspace
-    const setupWorkspace = async (payload: SetupWorkspacePayload) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.setupWorkspace(payload);
-        const user: User = {
-          id: response.id,
-          email: response.email,
-          fullName: response.fullName,
-          avatarUrl: response.avatarUrl,
-          role: normalizeRole(response.roles),
-          permissions: response.permissions,
-          isEmailVerified: response.isEmailVerified,
-        };
-        store.login(user);
-        store.setAuthStatusAndNextStep(response.status, response.nextStep);
-        return { success: true, user, nextStep: response.nextStep };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Verify Company Link
+  const verifyCompanyLink = useCallback(async (token: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyCompanyLink(token);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
 
-    // Company Login
-    const companyLogin = async (payload: CompanyLoginPayload) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.companyLogin(payload);
-        const user: User = {
-          id: response.id,
-          email: response.email,
-          fullName: response.fullName,
-          avatarUrl: response.avatarUrl,
-          role: normalizeRole(response.roles),
-          permissions: response.permissions,
-          isEmailVerified: response.isEmailVerified,
-        };
-        store.login(user);
-        store.setAuthStatusAndNextStep(response.status, response.nextStep);
-        return { success: true, user, nextStep: response.nextStep };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Setup Workspace
+  const setupWorkspace = useCallback(async (payload: SetupWorkspacePayload) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.setupWorkspace(payload);
+      const user: User = {
+        id: response.id,
+        email: response.email,
+        fullName: response.fullName,
+        avatarUrl: response.avatarUrl,
+        role: normalizeRole(response.roles),
+        permissions: response.permissions,
+        isEmailVerified: response.isEmailVerified,
+      };
+      login(user);
+      setAuthStatusAndNextStep(response.status, response.nextStep);
+      return { success: true, user, nextStep: response.nextStep };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading, login, setAuthStatusAndNextStep]);
 
-    // Fetch Sessions
-    const fetchSessions = async () => {
-      try {
-        return await authApi.fetchSessions();
-      } catch (err: unknown) {
-        console.error('Failed to fetch sessions:', err);
-        return [];
-      }
-    };
+  // Company Login
+  const companyLogin = useCallback(async (payload: CompanyLoginPayload) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.companyLogin(payload);
+      const user: User = {
+        id: response.id,
+        email: response.email,
+        fullName: response.fullName,
+        avatarUrl: response.avatarUrl,
+        role: normalizeRole(response.roles),
+        permissions: response.permissions,
+        isEmailVerified: response.isEmailVerified,
+      };
+      login(user);
+      setAuthStatusAndNextStep(response.status, response.nextStep);
+      return { success: true, user, nextStep: response.nextStep };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading, login, setAuthStatusAndNextStep]);
 
-    // Revoke Session
-    const revokeSession = async (sessionId: string) => {
-      try {
-        await authApi.revokeSession(sessionId);
-        return true;
-      } catch (err: unknown) {
-        console.error('Failed to revoke session:', err);
-        return false;
-      }
-    };
+  // Fetch Sessions
+  const fetchSessions = useCallback(async () => {
+    try {
+      return await authApi.fetchSessions();
+    } catch (err: unknown) {
+      console.error('Failed to fetch sessions:', err);
+      return [];
+    }
+  }, []);
 
-    // Verify Company Onboarding (Step 1)
-    const verifyCompanyOnboarding = async (companyName: string, taxCode: string) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.verifyCompanyOnboarding(companyName, taxCode);
-        store.setLoading(false);
-        return { success: true, data: response };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Revoke Session
+  const revokeSession = useCallback(async (sessionId: string) => {
+    try {
+      await authApi.revokeSession(sessionId);
+      return true;
+    } catch (err: unknown) {
+      console.error('Failed to revoke session:', err);
+      return false;
+    }
+  }, []);
 
-    // Verify Onboarding OTP (Step 2)
-    const verifyOnboardingOtp = async (challengeId: string, email: string, code: string, step1Token: string) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.verifyOnboardingOtp(challengeId, email, code, step1Token);
-        store.setLoading(false);
-        return { success: true, data: response };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Verify Company Onboarding (Step 1)
+  const verifyCompanyOnboarding = useCallback(async (companyName: string, taxCode: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyCompanyOnboarding(companyName, taxCode);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
 
-    // Verify Onboarding Google (Step 2)
-    const verifyOnboardingGoogle = async (idToken: string, step1Token: string) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.verifyOnboardingGoogle(idToken, step1Token);
-        store.setLoading(false);
-        return { success: true, data: response };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Verify Onboarding OTP (Step 2)
+  const verifyOnboardingOtp = useCallback(async (challengeId: string, email: string, code: string, step1Token: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyOnboardingOtp(challengeId, email, code, step1Token);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
 
-    // Complete Onboarding Workspace Provisioning (Step 3)
-    const completeOnboarding = async (
-      payload: {
-        step2Token: string;
-        organizationUsername: string;
-        password: string;
-        confirmPassword: string;
-        companyDisplayName: string;
-      },
-      idempotencyKey: string
-    ) => {
-      store.setLoading(true);
-      setAuthError(null);
-      try {
-        const response = await authApi.completeOnboarding(payload, idempotencyKey);
-        const user: User = {
-          id: response.id,
-          email: response.email,
-          fullName: response.fullName,
-          avatarUrl: response.avatarUrl,
-          role: normalizeRole(response.roles),
-          permissions: response.permissions,
-          isEmailVerified: response.isEmailVerified,
-        };
-        store.login(user);
-        store.setAuthStatusAndNextStep(response.status, response.nextStep);
-        store.setLoading(false);
-        return { success: true, user, nextStep: response.nextStep };
-      } catch (err: unknown) {
-        const parsedError = normalizeError(err);
-        setAuthError(parsedError.message);
-        store.setLoading(false);
-        return { success: false, error: parsedError };
-      }
-    };
+  // Verify Onboarding Google (Step 2)
+  const verifyOnboardingGoogle = useCallback(async (idToken: string, step1Token: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyOnboardingGoogle(idToken, step1Token);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Complete Onboarding Workspace Provisioning (Step 3)
+  const completeOnboarding = useCallback(async (
+    payload: {
+      step2Token: string;
+      organizationUsername: string;
+      password: string;
+      confirmPassword: string;
+      companyDisplayName: string;
+    },
+    idempotencyKey: string
+  ) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.completeOnboarding(payload, idempotencyKey);
+      const user: User = {
+        id: response.id,
+        email: response.email,
+        fullName: response.fullName,
+        avatarUrl: response.avatarUrl,
+        role: normalizeRole(response.roles),
+        permissions: response.permissions,
+        isEmailVerified: response.isEmailVerified,
+      };
+      login(user);
+      setAuthStatusAndNextStep(response.status, response.nextStep);
+      setLoading(false);
+      return { success: true, user, nextStep: response.nextStep };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading, login, setAuthStatusAndNextStep]);
 
   return {
     // Zustand States
-    user: store.user,
-    isAuthenticated: store.isAuthenticated,
-    isLoading: store.isLoading,
-    isInitialized: store.isInitialized,
-    bootstrapState: store.bootstrapState,
+    user: storeUser,
+    isAuthenticated,
+    isLoading,
+    isInitialized,
+    bootstrapState,
     authError,
     
     // Auth Actions
@@ -606,10 +637,11 @@ export const useAuth = () => {
     verifyEmail: verifyEmailUser,
     resetPassword: resetPasswordUser,
     initializeSession: initializeUserSession,
-    updateProfile: store.updateUser,
+    updateProfile: updateUserStore,
 
     // New actions
     sendOtp,
+    fetchOtpSession,
     resolveEmailAuthState,
     verifyOtp,
     createPassword,
@@ -627,7 +659,7 @@ export const useAuth = () => {
     completeOnboarding,
 
     // Guards Facades
-    hasRole: (role: UserRole) => store.hasRole(role),
-    hasPermission: (permission: ResourceActionPermission) => store.hasPermission(permission),
+    hasRole: useCallback((role: UserRole) => storeHasRole(role), [storeHasRole]),
+    hasPermission: useCallback((permission: ResourceActionPermission) => storeHasPermission(permission), [storeHasPermission]),
   };
 };
