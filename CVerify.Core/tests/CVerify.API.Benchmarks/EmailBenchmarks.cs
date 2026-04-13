@@ -1,11 +1,13 @@
-﻿using System;
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
-using CVerify.API.Application.DTOs;
-using CVerify.API.Infrastructure.Configuration;
-using CVerify.API.Infrastructure.Services;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Email.DTOs;
+using CVerify.API.Modules.Shared.Email.Services;
 
 namespace CVerify.API.Benchmarks;
 

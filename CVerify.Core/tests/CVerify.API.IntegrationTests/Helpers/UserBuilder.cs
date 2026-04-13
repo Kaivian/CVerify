@@ -1,5 +1,7 @@
-﻿using System;
-using CVerify.API.Core.Entities;
+
+using System;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
 
 namespace CVerify.API.IntegrationTests.Helpers;
 

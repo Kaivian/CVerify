@@ -1,12 +1,14 @@
-﻿using System;
+
+using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
-using CVerify.API.Application.DTOs;
-using CVerify.API.Infrastructure.Configuration;
-using CVerify.API.Infrastructure.Services;
 using Xunit;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Email.DTOs;
+using CVerify.API.Modules.Shared.Email.Services;
 
 namespace CVerify.API.PerformanceTests.Stress;
 
