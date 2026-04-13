@@ -122,7 +122,12 @@ public class AuthService : IAuthService
             .Where(pc => pc.UserId == user.Id && pc.IsActive && pc.DeletedAt == null)
             .Select(pc => (DateTimeOffset?)pc.PasswordChangedAt)
             .FirstOrDefaultAsync(cancellationToken);
-        return new AuthResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt);
+        var hasPassword = !string.IsNullOrEmpty(user.PasswordHash);
+        if (hasPassword && passwordChangedAt == null)
+        {
+            passwordChangedAt = user.CreatedAt;
+        }
+        return new AuthResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt, hasPassword);
     }
 
     private async Task<UserProfileResponse> CreateUserProfileResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
@@ -132,7 +137,12 @@ public class AuthService : IAuthService
             .Where(pc => pc.UserId == user.Id && pc.IsActive && pc.DeletedAt == null)
             .Select(pc => (DateTimeOffset?)pc.PasswordChangedAt)
             .FirstOrDefaultAsync(cancellationToken);
-        return new UserProfileResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt);
+        var hasPassword = !string.IsNullOrEmpty(user.PasswordHash);
+        if (hasPassword && passwordChangedAt == null)
+        {
+            passwordChangedAt = user.CreatedAt;
+        }
+        return new UserProfileResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt, hasPassword);
     }
 
     /// <summary>
@@ -201,10 +211,10 @@ public class AuthService : IAuthService
 
         await CacheUserAuthDataAsync(user.Id, roles, permissions);
 
-        var jwt = _tokenService.GenerateJwtToken(user, roles, permissions);
+        var sessionId = Guid.CreateVersion7();
+        var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
         var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-        var sessionId = Guid.CreateVersion7();
         var rememberMe = request.RememberMe;
         await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, rememberMe);
 
@@ -241,6 +251,12 @@ public class AuthService : IAuthService
                 throw new UnauthorizedAccessException("Google authentication failed.");
             }
 
+            if (!payload.EmailVerified)
+            {
+                _metrics.RecordLoginFailed();
+                throw new UnauthorizedAccessException("Google account email is not verified.");
+            }
+
             var email = NormalizeEmailPolicy(payload.Email);
 
             using var transaction = await _context.Database.BeginTransactionAsync();
@@ -253,14 +269,65 @@ public class AuthService : IAuthService
                     .Include(u => u.LinkedEmails)
                     .FirstOrDefaultAsync(u => u.AuthProviders.Any(ap => ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject && ap.DeletedAt == null));
 
-                // 2. Fall back to email matching if not resolved by Provider ID
+                // 2. Check for soft-deleted / unlinked record of this Google identity
                 if (user == null)
                 {
-                    user = await _context.Users
+                    var wasUnlinked = await _context.AuthProviders
+                        .IgnoreQueryFilters()
+                        .AnyAsync(ap => ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject && ap.DeletedAt != null);
+
+                    if (wasUnlinked)
+                    {
+                        _metrics.RecordLoginFailed();
+                        await LogAuditEventAsync(null, "USER_GOOGLE_LOGIN_BLOCKED", $"Blocked Google login attempt for unlinked identity Subject={payload.Subject}.");
+                        throw new AuthException("GOOGLE_PROVIDER_UNLINKED", "This Google account has been explicitly unlinked. Please sign in via password or another provider.");
+                    }
+
+                    // 3. Fall back to email matching ONLY if eligible according to Fallback Eligibility Matrix
+                    var matchingUser = await _context.Users
                         .Include(u => u.Roles)
                         .Include(u => u.AuthProviders)
                         .Include(u => u.LinkedEmails)
                         .FirstOrDefaultAsync(u => u.Email == email || u.LinkedEmails.Any(le => le.Email == email && le.IsVerified));
+
+                    if (matchingUser != null)
+                    {
+                        // Eligibility Matrix Enforcement:
+                        // Case B: Unverified local account
+                        if (matchingUser.Status == UserStatus.EMAIL_VERIFY_PENDING)
+                        {
+                            _metrics.RecordLoginFailed();
+                            await LogAuditEventAsync(matchingUser.Id, "TAKEOVER_ATTEMPT_BLOCKED", $"Blocked Google auto-link attempt on unverified profile: {email}");
+                            throw new AuthException(AuthErrorCodes.AccountConflict, "Google automatic linking is blocked for unverified profiles. Please verify your email first.");
+                        }
+
+                        // Case C & D: Active local account with password or other provider connections
+                        var hasPassword = !string.IsNullOrEmpty(matchingUser.PasswordHash) || await _context.PasswordCredentials
+                            .AnyAsync(pc => pc.UserId == matchingUser.Id && pc.IsActive && pc.DeletedAt == null);
+
+                        var hasOtherProviders = matchingUser.AuthProviders.Any(ap => ap.DeletedAt == null);
+
+                        if (hasPassword || hasOtherProviders)
+                        {
+                            _metrics.RecordLoginFailed();
+                            await LogAuditEventAsync(matchingUser.Id, "TAKEOVER_ATTEMPT_BLOCKED", $"Blocked Google auto-link attempt on credential-secured profile: {email}");
+                            throw new AuthException(AuthErrorCodes.AccountConflict, "An account with this email address already exists. Please log in using your password/existing provider to link Google.");
+                        }
+
+                        // Case E: Account has soft-deleted Google provider
+                        var hasDeletedGoogle = await _context.AuthProviders
+                            .IgnoreQueryFilters()
+                            .AnyAsync(ap => ap.UserId == matchingUser.Id && ap.ProviderName.ToLower() == "google" && ap.DeletedAt != null);
+
+                        if (hasDeletedGoogle)
+                        {
+                            _metrics.RecordLoginFailed();
+                            await LogAuditEventAsync(matchingUser.Id, "USER_GOOGLE_LOGIN_BLOCKED", $"Blocked Google login on unlinked profile: {email}");
+                            throw new AuthException("GOOGLE_PROVIDER_UNLINKED", "This Google account has been unlinked. Please log in using your email/password to reconnect.");
+                        }
+
+                        user = matchingUser;
+                    }
                 }
 
                 var superAdminEmail = _envConfig.SuperAdmin.Email;
@@ -313,6 +380,13 @@ public class AuthService : IAuthService
                         _metrics.RecordLoginFailed();
                         await LogAuditEventAsync(user.Id, "USER_LOGIN_FAILED_DISABLED", $"Disabled user account Google login attempt for {user.Email}.");
                         throw new UnauthorizedAccessException("Account is disabled.");
+                    }
+
+                    if (_accountService.IsAccountLocked(user))
+                    {
+                        _metrics.RecordLoginFailed();
+                        await LogAuditEventAsync(user.Id, "USER_LOGIN_FAILED_LOCKED", $"Locked user account Google login attempt for {user.Email}.");
+                        throw new UnauthorizedAccessException($"Account is temporarily locked until {user.LockUntil}");
                     }
 
                     if (!string.IsNullOrEmpty(payload.Picture) && user.AvatarUrl != payload.Picture)
@@ -370,10 +444,10 @@ public class AuthService : IAuthService
 
                 await CacheUserAuthDataAsync(user.Id, roles, permissions);
 
-                var jwt = _tokenService.GenerateJwtToken(user, roles, permissions);
+                var sessionId = Guid.CreateVersion7();
+                var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
                 var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-                var sessionId = Guid.CreateVersion7();
                 var rememberMe = true; 
                 await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, rememberMe);
 
@@ -449,109 +523,132 @@ public class AuthService : IAuthService
                 .Include(t => t.User)
                 .FirstOrDefaultAsync(t => t.Token == refreshTokenStr);
 
-            var validationResult = ValidateRefreshToken(storedToken);
+            if (storedToken == null) return null;
 
-            if (validationResult == RefreshTokenValidationResult.Invalid || validationResult == RefreshTokenValidationResult.Expired)
+            // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
+            var userLockKey = $"lock:user:sessions:{storedToken.UserId}";
+            var userLockValue = Guid.NewGuid().ToString("N");
+            var userLockAcquired = await _cacheService.AcquireLockAsync(userLockKey, userLockValue, TimeSpan.FromSeconds(10));
+            if (!userLockAcquired)
             {
-                return null;
+                throw new AuthException(AuthErrorCodes.InvalidToken, "Concurrent session operations detected.");
             }
 
-            if (validationResult == RefreshTokenValidationResult.Reused)
+            try
             {
-                var httpContext = _httpContextAccessor.HttpContext;
-                var currentIp = httpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-                var currentUa = httpContext?.Request.Headers["User-Agent"].ToString() ?? "Unknown";
+                // Re-fetch token within the user-scoped lock to ensure it wasn't mutated or revoked concurrently
+                var reFetchedToken = await _context.RefreshTokens
+                    .Include(t => t.User)
+                    .FirstOrDefaultAsync(t => t.Id == storedToken.Id);
 
-                // Staged Revocation / Compromise Isolation: Revoke all tokens belonging to the compromised Session ID
-                using var transaction = await _context.Database.BeginTransactionAsync();
+                var validationResult = ValidateRefreshToken(reFetchedToken);
+
+                if (validationResult == RefreshTokenValidationResult.Invalid || validationResult == RefreshTokenValidationResult.Expired)
+                {
+                    return null;
+                }
+
+                if (validationResult == RefreshTokenValidationResult.Reused)
+                {
+                    var httpContext = _httpContextAccessor.HttpContext;
+                    var currentIp = httpContext?.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                    var currentUa = httpContext?.Request.Headers["User-Agent"].ToString() ?? "Unknown";
+
+                    // Staged Revocation / Compromise Isolation: Revoke all tokens belonging to the compromised Session ID
+                    using var transaction = await _context.Database.BeginTransactionAsync();
+                    try
+                    {
+                        await RevokeSessionChainAsync(reFetchedToken!.SessionId);
+                        await transaction.CommitAsync();
+                    }
+                    catch
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
+                    }
+
+                    // Structured security log
+                    _logger.LogWarning("SECURITY ALERT: [Event=TOKEN_REUSE_DETECTED] [SessionId={SessionId}] [UserId={UserId}] [IpAddress={IpAddress}] [UserAgent={UserAgent}]",
+                        reFetchedToken.SessionId, reFetchedToken.UserId, currentIp, currentUa);
+
+                    await LogAuditEventAsync(reFetchedToken.UserId, "TOKEN_THEFT_DETECTED",
+                        $"Refresh token reuse/theft detected for token {maskedToken}. Session {reFetchedToken.SessionId} isolated and revoked. IP: {currentIp}, UA: {currentUa}");
+
+                    throw new AuthException(AuthErrorCodes.InvalidToken, "Token reuse detected.");
+                }
+
+                if (validationResult == RefreshTokenValidationResult.WithinGracePeriod)
+                {
+                    // Safe concurrency: Return the active replacement token that was already generated
+                    var activeReplacement = await _context.RefreshTokens
+                        .FirstOrDefaultAsync(t => t.Id == reFetchedToken!.ReplacedByTokenId);
+
+                    if (activeReplacement != null)
+                    {
+                        _logger.LogInformation("Safe concurrent refresh race handled. SessionId: {SessionId}.", reFetchedToken!.SessionId);
+
+                        var user = reFetchedToken.User;
+                        var roles = await _identityRepository.GetUserRolesAsync(user.Id);
+                        var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
+
+                        var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: reFetchedToken.SessionId);
+
+                        // Re-set cookies for the active rotated token
+                        var refreshExpiry = activeReplacement.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                        _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
+                        _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
+
+                        return await CreateAuthResponseAsync(user, roles, permissions,
+                            user.Status == UserStatus.ACTIVE, user.Status.ToString(),
+                            user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                    }
+                }
+
+                // Normal path: validationResult == RefreshTokenValidationResult.Valid
+                var oldUser = reFetchedToken!.User;
+                var oldRoles = await _identityRepository.GetUserRolesAsync(oldUser.Id);
+                var oldPermissions = await _identityRepository.GetUserPermissionsAsync(oldUser.Id);
+
+                // Compare User-Agents for hijack warnings
+                var currentUserAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString();
+                if (!string.IsNullOrWhiteSpace(reFetchedToken.UserAgent) &&
+                    !string.Equals(reFetchedToken.UserAgent, currentUserAgent, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("SECURITY WARNING: User-Agent changed during token refresh for Session {SessionId}. Original: '{OriginalUA}', Current: '{CurrentUA}'",
+                        reFetchedToken.SessionId, reFetchedToken.UserAgent, currentUserAgent);
+                }
+
+                var newRefreshTokenStr = _tokenService.GenerateRefreshToken();
+
+                using var rotationTx = await _context.Database.BeginTransactionAsync();
+                RefreshToken newRefreshToken;
                 try
                 {
-                    await RevokeSessionChainAsync(storedToken!.SessionId);
-                    await transaction.CommitAsync();
+                    newRefreshToken = await RotateRefreshTokenAsync(reFetchedToken, newRefreshTokenStr);
+                    await rotationTx.CommitAsync();
                 }
                 catch
                 {
-                    await transaction.RollbackAsync();
+                    await rotationTx.RollbackAsync();
                     throw;
                 }
 
-                // Structured security log
-                _logger.LogWarning("SECURITY ALERT: [Event=TOKEN_REUSE_DETECTED] [SessionId={SessionId}] [UserId={UserId}] [IpAddress={IpAddress}] [UserAgent={UserAgent}]",
-                    storedToken.SessionId, storedToken.UserId, currentIp, currentUa);
+                var newJwt = _tokenService.GenerateJwtToken(oldUser, oldRoles, oldPermissions, sessionId: reFetchedToken.SessionId);
 
-                await LogAuditEventAsync(storedToken.UserId, "TOKEN_THEFT_DETECTED",
-                    $"Refresh token reuse/theft detected for token {maskedToken}. Session {storedToken.SessionId} isolated and revoked. IP: {currentIp}, UA: {currentUa}");
+                var newRefreshExpiry = newRefreshToken.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                _tokenService.SetTokenInsideCookie("access_token", newJwt, DateTime.UtcNow.AddMinutes(15));
+                _tokenService.SetTokenInsideCookie("refresh_token", newRefreshTokenStr, newRefreshExpiry);
 
-                throw new AuthException(AuthErrorCodes.InvalidToken, "Token reuse detected.");
+                await LogAuditEventAsync(oldUser.Id, "TOKEN_ROTATED", $"Token rotated successfully. New token issued for Session {reFetchedToken.SessionId}.");
+
+                return await CreateAuthResponseAsync(oldUser, oldRoles, oldPermissions,
+                    oldUser.Status == UserStatus.ACTIVE, oldUser.Status.ToString(),
+                    oldUser.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
             }
-
-            if (validationResult == RefreshTokenValidationResult.WithinGracePeriod)
+            finally
             {
-                // Safe concurrency: Return the active replacement token that was already generated
-                var activeReplacement = await _context.RefreshTokens
-                    .FirstOrDefaultAsync(t => t.Id == storedToken!.ReplacedByTokenId);
-
-                if (activeReplacement != null)
-                {
-                    _logger.LogInformation("Safe concurrent refresh race handled. SessionId: {SessionId}.", storedToken!.SessionId);
-
-                    var user = storedToken.User;
-                    var roles = await _identityRepository.GetUserRolesAsync(user.Id);
-                    var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
-
-                    var jwt = _tokenService.GenerateJwtToken(user, roles, permissions);
-
-                    // Re-set cookies for the active rotated token
-                    var refreshExpiry = activeReplacement.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
-                    _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
-                    _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
-
-                    return await CreateAuthResponseAsync(user, roles, permissions,
-                        user.Status == UserStatus.ACTIVE, user.Status.ToString(),
-                        user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
-                }
+                await _cacheService.ReleaseLockAsync(userLockKey, userLockValue);
             }
-
-            // Normal path: validationResult == RefreshTokenValidationResult.Valid
-            var oldUser = storedToken!.User;
-            var oldRoles = await _identityRepository.GetUserRolesAsync(oldUser.Id);
-            var oldPermissions = await _identityRepository.GetUserPermissionsAsync(oldUser.Id);
-
-            // Compare User-Agents for hijack warnings
-            var currentUserAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString();
-            if (!string.IsNullOrWhiteSpace(storedToken.UserAgent) &&
-                !string.Equals(storedToken.UserAgent, currentUserAgent, StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogWarning("SECURITY WARNING: User-Agent changed during token refresh for Session {SessionId}. Original: '{OriginalUA}', Current: '{CurrentUA}'",
-                    storedToken.SessionId, storedToken.UserAgent, currentUserAgent);
-            }
-
-            var newRefreshTokenStr = _tokenService.GenerateRefreshToken();
-
-            using var rotationTx = await _context.Database.BeginTransactionAsync();
-            RefreshToken newRefreshToken;
-            try
-            {
-                newRefreshToken = await RotateRefreshTokenAsync(storedToken, newRefreshTokenStr);
-                await rotationTx.CommitAsync();
-            }
-            catch
-            {
-                await rotationTx.RollbackAsync();
-                throw;
-            }
-
-            var newJwt = _tokenService.GenerateJwtToken(oldUser, oldRoles, oldPermissions);
-
-            var newRefreshExpiry = newRefreshToken.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
-            _tokenService.SetTokenInsideCookie("access_token", newJwt, DateTime.UtcNow.AddMinutes(15));
-            _tokenService.SetTokenInsideCookie("refresh_token", newRefreshTokenStr, newRefreshExpiry);
-
-            await LogAuditEventAsync(oldUser.Id, "TOKEN_ROTATED", $"Token rotated successfully. New token issued for Session {storedToken.SessionId}.");
-
-            return await CreateAuthResponseAsync(oldUser, oldRoles, oldPermissions,
-                oldUser.Status == UserStatus.ACTIVE, oldUser.Status.ToString(),
-                oldUser.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
         }
         finally
         {
@@ -786,6 +883,7 @@ public class AuthService : IAuthService
             await transaction.CommitAsync(cancellationToken);
 
             await LogAuditEventAsync(newUser.Id, "USER_REGISTERED", $"User account {newUser.Email} registered successfully.");
+            await _identityStateResolver.InvalidateCacheAsync(newUser.Email);
 
             _logger.LogInformation("[CorrelationID: {CorrelationId}] User {UserId} registered successfully, outbox message enqueued.", correlationId, newUser.Id);
             _metrics.RecordRegistration();
@@ -885,16 +983,17 @@ public class AuthService : IAuthService
             await transaction.CommitAsync(cancellationToken);
 
             await LogAuditEventAsync(user.Id, "USER_EMAIL_VERIFIED", $"User email {user.Email} successfully verified.");
+            await _identityStateResolver.InvalidateCacheAsync(user.Email);
 
             var roles = await _identityRepository.GetUserRolesAsync(user.Id);
             var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
 
             await CacheUserAuthDataAsync(user.Id, roles, permissions);
 
-            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions);
+            var sessionId = Guid.CreateVersion7();
+            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-            var sessionId = Guid.CreateVersion7();
             var rememberMe = false; // default to false
             await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, rememberMe);
 
@@ -1227,10 +1326,10 @@ public class AuthService : IAuthService
 
             await CacheUserAuthDataAsync(user.Id, roles, permissions);
 
-            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions);
+            var sessionId = Guid.CreateVersion7();
+            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-            var sessionId = Guid.CreateVersion7();
             var rememberMe = false; // default to false
             await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, rememberMe);
 
@@ -1313,6 +1412,15 @@ public class AuthService : IAuthService
         // Perform soft deletion
         user.DeletedAt = _timeProvider.GetUtcNow();
         user.Status = UserStatus.DELETED;
+
+        // Cascade soft-deletion to active provider links to release key constraints
+        var activeProviders = await _context.AuthProviders
+            .Where(ap => ap.UserId == userId && ap.DeletedAt == null)
+            .ToListAsync();
+        foreach (var ap in activeProviders)
+        {
+            ap.DeletedAt = _timeProvider.GetUtcNow();
+        }
 
         // Revoke all refresh tokens
         var refreshTokens = await _context.RefreshTokens
@@ -1966,10 +2074,10 @@ public class AuthService : IAuthService
 
             await CacheUserAuthDataAsync(user.Id, roles, permissions);
 
-            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions);
+            var sessionId = Guid.CreateVersion7();
+            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-            var sessionId = Guid.CreateVersion7();
             await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
 
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -2271,10 +2379,10 @@ public class AuthService : IAuthService
 
             var workspaceRoles = roles.Contains("BUSINESS") ? roles : roles.Concat(new[] { "BUSINESS" }).ToList();
 
-            var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username);
+            var sessionId = Guid.CreateVersion7();
+            var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username, sessionId: sessionId);
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-            var sessionId = Guid.CreateVersion7();
             await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
 
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -2770,10 +2878,10 @@ public class AuthService : IAuthService
 
             var workspaceRoles = roles.Contains("BUSINESS") ? roles : roles.Concat(new[] { "BUSINESS" }).ToList();
 
-            var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username);
+            var sessionId = Guid.CreateVersion7();
+            var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username, sessionId: sessionId);
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-            var sessionId = Guid.CreateVersion7();
             await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
 
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -2877,10 +2985,10 @@ public class AuthService : IAuthService
 
         var workspaceRoles = roles.Contains("BUSINESS") ? roles : roles.Concat(new[] { "BUSINESS" }).ToList();
 
-        var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username);
+        var sessionId = Guid.CreateVersion7();
+        var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username, sessionId: sessionId);
         var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-        var sessionId = Guid.CreateVersion7();
         await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
 
         _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -2898,7 +3006,29 @@ public class AuthService : IAuthService
         if (userIdClaim == null) return Enumerable.Empty<SessionInfo>();
 
         var userId = Guid.Parse(userIdClaim.Value);
-        var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+
+        // Primary: Retrieve current SessionId from the cryptographically verified JWT 'sid' claim
+        var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+        Guid? currentSessionId = null;
+        if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
+        {
+            currentSessionId = parsedSid;
+        }
+        else
+        {
+            // Rolling Deployment Fallback: if JWT token is older and lacks the 'sid' claim,
+            // fall back to reading & validating the refresh token cookie
+            var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+            if (!string.IsNullOrEmpty(currentRefreshToken))
+            {
+                var storedToken = await _context.RefreshTokens
+                    .FirstOrDefaultAsync(t => t.Token == currentRefreshToken);
+                if (storedToken != null && storedToken.RevokedAt == null && storedToken.ExpiresAt > _timeProvider.GetUtcNow())
+                {
+                    currentSessionId = storedToken.SessionId;
+                }
+            }
+        }
 
         var activeTokens = await _context.RefreshTokens
             .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > _timeProvider.GetUtcNow())
@@ -2909,7 +3039,7 @@ public class AuthService : IAuthService
             .Select(g =>
             {
                 var latestToken = g.OrderByDescending(t => t.CreatedAt).First();
-                bool isCurrent = g.Any(t => t.Token == currentRefreshToken);
+                bool isCurrent = currentSessionId.HasValue && g.Key == currentSessionId.Value;
 
                 return new SessionInfo(
                     latestToken.SessionId,
@@ -2920,7 +3050,8 @@ public class AuthService : IAuthService
                     latestToken.CreatedAt,
                     isCurrent
                 );
-            });
+            })
+            .ToList();
 
         return sessions;
     }
@@ -2931,20 +3062,157 @@ public class AuthService : IAuthService
         if (userIdClaim == null) return false;
 
         var userId = Guid.Parse(userIdClaim.Value);
-        var activeTokens = await _context.RefreshTokens
-            .Where(t => t.UserId == userId && t.SessionId == sessionId && t.RevokedAt == null)
-            .ToListAsync();
 
-        if (!activeTokens.Any()) return false;
-
-        foreach (var token in activeTokens)
+        // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
+        var lockKey = $"lock:user:sessions:{userId}";
+        var lockValue = Guid.NewGuid().ToString("N");
+        var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
+        if (!acquired)
         {
-            token.RevokedAt = _timeProvider.GetUtcNow();
+            throw new AuthException(AuthErrorCodes.InvalidToken, "Concurrent session operations detected.");
         }
 
-        await _context.SaveChangesAsync();
-        await LogAuditEventAsync(userId, "SESSION_REVOKED", $"Session {sessionId} successfully revoked by owner.");
-        return true;
+        try
+        {
+            // Find current SessionId to determine if it is a self-revocation
+            var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+            Guid? currentSessionId = null;
+            if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
+            {
+                currentSessionId = parsedSid;
+            }
+            else
+            {
+                // Fallback for rolling deployment
+                var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+                if (!string.IsNullOrEmpty(currentRefreshToken))
+                {
+                    var storedToken = await _context.RefreshTokens
+                        .FirstOrDefaultAsync(t => t.Token == currentRefreshToken);
+                    if (storedToken != null && storedToken.RevokedAt == null && storedToken.ExpiresAt > _timeProvider.GetUtcNow())
+                    {
+                        currentSessionId = storedToken.SessionId;
+                    }
+                }
+            }
+
+            // Reject current session revocation (Self-Revocation Prevention)
+            if (currentSessionId.HasValue && sessionId == currentSessionId.Value)
+            {
+                _logger.LogWarning("Revocation rejected: Attempted self-revocation of active session {SessionId} for User {UserId}.", sessionId, userId);
+                await LogAuditEventAsync(userId, "SELF_REVOCATION_REJECTED", $"User attempted to revoke current active session {sessionId}. Operation rejected.");
+                throw new AuthException(AuthErrorCodes.InvalidToken, "You cannot revoke your currently active session.");
+            }
+
+            var activeTokens = await _context.RefreshTokens
+                .Where(t => t.UserId == userId && t.SessionId == sessionId && t.RevokedAt == null)
+                .ToListAsync();
+
+            if (!activeTokens.Any()) return false;
+
+            var now = _timeProvider.GetUtcNow();
+            foreach (var token in activeTokens)
+            {
+                token.RevokedAt = now;
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Cache invalidation: write false to Redis to block access instantly
+            await _cacheService.SetAsync($"auth:session:{sessionId}:active", "false", TimeSpan.FromHours(24));
+
+            await LogAuditEventAsync(userId, "SESSION_REVOKED", $"Session {sessionId} successfully revoked by owner.");
+
+            return true;
+        }
+        finally
+        {
+            await _cacheService.ReleaseLockAsync(lockKey, lockValue);
+        }
+    }
+
+    public async Task<bool> RevokeAllOtherSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) return false;
+
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
+        var lockKey = $"lock:user:sessions:{userId}";
+        var lockValue = Guid.NewGuid().ToString("N");
+        var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
+        if (!acquired)
+        {
+            throw new AuthException(AuthErrorCodes.InvalidToken, "Concurrent session operations detected.");
+        }
+
+        try
+        {
+            // Find current SessionId
+            var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+            Guid? currentSessionId = null;
+            if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
+            {
+                currentSessionId = parsedSid;
+            }
+            else
+            {
+                // Fallback for rolling deployment
+                var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+                if (!string.IsNullOrEmpty(currentRefreshToken))
+                {
+                    var storedToken = await _context.RefreshTokens
+                        .FirstOrDefaultAsync(t => t.Token == currentRefreshToken, cancellationToken);
+                    if (storedToken != null && storedToken.RevokedAt == null && storedToken.ExpiresAt > _timeProvider.GetUtcNow())
+                    {
+                        currentSessionId = storedToken.SessionId;
+                    }
+                }
+            }
+
+            var otherActiveTokens = await _context.RefreshTokens
+                .Where(t => t.UserId == userId && t.RevokedAt == null && (currentSessionId == null || t.SessionId != currentSessionId))
+                .ToListAsync(cancellationToken);
+
+            if (!otherActiveTokens.Any()) return true;
+
+            var uniqueSessionCount = otherActiveTokens.Select(t => t.SessionId).Distinct().Count();
+
+            // Transaction consistency boundary for atomic bulk invalidation
+            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var now = _timeProvider.GetUtcNow();
+                foreach (var token in otherActiveTokens)
+                {
+                    token.RevokedAt = now;
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _logger.LogError(ex, "Failed to revoke all other sessions for user {UserId}", userId);
+                return false;
+            }
+
+            // Cache invalidation: write false to Redis for all bulk revoked sessions to block access instantly
+            foreach (var token in otherActiveTokens)
+            {
+                await _cacheService.SetAsync($"auth:session:{token.SessionId}:active", "false", TimeSpan.FromHours(24));
+            }
+
+            await LogAuditEventAsync(userId, "ALL_OTHER_SESSIONS_REVOKED", $"Revoked {uniqueSessionCount} other active sessions successfully.");
+
+            return true;
+        }
+        finally
+        {
+            await _cacheService.ReleaseLockAsync(lockKey, lockValue);
+        }
     }
 
     public async Task<IEnumerable<LinkedProviderDto>> GetLinkedProvidersAsync()
@@ -2972,6 +3240,7 @@ public class AuthService : IAuthService
                     email = matched.ProviderAccountId ?? matched.ProviderKey;
                 }
                 result.Add(new LinkedProviderDto(
+                    Id: matched.Id,
                     ProviderName: matched.ProviderName.ToLowerInvariant(),
                     ProviderEmail: email,
                     ProviderUsername: username,
@@ -2983,6 +3252,7 @@ public class AuthService : IAuthService
             else
             {
                 result.Add(new LinkedProviderDto(
+                    Id: null,
                     ProviderName: providerName,
                     ProviderEmail: null,
                     ProviderUsername: null,
@@ -2996,34 +3266,234 @@ public class AuthService : IAuthService
         return result;
     }
 
-    public async Task<bool> UnlinkProviderAsync(string providerName)
+    public async Task<IEnumerable<LinkedProviderConnectionDto>> GetLinkedConnectionsAsync()
     {
         var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
         var userId = Guid.Parse(userIdClaim.Value);
 
-        if (!CanonicalProviders.TryGetValue(providerName, out var canonicalName))
+        var linked = await _context.AuthProviders
+            .Where(ap => ap.UserId == userId && ap.DeletedAt == null)
+            .ToListAsync();
+
+        var result = new List<LinkedProviderConnectionDto>();
+        var supported = new[] { "google", "github", "gitlab" };
+
+        foreach (var providerName in supported)
         {
-            throw new ArgumentException($"Unsupported provider: {providerName}", nameof(providerName));
+            var matchedProviders = linked.Where(ap => string.Equals(ap.ProviderName, providerName, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (matchedProviders.Any())
+            {
+                foreach (var matched in matchedProviders)
+                {
+                    var email = matched.ProviderAccountId?.Contains('@') == true ? matched.ProviderAccountId : null;
+                    var username = matched.ProviderAccountId?.Contains('@') == false ? matched.ProviderAccountId : null;
+                    if (string.Equals(providerName, "google", StringComparison.OrdinalIgnoreCase))
+                    {
+                        email = matched.ProviderAccountId ?? matched.ProviderKey;
+                    }
+                    result.Add(new LinkedProviderConnectionDto(
+                        Id: matched.Id,
+                        ProviderName: matched.ProviderName.ToLowerInvariant(),
+                        ProviderEmail: email,
+                        ProviderUsername: username,
+                        ProviderDisplayName: matched.ProviderDisplayName,
+                        ProviderAvatarUrl: matched.ProviderAvatarUrl,
+                        ProviderProfileUrl: matched.ProviderProfileUrl,
+                        Connected: true,
+                        ScopeValidationStatus: matched.ScopeValidationStatus.ToString(),
+                        GrantedScopes: matched.GrantedScopes
+                    ));
+                }
+            }
+            else
+            {
+                result.Add(new LinkedProviderConnectionDto(
+                    Id: Guid.Empty,
+                    ProviderName: providerName,
+                    ProviderEmail: null,
+                    ProviderUsername: null,
+                    ProviderDisplayName: null,
+                    ProviderAvatarUrl: null,
+                    ProviderProfileUrl: null,
+                    Connected: false,
+                    ScopeValidationStatus: "Valid",
+                    GrantedScopes: null
+                ));
+            }
+        }
+
+        return result;
+    }
+
+    public async Task<PendingLinkDetailsResponse> GetPendingLinkDetailsAsync(Guid id)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        var pending = await _context.PendingAuthProviders
+            .FirstOrDefaultAsync(pap => pap.Id == id && pap.UserId == userId);
+
+        if (pending == null)
+        {
+            throw new ResourceNotFoundException("PENDING_LINK_NOT_FOUND", "The pending link was not found or is expired.");
+        }
+
+        if (pending.ExpiresAt < _timeProvider.GetUtcNow())
+        {
+            _context.PendingAuthProviders.Remove(pending);
+            await _context.SaveChangesAsync();
+            throw new BusinessRuleException("LINK_EXPIRED", "This linking request has expired. Please try again.");
+        }
+
+        var email = pending.ProviderAccountId?.Contains('@') == true ? pending.ProviderAccountId : null;
+        var username = pending.ProviderAccountId?.Contains('@') == false ? pending.ProviderAccountId : null;
+
+        return new PendingLinkDetailsResponse(
+            Id: pending.Id,
+            ProviderName: pending.ProviderName.ToLowerInvariant(),
+            ProviderEmail: email,
+            ProviderUsername: username,
+            ProviderDisplayName: pending.ProviderDisplayName,
+            ProviderAvatarUrl: pending.ProviderAvatarUrl,
+            ProviderProfileUrl: pending.ProviderProfileUrl
+        );
+    }
+
+    public async Task<bool> ConfirmLinkAsync(Guid id)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        var pending = await _context.PendingAuthProviders
+            .FirstOrDefaultAsync(pap => pap.Id == id && pap.UserId == userId);
+
+        if (pending == null)
+        {
+            throw new ResourceNotFoundException("PENDING_LINK_NOT_FOUND", "The pending link was not found.");
+        }
+
+        if (pending.ExpiresAt < _timeProvider.GetUtcNow())
+        {
+            _context.PendingAuthProviders.Remove(pending);
+            await _context.SaveChangesAsync();
+            throw new BusinessRuleException("LINK_EXPIRED", "This linking request has expired. Please try again.");
+        }
+
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            // Row-level lock the parent user to serialize concurrent confirmations for this user
+            await _context.Database.ExecuteSqlRawAsync("SELECT 1 FROM users WHERE id = {0} FOR UPDATE", userId);
+
+            // Check abuse prevention limit: max 3 active links per provider
+            var activeCount = await _context.AuthProviders
+                .CountAsync(ap => ap.UserId == userId && ap.ProviderName.ToLower() == pending.ProviderName.ToLower() && ap.DeletedAt == null);
+
+            if (activeCount >= 3)
+            {
+                await LogAuditEventAsync(userId, "PROVIDER_LIMIT_REACHED", $"Maximum limit of 3 linked accounts reached for provider {pending.ProviderName}.");
+                throw new BusinessRuleException("PROVIDER_LIMIT_REACHED", $"Maximum limit of 3 linked accounts reached for provider {pending.ProviderName}.");
+            }
+
+            // Check if provider account is already linked to someone else
+            var duplicateProvider = await _context.AuthProviders
+                .FirstOrDefaultAsync(ap => ap.ProviderName.ToLower() == pending.ProviderName.ToLower() && ap.ProviderKey == pending.ProviderKey && ap.UserId != userId && ap.DeletedAt == null);
+
+            if (duplicateProvider != null)
+            {
+                await LogAuditEventAsync(userId, "PROVIDER_LINK_CONFLICT", $"Provider account {pending.ProviderAccountId} is already linked to another user profile.");
+                throw new AuthException(AuthErrorCodes.AccountConflict, "This provider account is already linked to another CVerify profile.");
+            }
+
+            var newProvider = new AuthProvider
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                ProviderName = pending.ProviderName,
+                ProviderKey = pending.ProviderKey,
+                ProviderAccountId = pending.ProviderAccountId,
+                ProviderUsername = pending.ProviderUsername,
+                ProviderDisplayName = pending.ProviderDisplayName,
+                ProviderAvatarUrl = pending.ProviderAvatarUrl,
+                ProviderProfileUrl = pending.ProviderProfileUrl,
+                ScopeValidationStatus = ProviderScopeStatus.Valid,
+                LastScopeValidationAt = _timeProvider.GetUtcNow(),
+                LastProviderSyncAt = _timeProvider.GetUtcNow(),
+                LastSuccessfulRefreshAt = _timeProvider.GetUtcNow(),
+                CreatedAt = _timeProvider.GetUtcNow()
+            };
+
+            var credential = new OAuthCredential
+            {
+                AuthProviderId = newProvider.Id,
+                EncryptedAccessToken = pending.EncryptedAccessToken,
+                EncryptedRefreshToken = pending.EncryptedRefreshToken,
+                ExpiresAt = null,
+                UpdatedAt = _timeProvider.GetUtcNow()
+            };
+
+            newProvider.OAuthCredential = credential;
+            _context.AuthProviders.Add(newProvider);
+            _context.PendingAuthProviders.Remove(pending);
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user != null)
+            {
+                await _identityStateResolver.InvalidateCacheAsync(user.Email);
+            }
+            await LogAuditEventAsync(userId, "PROVIDER_LINK_CONFIRMED", $"Successfully linked {pending.ProviderName} account {pending.ProviderAccountId} (ID: {newProvider.Id}).");
+
+            return true;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+        {
+            await transaction.RollbackAsync();
+            if (pgEx.ConstraintName?.Contains("idx_auth_providers_key_active") == true)
+            {
+                throw new AuthException(AuthErrorCodes.AccountConflict, "This provider account is already linked to another CVerify profile.", ex);
+            }
+            throw;
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+
+    public async Task<bool> UnlinkProviderConnectionAsync(Guid connectionId)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        var matchedProvider = await _context.AuthProviders
+            .Include(ap => ap.User)
+            .FirstOrDefaultAsync(ap => ap.Id == connectionId && ap.UserId == userId && ap.DeletedAt == null);
+
+        if (matchedProvider == null)
+        {
+            throw new ResourceNotFoundException("PROVIDER_NOT_LINKED", "This connection was not found or is not linked to your account.");
         }
 
         var activeProviders = await _context.AuthProviders
             .Where(ap => ap.UserId == userId && ap.DeletedAt == null)
             .ToListAsync();
 
-        var hasPassword = await _context.PasswordCredentials
+        var hasPassword = !string.IsNullOrEmpty(matchedProvider.User?.PasswordHash) || await _context.PasswordCredentials
             .AnyAsync(pc => pc.UserId == userId && pc.IsActive && pc.DeletedAt == null);
 
         var totalMethods = activeProviders.Count + (hasPassword ? 1 : 0);
         if (totalMethods <= 1)
         {
             throw new InvalidOperationException("Cannot unlink provider because it is your only login method.");
-        }
-
-        var matchedProvider = activeProviders.FirstOrDefault(ap => string.Equals(ap.ProviderName, canonicalName, StringComparison.OrdinalIgnoreCase));
-        if (matchedProvider == null)
-        {
-            throw new ResourceNotFoundException("PROVIDER_NOT_LINKED", "This provider is not linked to your account.");
         }
 
         var credential = await _context.OAuthCredentials
@@ -3038,20 +3508,21 @@ public class AuthService : IAuthService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to decrypt access token for provider {ProviderName} during unlinking.", canonicalName);
+                _logger.LogError(ex, "Failed to decrypt access token for provider {ProviderName} during unlinking.", matchedProvider.ProviderName);
             }
         }
 
-        // Trigger token invalidation request to GitLab (GitHub doesn't support anonymous revocation)
         if (!string.IsNullOrEmpty(decryptedAccessToken))
         {
             var httpClient = _httpClientFactory.CreateClient();
-            if (string.Equals(canonicalName, "gitlab", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(matchedProvider.ProviderName, "gitlab", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
                     var content = new FormUrlEncodedContent(new Dictionary<string, string>
                     {
+                        { "client_id", _envConfig.Auth.GitlabClientId ?? "" },
+                        { "client_secret", _envConfig.Auth.GitlabClientSecret ?? "" },
                         { "token", decryptedAccessToken }
                     });
                     var response = await httpClient.PostAsync("https://gitlab.com/oauth/revoke", content);
@@ -3062,23 +3533,59 @@ public class AuthService : IAuthService
                     _logger.LogWarning(ex, "Failed to revoke GitLab OAuth token via API.");
                 }
             }
-            else if (string.Equals(canonicalName, "github", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("GitHub unlinking requested. Local token removed.");
-            }
         }
 
-        matchedProvider.DeletedAt = _timeProvider.GetUtcNow();
-        if (credential != null)
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
         {
-            _context.OAuthCredentials.Remove(credential);
+            matchedProvider.DeletedAt = _timeProvider.GetUtcNow();
+            if (credential != null)
+            {
+                _context.OAuthCredentials.Remove(credential);
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await _identityStateResolver.InvalidateCacheAsync(matchedProvider.User?.Email ?? "");
+            await LogAuditEventAsync(userId, "PROVIDER_UNLINKED", $"Unlinked provider connection {matchedProvider.ProviderName} (ID: {connectionId}).");
+
+            return true;
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<bool> UnlinkProviderAsync(string providerName)
+    {
+        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null) throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = Guid.Parse(userIdClaim.Value);
+
+        if (!CanonicalProviders.TryGetValue(providerName, out var canonicalName))
+        {
+            throw new ArgumentException($"Unsupported provider: {providerName}", nameof(providerName));
         }
 
-        await _context.SaveChangesAsync();
-        await _identityStateResolver.InvalidateCacheAsync(matchedProvider.User?.Email ?? "");
-        await LogAuditEventAsync(userId, "PROVIDER_UNLINKED", $"Unlinked provider {canonicalName} from user account.");
+        var activeProviders = await _context.AuthProviders
+            .Where(ap => ap.UserId == userId && ap.ProviderName.ToLower() == canonicalName.ToLower() && ap.DeletedAt == null)
+            .ToListAsync();
 
-        return true;
+        if (activeProviders.Count == 0)
+        {
+            throw new ResourceNotFoundException("PROVIDER_NOT_LINKED", "This provider is not linked to your account.");
+        }
+
+        if (activeProviders.Count > 1)
+        {
+            throw new InvalidOperationException("Multiple connections exist for this provider. Please use the connection-specific unlinking endpoint.");
+        }
+
+        var matchedProvider = activeProviders.First();
+        return await UnlinkProviderConnectionAsync(matchedProvider.Id);
     }
 
     public async Task<bool> ValidateProviderScopesAsync(string providerName)
@@ -3094,7 +3601,7 @@ public class AuthService : IAuthService
 
         var matchedProvider = await _context.AuthProviders
             .Include(ap => ap.User)
-            .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName == canonicalName && ap.DeletedAt == null);
+            .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName.ToLower() == canonicalName.ToLower() && ap.DeletedAt == null);
 
         if (matchedProvider == null)
         {
@@ -3237,17 +3744,19 @@ public class AuthService : IAuthService
             .OrderByDescending(pc => pc.CreatedAt)
             .FirstOrDefault();
 
-        if (activeCred == null)
+        string? currentPasswordHash = activeCred?.PasswordHash ?? user.PasswordHash;
+
+        if (string.IsNullOrEmpty(currentPasswordHash))
         {
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "No active password credential found to change.");
         }
 
-        if (!VerifyPassword(user, activeCred.PasswordHash, request.CurrentPassword))
+        if (!VerifyPassword(user, currentPasswordHash, request.CurrentPassword))
         {
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Incorrect current password.");
         }
 
-        if (VerifyPassword(user, activeCred.PasswordHash, request.NewPassword))
+        if (VerifyPassword(user, currentPasswordHash, request.NewPassword))
         {
             throw new AuthException(AuthErrorCodes.PasswordPolicyViolation, "New password cannot be the same as your current password.");
         }
@@ -3337,15 +3846,23 @@ public class AuthService : IAuthService
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Google ID token validation failed.");
         }
 
+        if (!payload.EmailVerified)
+        {
+            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Google email is not verified.");
+        }
+
         var conflictProvider = await _context.AuthProviders
-            .FirstOrDefaultAsync(ap => ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject && ap.DeletedAt == null, cancellationToken);
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(ap => ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject, cancellationToken);
         if (conflictProvider != null && conflictProvider.UserId != user.Id)
         {
+            await LogAuditEventAsync(user.Id, "PROVIDER_LINK_CONFLICT", $"Blocked attempt to link already-bound Google identity: Subject={payload.Subject}");
             throw new AuthException(AuthErrorCodes.AccountConflict, "This Google account is already linked to another CVerify profile.");
         }
 
-        var googleProvider = user.AuthProviders
-            .FirstOrDefault(ap => ap.ProviderName.ToLower() == "google" && ap.DeletedAt == null);
+        var googleProvider = await _context.AuthProviders
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(ap => ap.UserId == user.Id && ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject, cancellationToken);
 
         if (googleProvider == null)
         {
@@ -3366,16 +3883,24 @@ public class AuthService : IAuthService
         }
         else
         {
+            var wasSoftDeleted = googleProvider.DeletedAt != null;
+            googleProvider.DeletedAt = null; // Reactivate!
             googleProvider.ProviderKey = payload.Subject;
             googleProvider.ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject;
+            googleProvider.ProviderUsername = payload.Email;
             googleProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
             googleProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
             googleProvider.LastProviderSyncAt = _timeProvider.GetUtcNow();
             googleProvider.LastSuccessfulRefreshAt = _timeProvider.GetUtcNow();
+
+            if (wasSoftDeleted)
+            {
+                await LogAuditEventAsync(user.Id, "PROVIDER_LINK_REACTIVATED", $"Reactivated soft-deleted Google provider connection (ID: {googleProvider.Id}).");
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
-        await LogAuditEventAsync(user.Id, "PROVIDER_LINKED", "Successfully linked Google account via client-side ID Token flow.");
+        await LogAuditEventAsync(user.Id, "PROVIDER_LINK_CONFIRMED", "Successfully linked/re-linked Google account via client-side ID Token flow.");
 
         return true;
     }

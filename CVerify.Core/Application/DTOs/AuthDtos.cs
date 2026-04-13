@@ -86,9 +86,9 @@ public class ResetPasswordRequest
     }
 }
 
-public record AuthResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null);
+public record AuthResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null, bool HasPassword = false);
 
-public record UserProfileResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null);
+public record UserProfileResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null, bool HasPassword = false);
 
 public record GoogleLoginRequest(
     [Required]
@@ -254,12 +254,36 @@ public record OtpSessionResponse(
 );
 
 public record LinkedProviderDto(
+    Guid? Id,
     string ProviderName, 
     string? ProviderEmail, 
     string? ProviderUsername, 
     bool Connected,
     string ScopeValidationStatus,
     string? GrantedScopes
+);
+
+public record LinkedProviderConnectionDto(
+    Guid Id,
+    string ProviderName,
+    string? ProviderEmail,
+    string? ProviderUsername,
+    string? ProviderDisplayName,
+    string? ProviderAvatarUrl,
+    string? ProviderProfileUrl,
+    bool Connected,
+    string ScopeValidationStatus,
+    string? GrantedScopes
+);
+
+public record PendingLinkDetailsResponse(
+    Guid Id,
+    string ProviderName,
+    string? ProviderEmail,
+    string? ProviderUsername,
+    string? ProviderDisplayName,
+    string? ProviderAvatarUrl,
+    string? ProviderProfileUrl
 );
 
 public class ChangePasswordRequest

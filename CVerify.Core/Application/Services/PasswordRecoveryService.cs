@@ -61,9 +61,20 @@ public class PasswordRecoveryService : IPasswordRecoveryService
         }
         await _context.SaveChangesAsync(cancellationToken);
 
-        // 2. Delegate to the core AuthService
+        // 2. Query user to determine event log type
+        var user = await _context.Users
+            .Include(u => u.PasswordCredentials)
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken);
+
+        var hasPassword = user != null && !string.IsNullOrEmpty(user.PasswordHash);
+        string eventType = hasPassword ? "PASSWORD_RECOVERY_INITIATED" : "PASSWORD_SETUP_REQUESTED";
+
+        // 3. Delegate to the core AuthService
         var otpRequest = new SendOtpRequest(email, "PASSWORD_RECOVERY");
-        return await _authService.SendOtpAsync(otpRequest, userAgent, ipAddress, cancellationToken);
+        var response = await _authService.SendOtpAsync(otpRequest, userAgent, ipAddress, cancellationToken);
+
+        await LogAuditEventAsync(user?.Id, eventType, $"Password setup/recovery OTP challenge generated for {normalizedEmail}.");
+        return response;
     }
 
     public async Task<VerifyOtpResponse> VerifyOtpAsync(string email, string otp, CancellationToken cancellationToken)
@@ -83,7 +94,18 @@ public class PasswordRecoveryService : IPasswordRecoveryService
 
         // Delegate code checking, locks, and verification attempts to AuthService
         var verifyRequest = new VerifyOtpRequest(verification.ChallengeId, normalizedEmail, otp, "PASSWORD_RECOVERY");
-        return await _authService.VerifyOtpAsync(verifyRequest, cancellationToken);
+        try
+        {
+            return await _authService.VerifyOtpAsync(verifyRequest, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken);
+            var hasPassword = user != null && !string.IsNullOrEmpty(user.PasswordHash);
+            string failEvent = hasPassword ? "PASSWORD_RECOVERY_FAILED" : "PASSWORD_SETUP_FAILED";
+            await LogAuditEventAsync(user?.Id, failEvent, $"OTP verification failed for {normalizedEmail}. Error: {ex.Message}");
+            throw;
+        }
     }
 
     public async Task<bool> ChangePasswordAsync(string email, string recoveryToken, string newPassword, string confirmPassword, CancellationToken cancellationToken)
@@ -112,11 +134,24 @@ public class PasswordRecoveryService : IPasswordRecoveryService
         // 3. Confirm password matching
         if (newPassword != confirmPassword)
         {
+            var tempUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken);
+            var hasPw = tempUser != null && !string.IsNullOrEmpty(tempUser.PasswordHash);
+            await LogAuditEventAsync(tempUser?.Id, hasPw ? "PASSWORD_RECOVERY_FAILED" : "PASSWORD_SETUP_FAILED", "Passwords do not match.");
             throw new AuthException(AuthErrorCodes.PasswordPolicyViolation, "Passwords do not match.");
         }
 
         // 4. Validate against policy
-        await _passwordPolicyService.ValidateAndThrowAsync(newPassword, "Default");
+        try
+        {
+            await _passwordPolicyService.ValidateAndThrowAsync(newPassword, "Default");
+        }
+        catch (Exception ex)
+        {
+            var tempUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken);
+            var hasPw = tempUser != null && !string.IsNullOrEmpty(tempUser.PasswordHash);
+            await LogAuditEventAsync(tempUser?.Id, hasPw ? "PASSWORD_RECOVERY_FAILED" : "PASSWORD_SETUP_FAILED", $"Password policy violation: {ex.Message}");
+            throw;
+        }
 
         // 5. Retrieve user with historical credentials
         var user = await _context.Users
@@ -134,10 +169,22 @@ public class PasswordRecoveryService : IPasswordRecoveryService
             .OrderByDescending(pc => pc.CreatedAt)
             .FirstOrDefault();
 
-        if (activeCred != null && VerifyPassword(user, activeCred.PasswordHash, newPassword))
+        string? currentPasswordHash = activeCred?.PasswordHash ?? user.PasswordHash;
+
+        if (!string.IsNullOrEmpty(currentPasswordHash) && VerifyPassword(user, currentPasswordHash, newPassword))
         {
+            await LogAuditEventAsync(user.Id, "PASSWORD_REUSE_BLOCKED", "New password cannot be the same as your current active password.");
             throw new AuthException(AuthErrorCodes.PasswordPolicyViolation, "New password cannot be the same as your current active password.");
         }
+
+        // Concurrency Guard against parallel provisioning or changes (Race condition protection)
+        if (activeCred != null && activeCred.CreatedAt > verification.CreatedAt)
+        {
+            await LogAuditEventAsync(user.Id, "PASSWORD_SETUP_CONCURRENT_BLOCKED", "Password setup/recovery aborted. Credentials concurrently updated by another session.");
+            throw new AuthException(AuthErrorCodes.ConcurrencyConflict, "Password was concurrently configured or changed by another session.");
+        }
+
+        var hasPasswordPrior = !string.IsNullOrEmpty(currentPasswordHash);
 
         // 7. Update password
         var newHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
@@ -166,27 +213,35 @@ public class PasswordRecoveryService : IPasswordRecoveryService
         };
         _context.PasswordCredentials.Add(newCred);
 
-        // 8. Revoke other user sessions (except current)
-        var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
-        var activeTokens = await _context.RefreshTokens
-            .Where(t => t.UserId == user.Id && t.RevokedAt == null)
-            .ToListAsync(cancellationToken);
-
-        foreach (var token in activeTokens)
+        // 8. Session-Management Invalidation
+        if (hasPasswordPrior)
         {
-            if (token.Token != currentRefreshToken)
+            // Case B: Recovery Reset -> Revoke ALL active sessions globally
+            var activeTokens = await _context.RefreshTokens
+                .Where(t => t.UserId == user.Id && t.RevokedAt == null)
+                .ToListAsync(cancellationToken);
+
+            foreach (var token in activeTokens)
             {
                 token.RevokedAt = _timeProvider.GetUtcNow();
             }
+
+            await LogAuditEventAsync(user.Id, "PASSWORD_RECOVERY_COMPLETED", "Password recovery reset completed successfully. All sessions globally revoked.");
+        }
+        else
+        {
+            // Case A: First-time Setup -> Keep current session active (with token rotation), do not disrupt social sessions
+            await LogAuditEventAsync(user.Id, "PASSWORD_SETUP_COMPLETED", "First-time password setup completed successfully.");
         }
 
         // 9. Cleanup state
         await _cacheService.RemoveAsync(cacheKey);
+        await _cacheService.RemoveAsync($"auth:identity-state:{normalizedEmail}");
         verification.Status = OtpSessionStatus.INVALIDATED;
         verification.InvalidatedAt = _timeProvider.GetUtcNow();
 
         await _context.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("PASSWORD_RECOVERY_SUCCESS: User {UserId} recovered password successfully. Other active sessions revoked.", user.Id);
+        _logger.LogInformation("PASSWORD_RECOVERY_SUCCESS: User {UserId} recovered/setup password successfully.", user.Id);
         
         return true;
     }
@@ -203,5 +258,25 @@ public class PasswordRecoveryService : IPasswordRecoveryService
         var hasher = new PasswordHasher<User>();
         var result = hasher.VerifyHashedPassword(user, hash, inputPassword);
         return result == PasswordVerificationResult.Success || result == PasswordVerificationResult.SuccessRehashNeeded;
+    }
+
+    private async Task LogAuditEventAsync(Guid? userId, string eventType, string description)
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        var userAgent = httpContext?.Request.Headers["User-Agent"].ToString();
+        var ipAddress = httpContext?.Connection.RemoteIpAddress?.ToString();
+
+        var auditLog = new AuditLog
+        {
+            UserId = userId,
+            EventType = eventType,
+            Description = description,
+            UserAgent = string.IsNullOrWhiteSpace(userAgent) ? null : (userAgent.Length > 500 ? userAgent[..500] : userAgent),
+            IpAddress = string.IsNullOrWhiteSpace(ipAddress) ? null : (ipAddress.Length > 45 ? ipAddress[..45] : ipAddress),
+            CreatedAt = _timeProvider.GetUtcNow()
+        };
+
+        _context.AuditLogs.Add(auditLog);
+        await _context.SaveChangesAsync();
     }
 }

@@ -89,6 +89,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserEmail> UserEmails => Set<UserEmail>();
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<PendingAuthProvider> PendingAuthProviders => Set<PendingAuthProvider>();
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
     public DbSet<UserPreferredLocation> UserPreferredLocations => Set<UserPreferredLocation>();
@@ -372,8 +373,24 @@ public class ApplicationDbContext : DbContext
                   .HasDatabaseName("idx_auth_providers_key_active");
             entity.HasIndex(ap => new { ap.UserId, ap.ProviderName })
                   .IsUnique()
-                  .HasFilter("deleted_at IS NULL")
+                  .HasFilter("deleted_at IS NULL AND provider_name = 'google'")
                   .HasDatabaseName("idx_auth_providers_user_type_active");
+            entity.HasIndex(ap => new { ap.UserId, ap.ProviderName })
+                  .HasFilter("deleted_at IS NULL")
+                  .HasDatabaseName("idx_auth_providers_user_type_lookup");
+        });
+
+        // PendingAuthProvider configurations
+        modelBuilder.Entity<PendingAuthProvider>(entity =>
+        {
+            entity.ToTable("pending_auth_providers");
+            entity.HasKey(pap => pap.Id);
+            entity.HasIndex(pap => pap.ExpiresAt)
+                  .HasDatabaseName("idx_pending_auth_providers_expiry");
+            entity.HasOne(pap => pap.User)
+                  .WithMany()
+                  .HasForeignKey(pap => pap.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // OAuthCredential configurations

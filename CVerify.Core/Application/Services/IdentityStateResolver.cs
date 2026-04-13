@@ -109,8 +109,7 @@ public class IdentityStateResolver : IIdentityStateResolver
             return EmailAuthState.REQUIRES_VERIFICATION;
         }
 
-        var hasPasswordProvider = user.AuthProviders
-            .Any(ap => ap.ProviderName == "Password" && ap.DeletedAt == null) || (isSuperAdmin && !string.IsNullOrEmpty(user.PasswordHash));
+        var hasPasswordProvider = !string.IsNullOrEmpty(user.PasswordHash);
 
         if (hasPasswordProvider)
         {

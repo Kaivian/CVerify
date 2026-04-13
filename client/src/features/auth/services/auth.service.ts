@@ -10,6 +10,8 @@ import {
   type ResolveEmailAuthStateResponseData,
   type OtpSessionResponseData,
   type LinkedEmail,
+  type LinkedProviderConnection,
+  type PendingLinkDetailsResponseData,
 } from '../../../types/auth.types';
 import { type z } from 'zod';
 import {
@@ -226,6 +228,14 @@ export const authApi = {
   },
 
   /**
+   * Revoke all other active sessions (except the current one)
+   */
+  revokeOtherSessions: async (): Promise<{ message: string }> => {
+    const response = await axiosClient.delete<{ message: string }>('/auth/sessions');
+    return response.data;
+  },
+
+  /**
    * Verify company details for onboarding (Step 1)
    */
   verifyCompanyOnboarding: async (companyName: string, taxCode: string): Promise<{
@@ -410,6 +420,40 @@ export const authApi = {
    */
   deleteLinkedEmail: async (id: string): Promise<{ success: boolean; message: string }> => {
     const response = await axiosClient.delete<{ success: boolean; message: string }>(`/auth/emails/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Fetch all active OAuth connections
+   */
+  fetchConnections: async (): Promise<LinkedProviderConnection[]> => {
+    const response = await axiosClient.get<LinkedProviderConnection[]>('/auth/providers/connections');
+    return response.data;
+  },
+
+  /**
+   * Fetch temporary pending connection details for verification views
+   */
+  fetchPendingLinkDetails: async (id: string): Promise<PendingLinkDetailsResponseData> => {
+    const response = await axiosClient.get<PendingLinkDetailsResponseData>(`/auth/providers/pending/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Confirm and activate a pending connection
+   */
+  confirmLink: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>(`/auth/providers/confirm/${id}`);
+    return response.data;
+  },
+
+
+
+  /**
+   * Unlink/delete a specific OAuth connection by ID
+   */
+  unlinkConnection: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.delete<{ success: boolean; message: string }>(`/auth/providers/connections/${id}`);
     return response.data;
   },
 };

@@ -44,6 +44,7 @@ import {
 import { useProfile } from "@/hooks/use-profile";
 import { type UpdateProfileRequest } from "@/types/profile.types";
 import { useProfileStore } from "@/stores/use-profile-store";
+import { ConfirmationModal } from "./ConfirmationModal";
 
 // Reserved usernames
 const RESERVED_USERNAMES = [
@@ -85,74 +86,23 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   onDirtyChange,
   onSaveSuccess,
 }) => {
-  const { user, fetchSessions, revokeSession, deleteAccount } = useAuth();
-  const { profile, isLoading, updateProfile, updateUsername } = useProfile();
+  const {
+    user,
+    fetchSessions,
+    revokeSession,
+    revokeOtherSessions,
+    deleteAccount,
+    initializeSession,
+  } = useAuth();
+  const { profile, isLoading, updateProfile, updateUsername, refreshProfile } =
+    useProfile();
 
   // Local states
   const [sessions, setSessions] = useState<SessionInfoData[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [isBulkRevoking, setIsBulkRevoking] = useState(false);
   const [profileOrigin, setProfileOrigin] = useState("https://cverify.com");
-
-  const [githubStatus, setGithubStatus] = useState<{
-    isConnected: boolean;
-    githubUsername?: string;
-    githubAvatarUrl?: string;
-  } | null>(null);
-  const [loadingGithubStatus, setLoadingGithubStatus] = useState(true);
-  const [linkingGithub, setLinkingGithub] = useState(false);
-  const [unlinkingGithub, setUnlinkingGithub] = useState(false);
-
-  const fetchGithubStatus = useCallback(async () => {
-    try {
-      const response = await axiosClient.get("/auth/github/connection-status");
-      setGithubStatus(response.data);
-    } catch (err) {
-      console.error("Failed to fetch GitHub connection status:", err);
-    } finally {
-      setLoadingGithubStatus(false);
-    }
-  }, []);
-
-  const handleConnectGithub = () => {
-    setLinkingGithub(true);
-    const API_URL =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
-    window.location.assign(`${API_URL}/auth/connect/github`);
-  };
-
-  const handleDisconnectGithub = async () => {
-    setUnlinkingGithub(true);
-    try {
-      const response = await axiosClient.delete("/auth/github/connection");
-      if (response.data?.success) {
-        toast.success("GitHub successfully disconnected.");
-        await fetchGithubStatus();
-      } else {
-        toast.danger("Failed to disconnect GitHub.");
-      }
-    } catch (err) {
-      console.error(err);
-      toast.danger("An error occurred while disconnecting GitHub.");
-    } finally {
-      setUnlinkingGithub(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchGithubStatus();
-  }, [fetchGithubStatus]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const linkSuccess = params.get("link_success") === "true";
-      const provider = params.get("provider");
-      if (linkSuccess && provider === "github") {
-        fetchGithubStatus();
-      }
-    }
-  }, [fetchGithubStatus]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -166,8 +116,15 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
+  const [isBulkRevokeModalOpen, setIsBulkRevokeModalOpen] = useState(false);
   const [sessionToRevoke, setSessionToRevoke] =
     useState<SessionInfoData | null>(null);
+
+  // New Username Change modal state
+  const [isUsernameConfirmOpen, setIsUsernameConfirmOpen] = useState(false);
+  const [pendingFormData, setPendingFormData] =
+    useState<AccountFormValues | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form methods setup
   const methods = useForm<AccountFormValues>({
@@ -228,10 +185,15 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     reset();
   };
 
-  const handleFormSubmit = async (data: AccountFormValues) => {
+  const executeFormSubmit = async (data: AccountFormValues) => {
+    setIsSaving(true);
     try {
+      const normCurrent = data.username?.trim().toLowerCase();
+      const normOrigin = profile?.username?.trim().toLowerCase();
+      const isUsernameChanged = normCurrent !== normOrigin;
+
       // 1. If username changed, call updateUsername API
-      if (data.username !== profile?.username) {
+      if (isUsernameChanged) {
         await updateUsername(data.username);
       }
 
@@ -264,8 +226,22 @@ export const AccountTab: React.FC<AccountTabProps> = ({
         await updateProfile(request);
       }
 
+      // Security Audit Logging (Observability)
+      console.log(
+        `[Security Audit Log] Account settings successfully updated for User ID ${user?.id}. Username changed: ${isUsernameChanged}`,
+      );
+
+      // 4. Force state refreshes to synchronize immediate UI states across components
+      if (typeof refreshProfile === "function") {
+        await refreshProfile();
+      }
+      if (typeof initializeSession === "function") {
+        await initializeSession(true);
+      }
+
       reset(data);
       onSaveSuccess();
+      toast.success("Account settings updated successfully.");
     } catch (error: unknown) {
       console.error("Failed to save account settings:", error);
       const axiosError = error as {
@@ -295,6 +271,23 @@ export const AccountTab: React.FC<AccountTabProps> = ({
         axiosError.message ||
         "Failed to update account settings.";
       toast.danger(errMsg);
+    } finally {
+      setIsSaving(false);
+      setIsUsernameConfirmOpen(false);
+      setPendingFormData(null);
+    }
+  };
+
+  const handleFormSubmit = async (data: AccountFormValues) => {
+    const normCurrent = data.username?.trim().toLowerCase();
+    const normOrigin = profile?.username?.trim().toLowerCase();
+    const isUsernameChanged = normCurrent !== normOrigin;
+
+    if (isUsernameChanged) {
+      setPendingFormData(data);
+      setIsUsernameConfirmOpen(true);
+    } else {
+      await executeFormSubmit(data);
     }
   };
 
@@ -310,14 +303,49 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   const handleRevokeSession = async (sessionId: string) => {
     setRevokingId(sessionId);
     try {
-      const success = await revokeSession(sessionId);
-      if (success) {
-        setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
+      const result = await revokeSession(sessionId);
+      if (result.success) {
+        toast.success("Session revoked successfully.");
+        const session = sessions.find((s) => s.sessionId === sessionId);
+        if (session?.isCurrent) {
+          // If self-revoking current session, redirect immediately
+          window.location.assign("/login");
+        } else {
+          // Refetch active sessions from server to get absolute source of truth
+          const activeSessions = await fetchSessions();
+          setSessions(activeSessions || []);
+        }
+      } else {
+        toast.danger(result.error || "Failed to revoke session.");
       }
     } catch (err) {
       console.error("Failed to revoke session:", err);
+      toast.danger("An unexpected error occurred while revoking session.");
     } finally {
       setRevokingId(null);
+    }
+  };
+
+  // Revoke all other sessions action
+  const handleRevokeOtherSessions = async () => {
+    setIsBulkRevoking(true);
+    try {
+      const result = await revokeOtherSessions();
+      if (result.success) {
+        toast.success("All other sessions revoked successfully.");
+        // Refetch active sessions from server to get absolute source of truth
+        const activeSessions = await fetchSessions();
+        setSessions(activeSessions || []);
+      } else {
+        toast.danger(result.error || "Failed to revoke other sessions.");
+      }
+    } catch (err) {
+      console.error("Failed to revoke other sessions:", err);
+      toast.danger(
+        "An unexpected error occurred while revoking other sessions.",
+      );
+    } finally {
+      setIsBulkRevoking(false);
     }
   };
 
@@ -364,147 +392,147 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     <FormProvider {...methods}>
       <div className="space-y-6">
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-        {/* Username section */}
-        <SettingsSection
-          title="Username & Profile Privacy"
-          description="Customize your public username and control who can view your profile."
-        >
-          <Card className="text-left gap-4 flex flex-col">
-            <div className="flex gap-3 w-full">
-              <div className="flex flex-col gap-2 w-full">
-                <TextField
-                  className="w-full"
-                  isInvalid={!!methods.formState.errors.username}
-                  name="username"
-                >
-                  <Label>Username</Label>
-                  <InputGroup>
-                    <InputGroup.Input
-                      maxLength={25}
-                      value={currentValues.username || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const normalized = val.toLowerCase().trim();
-                        setValue("username", normalized, {
-                          shouldDirty: true,
-                          shouldValidate: true,
-                        });
-                      }}
-                    />
-                  </InputGroup>
-                  {methods.formState.errors.username && (
-                    <FieldError>
-                      {methods.formState.errors.username.message}
-                    </FieldError>
-                  )}
-                </TextField>
-                <Description>
-                  Your public profile link will be:{" "}
-                  <span className="font-bold text-foreground">
-                    {profileOrigin.replace(/^https?:\/\//, "")}/
-                    {currentValues.username || "username"}
-                  </span>
-                </Description>
-              </div>
-              <div className="w-full flex gap-2">
-                <Select
-                  className="w-9/20"
-                  value={currentValues.profileVisibility || "public"}
-                  onChange={(val) =>
-                    setValue(
-                      "profileVisibility",
-                      val as "public" | "connections" | "private",
-                      { shouldDirty: true },
-                    )
-                  }
-                >
-                  <Tooltip delay={0}>
-                    <div className="w-full flex items-center gap-1">
-                      <Label>Profile Visibility</Label>
-                      <Button
-                        isIconOnly
-                        variant="ghost"
-                        className="rounded-full h-5 w-5"
-                      >
-                        <Info />
-                      </Button>
-                    </div>
-                    <Tooltip.Content showArrow>
-                      Control who can view your public profile page and verified
-                      credentials.
-                    </Tooltip.Content>
-                  </Tooltip>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {visibilityOptions.map((option) => (
-                        <ListBox.Item
-                          key={option.value}
-                          id={option.value}
-                          textValue={option.label}
+          {/* Username section */}
+          <SettingsSection
+            title="Username & Profile Privacy"
+            description="Customize your public username and control who can view your profile."
+          >
+            <Card className="text-left gap-4 flex flex-col">
+              <div className="flex gap-3 w-full">
+                <div className="flex flex-col gap-2 w-full">
+                  <TextField
+                    className="w-full"
+                    isInvalid={!!methods.formState.errors.username}
+                    name="username"
+                  >
+                    <Label>Username</Label>
+                    <InputGroup>
+                      <InputGroup.Input
+                        maxLength={25}
+                        value={currentValues.username || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const normalized = val.toLowerCase().trim();
+                          setValue("username", normalized, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }}
+                      />
+                    </InputGroup>
+                    {methods.formState.errors.username && (
+                      <FieldError>
+                        {methods.formState.errors.username.message}
+                      </FieldError>
+                    )}
+                  </TextField>
+                  <Description>
+                    Your public profile link will be:{" "}
+                    <span className="font-bold text-foreground">
+                      {profileOrigin.replace(/^https?:\/\//, "")}/
+                      {currentValues.username || "username"}
+                    </span>
+                  </Description>
+                </div>
+                <div className="w-full flex gap-2">
+                  <Select
+                    className="w-9/20"
+                    value={currentValues.profileVisibility || "public"}
+                    onChange={(val) =>
+                      setValue(
+                        "profileVisibility",
+                        val as "public" | "connections" | "private",
+                        { shouldDirty: true },
+                      )
+                    }
+                  >
+                    <Tooltip delay={0}>
+                      <div className="w-full flex items-center gap-1">
+                        <Label>Profile Visibility</Label>
+                        <Button
+                          isIconOnly
+                          variant="ghost"
+                          className="rounded-full h-5 w-5"
                         >
-                          {option.label}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
-                <Select
-                  className="w-11/20"
-                  value={currentValues.aiTalentDiscovery || "disabled"}
-                  onChange={(val) =>
-                    setValue(
-                      "aiTalentDiscovery",
-                      val as "enabled" | "limited" | "disabled",
-                      { shouldDirty: true },
-                    )
-                  }
-                >
-                  <Tooltip delay={0}>
-                    <div className="w-full flex items-center gap-1">
-                      <Label>AI Talent Discovery</Label>
-                      <Button
-                        isIconOnly
-                        variant="ghost"
-                        className="rounded-full h-5 w-5"
-                      >
-                        <Info />
-                      </Button>
-                    </div>
-                    <Tooltip.Content showArrow>
-                      Control whether recruiter AI systems can analyze and rank
-                      your profile for talent discovery and job matching.
-                    </Tooltip.Content>
-                  </Tooltip>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
-                  </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
-                      {AITalentDiscoveryOptions.map((option) => (
-                        <ListBox.Item
-                          key={option.value}
-                          id={option.value}
-                          textValue={option.label}
+                          <Info />
+                        </Button>
+                      </div>
+                      <Tooltip.Content showArrow>
+                        Control who can view your public profile page and
+                        verified credentials.
+                      </Tooltip.Content>
+                    </Tooltip>
+                    <Select.Trigger>
+                      <Select.Value />
+                      <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {visibilityOptions.map((option) => (
+                          <ListBox.Item
+                            key={option.value}
+                            id={option.value}
+                            textValue={option.label}
+                          >
+                            {option.label}
+                            <ListBox.ItemIndicator />
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                  <Select
+                    className="w-11/20"
+                    value={currentValues.aiTalentDiscovery || "disabled"}
+                    onChange={(val) =>
+                      setValue(
+                        "aiTalentDiscovery",
+                        val as "enabled" | "limited" | "disabled",
+                        { shouldDirty: true },
+                      )
+                    }
+                  >
+                    <Tooltip delay={0}>
+                      <div className="w-full flex items-center gap-1">
+                        <Label>AI Talent Discovery</Label>
+                        <Button
+                          isIconOnly
+                          variant="ghost"
+                          className="rounded-full h-5 w-5"
                         >
-                          {option.label}
-                          <ListBox.ItemIndicator />
-                        </ListBox.Item>
-                      ))}
-                    </ListBox>
-                  </Select.Popover>
-                </Select>
+                          <Info />
+                        </Button>
+                      </div>
+                      <Tooltip.Content showArrow>
+                        Control whether recruiter AI systems can analyze and
+                        rank your profile for talent discovery and job matching.
+                      </Tooltip.Content>
+                    </Tooltip>
+                    <Select.Trigger>
+                      <Select.Value />
+                      <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover>
+                      <ListBox>
+                        {AITalentDiscoveryOptions.map((option) => (
+                          <ListBox.Item
+                            key={option.value}
+                            id={option.value}
+                            textValue={option.label}
+                          >
+                            {option.label}
+                            <ListBox.ItemIndicator />
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
               </div>
-            </div>
-          </Card>
-        </SettingsSection>
+            </Card>
+          </SettingsSection>
 
-        {/* Sticky Actions Bar */}
+          {/* Sticky Actions Bar */}
           <UnsavedChangesBar
             message="You have unsaved account setting changes."
             onReset={handleReset}
@@ -575,7 +603,9 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                           <div className="flex flex-col min-w-0">
                             <div className="flex items-center gap-2 justify-start">
                               <Typography.Heading level={6}>
-                                {session.deviceName || "Desktop Web browser"}
+                                {session.isCurrent
+                                  ? `${session.deviceName || "Desktop Web browser"} (Current Session)`
+                                  : session.deviceName || "Desktop Web browser"}
                               </Typography.Heading>
                               {session.isCurrent && (
                                 <Chip
@@ -584,7 +614,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                                   variant="soft"
                                   className="h-4.5 px-1.5 text-[9px] font-extrabold uppercase tracking-wider font-outfit"
                                 >
-                                  Current
+                                  Current Device
                                 </Chip>
                               )}
                             </div>
@@ -602,6 +632,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                           {!session.isCurrent && (
                             <Button
                               variant="outline"
+                              isDisabled={revokingId !== null || isBulkRevoking}
                               isPending={revokingId === session.sessionId}
                               onClick={() => {
                                 setSessionToRevoke(session);
@@ -629,6 +660,33 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                     </div>
                   );
                 })}
+                {sessions.some((s) => !s.isCurrent) && (
+                  <>
+                    <Separator />
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        variant="danger"
+                        isDisabled={revokingId !== null || isBulkRevoking}
+                        isPending={isBulkRevoking}
+                        onClick={() => setIsBulkRevokeModalOpen(true)}
+                        className="rounded-xl font-bold text-xs h-9.5 px-4"
+                      >
+                        {({ isPending }) => (
+                          <>
+                            {isPending ? (
+                              <>
+                                <Spinner color="current" size="sm" />
+                                Revoking Others...
+                              </>
+                            ) : (
+                              "Sign out of all other sessions"
+                            )}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 px-4 rounded-xl border border-dashed border-separator/80 bg-surface-secondary/40 select-none text-center">
@@ -838,6 +896,72 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           </Modal.Container>
         </Modal.Backdrop>
 
+        {/* 2b. Confirm Revoke All Other Sessions Modal */}
+        <Modal.Backdrop
+          isOpen={isBulkRevokeModalOpen}
+          onOpenChange={setIsBulkRevokeModalOpen}
+          className="bg-background/80 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <Modal.Container>
+            <Modal.Dialog className="w-full max-w-lg bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left">
+              <Modal.CloseTrigger
+                aria-label="Close dialog"
+                className="absolute right-6 top-6"
+              >
+                <X size={15} />
+              </Modal.CloseTrigger>
+              <Modal.Header>
+                <Modal.Heading className="outline-hidden">
+                  <span className="font-display font-extrabold text-foreground text-xl">
+                    Revoke All Other Sessions
+                  </span>
+                </Modal.Heading>
+              </Modal.Header>
+              <Modal.Body className="py-4 text-sm">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2 text-danger bg-danger-soft border border-danger rounded-xl p-4">
+                    <AlertTriangle size={20} className="shrink-0 text-danger" />
+                    <Typography
+                      type="body-xs"
+                      className="font-bold leading-normal text-danger"
+                    >
+                      Warning: Destructive Bulk Revocation
+                    </Typography>
+                  </div>
+                  <Typography
+                    type="body-xs"
+                    className="text-muted leading-relaxed font-medium"
+                  >
+                    Are you sure you want to revoke{" "}
+                    <strong>all other active sessions</strong>? Every device
+                    other than this current browser will be immediately signed
+                    out of your CVerify workspace.
+                  </Typography>
+                </div>
+              </Modal.Body>
+              <Modal.Footer className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBulkRevokeModalOpen(false)}
+                  className="rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    handleRevokeOtherSessions();
+                    setIsBulkRevokeModalOpen(false);
+                  }}
+                  className="rounded-xl"
+                >
+                  Revoke All Others
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+
         {/* 3. Destructive Account Delete Confirmation Modal */}
         <Modal.Backdrop
           isOpen={isDeleteModalOpen}
@@ -859,13 +983,10 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                   </span>
                 </Modal.Heading>
               </Modal.Header>
-              <Modal.Body className="space-y-4 py-2 text-sm leading-relaxed text-muted-foreground select-text">
-                <div className="flex flex-col gap-4 py-1 select-none text-left">
-                  <div className="flex items-start gap-3 text-danger bg-danger/10 rounded-xl p-3.5 border border-danger/20">
-                    <AlertTriangle
-                      size={20}
-                      className="shrink-0 mt-0.5 animate-bounce"
-                    />
+              <Modal.Body>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-start gap-3 text-danger bg-danger-soft border border-danger-soft rounded-xl p-4">
+                    <AlertTriangle size={20} />
                     <div className="flex flex-col gap-0.5">
                       <Typography
                         type="body-xs"
@@ -875,7 +996,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                       </Typography>
                       <Typography
                         type="body-xs"
-                        className="text-danger leading-relaxed mt-0.5 font-sans"
+                        className="text-danger leading-relaxed"
                       >
                         All active verified credential claims, audit history
                         logs, portfolio layouts, and login authorizations will
@@ -884,32 +1005,33 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-foreground/90 text-xs font-semibold">
+                  <TextField className="w-full">
+                    <Label>
                       To confirm deletion, please type your username{" "}
-                      <span className="font-bold text-danger font-mono bg-danger-soft border border-danger/20 rounded px-1.5 py-0.5 select-all">
+                      <span className="font-bold text-danger font-mono bg-danger-soft border border-danger-soft rounded-md px-1 select-all">
                         {profile?.username || "username"}
                       </span>{" "}
                       below:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Type your username"
-                      value={deleteConfirmationText}
-                      onChange={(e) =>
-                        setDeleteConfirmationText(e.target.value)
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-field-border focus:border-danger focus:ring-danger bg-field text-foreground text-xs font-semibold focus:outline-hidden cursor-pointer hover:border-border transition-all select-none focus-visible:ring-2 font-sans"
-                      autoComplete="off"
-                    />
-                  </div>
+                    </Label>
+                    <InputGroup>
+                      <InputGroup.Input
+                        type="text"
+                        placeholder="Type your username"
+                        value={deleteConfirmationText}
+                        onChange={(e) =>
+                          setDeleteConfirmationText(e.target.value)
+                        }
+                        autoComplete="off"
+                      />
+                    </InputGroup>
+                  </TextField>
                 </div>
               </Modal.Body>
               <Modal.Footer className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator">
                 <Button
                   variant="outline"
                   onClick={() => setIsDeleteModalOpen(false)}
-                  className="rounded-xl font-bold text-xs h-9 px-4 select-none"
+                  className="rounded-xl"
                 >
                   Cancel
                 </Button>
@@ -921,15 +1043,52 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                   }
                   isPending={isDeleting}
                   onClick={handleDeleteAccount}
-                  className="rounded-xl font-bold text-xs h-9 px-4 flex items-center gap-1.5 select-none"
+                  className="rounded-xl"
                 >
-                  <Trash2 size={13} />
-                  <span>Permanently Erase</span>
+                  <Trash2 />
+                  Permanently Erase
                 </Button>
               </Modal.Footer>
             </Modal.Dialog>
           </Modal.Container>
         </Modal.Backdrop>
+
+        {/* Reusable Username Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={isUsernameConfirmOpen}
+          onOpenChange={setIsUsernameConfirmOpen}
+          title="Confirm Username Modification"
+          variant="warning"
+          confirmText="Update Username"
+          isPending={isSaving}
+          onConfirm={() => {
+            if (pendingFormData) {
+              executeFormSubmit(pendingFormData);
+            }
+          }}
+          description={
+            <div className="flex flex-col gap-2">
+              <Typography type="body-xs" className="leading-relaxed text-left">
+                Are you sure you want to change your username from{" "}
+                <strong>@{profile?.username}</strong> to{" "}
+                <strong>@{pendingFormData?.username}</strong>?
+              </Typography>
+              <Typography
+                type="body-xs"
+                className="leading-relaxed text-warning font-semibold bg-warning/5 p-3.5 rounded-xl border border-warning/15 mt-1 text-left"
+              >
+                Warning: Changing your username will immediately change your
+                public profile URL to{" "}
+                <span className="font-bold text-foreground">
+                  {profileOrigin.replace(/^https?:\/\//, "")}/
+                  {pendingFormData?.username}
+                </span>
+                . All active verifications, portfolio shares, and credential
+                links using the old URL will break immediately.
+              </Typography>
+            </div>
+          }
+        />
       </div>
     </FormProvider>
   );

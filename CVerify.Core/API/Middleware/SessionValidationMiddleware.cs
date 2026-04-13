@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using CVerify.API.Application.Interfaces;
 using CVerify.API.Infrastructure.Persistence;
 using CVerify.API.Core.Entities;
@@ -32,6 +33,7 @@ public class SessionValidationMiddleware
                 var cacheService = scope.ServiceProvider.GetRequiredService<ICacheService>();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+                // 1. Validate overall user SessionVersion (user-wide invalidation)
                 var cacheKey = $"auth:user:{userId}:session_version";
                 var cachedVersionStr = await cacheService.GetAsync<string>(cacheKey);
                 int activeVersion;
@@ -59,6 +61,74 @@ public class SessionValidationMiddleware
                 {
                     InvalidateSession(context);
                     return;
+                }
+
+                // 2. Validate SessionId (manual single/bulk remote session revocation)
+                var sidClaim = context.User.FindFirst("sid");
+                Guid? sessionId = null;
+
+                if (sidClaim != null && Guid.TryParse(sidClaim.Value, out var parsedSid))
+                {
+                    sessionId = parsedSid;
+                }
+                else
+                {
+                    // Fallback for rolling deployment: identify session via refresh token cookie
+                    var currentRefreshToken = context.Request.Cookies["refresh_token"];
+                    if (!string.IsNullOrEmpty(currentRefreshToken))
+                    {
+                        var storedToken = await dbContext.RefreshTokens
+                            .FirstOrDefaultAsync(t => t.Token == currentRefreshToken);
+                        if (storedToken != null)
+                        {
+                            if (storedToken.RevokedAt != null)
+                            {
+                                InvalidateSession(context);
+                                return;
+                            }
+                            sessionId = storedToken.SessionId;
+                        }
+                        else
+                        {
+                            InvalidateSession(context);
+                            return;
+                        }
+                    }
+                }
+
+                if (sessionId.HasValue)
+                {
+                    var sessionCacheKey = $"auth:session:{sessionId.Value}:active";
+                    var cachedSessionStatus = await cacheService.GetAsync<string>(sessionCacheKey);
+                    bool isSessionActive = true;
+
+                    if (string.IsNullOrEmpty(cachedSessionStatus))
+                    {
+                        try
+                        {
+                            // Cache miss: Query DB
+                            isSessionActive = await dbContext.RefreshTokens
+                                .AnyAsync(t => t.SessionId == sessionId.Value && t.RevokedAt == null);
+                            
+                            await cacheService.SetAsync(sessionCacheKey, isSessionActive.ToString(), TimeSpan.FromMinutes(30));
+                        }
+                        catch
+                        {
+                            // Fail-safe fallback if Redis has transient issues
+                            isSessionActive = await dbContext.RefreshTokens
+                                .AnyAsync(t => t.SessionId == sessionId.Value && t.RevokedAt == null);
+                        }
+                    }
+                    else
+                    {
+                        isSessionActive = bool.Parse(cachedSessionStatus);
+                    }
+
+                    if (!isSessionActive)
+                    {
+                        InvalidateSession(context);
+                        return;
+                    }
                 }
             }
         }

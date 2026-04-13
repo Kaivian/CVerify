@@ -24,35 +24,14 @@ import PasswordStrengthMeter from "@/features/auth/components/password-strength-
 import { passwordValidation } from "@/features/auth/validators/auth.validator";
 import OtpInput from "@/components/ui/otp-input";
 import { type LinkedEmail } from "@/types/auth.types";
+import { ConfirmationModal } from "./ConfirmationModal";
 
-const passwordFormSchema = z
-  .object({
-    currentPassword: z.string().optional(),
-    newPassword: passwordValidation,
-    confirmNewPassword: z.string().min(1, "Please confirm your new password"),
-    isOtpVerified: z.boolean(),
-  })
-  .superRefine((data, ctx) => {
-    if (
-      !data.isOtpVerified &&
-      (!data.currentPassword || data.currentPassword.trim() === "")
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Current password is required",
-        path: ["currentPassword"],
-      });
-    }
-    if (data.newPassword !== data.confirmNewPassword) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Passwords do not match",
-        path: ["confirmNewPassword"],
-      });
-    }
-  });
-
-type PasswordFormValues = z.infer<typeof passwordFormSchema>;
+type PasswordFormValues = {
+  currentPassword?: string;
+  newPassword: string;
+  confirmNewPassword: string;
+  isOtpVerified: boolean;
+};
 
 interface SignInMethodProps {
   onChangePassword: () => void;
@@ -78,6 +57,7 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
     deleteLinkedEmail,
     user,
     updateProfile,
+    fetchConnections,
   } = useAuth();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -89,6 +69,16 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Google disconnect modal states
+  const [isGoogleUnlinkOpen, setIsGoogleUnlinkOpen] = useState(false);
+  const [googleBlockingError, setGoogleBlockingError] = useState<string | null>(null);
+
+  // Email delete modal states
+  const [isEmailDeleteOpen, setIsEmailDeleteOpen] = useState(false);
+  const [emailToDelete, setEmailToDelete] = useState<LinkedEmail | null>(null);
+  const [emailBlockingError, setEmailBlockingError] = useState<string | null>(null);
+  const [isDeletingEmail, setIsDeletingEmail] = useState(false);
 
   // Recovery Flow State Machine
   const [mode, setMode] = useState<"NORMAL" | "OTP_REQUESTED" | "OTP_VERIFIED">(
@@ -120,15 +110,51 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
   const [showPromotePassword, setShowPromotePassword] = useState(false);
   const [isPromoting, setIsPromoting] = useState(false);
 
+  const hasPassword = !!user?.hasPassword;
+
+  const passwordFormSchema = React.useMemo(() => {
+    return z
+      .object({
+        currentPassword: z.string().optional(),
+        newPassword: passwordValidation,
+        confirmNewPassword: z.string().min(1, "Please confirm your new password"),
+        isOtpVerified: z.boolean(),
+      })
+      .superRefine((data, ctx) => {
+        if (
+          hasPassword &&
+          !data.isOtpVerified &&
+          (!data.currentPassword || data.currentPassword.trim() === "")
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Current password is required",
+            path: ["currentPassword"],
+          });
+        }
+        if (data.newPassword !== data.confirmNewPassword) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Passwords do not match",
+            path: ["confirmNewPassword"],
+          });
+        }
+      });
+  }, [hasPassword]);
+
+  const resolver = React.useMemo(() => zodResolver(passwordFormSchema), [passwordFormSchema]);
+
   const {
     register,
     handleSubmit,
     reset: resetForm,
     watch,
     setValue,
+    trigger,
+    getValues,
     formState: { errors },
   } = useForm<PasswordFormValues>({
-    resolver: zodResolver(passwordFormSchema),
+    resolver,
     defaultValues: {
       currentPassword: "",
       newPassword: "",
@@ -185,6 +211,15 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
   }, [cooldownRemaining, user?.id]);
 
   const handleRequestForgotPassword = async () => {
+    // Phase 1: If the user has no password, validate the input passwords first
+    if (!user?.hasPassword) {
+      const isValid = await trigger(["newPassword", "confirmNewPassword"]);
+      if (!isValid) {
+        toast.danger("Please resolve the validation errors first.");
+        return;
+      }
+    }
+
     setResetLoading(true);
     try {
       const res = await sendRecoveryOtp();
@@ -241,10 +276,45 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
       try {
         const res = await verifyRecoveryOtp(val);
         if (res.success && res.data?.verified) {
-          setRecoveryToken(res.data.recoveryToken);
+          const token = res.data.recoveryToken;
+          setRecoveryToken(token);
           setMode("OTP_VERIFIED");
           setValue("isOtpVerified", true);
           toast.success("Identity verified via email OTP.");
+
+          // Phase 2: If the user has no password, immediately submit the credentials creation!
+          if (!user?.hasPassword) {
+            const formValues = getValues();
+            setIsSubmitting(true);
+            try {
+              const response = await changePasswordViaRecovery({
+                recoveryToken: token,
+                newPassword: formValues.newPassword || "",
+                confirmPassword: formValues.confirmNewPassword || "",
+              });
+
+              if (response.success) {
+                toast.success("Password successfully created.");
+                setIsFormOpen(false);
+                setMode("NORMAL");
+                setValue("isOtpVerified", false);
+                setOtpValue("");
+                setRecoveryToken("");
+                if (user?.id) {
+                  localStorage.removeItem(`cverify:v1:password-recovery:${user.id}`);
+                }
+                updateProfile({ hasPassword: true, passwordChangedAt: new Date().toISOString() });
+                resetForm();
+              } else {
+                toast.danger(response.error?.message || "Failed to create password.");
+              }
+            } catch (err) {
+              console.error(err);
+              toast.danger("An error occurred during password creation.");
+            } finally {
+              setIsSubmitting(false);
+            }
+          }
         } else {
           toast.danger(res.error?.message || "Invalid verification code.");
         }
@@ -283,8 +353,8 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
 
         const response = await changePasswordViaRecovery({
           recoveryToken,
-          newPassword: data.newPassword,
-          confirmPassword: data.confirmNewPassword,
+          newPassword: data.newPassword || "",
+          confirmPassword: data.confirmNewPassword || "",
         });
 
         if (response.success) {
@@ -297,7 +367,7 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
           if (user?.id) {
             localStorage.removeItem(`cverify:v1:password-recovery:${user.id}`);
           }
-          updateProfile({ passwordChangedAt: new Date().toISOString() });
+          updateProfile({ hasPassword: true, passwordChangedAt: new Date().toISOString() });
           resetForm();
         } else {
           toast.danger(response.error?.message || "Failed to update password.");
@@ -305,14 +375,14 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
       } else {
         const response = await changePassword({
           currentPassword: data.currentPassword || "",
-          newPassword: data.newPassword,
-          confirmNewPassword: data.confirmNewPassword,
+          newPassword: data.newPassword || "",
+          confirmNewPassword: data.confirmNewPassword || "",
         });
 
         if (response.success) {
           toast.success("Password updated successfully.");
           setIsFormOpen(false);
-          updateProfile({ passwordChangedAt: new Date().toISOString() });
+          updateProfile({ hasPassword: true, passwordChangedAt: new Date().toISOString() });
           resetForm();
         } else {
           toast.danger(response.error?.message || "Failed to update password.");
@@ -515,130 +585,212 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
     }
   };
 
-  const handleDeleteEmail = async (emailObj: LinkedEmail) => {
+  const handleDeleteEmailClick = async (emailObj: LinkedEmail) => {
     if (emailObj.isPrimary) {
       toast.danger("Primary email cannot be deleted.");
       return;
     }
 
-    if (window.confirm(`Are you sure you want to remove ${emailObj.email}?`)) {
-      setLinkedEmailsLoading(true);
-      try {
-        const res = await deleteLinkedEmail(emailObj.id);
-        if (res.success) {
-          toast.success("Email removed successfully.");
-          await loadLinkedEmails();
-        } else {
-          toast.danger(res.error?.message || "Failed to remove email.");
-        }
-      } catch (err) {
-        console.error(err);
-        toast.danger("An error occurred while removing email.");
-      } finally {
-        setLinkedEmailsLoading(false);
+    // 1. Lockout & Recovery protection: Must retain at least one email
+    if (linkedEmails.length <= 1) {
+      setEmailBlockingError(
+        "Action Blocked: You must retain at least one linked email address for account communications and identity recovery."
+      );
+      setEmailToDelete(emailObj);
+      setIsEmailDeleteOpen(true);
+      return;
+    }
+
+    // 2. Lockout & Recovery protection: Must retain at least one VERIFIED email
+    const otherVerifiedEmails = linkedEmails.filter(
+      (e) => e.isVerified && e.id !== emailObj.id,
+    );
+    if (emailObj.isVerified && otherVerifiedEmails.length === 0) {
+      setEmailBlockingError(
+        "Action Blocked: You must retain at least one verified email address to recover your password and authenticate securely."
+      );
+      setEmailToDelete(emailObj);
+      setIsEmailDeleteOpen(true);
+      return;
+    }
+
+    setEmailBlockingError(null);
+    setEmailToDelete(emailObj);
+    setIsEmailDeleteOpen(true);
+  };
+
+  const handleConfirmDeleteEmail = async () => {
+    if (!emailToDelete) return;
+    setIsDeletingEmail(true);
+    try {
+      const res = await deleteLinkedEmail(emailToDelete.id);
+      if (res.success) {
+        toast.success("Email removed successfully.");
+        // Security Audit Logging (Observability)
+        console.log(`[Security Audit Log] Linked email address ${emailToDelete.email} successfully removed for User ID ${user?.id}.`);
+        setIsEmailDeleteOpen(false);
+        setEmailToDelete(null);
+        await loadLinkedEmails();
+      } else {
+        toast.danger(res.error?.message || "Failed to remove email.");
       }
+    } catch (err) {
+      console.error(err);
+      toast.danger("An error occurred while removing email.");
+    } finally {
+      setIsDeletingEmail(false);
     }
   };
 
-  const handleGoogleToggle = async () => {
+  const handleGoogleToggleClick = async () => {
     if (googleLoading) return;
+
+    if (googleConnected) {
+      // Disconnecting Google: Check Lockout
+      let otherGitHubCount = 0;
+      let otherGitLabCount = 0;
+      try {
+        const res = await fetchConnections();
+        if (res.success && res.data) {
+          otherGitHubCount = res.data.filter(
+            (c: any) => c.providerName === "github" && c.connected,
+          ).length;
+          otherGitLabCount = res.data.filter(
+            (c: any) => c.providerName === "gitlab" && c.connected,
+          ).length;
+        }
+      } catch (e) {
+        console.error("Failed to load connections for lockout check", e);
+      }
+
+      const hasPassword = !!user?.hasPassword;
+      const totalOtherMethods =
+        (hasPassword ? 1 : 0) +
+        (otherGitHubCount > 0 ? 1 : 0) +
+        (otherGitLabCount > 0 ? 1 : 0);
+
+      if (totalOtherMethods === 0) {
+        setGoogleBlockingError(
+          "Action Blocked: You must set a login password or connect another authentication provider (GitHub or GitLab) before disconnecting Google to prevent locking yourself out of your account."
+        );
+      } else {
+        setGoogleBlockingError(null);
+      }
+      setIsGoogleUnlinkOpen(true);
+    } else {
+      // Connecting Google (no lockout check needed)
+      await handleGoogleConnectExecute();
+    }
+  };
+
+  const handleConfirmGoogleUnlink = async () => {
+    setIsGoogleUnlinkOpen(false);
     setGoogleLoading(true);
     try {
-      if (googleConnected) {
-        const response = await unlinkProvider("google");
-        if (response.success) {
-          toast.success("Google account successfully disconnected.");
-          setGoogleConnected(false);
-        } else {
-          toast.danger(
-            response.error?.message || "Failed to disconnect Google account.",
-          );
-        }
-        setGoogleLoading(false);
+      const response = await unlinkProvider("google");
+      if (response.success) {
+        toast.success("Google account successfully disconnected.");
+        // Security Audit Logging (Observability)
+        console.log(`[Security Audit Log] Google connection successfully unlinked for User ID ${user?.id}.`);
+        setGoogleConnected(false);
       } else {
-        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-        if (!clientId) {
-          toast.danger("Configuration Error", {
-            description: "Google Client ID is not configured.",
-          });
-          setGoogleLoading(false);
-          return;
-        }
-
-        const redirectUri = `${window.location.origin}/auth/callback/google`;
-        const nonce =
-          Math.random().toString(36).substring(2) + Date.now().toString(36);
-        const scope = encodeURIComponent("openid profile email");
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-          redirectUri,
-        )}&response_type=id_token&scope=${scope}&nonce=${nonce}&state=google-link`;
-
-        const width = 500;
-        const height = 650;
-        const left = window.screenX + (window.innerWidth - width) / 2;
-        const top = window.screenY + (window.innerHeight - height) / 2;
-
-        const popup = window.open(
-          authUrl,
-          "google-oauth",
-          `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`,
+        toast.danger(
+          response.error?.message || "Failed to disconnect Google account.",
         );
-
-        if (!popup) {
-          toast.danger("Popup Blocked", {
-            description:
-              "Please allow popups for this site to link Google account.",
-          });
-          setGoogleLoading(false);
-          return;
-        }
-
-        const messageListener = async (event: MessageEvent) => {
-          if (event.origin !== window.location.origin) return;
-          if (
-            event.data?.type === "GOOGLE_OAUTH_SUCCESS" &&
-            event.data?.idToken
-          ) {
-            window.removeEventListener("message", messageListener);
-            clearInterval(checkClosed);
-
-            const idToken = event.data.idToken;
-            try {
-              const linkResult = await linkGoogleAccount(idToken);
-              if (linkResult.success) {
-                toast.success("Google account successfully linked.");
-                setGoogleConnected(true);
-              } else {
-                toast.danger(
-                  linkResult.error?.message || "Failed to link Google account.",
-                );
-              }
-            } catch (err) {
-              console.error(err);
-              toast.danger("An error occurred while linking Google account.");
-            } finally {
-              setGoogleLoading(false);
-            }
-          } else if (event.data?.type === "GOOGLE_OAUTH_ERROR") {
-            window.removeEventListener("message", messageListener);
-            clearInterval(checkClosed);
-            setGoogleLoading(false);
-            toast.danger("Google Link Failed", {
-              description: event.data.error || "Authentication cancelled.",
-            });
-          }
-        };
-
-        window.addEventListener("message", messageListener);
-
-        const checkClosed = setInterval(() => {
-          if (!popup || popup.closed) {
-            clearInterval(checkClosed);
-            window.removeEventListener("message", messageListener);
-            setGoogleLoading(false);
-          }
-        }, 1000);
       }
+    } catch (err) {
+      console.error(err);
+      toast.danger("An error occurred while managing Google connection.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleConnectExecute = async () => {
+    setGoogleLoading(true);
+    try {
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      if (!clientId) {
+        toast.danger("Configuration Error", {
+          description: "Google Client ID is not configured.",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+
+      const redirectUri = `${window.location.origin}/auth/callback/google`;
+      const nonce =
+        Math.random().toString(36).substring(2) + Date.now().toString(36);
+      const scope = encodeURIComponent("openid profile email");
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+        redirectUri,
+      )}&response_type=id_token&scope=${scope}&nonce=${nonce}&state=google-link`;
+
+      const width = 500;
+      const height = 650;
+      const left = window.screenX + (window.innerWidth - width) / 2;
+      const top = window.screenY + (window.innerHeight - height) / 2;
+
+      const popup = window.open(
+        authUrl,
+        "google-oauth",
+        `width=${width},height=${height},left=${left},top=${top},status=no,resizable=yes`,
+      );
+
+      if (!popup) {
+        toast.danger("Popup Blocked", {
+          description:
+            "Please allow popups for this site to link Google account.",
+        });
+        setGoogleLoading(false);
+        return;
+      }
+
+      const messageListener = async (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        if (
+          event.data?.type === "GOOGLE_OAUTH_SUCCESS" &&
+          event.data?.idToken
+        ) {
+          window.removeEventListener("message", messageListener);
+          clearInterval(checkClosed);
+
+          const idToken = event.data.idToken;
+          try {
+            const linkResult = await linkGoogleAccount(idToken);
+            if (linkResult.success) {
+              toast.success("Google account successfully linked.");
+              setGoogleConnected(true);
+            } else {
+              toast.danger(
+                linkResult.error?.message || "Failed to link Google account.",
+              );
+            }
+          } catch (err) {
+            console.error(err);
+            toast.danger("An error occurred while linking Google account.");
+          } finally {
+            setGoogleLoading(false);
+          }
+        } else if (event.data?.type === "GOOGLE_OAUTH_ERROR") {
+          window.removeEventListener("message", messageListener);
+          clearInterval(checkClosed);
+          setGoogleLoading(false);
+          toast.danger("Google Link Failed", {
+            description: event.data.error || "Authentication cancelled.",
+          });
+        }
+      };
+
+      window.addEventListener("message", messageListener);
+
+      const checkClosed = setInterval(() => {
+        if (!popup || popup.closed) {
+          clearInterval(checkClosed);
+          window.removeEventListener("message", messageListener);
+          setGoogleLoading(false);
+        }
+      }, 1000);
     } catch (err) {
       console.error(err);
       toast.danger("An error occurred while managing Google connection.");
@@ -759,7 +911,9 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
                             <Button
                               size="sm"
                               variant="danger-soft"
-                              onClick={() => handleDeleteEmail(emailObj)}
+                              isPending={isDeletingEmail && emailToDelete?.id === emailObj.id}
+                              isDisabled={isDeletingEmail}
+                              onClick={() => handleDeleteEmailClick(emailObj)}
                               className="rounded-xl h-8 text-xs font-semibold"
                             >
                               Remove
@@ -993,18 +1147,28 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-2 justify-start">
                 <Typography.Heading level={6}>Password</Typography.Heading>
-                <Chip
-                  color="success"
-                  variant="soft"
-                  className="h-4 px-1 text-[9px] font-bold uppercase tracking-wider font-outfit"
-                >
-                  Configured
-                </Chip>
+                {user?.hasPassword ? (
+                  <Chip
+                    color="success"
+                    variant="soft"
+                    className="h-4 px-1 text-[9px] font-bold uppercase tracking-wider font-outfit"
+                  >
+                    Configured
+                  </Chip>
+                ) : (
+                  <Chip
+                    color="default"
+                    variant="soft"
+                    className="h-4 px-1 text-[9px] font-bold uppercase tracking-wider font-outfit"
+                  >
+                    Not Set
+                  </Chip>
+                )}
               </div>
               <Typography type="body-xs" className="text-muted">
-                {user?.passwordChangedAt
+                {user?.hasPassword && user?.passwordChangedAt
                   ? `Password last updated: ${new Date(user.passwordChangedAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
-                  : "Last updated password credentials"}
+                  : "Set a password to enable password-based logins and secure your profile."}
               </Typography>
             </div>
           </div>
@@ -1016,7 +1180,7 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
                 onClick={() => setIsFormOpen(true)}
                 className="rounded-xl animate-fade-in duration-300"
               >
-                Change Password
+                {user?.hasPassword ? "Change Password" : "Create Password"}
               </Button>
             )}
           </div>
@@ -1029,35 +1193,37 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
             className="flex flex-col gap-4 p-4 bg-background rounded-2xl animate-fade-in duration-300"
           >
             {mode !== "OTP_VERIFIED" && mode !== "OTP_REQUESTED" && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <TextField
-                  isRequired
-                  name="currentPassword"
-                  isInvalid={!!errors.currentPassword}
-                >
-                  <Label>Current Password</Label>
-                  <InputGroup>
-                    <InputGroup.Input
-                      type={showCurrent ? "text" : "password"}
-                      placeholder="Enter current password"
-                      {...register("currentPassword")}
-                    />
-                    <InputGroup.Suffix>
-                      <Button
-                        type="button"
-                        isIconOnly
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowCurrent(!showCurrent)}
-                      >
-                        {showCurrent ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </Button>
-                    </InputGroup.Suffix>
-                  </InputGroup>
-                  {errors.currentPassword && (
-                    <FieldError>{errors.currentPassword.message}</FieldError>
-                  )}
-                </TextField>
+              <div className={`grid grid-cols-1 ${user?.hasPassword ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4`}>
+                {user?.hasPassword && (
+                  <TextField
+                    isRequired
+                    name="currentPassword"
+                    isInvalid={!!errors.currentPassword}
+                  >
+                    <Label>Current Password</Label>
+                    <InputGroup>
+                      <InputGroup.Input
+                        type={showCurrent ? "text" : "password"}
+                        placeholder="Enter current password"
+                        {...register("currentPassword")}
+                      />
+                      <InputGroup.Suffix>
+                        <Button
+                          type="button"
+                          isIconOnly
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowCurrent(!showCurrent)}
+                        >
+                          {showCurrent ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </Button>
+                      </InputGroup.Suffix>
+                    </InputGroup>
+                    {errors.currentPassword && (
+                      <FieldError>{errors.currentPassword.message}</FieldError>
+                    )}
+                  </TextField>
+                )}
 
                 <TextField
                   isRequired
@@ -1241,7 +1407,7 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
             )}
 
             <div className="flex justify-between items-center mt-2">
-              {mode === "NORMAL" ? (
+              {mode === "NORMAL" && user?.hasPassword ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -1273,24 +1439,25 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
                 </Button>
                 {mode !== "OTP_REQUESTED" && (
                   <Button
-                    type="submit"
-                    isPending={isSubmitting}
+                    type={user?.hasPassword ? "submit" : "button"}
+                    onClick={user?.hasPassword ? undefined : handleRequestForgotPassword}
+                    isPending={user?.hasPassword ? isSubmitting : resetLoading}
                     isDisabled={
-                      mode === "OTP_VERIFIED"
-                        ? !watch("newPassword") ||
-                          !watch("confirmNewPassword") ||
-                          !!errors.newPassword ||
-                          !!errors.confirmNewPassword
-                        : !watch("currentPassword") ||
+                      user?.hasPassword
+                        ? !watch("currentPassword") ||
                           !watch("newPassword") ||
                           !watch("confirmNewPassword") ||
                           !!errors.currentPassword ||
                           !!errors.newPassword ||
                           !!errors.confirmNewPassword
+                        : !watch("newPassword") ||
+                          !watch("confirmNewPassword") ||
+                          !!errors.newPassword ||
+                          !!errors.confirmNewPassword
                     }
                     className="rounded-xl"
                   >
-                    Update Password
+                    {user?.hasPassword ? "Update Password" : "Verify Email & Create Password"}
                   </Button>
                 )}
               </div>
@@ -1340,8 +1507,8 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
           <div className="flex items-center shrink-0">
             <Button
               variant="outline"
-              isPending={googleLoading}
-              onClick={handleGoogleToggle}
+              isPending={googleLoading && !isGoogleUnlinkOpen}
+              onClick={handleGoogleToggleClick}
               className="rounded-xl"
             >
               {({ isPending }) => (
@@ -1362,6 +1529,50 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Google Unlink Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isGoogleUnlinkOpen}
+        onOpenChange={setIsGoogleUnlinkOpen}
+        title="Disconnect Google Account"
+        variant="danger"
+        confirmText="Disconnect Google"
+        isPending={googleLoading}
+        blockingError={googleBlockingError}
+        onConfirm={handleConfirmGoogleUnlink}
+        description={
+          <div className="flex flex-col gap-2 text-left">
+            <Typography type="body-xs" className="leading-relaxed">
+              Are you sure you want to disconnect Google single sign-on from your workspace?
+            </Typography>
+            <Typography type="body-xs" className="leading-relaxed text-muted mt-1">
+              You will lose the ability to log in instantly using Google. Ensure you have a password or an alternative connected account before unlinking.
+            </Typography>
+          </div>
+        }
+      />
+
+      {/* Linked Email Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isEmailDeleteOpen}
+        onOpenChange={setIsEmailDeleteOpen}
+        title="Remove Linked Email Address"
+        variant="danger"
+        confirmText="Remove Email"
+        isPending={isDeletingEmail}
+        blockingError={emailBlockingError}
+        onConfirm={handleConfirmDeleteEmail}
+        description={
+          <div className="flex flex-col gap-2 text-left">
+            <Typography type="body-xs" className="leading-relaxed">
+              Are you sure you want to remove the email address <strong>{emailToDelete?.email}</strong>?
+            </Typography>
+            <Typography type="body-xs" className="leading-relaxed text-muted mt-1">
+              You will no longer be able to log in, receive workspace notifications, or process password recovery requests via this address.
+            </Typography>
+          </div>
+        }
+      />
     </div>
   );
 };
