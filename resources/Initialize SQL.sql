@@ -52,7 +52,8 @@ BEGIN
             'ACTIVE',               -- Fully functional account
             'SUSPENDED',            -- Temporarily disabled (e.g., by admin)
             'BANNED',               -- Permanently restricted
-            'DELETED'               -- Soft-deleted account
+            'DELETION_PENDING',     -- Soft-deleted account pending grace reactivation
+            'DELETED'               -- Hard-purged account
         );
     END IF;
 END $$;
@@ -99,6 +100,7 @@ CREATE TABLE users (
     last_failed_at TIMESTAMP WITH TIME ZONE,   -- Timestamp of the last failed attempt
     lock_until TIMESTAMP WITH TIME ZONE,       -- Account lockout expiration time
     session_version INTEGER NOT NULL DEFAULT 1,
+    is_legal_hold BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- Audit trails
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -226,6 +228,7 @@ CREATE TABLE audit_logs (
     event_type VARCHAR(100) NOT NULL,
     description TEXT NOT NULL,
     ip_address VARCHAR(45),
+    anonymized_actor_hash VARCHAR(64),
     user_agent VARCHAR(500),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
 

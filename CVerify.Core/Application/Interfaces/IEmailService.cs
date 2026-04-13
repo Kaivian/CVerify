@@ -72,4 +72,13 @@ public interface IEmailService
         string companyName,
         string verificationLink,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Delivers a high-priority security warning notification to primary email.
+    /// </summary>
+    Task SendSecurityAlertEmailAsync(
+        string toEmail,
+        string alertSubject,
+        string alertBody,
+        CancellationToken cancellationToken = default);
 }

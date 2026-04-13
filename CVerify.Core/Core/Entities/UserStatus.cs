@@ -1,4 +1,4 @@
-﻿using NpgsqlTypes;
+using NpgsqlTypes;
 
 namespace CVerify.API.Core.Entities;
 
@@ -15,6 +15,9 @@ public enum UserStatus
 
     [PgName("BANNED")]
     BANNED,
+
+    [PgName("DELETION_PENDING")]
+    DELETION_PENDING,
 
     [PgName("DELETED")]
     DELETED

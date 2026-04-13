@@ -7,6 +7,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using CVerify.API.Infrastructure.Persistence;
+using System.Security.Cryptography;
+using System.Text;
+using CVerify.API.Core.Entities;
+using CVerify.API.Application.Storage.Interfaces;
+using CVerify.API.Infrastructure.Configuration;
 
 namespace CVerify.API.Infrastructure.Services;
 
@@ -173,6 +178,118 @@ public class TokenCleanupBackgroundJob : BackgroundService
                 await Task.Delay(50, stoppingToken).ConfigureAwait(false);
             }
         } while (deleted == 100);
+
+        // 6. Purge expired soft-deleted user accounts past the 14-day grace period
+        await PurgeExpiredSoftDeletedUsersAsync(stoppingToken).ConfigureAwait(false);
+    }
+
+    private async Task PurgeExpiredSoftDeletedUsersAsync(CancellationToken stoppingToken)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var storageService = scope.ServiceProvider.GetRequiredService<IStorageService>();
+        var envConfig = scope.ServiceProvider.GetRequiredService<EnvConfiguration>();
+        var now = _timeProvider.GetUtcNow();
+
+        var expirationThreshold = now.AddDays(-14);
+
+        int purgedCount;
+        do
+        {
+            if (stoppingToken.IsCancellationRequested) break;
+
+            var batch = await context.Users
+                .Where(u => u.Status == UserStatus.DELETION_PENDING && u.DeletedAt <= expirationThreshold)
+                .OrderBy(u => u.Id)
+                .Take(50)
+                .ToListAsync(stoppingToken)
+                .ConfigureAwait(false);
+
+            purgedCount = batch.Count;
+            if (purgedCount > 0)
+            {
+                foreach (var user in batch)
+                {
+                    if (stoppingToken.IsCancellationRequested) break;
+
+                    var attachments = await context.ProfileAttachments
+                        .Where(pa => pa.UserId == user.Id)
+                        .ToListAsync(stoppingToken)
+                        .ConfigureAwait(false);
+
+                    foreach (var attachment in attachments)
+                    {
+                        try
+                        {
+                            await storageService.DeleteFileAsync(attachment.FilePath, stoppingToken).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Hourly Purger: Failed to delete R2 storage file {FilePath} for user {UserId}. File may have already been purged or R2 is down.", attachment.FilePath, user.Id);
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(user.AvatarUrl) && 
+                        !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                        !user.AvatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            await storageService.DeleteFileAsync(user.AvatarUrl, stoppingToken).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Hourly Purger: Failed to delete avatar file {AvatarUrl} for user {UserId}.", user.AvatarUrl, user.Id);
+                        }
+                    }
+
+                    var serverSalt = envConfig.Security.ServerSalt ?? "CVerifyDefaultSalt123!";
+                    string anonymizedActorHash = "";
+                    using (var sha256 = SHA256.Create())
+                    {
+                        var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(user.Id.ToString() + serverSalt));
+                        anonymizedActorHash = Convert.ToHexString(hashedBytes).ToLowerInvariant();
+                    }
+
+                    using var transaction = await context.Database.BeginTransactionAsync(stoppingToken).ConfigureAwait(false);
+                    try
+                    {
+                        var userLogs = await context.AuditLogs
+                            .Where(al => al.UserId == user.Id)
+                            .ToListAsync(stoppingToken)
+                            .ConfigureAwait(false);
+
+                        foreach (var log in userLogs)
+                        {
+                            log.UserId = null;
+                            log.AnonymizedActorHash = anonymizedActorHash;
+                            if (!string.IsNullOrEmpty(log.Description))
+                            {
+                                log.Description = log.Description.Replace(user.Email, "[ANONYMIZED_USER]", StringComparison.OrdinalIgnoreCase);
+                                if (!string.IsNullOrEmpty(user.FullName))
+                                {
+                                    log.Description = log.Description.Replace(user.FullName, "[ANONYMIZED_USER]", StringComparison.OrdinalIgnoreCase);
+                                }
+                            }
+                        }
+
+                        context.Users.Remove(user);
+
+                        await context.SaveChangesAsync(stoppingToken).ConfigureAwait(false);
+                        await transaction.CommitAsync(stoppingToken).ConfigureAwait(false);
+
+                        _logger.LogWarning("Hourly Purger: Permanently purged user account {UserId} and anonymized security logs. Salt Hash: {Hash}", user.Id, anonymizedActorHash);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Hourly Purger: Transaction failed for hard-purging user {UserId}. Rolling back.", user.Id);
+                        await transaction.RollbackAsync(stoppingToken).ConfigureAwait(false);
+                    }
+                }
+
+                await Task.Delay(100, stoppingToken).ConfigureAwait(false);
+            }
+        } while (purgedCount == 50);
     }
 }
 

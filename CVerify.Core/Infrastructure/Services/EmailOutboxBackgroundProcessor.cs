@@ -168,6 +168,32 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             }
                             break;
 
+                        case "SecurityAlertNotice":
+                            var alertPayload = JsonSerializer.Deserialize<SecurityAlertPayload>(message.Payload);
+                            if (alertPayload != null)
+                            {
+                                await emailService.SendSecurityAlertEmailAsync(
+                                    alertPayload.Email,
+                                    alertPayload.Subject,
+                                    alertPayload.Body,
+                                    stoppingToken).ConfigureAwait(false);
+                            }
+                            break;
+
+                        case "AccountDeletionInitiated":
+                            var deletionPayload = JsonSerializer.Deserialize<AccountDeletionInitiatedPayload>(message.Payload);
+                            if (deletionPayload != null)
+                            {
+                                var subject = "CVerify Account Deactivation and Scheduled Purge";
+                                var body = $"Hi {deletionPayload.FullName},\n\nYour CVerify account deactivation has been initiated. Your profile and credentials are now hidden. Your account will enter a 14-day grace period, and will be permanently purged on {deletionPayload.ReactivateDeadline:yyyy-MM-dd HH:mm} UTC. If you wish to reactivate your account before this time, please log back in and follow the reactivation link.";
+                                await emailService.SendSecurityAlertEmailAsync(
+                                    deletionPayload.Email,
+                                    subject,
+                                    body,
+                                    stoppingToken).ConfigureAwait(false);
+                            }
+                            break;
+
                         default:
                             _logger.LogWarning("Unknown outbox message type: '{Type}'. Skipping message.", message.Type);
                             break;
@@ -237,6 +263,21 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
         public string CompanyName { get; set; } = null!;
         public string TaxCode { get; set; } = null!;
         public string Code { get; set; } = null!;
+        public string CorrelationId { get; set; } = null!;
+    }
+
+    private class SecurityAlertPayload
+    {
+        public string Email { get; set; } = null!;
+        public string Subject { get; set; } = null!;
+        public string Body { get; set; } = null!;
+    }
+
+    private class AccountDeletionInitiatedPayload
+    {
+        public string Email { get; set; } = null!;
+        public string FullName { get; set; } = null!;
+        public DateTime ReactivateDeadline { get; set; }
         public string CorrelationId { get; set; } = null!;
     }
 }

@@ -21,6 +21,12 @@ public interface IAuthService
     Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
     Task<AuthResponse?> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
     Task<bool> DeleteMeAsync();
+    Task<DeletionRequirementsDto> GetDeletionRequirementsAsync(Guid userId);
+    Task<DeletionInitiationResponse> InitiateDeletionAsync(Guid userId, InitiateDeletionRequest request);
+    Task<AuthResponse?> ReactivateAccountAsync(string reactivationToken, CancellationToken cancellationToken = default);
+    Task<string> GetOAuthReauthUrlAsync(Guid userId, string providerName, string baseUri);
+    Task<string> ProcessOAuthReauthCallbackAsync(string providerName, string code, string state, CancellationToken cancellationToken);
+    Task<SendOtpResponse> InitiateFallbackOtpAsync(Guid userId, FallbackOtpRequest request, CancellationToken cancellationToken);
 
     // Challenge-based OTP contracts
     Task<SendOtpResponse> SendOtpAsync(SendOtpRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default);

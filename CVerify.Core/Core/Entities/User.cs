@@ -40,6 +40,8 @@ public class User
 
     public DateTimeOffset? LockUntil { get; set; }
 
+    public bool IsLegalHold { get; set; } = false;
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -67,21 +69,33 @@ public class User
     {
         if (Status == newStatus) return;
 
+        if (newStatus == UserStatus.DELETION_PENDING && IsLegalHold)
+        {
+            throw new InvalidOperationException("Cannot initiate account deletion when a legal or compliance hold is active on this account.");
+        }
+
         bool isValid = (Status, newStatus) switch
         {
             (UserStatus.EMAIL_VERIFY_PENDING, UserStatus.ACTIVE) => true,
+            (UserStatus.EMAIL_VERIFY_PENDING, UserStatus.DELETION_PENDING) => true,
             (UserStatus.EMAIL_VERIFY_PENDING, UserStatus.DELETED) => true,
 
             (UserStatus.ACTIVE, UserStatus.SUSPENDED) => true,
             (UserStatus.ACTIVE, UserStatus.BANNED) => true,
+            (UserStatus.ACTIVE, UserStatus.DELETION_PENDING) => true,
             (UserStatus.ACTIVE, UserStatus.DELETED) => true,
 
             (UserStatus.SUSPENDED, UserStatus.ACTIVE) => true,
             (UserStatus.SUSPENDED, UserStatus.BANNED) => true,
+            (UserStatus.SUSPENDED, UserStatus.DELETION_PENDING) => true,
             (UserStatus.SUSPENDED, UserStatus.DELETED) => true,
 
             (UserStatus.BANNED, UserStatus.ACTIVE) => true,
+            (UserStatus.BANNED, UserStatus.DELETION_PENDING) => true,
             (UserStatus.BANNED, UserStatus.DELETED) => true,
+
+            (UserStatus.DELETION_PENDING, UserStatus.ACTIVE) => true,
+            (UserStatus.DELETION_PENDING, UserStatus.DELETED) => true,
 
             _ => false
         };

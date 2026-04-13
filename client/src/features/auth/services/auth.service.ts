@@ -12,6 +12,10 @@ import {
   type LinkedEmail,
   type LinkedProviderConnection,
   type PendingLinkDetailsResponseData,
+  type DeletionRequirementsDto,
+  type InitiateDeletionRequest,
+  type DeletionInitiationResponse,
+  type ReactivateRequest,
 } from '../../../types/auth.types';
 import { type z } from 'zod';
 import {
@@ -332,6 +336,38 @@ export const authApi = {
    */
   deleteAccount: async (): Promise<{ message: string }> => {
     const response = await axiosClient.delete<{ message: string }>('/auth/me');
+    return response.data;
+  },
+
+  /**
+   * Fetch deletion requirements for the currently logged in user
+   */
+  getDeletionRequirements: async (): Promise<DeletionRequirementsDto> => {
+    const response = await axiosClient.get<DeletionRequirementsDto>('/users/me/deletion-requirements');
+    return response.data;
+  },
+
+  /**
+   * Request email verification OTP fallback code for account deletion
+   */
+  sendFallbackOtp: async (email: string): Promise<SendOtpResponseData> => {
+    const response = await axiosClient.post<SendOtpResponseData>('/users/me/fallback-otp', { email });
+    return response.data;
+  },
+
+  /**
+   * Initiate deletion request with appropriate verification
+   */
+  initiateDeletionRequest: async (payload: InitiateDeletionRequest): Promise<DeletionInitiationResponse> => {
+    const response = await axiosClient.post<DeletionInitiationResponse>('/users/me/delete-request', payload);
+    return response.data;
+  },
+
+  /**
+   * Reactivate a soft-deleted account within the 14-day deactivation grace period
+   */
+  reactivateAccount: async (payload: ReactivateRequest): Promise<LoginResponseData> => {
+    const response = await axiosClient.post<LoginResponseData>('/auth/reactivate', payload);
     return response.data;
   },
 
