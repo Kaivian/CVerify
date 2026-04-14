@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { SettingsSection } from "./SettingsSection";
 import { SocialLinksEditor } from "./SocialLinksEditor";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { PHONE_NUMBER_REGEX } from "@/features/auth/validators/auth.validator";
 import { parseDate } from "@internationalized/date";
 import {
   UnsavedChangesBar,
@@ -70,8 +72,8 @@ const profileSchema = z.object({
     .string()
     .optional()
     .or(z.literal(""))
-    .refine((val) => !val || /^[0-9]{9,10}$/.test(val), {
-      message: "Phone number is invalid",
+    .refine((val) => !val || PHONE_NUMBER_REGEX.test(val), {
+      message: "Phone number is invalid. Must be 9 to 10 digits after the country code (+84).",
     }),
   birthDate: z.string().optional().or(z.literal("")),
   headline: z
@@ -637,34 +639,19 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               </div>
             </div>
             <div className="grid grid-cols-[180px_250px_1fr] gap-4 mb-6 items-start">
-              <TextField
+              <PhoneNumberField
+                id="input-type-phone"
                 name="phoneNumber"
+                value={currentValues.phoneNumber || ""}
+                onChange={(val) =>
+                  setValue("phoneNumber", val, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
                 isInvalid={!!errors.phoneNumber}
-                className="flex flex-col w-full h-full"
-              >
-                <Label htmlFor="input-type-phone">Phone Number</Label>
-                <InputGroup>
-                  <InputGroup.Prefix className="text-muted text-xs font-mono bg-background">
-                    +084
-                  </InputGroup.Prefix>
-                  <InputGroup.Input
-                    id="input-type-phone"
-                    type="tel"
-                    placeholder="912345678"
-                    className="pl-2"
-                    value={currentValues.phoneNumber || ""}
-                    onChange={(e) =>
-                      setValue("phoneNumber", e.target.value, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      })
-                    }
-                  />
-                </InputGroup>
-                {errors.phoneNumber && (
-                  <FieldError>{errors.phoneNumber.message}</FieldError>
-                )}
-              </TextField>
+                errorMessage={errors.phoneNumber?.message}
+              />
 
               {/* Date of Birth DatePicker */}
               <DatePicker

@@ -98,40 +98,71 @@ export const passwordPoliciesRegistry: Record<string, PasswordPolicy> = {
  * Pure dynamic evaluator for password complexity under a selected policy.
  * Decouples scoring, criteria list, levels, and percentages from any direct UI components.
  */
-export function evaluatePasswordStrength(
+export interface PasswordPolicyResult {
+  isValid: boolean;
+  passedRules: PasswordRule[];
+  failedRules: PasswordRule[];
+}
+
+/**
+ * Pure policy checker. Returns raw validation details and checklist states.
+ * Serves as the single source of truth for both Zod schemas and UI checks.
+ */
+export function evaluatePasswordPolicy(
   password: string,
   policyId: string = 'default'
-): PasswordEvaluationResult {
+): PasswordPolicyResult {
   const policy = passwordPoliciesRegistry[policyId] || passwordPoliciesRegistry.default;
   const passedRules: PasswordRule[] = [];
   const failedRules: PasswordRule[] = [];
-  
+
   if (!password) {
     return {
-      score: 0,
-      maxScore: policy.rules.reduce((acc, r) => acc + (r.weight || 1), 0),
-      percentage: 0,
-      level: 'weak',
+      isValid: false,
       passedRules,
       failedRules: [...policy.rules]
     };
   }
 
-  let totalScore = 0;
-  let maxPossibleScore = 0;
-
   for (const rule of policy.rules) {
-    const weight = rule.weight || 1;
-    maxPossibleScore += weight;
-    
     if (rule.test(password)) {
       passedRules.push(rule);
-      totalScore += weight;
     } else {
       failedRules.push(rule);
     }
   }
 
+  return {
+    isValid: failedRules.length === 0,
+    passedRules,
+    failedRules
+  };
+}
+
+/**
+ * Dynamic evaluator for password complexity strength.
+ * Computes scores, completion percentage, and security levels for the UI meter.
+ */
+export function evaluatePasswordStrength(
+  password: string,
+  policyId: string = 'default'
+): PasswordEvaluationResult {
+  const policy = passwordPoliciesRegistry[policyId] || passwordPoliciesRegistry.default;
+  const { isValid, passedRules, failedRules } = evaluatePasswordPolicy(password, policyId);
+  const maxPossibleScore = policy.rules.reduce((acc, r) => acc + (r.weight || 1), 0);
+
+  if (!password) {
+    return {
+      score: 0,
+      maxScore: maxPossibleScore,
+      percentage: 0,
+      level: 'weak',
+      passedRules,
+      failedRules
+    };
+  }
+
+  const totalScore = passedRules.reduce((acc, r) => acc + (r.weight || 1), 0);
   const percentage = Math.round((totalScore / maxPossibleScore) * 100);
 
   // Derive level classifications based on passed rules ratio

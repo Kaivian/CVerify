@@ -1249,6 +1249,10 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
                       </Button>
                     </InputGroup.Suffix>
                   </InputGroup>
+                  <PasswordStrengthMeter
+                    value={watchNewPassword || ""}
+                    policyId="default"
+                  />
                   {errors.newPassword && (
                     <FieldError>{errors.newPassword.message}</FieldError>
                   )}
@@ -1317,6 +1321,10 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
                         </Button>
                       </InputGroup.Suffix>
                     </InputGroup>
+                    <PasswordStrengthMeter
+                      value={watchNewPassword || ""}
+                      policyId="default"
+                    />
                     {errors.newPassword && (
                       <FieldError>{errors.newPassword.message}</FieldError>
                     )}
@@ -1360,12 +1368,7 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
               </>
             )}
 
-            {(mode === "NORMAL" || mode === "OTP_VERIFIED") && (
-              <PasswordStrengthMeter
-                value={watchNewPassword || ""}
-                policyId="default"
-              />
-            )}
+
 
             {mode === "OTP_REQUESTED" && (
               <div className="flex flex-col items-center gap-4 py-6 bg-foreground/5 rounded-2xl border border-dashed border-foreground/20">

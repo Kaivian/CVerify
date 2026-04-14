@@ -1,14 +1,28 @@
 import { z } from 'zod';
+import { evaluatePasswordPolicy } from '../security/password-policy';
 
-// Enforces: 1 uppercase, 1 lowercase, 1 number, 1 special character (non-alphanumeric), min 8 chars
-const PASSWORD_STRENGTH_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+// Vietnamese phone E.164 standard regex: starts with +84 followed by 9 or 10 digits
+export const PHONE_NUMBER_REGEX = /^\+84[0-9]{9,10}$/;
 
-export const passwordValidation = z
-  .string()
-  .min(8, { message: 'auth:validation.passwordMin' })
-  .regex(PASSWORD_STRENGTH_REGEX, {
-    message: 'auth:validation.passwordStrength',
-  });
+export const passwordValidation = z.string().superRefine((val, ctx) => {
+  const policyResult = evaluatePasswordPolicy(val, 'default');
+  if (!policyResult.isValid) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'auth:validation.passwordStrength',
+    });
+  }
+});
+
+export const enterprisePasswordValidation = z.string().superRefine((val, ctx) => {
+  const policyResult = evaluatePasswordPolicy(val, 'enterprise');
+  if (!policyResult.isValid) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'auth:validation.enterprisePasswordStrength',
+    });
+  }
+});
 
 export const loginSchema = z.object({
   email: z
@@ -94,7 +108,7 @@ export const setupWorkspaceSchema = z
     organizationUsername: z.string().regex(/^[a-z0-9_]{3,30}$/, {
       message: 'Workspace name must be 3-30 characters, lowercase alphanumeric or underscore',
     }),
-    password: passwordValidation,
+    password: enterprisePasswordValidation,
     confirmPassword: z.string().min(1, { message: 'auth:validation.confirmPasswordRequired' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
