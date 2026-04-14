@@ -9,6 +9,8 @@ import {
   type AcademicAchievementRequest,
   type CareerPreferenceResponse,
   type UpdateCareerPreferenceRequest,
+  type WorkExperienceRequest,
+  type WorkExperienceResponse,
 } from '@/types/profile.types';
 
 interface AxiosErrorLike {
@@ -49,6 +51,13 @@ interface ProfileState {
   deleteAchievement: (id: string) => Promise<void>;
   reorderAchievements: (ids: string[]) => Promise<void>;
 
+  workExperiences: WorkExperienceResponse[];
+  fetchWorkExperiences: () => Promise<void>;
+  addWorkExperience: (data: WorkExperienceRequest) => Promise<WorkExperienceResponse>;
+  updateWorkExperience: (id: string, data: WorkExperienceRequest) => Promise<WorkExperienceResponse>;
+  deleteWorkExperience: (id: string) => Promise<void>;
+  reorderWorkExperiences: (ids: string[]) => Promise<void>;
+
   fetchCareer: () => Promise<void>;
   updateCareer: (data: UpdateCareerPreferenceRequest) => Promise<CareerPreferenceResponse>;
   setError: (error: string | null) => void;
@@ -58,6 +67,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   profile: null,
   education: [],
   achievements: [],
+  workExperiences: [],
   career: null,
   loading: {},
   fetched: {},
@@ -278,6 +288,90 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       throw err;
     }
   },
+
+  fetchWorkExperiences: async () => {
+    console.log('[Zustand Store] fetchWorkExperiences triggered');
+    set((state) => ({ loading: { ...state.loading, workExperiences: true }, error: null }));
+    try {
+      const workExperiences = await profileApi.fetchWorkExperience();
+      set((state) => ({ workExperiences, fetched: { ...state.fetched, workExperiences: true } }));
+    } catch (err: unknown) {
+      set((state) => ({
+        error: getErrorMessage(err, 'Failed to load work experiences.'),
+        fetched: { ...state.fetched, workExperiences: true }
+      }));
+    } finally {
+      set((state) => ({ loading: { ...state.loading, workExperiences: false } }));
+    }
+  },
+
+  addWorkExperience: async (data) => {
+    set((state) => ({ loading: { ...state.loading, addWorkExperience: true }, error: null }));
+    try {
+      const newEntry = await profileApi.addWorkExperience(data);
+      set((state) => ({ workExperiences: [...state.workExperiences, newEntry].sort((a, b) => a.displayOrder - b.displayOrder) }));
+      return newEntry;
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to add work experience entry.');
+      set({ error: errMsg });
+      throw err;
+    } finally {
+      set((state) => ({ loading: { ...state.loading, addWorkExperience: false } }));
+    }
+  },
+
+  updateWorkExperience: async (id, data) => {
+    set((state) => ({ loading: { ...state.loading, updateWorkExperience: true }, error: null }));
+    try {
+      const updated = await profileApi.updateWorkExperience(id, data);
+      set((state) => ({
+        workExperiences: state.workExperiences.map((we) => (we.id === id ? updated : we)).sort((a, b) => a.displayOrder - b.displayOrder),
+      }));
+      return updated;
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to update work experience entry.');
+      set({ error: errMsg });
+      throw err;
+    } finally {
+      set((state) => ({ loading: { ...state.loading, updateWorkExperience: false } }));
+    }
+  },
+
+  deleteWorkExperience: async (id) => {
+    set((state) => ({ loading: { ...state.loading, deleteWorkExperience: true }, error: null }));
+    try {
+      await profileApi.deleteWorkExperience(id);
+      set((state) => ({ workExperiences: state.workExperiences.filter((we) => we.id !== id) }));
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to delete work experience entry.');
+      set({ error: errMsg });
+      throw err;
+    } finally {
+      set((state) => ({ loading: { ...state.loading, deleteWorkExperience: false } }));
+    }
+  },
+
+  reorderWorkExperiences: async (ids) => {
+    // Optimistic local update
+    const currentList = [...get().workExperiences];
+    const reorderedList = ids
+      .map((id, index) => {
+        const item = currentList.find((x) => x.id === id);
+        return item ? { ...item, displayOrder: index } : null;
+      })
+      .filter((x): x is WorkExperienceResponse => x !== null);
+
+    set({ workExperiences: reorderedList });
+
+    try {
+      await profileApi.reorderWorkExperience(ids);
+    } catch (err: unknown) {
+      // Revert on error
+      set({ workExperiences: currentList, error: getErrorMessage(err, 'Failed to save new work experiences order.') });
+      throw err;
+    }
+  },
+
 
   fetchCareer: async () => {
     set((state) => ({ loading: { ...state.loading, career: true }, error: null }));

@@ -35,6 +35,10 @@ public static class ProfileErrorCatalog
         {
             ProfileErrorCodes.AttachmentNotFound,
             new(ProfileErrorCodes.AttachmentNotFound, ErrorCategory.BUSINESS, "profile.toast.error.attachment_not_found", "Attachment not found.")
+        },
+        {
+            ProfileErrorCodes.WorkExperienceNotFound,
+            new(ProfileErrorCodes.WorkExperienceNotFound, ErrorCategory.BUSINESS, "profile.toast.error.work_experience_not_found", "Work experience entry not found.")
         }
     };
 }

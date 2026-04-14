@@ -1240,6 +1240,57 @@ public static class DbInitializer
             );
             CREATE INDEX IF NOT EXISTS idx_academic_achievements_user_id ON academic_achievements(user_id);
 
+            -- Work Experience & Achievements normalized tables
+            CREATE TABLE IF NOT EXISTS work_experience_entries (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                job_title VARCHAR(255) NOT NULL,
+                company VARCHAR(255) NOT NULL,
+                experience_category INTEGER NOT NULL,
+                employment_type INTEGER NOT NULL,
+                location VARCHAR(255),
+                start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+                end_date TIMESTAMP WITH TIME ZONE,
+                is_currently_working BOOLEAN NOT NULL DEFAULT FALSE,
+                description TEXT NOT NULL,
+                display_order INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_work_experience_entries_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_work_experience_entries_user_id ON work_experience_entries(user_id);
+
+            CREATE TABLE IF NOT EXISTS work_experience_achievements (
+                id UUID PRIMARY KEY,
+                work_experience_id UUID NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_work_experience_achievements_entry FOREIGN KEY (work_experience_id) REFERENCES work_experience_entries(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_work_experience_achievements_entry ON work_experience_achievements(work_experience_id);
+
+            CREATE TABLE IF NOT EXISTS work_experience_technologies (
+                id UUID PRIMARY KEY,
+                work_experience_id UUID NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_work_experience_technologies_entry FOREIGN KEY (work_experience_id) REFERENCES work_experience_entries(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_work_experience_technologies_entry ON work_experience_technologies(work_experience_id);
+
+            CREATE TABLE IF NOT EXISTS work_experience_links (
+                id UUID PRIMARY KEY,
+                work_experience_id UUID NOT NULL,
+                link_type INTEGER NOT NULL,
+                url VARCHAR(500) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_work_experience_links_entry FOREIGN KEY (work_experience_id) REFERENCES work_experience_entries(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_work_experience_links_entry ON work_experience_links(work_experience_id);
+
             -- Generic polymorphic uploads/attachments
             CREATE TABLE IF NOT EXISTS profile_attachments (
                 id UUID PRIMARY KEY,
@@ -1360,6 +1411,22 @@ public static class DbInitializer
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_profile_attachments_timestamp') THEN
                     CREATE TRIGGER tr_profile_attachments_timestamp BEFORE UPDATE ON profile_attachments 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_work_experience_entries_timestamp') THEN
+                    CREATE TRIGGER tr_work_experience_entries_timestamp BEFORE UPDATE ON work_experience_entries 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_work_experience_achievements_timestamp') THEN
+                    CREATE TRIGGER tr_work_experience_achievements_timestamp BEFORE UPDATE ON work_experience_achievements 
                         FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
                 END IF;
             END $$;

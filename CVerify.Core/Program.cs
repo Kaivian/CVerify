@@ -373,6 +373,7 @@ builder.Services.AddScoped<IEducationService, EducationService>();
 builder.Services.AddScoped<IAchievementService, AchievementService>();
 builder.Services.AddScoped<ICareerService, CareerService>();
 builder.Services.AddScoped<IAttachmentService, AttachmentService>();
+builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();
 
 // Register AI Service
 builder.Services.AddScoped<IHmacSignatureService, HmacSignatureService>();

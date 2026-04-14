@@ -143,3 +143,47 @@ export interface PublicProfileResponse {
   location: string | null;
   socialLinks: string[];
 }
+
+export interface WorkExperienceAchievement {
+  title: string;
+  description: string;
+}
+
+export interface WorkExperienceLink {
+  linkType: number;
+  url: string;
+}
+
+export interface WorkExperienceRequest {
+  jobTitle: string;
+  company: string;
+  experienceCategory: number;
+  employmentType: number;
+  location: string | null;
+  startDate: string;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  description: string;
+  achievements: WorkExperienceAchievement[];
+  technologies: string[];
+  links: WorkExperienceLink[];
+}
+
+export interface WorkExperienceResponse {
+  id: string;
+  userId: string;
+  jobTitle: string;
+  company: string;
+  experienceCategory: number;
+  employmentType: number;
+  location: string | null;
+  startDate: string;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  description: string;
+  displayOrder: number;
+  achievements: WorkExperienceAchievement[];
+  technologies: string[];
+  links: WorkExperienceLink[];
+}
+
