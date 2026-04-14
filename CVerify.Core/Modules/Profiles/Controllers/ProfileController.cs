@@ -129,6 +129,53 @@ public class ProfileController : ControllerBase
         return Ok(new AvatarUploadResponse(signedUrl));
     }
 
+    [HttpPost("avatar/sync")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AvatarUploadResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> SyncAvatar([FromBody] SyncAvatarRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var (signedUrl, objectKey) = await _profileService.SyncAvatarWithProviderAsync(
+                CurrentUserId, 
+                request.ProviderName, 
+                cancellationToken);
+
+            return Ok(new AvatarUploadResponse(signedUrl));
+        }
+        catch (BusinessRuleException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("avatar")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteAvatar(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _profileService.DeleteAvatarAsync(CurrentUserId, cancellationToken);
+            return NoContent();
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("public/{username}")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PublicProfileResponse))]

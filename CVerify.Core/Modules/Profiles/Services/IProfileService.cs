@@ -30,5 +30,14 @@ public interface IProfileService
         string contentType,
         CancellationToken cancellationToken = default);
 
+    Task<(string SignedUrl, string ObjectKey)> SyncAvatarWithProviderAsync(
+        Guid userId,
+        string providerName,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAvatarAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task<PublicProfileResponse> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default);
 }

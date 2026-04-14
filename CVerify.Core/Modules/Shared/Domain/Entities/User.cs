@@ -35,6 +35,8 @@ public class User
 
     public string? AvatarUrl { get; set; }
 
+    public AvatarSource AvatarSource { get; set; } = AvatarSource.Default;
+
     [Required]
     public UserStatus Status { get; set; } = UserStatus.EMAIL_VERIFY_PENDING;
 

@@ -371,6 +371,7 @@ public class AuthService : IAuthService
                         Email = email,
                         FullName = payload.Name ?? "Google User",
                         AvatarUrl = payload.Picture,
+                        AvatarSource = !string.IsNullOrEmpty(payload.Picture) ? AvatarSource.Google : AvatarSource.Default,
                         Status = UserStatus.ACTIVE,
                         EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime,
                         CreatedAt = _timeProvider.GetUtcNow().UtcDateTime,
@@ -389,6 +390,7 @@ public class AuthService : IAuthService
                         ProviderName = "Google",
                         ProviderKey = payload.Subject,
                         ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject,
+                        ProviderAvatarUrl = payload.Picture,
                         CreatedAt = _timeProvider.GetUtcNow()
                     };
                     _context.AuthProviders.Add(googleProvider);
@@ -423,9 +425,19 @@ public class AuthService : IAuthService
                         throw new UnauthorizedAccessException($"Account is temporarily locked until {user.LockUntil}");
                     }
 
-                    if (!string.IsNullOrEmpty(payload.Picture) && user.AvatarUrl != payload.Picture)
+                    var googleProvider = user.AuthProviders.FirstOrDefault(ap => ap.ProviderName.ToLower() == "google" && ap.DeletedAt == null);
+
+                    if (googleProvider != null)
                     {
-                        user.AvatarUrl = payload.Picture;
+                        googleProvider.ProviderAvatarUrl = payload.Picture;
+                    }
+
+                    if (!string.IsNullOrEmpty(payload.Picture))
+                    {
+                        if (user.AvatarSource == AvatarSource.Google)
+                        {
+                            user.AvatarUrl = payload.Picture;
+                        }
                     }
                     if (!string.IsNullOrEmpty(payload.Name) && user.FullName != payload.Name && user.FullName == "Google User")
                     {
@@ -442,7 +454,6 @@ public class AuthService : IAuthService
                     await _context.SaveChangesAsync();
 
                     // Dynamically map AuthProvider link if not present or needs email update
-                    var googleProvider = user.AuthProviders.FirstOrDefault(ap => ap.ProviderName.ToLower() == "google" && ap.DeletedAt == null);
                     if (googleProvider == null)
                     {
                         googleProvider = new AuthProvider
@@ -451,16 +462,30 @@ public class AuthService : IAuthService
                             ProviderName = "Google",
                             ProviderKey = payload.Subject,
                             ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject,
+                            ProviderAvatarUrl = payload.Picture,
                             CreatedAt = _timeProvider.GetUtcNow()
                         };
                         _context.AuthProviders.Add(googleProvider);
                         await _context.SaveChangesAsync();
                         await LogAuditEventAsync(user.Id, "PROVIDER_LINKED", $"Dynamically mapped Google provider link for existing user {user.Email}.");
                     }
-                    else if (googleProvider.ProviderAccountId != payload.Email)
+                    else
                     {
-                        googleProvider.ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject;
-                        await _context.SaveChangesAsync();
+                        bool providerNeedsUpdate = false;
+                        if (googleProvider.ProviderAccountId != payload.Email)
+                        {
+                            googleProvider.ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject;
+                            providerNeedsUpdate = true;
+                        }
+                        if (googleProvider.ProviderAvatarUrl != payload.Picture)
+                        {
+                            googleProvider.ProviderAvatarUrl = payload.Picture;
+                            providerNeedsUpdate = true;
+                        }
+                        if (providerNeedsUpdate)
+                        {
+                            await _context.SaveChangesAsync();
+                        }
                     }
                 }
 
@@ -4404,7 +4429,7 @@ public class AuthService : IAuthService
             {
                 Audience = new[] { _envConfig.Auth.GoogleClientId }
             };
-            payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+            payload = await _googleTokenValidator.ValidateAsync(request.IdToken, settings);
         }
         catch (Exception ex)
         {
@@ -4444,6 +4469,8 @@ public class AuthService : IAuthService
                 ProviderName = "google",
                 ProviderKey = payload.Subject,
                 ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject,
+                ProviderUsername = payload.Email,
+                ProviderAvatarUrl = payload.Picture,
                 ScopeValidationStatus = ProviderScopeStatus.Valid,
                 LastScopeValidationAt = _timeProvider.GetUtcNow(),
                 LastProviderSyncAt = _timeProvider.GetUtcNow(),
@@ -4459,6 +4486,7 @@ public class AuthService : IAuthService
             googleProvider.ProviderKey = payload.Subject;
             googleProvider.ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject;
             googleProvider.ProviderUsername = payload.Email;
+            googleProvider.ProviderAvatarUrl = payload.Picture;
             googleProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
             googleProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
             googleProvider.LastProviderSyncAt = _timeProvider.GetUtcNow();

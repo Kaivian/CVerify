@@ -164,6 +164,7 @@ public static class DbInitializer
                 password_hash TEXT,
                 full_name VARCHAR(255) NOT NULL,
                 avatar_url TEXT,
+                avatar_source INTEGER NOT NULL DEFAULT 0,
                 status user_status NOT NULL DEFAULT 'EMAIL_VERIFY_PENDING',
                 email_verified_at TIMESTAMP WITH TIME ZONE,
                 last_login_at TIMESTAMP WITH TIME ZONE,
@@ -865,6 +866,68 @@ public static class DbInitializer
                     ALTER TABLE auth_providers ADD COLUMN provider_profile_url VARCHAR(500);
                 END IF;
 
+            END $$;
+
+            -- Safely provision avatar_source column and perform backfills
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'avatar_source'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN avatar_source INTEGER NOT NULL DEFAULT 0;
+                END IF;
+
+                -- Backfill Step 1: If avatar_url is null or empty, it is Default (0)
+                UPDATE users 
+                SET avatar_source = 0 
+                WHERE avatar_url IS NULL OR avatar_url = '';
+
+                -- Backfill Step 2: If avatar_url is a local key (no http prefix), it is Uploaded (1)
+                UPDATE users 
+                SET avatar_source = 1 
+                WHERE avatar_url IS NOT NULL 
+                  AND avatar_url <> '' 
+                  AND avatar_url NOT LIKE 'http://%' 
+                  AND avatar_url NOT LIKE 'https://%';
+
+                -- Backfill Step 3: Match http URLs against active linked provider keys (Google = 2)
+                UPDATE users u
+                SET avatar_source = 2
+                FROM auth_providers ap
+                WHERE u.id = ap.user_id 
+                  AND ap.provider_name = 'google'
+                  AND ap.deleted_at IS NULL
+                  AND u.avatar_url LIKE 'https://%.googleusercontent.com/%'
+                  AND u.avatar_source = 0;
+
+                -- Backfill Step 4: Match http URLs against active linked provider keys (GitHub = 3)
+                UPDATE users u
+                SET avatar_source = 3
+                FROM auth_providers ap
+                WHERE u.id = ap.user_id 
+                  AND ap.provider_name = 'github'
+                  AND ap.deleted_at IS NULL
+                  AND u.avatar_url LIKE 'https://avatars.githubusercontent.com/%'
+                  AND u.avatar_source = 0;
+
+                -- Backfill Step 5: Fallback remaining http avatar URLs to Uploaded (1)
+                UPDATE users 
+                SET avatar_source = 1 
+                WHERE avatar_url IS NOT NULL 
+                  AND avatar_url <> '' 
+                  AND avatar_url LIKE 'http%' 
+                  AND avatar_source = 0;
+
+                -- Backfill legacy Google Provider avatar URLs from users if null
+                UPDATE auth_providers ap
+                SET provider_avatar_url = u.avatar_url
+                FROM users u
+                WHERE ap.user_id = u.id 
+                  AND ap.provider_name = 'google' 
+                  AND ap.provider_avatar_url IS NULL 
+                  AND u.avatar_url LIKE 'https://%.googleusercontent.com/%';
             END $$;
 
             -- Granular permissions using a hierarchical naming convention
