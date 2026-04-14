@@ -265,6 +265,7 @@ public class ApplicationDbContext : DbContext
 
         // Indexes
         modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique().HasFilter("deleted_at IS NULL OR status = 'DELETION_PENDING'");
+        modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique().HasFilter("deleted_at IS NULL OR status = 'DELETION_PENDING'");
         modelBuilder.Entity<Role>().HasIndex(r => r.Name).IsUnique();
         modelBuilder.Entity<Permission>().HasIndex(p => p.Name).IsUnique();
 

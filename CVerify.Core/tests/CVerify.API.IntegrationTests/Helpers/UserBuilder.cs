@@ -14,6 +14,14 @@ public class UserBuilder
     private Guid _roleId = Guid.Empty;
     private Role? _role = null;
 
+    private string? _username = null;
+
+    public UserBuilder WithUsername(string username)
+    {
+        _username = username;
+        return this;
+    }
+
     public UserBuilder WithEmail(string email)
     {
         _email = email;
@@ -52,9 +60,27 @@ public class UserBuilder
 
     public User Build()
     {
+        var finalUsername = _username;
+        if (string.IsNullOrEmpty(finalUsername))
+        {
+            var localPart = _email.Split('@')[0].ToLowerInvariant();
+            var clean = new System.Text.StringBuilder();
+            foreach (var c in localPart)
+            {
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')
+                {
+                    clean.Append(c);
+                }
+            }
+            finalUsername = clean.ToString();
+            if (finalUsername.Length < 3) finalUsername = "user_" + Guid.NewGuid().ToString("N").Substring(0, 5);
+            if (finalUsername.Length > 32) finalUsername = finalUsername.Substring(0, 32);
+        }
+
         var user = new User
         {
             Email = _email,
+            Username = finalUsername,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(_password),
             FullName = _fullName,
             Status = _status,

@@ -6,6 +6,7 @@ export type ResourceActionPermission = `${string}:${string}`;
 export interface User {
   id: string;
   email: string;
+  username?: string;
   fullName: string;
   role: UserRole;
   permissions: ResourceActionPermission[];
@@ -38,6 +39,7 @@ export interface ApiError {
 export interface LoginResponseData {
   id: string;
   email: string;
+  username?: string;
   fullName: string;
   avatarUrl?: string;
   roles: string[];
@@ -52,6 +54,7 @@ export interface LoginResponseData {
 export interface UserProfileResponseData {
   id: string;
   email: string;
+  username?: string;
   fullName: string;
   avatarUrl?: string;
   roles: string[];

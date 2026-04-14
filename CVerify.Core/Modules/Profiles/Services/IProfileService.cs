@@ -29,4 +29,6 @@ public interface IProfileService
         string fileName,
         string contentType,
         CancellationToken cancellationToken = default);
+
+    Task<PublicProfileResponse> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default);
 }

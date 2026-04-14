@@ -332,6 +332,7 @@ builder.Services.AddScoped<IIdentityRepository, IdentityRepository>();
 builder.Services.AddScoped<ISystemService, SystemService>();
 builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IUsernameService, UsernameService>();
 builder.Services.AddScoped<IEncryptedFileStorageService, EncryptedFileStorageService>();
 builder.Services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
 
@@ -433,9 +434,10 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
+        var usernameService = services.GetRequiredService<IUsernameService>();
         var logger = services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Initializing database schema and checking synchronization...");
-        await DbInitializer.InitializeAsync(context);
+        await DbInitializer.InitializeAsync(context, usernameService);
         logger.LogInformation("Database schema initialized and synchronized successfully.");
     }
     catch (Exception ex)

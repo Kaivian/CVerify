@@ -14,6 +14,7 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Email.Entities;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.Security;
 
 namespace CVerify.API.Modules.Recovery.Services;
 
@@ -24,6 +25,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
     private readonly IIdentityRepository _identityRepository;
     private readonly EnvConfiguration _envConfig;
     private readonly TimeProvider _timeProvider;
+    private readonly IUsernameService _usernameService;
     private readonly ILogger<RecoveryExecutionEngine> _logger;
 
     public RecoveryExecutionEngine(
@@ -32,6 +34,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
         IIdentityRepository identityRepository,
         EnvConfiguration envConfig,
         TimeProvider timeProvider,
+        IUsernameService usernameService,
         ILogger<RecoveryExecutionEngine> logger)
     {
         _context = context;
@@ -39,6 +42,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
         _identityRepository = identityRepository;
         _envConfig = envConfig;
         _timeProvider = timeProvider;
+        _usernameService = usernameService;
         _logger = logger;
     }
 
@@ -91,7 +95,8 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                     Roles = new List<Role> { defaultRole ?? throw new InvalidOperationException("Default role not found") }
                 };
                 _context.Users.Add(user);
-                await _context.SaveChangesAsync(cancellationToken);
+                await _usernameService.RunWithUsernameRetryAsync(user, claimantEmail, async () =>
+                    await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
             }
 
             // Invalidate all active user sessions for any member of the old workspace
@@ -226,7 +231,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
             _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, DateTime.UtcNow.AddHours(24));
 
-            return new AuthResponse(org.Id, org.Email, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
+            return new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
         }
         catch (Exception ex)
         {
@@ -279,7 +284,8 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                     Roles = new List<Role> { defaultRole ?? throw new InvalidOperationException("Default role not found") }
                 };
                 _context.Users.Add(user);
-                await _context.SaveChangesAsync(cancellationToken);
+                await _usernameService.RunWithUsernameRetryAsync(user, claimantEmail, async () =>
+                    await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
             }
 
             // 2. Revoke and rotate security credentials
@@ -414,7 +420,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
             _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, DateTime.UtcNow.AddHours(24));
 
-            return new AuthResponse(org.Id, org.Email, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
+            return new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
         }
         catch (Exception ex)
         {

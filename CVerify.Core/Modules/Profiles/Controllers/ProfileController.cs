@@ -9,6 +9,7 @@ using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Services;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Storage.Constants;
+using CVerify.API.Modules.Shared.Exceptions;
 
 namespace CVerify.API.Modules.Profiles.Controllers;
 
@@ -126,5 +127,22 @@ public class ProfileController : ControllerBase
             cancellationToken);
 
         return Ok(new AvatarUploadResponse(signedUrl));
+    }
+
+    [HttpGet("public/{username}")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PublicProfileResponse))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPublicProfile(string username, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var profile = await _profileService.GetPublicProfileByUsernameAsync(username, cancellationToken);
+            return Ok(profile);
+        }
+        catch (ResourceNotFoundException)
+        {
+            return NotFound();
+        }
     }
 }

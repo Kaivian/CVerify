@@ -131,3 +131,15 @@ export interface UpdateCareerPreferenceRequest {
 export interface ReorderItemsRequest {
   orderedIds: string[];
 }
+
+export interface PublicProfileResponse {
+  userId: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  headline: string | null;
+  company: string | null;
+  location: string | null;
+  socialLinks: string[];
+}

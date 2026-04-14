@@ -10,12 +10,18 @@ import {
   type CareerPreferenceResponse,
   type UpdateCareerPreferenceRequest,
   type AttachmentResponse,
+  type PublicProfileResponse,
 } from '../types/profile.types';
 
 export const profileApi = {
   // General Profile Settings
   fetchProfile: async (): Promise<ProfileResponse> => {
     const response = await axiosClient.get<ProfileResponse>('/v1/users/profile');
+    return response.data;
+  },
+
+  fetchPublicProfile: async (username: string): Promise<PublicProfileResponse> => {
+    const response = await axiosClient.get<PublicProfileResponse>(`/v1/users/profile/public/${username}`);
     return response.data;
   },
 

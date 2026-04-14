@@ -90,9 +90,9 @@ public class ResetPasswordRequest
     }
 }
 
-public record AuthResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null, bool HasPassword = false);
+public record AuthResponse(Guid Id, string Email, string? Username, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null, bool HasPassword = false);
 
-public record UserProfileResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null, bool HasPassword = false);
+public record UserProfileResponse(Guid Id, string Email, string? Username, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null, bool HasPassword = false);
 
 public record GoogleLoginRequest(
     [Required]
