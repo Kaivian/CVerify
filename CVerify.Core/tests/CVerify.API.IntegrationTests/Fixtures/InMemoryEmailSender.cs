@@ -29,6 +29,7 @@ public class InMemoryEmailSender : IEmailSender
     public Task SendEmailAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
         _sentMessages.Enqueue(message);
+        StructuredEmailAuditLogger.LogDeliveryStage("SmtpSender", "", message.Category.ToString(), message.ToEmail, message.CorrelationId);
         return Task.CompletedTask;
     }
 }

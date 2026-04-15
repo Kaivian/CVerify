@@ -178,13 +178,7 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
                     CorrelationId = correlationId
                 };
 
-                var outboxMessage = new OutboxMessage
-                {
-                    Type = "OrganizationRecoveryOtp",
-                    Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-                    CreatedAt = _timeProvider.GetUtcNow()
-                };
-                _context.OutboxMessages.Add(outboxMessage);
+                _context.AddAndAuditOutboxMessage("OrganizationRecoveryOtp", org.Email, correlationId, payloadObj, _timeProvider.GetUtcNow());
             }
 
             // Set 1-minute rate limiting cooldown in Cache

@@ -89,6 +89,8 @@ public class SendGridHttpSender : IEmailSender
         pollyContext.Properties.Set(new ResiliencePropertyKey<EmailMessage>("Message"), message);
         pollyContext.Properties.Set(new ResiliencePropertyKey<string>("Provider"), "SendGrid");
 
+        StructuredEmailAuditLogger.LogDeliveryStage("SmtpSender", "", message.Category.ToString(), message.ToEmail, message.CorrelationId);
+
         try
         {
             await _resiliencePipeline.ExecuteAsync(async ct =>

@@ -154,6 +154,7 @@ public static class EmailInfrastructureExtensions
         });
 
         // 9. Register business-level service
+        services.AddScoped<IEmailRecipientResolver, EmailRecipientResolver>();
         services.AddTransient<IEmailService, EmailService>();
 
         // 10. Register health monitoring diagnostics integration

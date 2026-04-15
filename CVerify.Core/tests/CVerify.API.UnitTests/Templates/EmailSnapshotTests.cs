@@ -112,7 +112,8 @@ public class EmailSnapshotTests
             { "activity_time", "Wednesday, June 3, 2026 1:00 PM" }, // Hardcoded for determinism
             { "ip_address", "192.168.1.100 (Hanoi, VN)" },
             { "user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-            { "action_link", "https://cverify.ai/lock-account?token=mock_lock_token_789" }
+            { "action_link", "https://cverify.ai/lock-account?token=mock_lock_token_789" },
+            { "greeting_text", "Hi John Doe," }
         };
 
         // Act

@@ -682,22 +682,17 @@ public class OrganizationReclaimService : IOrganizationReclaimService
 
     private async Task QueueNotificationEmailAsync(string email, string companyName, string subject, string content)
     {
+        var correlationId = Guid.NewGuid().ToString("N");
         var payloadObj = new
         {
             Email = email,
             CompanyName = companyName,
             Subject = subject,
-            Content = content
+            Content = content,
+            CorrelationId = correlationId
         };
 
-        var outboxMessage = new OutboxMessage
-        {
-            Type = "SystemNotificationEmail",
-            Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-            CreatedAt = _timeProvider.GetUtcNow()
-        };
-
-        _context.OutboxMessages.Add(outboxMessage);
+        _context.AddAndAuditOutboxMessage("SystemNotificationEmail", email, correlationId, payloadObj, _timeProvider.GetUtcNow());
         await _context.SaveChangesAsync();
     }
 }

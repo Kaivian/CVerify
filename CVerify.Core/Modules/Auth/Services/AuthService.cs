@@ -942,14 +942,7 @@ public class AuthService : IAuthService
                 CorrelationId = correlationId
             };
 
-            var outboxMessage = new OutboxMessage
-            {
-                Type = "EmailVerification",
-                Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-                CreatedAt = _timeProvider.GetUtcNow()
-            };
-
-            _context.OutboxMessages.Add(outboxMessage);
+            _context.AddAndAuditOutboxMessage("EmailVerification", newUser.Email, correlationId, payloadObj, _timeProvider.GetUtcNow());
             await _context.SaveChangesAsync(cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
@@ -1042,14 +1035,7 @@ public class AuthService : IAuthService
                 CorrelationId = correlationId
             };
 
-            var outboxMessage = new OutboxMessage
-            {
-                Type = "WelcomeNotice",
-                Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-                CreatedAt = _timeProvider.GetUtcNow()
-            };
-
-            _context.OutboxMessages.Add(outboxMessage);
+            _context.AddAndAuditOutboxMessage("WelcomeNotice", user.Email, correlationId, payloadObj, _timeProvider.GetUtcNow());
             await _context.SaveChangesAsync(cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
@@ -1185,14 +1171,7 @@ public class AuthService : IAuthService
                 CorrelationId = correlationId
             };
 
-            var outboxMessage = new OutboxMessage
-            {
-                Type = "EmailVerification",
-                Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-                CreatedAt = _timeProvider.GetUtcNow()
-            };
-
-            _context.OutboxMessages.Add(outboxMessage);
+            _context.AddAndAuditOutboxMessage("EmailVerification", user.Email, correlationId, payloadObj, _timeProvider.GetUtcNow());
             await _context.SaveChangesAsync(cancellationToken);
 
             // Set 1-minute rate limiting cooldown in Redis
@@ -1304,14 +1283,7 @@ public class AuthService : IAuthService
                 CorrelationId = correlationId
             };
 
-            var outboxMessage = new OutboxMessage
-            {
-                Type = "PasswordReset",
-                Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-                CreatedAt = _timeProvider.GetUtcNow()
-            };
-
-            _context.OutboxMessages.Add(outboxMessage);
+            _context.AddAndAuditOutboxMessage("PasswordReset", user.Email, correlationId, payloadObj, _timeProvider.GetUtcNow());
             await _context.SaveChangesAsync(cancellationToken);
 
             // Set 1-minute rate limiting cooldown in Redis
@@ -1713,13 +1685,7 @@ public class AuthService : IAuthService
                     ReactivateDeadline = reactivateDeadline,
                     CorrelationId = Guid.NewGuid().ToString("N")
                 };
-                var outboxMessage = new OutboxMessage
-                {
-                    Type = "AccountDeletionInitiated",
-                    Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-                    CreatedAt = _timeProvider.GetUtcNow()
-                };
-                _context.OutboxMessages.Add(outboxMessage);
+                _context.AddAndAuditOutboxMessage("AccountDeletionInitiated", user.Email, payloadObj.CorrelationId, payloadObj, _timeProvider.GetUtcNow());
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
@@ -2007,21 +1973,16 @@ public class AuthService : IAuthService
         // Verification Security Notification: If using a secondary email, dispatch warning to primary email
         if (!string.Equals(primaryEmail, normalizedTarget, StringComparison.OrdinalIgnoreCase))
         {
+            var correlationId = Guid.NewGuid().ToString("N");
             var alertPayload = new
             {
                 Email = user.Email,
                 Subject = "Security Alert: Account Deletion OTP Requested",
-                Body = $"A one-time passcode was requested to authorize the deletion of your CVerify account. The code was dispatched to your linked secondary address: {normalizedTarget}. If you did not authorize this, please immediately secure your account credentials."
+                Body = $"A one-time passcode was requested to authorize the deletion of your CVerify account. The code was dispatched to your linked secondary address: {normalizedTarget}. If you did not authorize this, please immediately secure your account credentials.",
+                CorrelationId = correlationId
             };
 
-            var outboxMessage = new OutboxMessage
-            {
-                Type = "SecurityAlertNotice",
-                Payload = System.Text.Json.JsonSerializer.Serialize(alertPayload),
-                CreatedAt = _timeProvider.GetUtcNow()
-            };
-
-            _context.OutboxMessages.Add(outboxMessage);
+            _context.AddAndAuditOutboxMessage("SecurityAlertNotice", user.Email, correlationId, alertPayload, _timeProvider.GetUtcNow());
         }
 
         var ipAddress = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
@@ -2321,17 +2282,11 @@ public class AuthService : IAuthService
                 Otp = plainOtp,
                 ChallengeId = challengeId,
                 Purpose = request.Purpose,
-                Template = policy.EmailTemplate
+                Template = policy.EmailTemplate,
+                CorrelationId = correlationId
             };
 
-            var outboxMessage = new OutboxMessage
-            {
-                Type = "EmailOtpVerification",
-                Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-                CreatedAt = utcNow
-            };
-
-            _context.OutboxMessages.Add(outboxMessage);
+            _context.AddAndAuditOutboxMessage("EmailOtpVerification", normalizedEmail, correlationId, payloadObj, utcNow);
             await _context.SaveChangesAsync(cancellationToken);
 
             var sendResponse = new SendOtpResponse(challengeId, normalizedEmail, policy.CooldownSeconds);
@@ -2726,21 +2681,16 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync(cancellationToken);
 
         var verifyLinkFormat = _envConfig.Auth.VerifyEmailUrlFormat.Replace("/verify-email", "/company-onboarding/verify").Replace("{token}", plainToken);
+        var correlationId = Guid.NewGuid().ToString("N");
         var payloadObj = new
         {
             Email = normalizedEmail,
             CompanyName = officialName,
-            Link = verifyLinkFormat
+            Link = verifyLinkFormat,
+            CorrelationId = correlationId
         };
 
-        var outboxMessage = new OutboxMessage
-        {
-            Type = "CompanyEmailVerification",
-            Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-            CreatedAt = _timeProvider.GetUtcNow()
-        };
-
-        _context.OutboxMessages.Add(outboxMessage);
+        _context.AddAndAuditOutboxMessage("CompanyEmailVerification", normalizedEmail, correlationId, payloadObj, _timeProvider.GetUtcNow());
         await _context.SaveChangesAsync(cancellationToken);
 
         await LogAuditEventAsync(null, "COMPANY_VERIFIED", $"Company verification link sent for tax code {request.TaxCode} to {normalizedEmail}.");

@@ -77,6 +77,17 @@ public class StructuredEmailAuditLogger : IEmailAuditLogger
         AuditBuffer.Clear();
     }
 
+    /// <summary>
+    /// Logs a specific delivery path trace for E2E auditing.
+    /// </summary>
+    public static void LogDeliveryStage(string stage, string outboxId, string type, string recipient, string correlationId)
+    {
+        var timestamp = DateTime.UtcNow;
+        var entry = $"DELIVERY_AUDIT: Stage={stage} | OutboxId={outboxId} | Type={type} | Recipient={recipient} | CorrelationId={correlationId}";
+        PushToBuffer($"[{timestamp:HH:mm:ss.fff}] {entry}");
+        Console.WriteLine(entry);
+    }
+
     private static void PushToBuffer(string entry)
     {
         AuditBuffer.Enqueue(entry);

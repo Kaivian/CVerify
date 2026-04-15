@@ -135,14 +135,7 @@ public class CandidateRecoveryService : ICandidateRecoveryService
                 CorrelationId = correlationId
             };
 
-            var outboxMessage = new OutboxMessage
-            {
-                Type = "PasswordReset",
-                Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-                CreatedAt = _timeProvider.GetUtcNow()
-            };
-
-            _context.OutboxMessages.Add(outboxMessage);
+            _context.AddAndAuditOutboxMessage("PasswordReset", user.Email, correlationId, payloadObj, _timeProvider.GetUtcNow());
             await _context.SaveChangesAsync(cancellationToken);
 
             // Set 1-minute rate limiting cooldown in Cache

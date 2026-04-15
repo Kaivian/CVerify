@@ -56,7 +56,7 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
         _logger.LogInformation("Email Outbox Background Processor stopping execution.");
     }
 
-    private async Task ProcessPendingMessagesAsync(CancellationToken stoppingToken)
+    internal async Task ProcessPendingMessagesAsync(CancellationToken stoppingToken)
     {
         using var scope = _serviceProvider.CreateScope();
         var cacheService = scope.ServiceProvider.GetRequiredService<ICacheService>();
@@ -100,10 +100,19 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             var verifyPayload = JsonSerializer.Deserialize<VerificationPayload>(message.Payload);
                             if (verifyPayload != null)
                             {
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    verifyPayload.Email,
+                                    verifyPayload.CorrelationId);
+
                                 await emailService.SendVerificationEmailAsync(
                                     verifyPayload.Email,
                                     verifyPayload.FullName,
                                     verifyPayload.Link,
+                                    verifyPayload.CorrelationId,
+                                    message.Id.ToString(),
                                     stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -112,10 +121,19 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             var resetPayload = JsonSerializer.Deserialize<ResetPayload>(message.Payload);
                             if (resetPayload != null)
                             {
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    resetPayload.Email,
+                                    resetPayload.CorrelationId);
+
                                 await emailService.SendResetPasswordEmailAsync(
                                     resetPayload.Email,
                                     resetPayload.FullName,
                                     resetPayload.Link,
+                                    resetPayload.CorrelationId,
+                                    message.Id.ToString(),
                                     stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -124,9 +142,18 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             var welcomePayload = JsonSerializer.Deserialize<WelcomePayload>(message.Payload);
                             if (welcomePayload != null)
                             {
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    welcomePayload.Email,
+                                    welcomePayload.CorrelationId);
+
                                 await emailService.SendWelcomeEmailAsync(
                                     welcomePayload.Email,
                                     welcomePayload.FullName,
+                                    welcomePayload.CorrelationId,
+                                    message.Id.ToString(),
                                     stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -135,11 +162,21 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             var otpPayload = JsonSerializer.Deserialize<OtpVerificationPayload>(message.Payload);
                             if (otpPayload != null)
                             {
+                                var correlationId = otpPayload.CorrelationId ?? string.Empty;
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    otpPayload.Email,
+                                    correlationId);
+
                                 await emailService.SendOtpEmailAsync(
                                     otpPayload.Email,
-                                    "Candidate User",
+                                    null, // Pass null as the name argument to trigger resolution
                                     otpPayload.Otp,
                                     otpPayload.Template,
+                                    correlationId,
+                                    message.Id.ToString(),
                                     stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -148,10 +185,20 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             var companyPayload = JsonSerializer.Deserialize<CompanyVerificationPayload>(message.Payload);
                             if (companyPayload != null)
                             {
+                                var correlationId = companyPayload.CorrelationId ?? string.Empty;
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    companyPayload.Email,
+                                    correlationId);
+
                                 await emailService.SendCompanyVerificationEmailAsync(
                                     companyPayload.Email,
                                     companyPayload.CompanyName,
                                     companyPayload.Link,
+                                    correlationId,
+                                    message.Id.ToString(),
                                     stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -160,11 +207,20 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             var orgOtpPayload = JsonSerializer.Deserialize<OrganizationRecoveryOtpPayload>(message.Payload);
                             if (orgOtpPayload != null)
                             {
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    orgOtpPayload.Email,
+                                    orgOtpPayload.CorrelationId);
+
                                 await emailService.SendOtpEmailAsync(
                                     orgOtpPayload.Email,
                                     orgOtpPayload.CompanyName + " Admin",
                                     orgOtpPayload.Code,
                                     templateName: null,
+                                    correlationId: orgOtpPayload.CorrelationId,
+                                    outboxId: message.Id.ToString(),
                                     cancellationToken: stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -173,10 +229,20 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             var alertPayload = JsonSerializer.Deserialize<SecurityAlertPayload>(message.Payload);
                             if (alertPayload != null)
                             {
+                                var correlationId = alertPayload.CorrelationId ?? string.Empty;
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    alertPayload.Email,
+                                    correlationId);
+
                                 await emailService.SendSecurityAlertEmailAsync(
                                     alertPayload.Email,
                                     alertPayload.Subject,
                                     alertPayload.Body,
+                                    correlationId,
+                                    message.Id.ToString(),
                                     stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -185,12 +251,43 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                             var deletionPayload = JsonSerializer.Deserialize<AccountDeletionInitiatedPayload>(message.Payload);
                             if (deletionPayload != null)
                             {
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    deletionPayload.Email,
+                                    deletionPayload.CorrelationId);
+
                                 var subject = "CVerify Account Deactivation and Scheduled Purge";
                                 var body = $"Hi {deletionPayload.FullName},\n\nYour CVerify account deactivation has been initiated. Your profile and credentials are now hidden. Your account will enter a 14-day grace period, and will be permanently purged on {deletionPayload.ReactivateDeadline:yyyy-MM-dd HH:mm} UTC. If you wish to reactivate your account before this time, please log back in and follow the reactivation link.";
+                                
                                 await emailService.SendSecurityAlertEmailAsync(
                                     deletionPayload.Email,
                                     subject,
                                     body,
+                                    deletionPayload.CorrelationId,
+                                    message.Id.ToString(),
+                                    stoppingToken).ConfigureAwait(false);
+                            }
+                            break;
+
+                        case "SystemNotificationEmail":
+                            var sysPayload = JsonSerializer.Deserialize<SystemNotificationPayload>(message.Payload);
+                            if (sysPayload != null)
+                            {
+                                StructuredEmailAuditLogger.LogDeliveryStage(
+                                    "BackgroundProcessor",
+                                    message.Id.ToString(),
+                                    message.Type,
+                                    sysPayload.Email,
+                                    sysPayload.CorrelationId);
+
+                                await emailService.SendSecurityAlertEmailAsync(
+                                    sysPayload.Email,
+                                    sysPayload.Subject,
+                                    sysPayload.Content,
+                                    sysPayload.CorrelationId,
+                                    message.Id.ToString(),
                                     stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -249,6 +346,7 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
         public string ChallengeId { get; set; } = null!;
         public string Purpose { get; set; } = null!;
         public string? Template { get; set; }
+        public string? CorrelationId { get; set; }
     }
 
     private class CompanyVerificationPayload
@@ -256,6 +354,7 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
         public string Email { get; set; } = null!;
         public string CompanyName { get; set; } = null!;
         public string Link { get; set; } = null!;
+        public string? CorrelationId { get; set; }
     }
 
     private class OrganizationRecoveryOtpPayload
@@ -272,6 +371,7 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
         public string Email { get; set; } = null!;
         public string Subject { get; set; } = null!;
         public string Body { get; set; } = null!;
+        public string? CorrelationId { get; set; }
     }
 
     private class AccountDeletionInitiatedPayload
@@ -279,6 +379,15 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
         public string Email { get; set; } = null!;
         public string FullName { get; set; } = null!;
         public DateTime ReactivateDeadline { get; set; }
+        public string CorrelationId { get; set; } = null!;
+    }
+
+    private class SystemNotificationPayload
+    {
+        public string Email { get; set; } = null!;
+        public string CompanyName { get; set; } = null!;
+        public string Subject { get; set; } = null!;
+        public string Content { get; set; } = null!;
         public string CorrelationId { get; set; } = null!;
     }
 }
