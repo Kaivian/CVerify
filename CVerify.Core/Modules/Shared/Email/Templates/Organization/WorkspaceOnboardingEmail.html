@@ -1,0 +1,32 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.foreground }}; letter-spacing: -0.4px;">Workspace activated</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Hi <strong>{{ full_name }}</strong>,
+</p>
+
+<p style="margin: 0 0 20px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Congratulations! The verified organization workspace for <strong>{{ company_name }}</strong> has been fully activated. Your team can now onboard recruiters, establish hiring verification pipelines, and review candidates' credentials.
+</p>
+
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0; border: 1px solid {{ colors.border }}; border-radius: 8px; overflow: hidden;">
+    <tr style="background-color: {{ colors.surface_secondary }};">
+        <th align="left" style="padding: 10px 14px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: {{ colors.foreground }}; border-bottom: 1px solid {{ colors.border }}; width: 140px;">Workspace Details</th>
+        <th align="left" style="padding: 10px 14px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: {{ colors.foreground }}; border-bottom: 1px solid {{ colors.border }};"></th>
+    </tr>
+    <tr>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground_muted }}; border-bottom: 1px solid {{ colors.border }};">Workspace ID</td>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground }}; border-bottom: 1px solid {{ colors.border }}; font-weight: 500;">{{ workspace_id }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground_muted }};">Access Link</td>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground }};">
+            <a href="{{ workspace_url }}" target="_blank" style="color: {{ colors.accent }}; text-decoration: none;">{{ workspace_url }}</a>
+        </td>
+    </tr>
+</table>
+
+{{ button_url = workspace_url; button_text = "Access Workspace Dashboard" }}
+{{ include 'Components/EmailButtonPrimary.html' }}
+
+{{ alert_title = "Need Help?"; alert_text = "If you have any questions or require custom enterprise configuration integrations, please consult our developer documentation or contact the enterprise support team at " + support_email + "."; alert_bg_color = colors.accent_light; alert_border_color = colors.accent; alert_title_color = colors.accent; alert_text_color = colors.text }}
+{{ include 'Components/EmailAlert.html' }}

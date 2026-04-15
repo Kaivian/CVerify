@@ -65,7 +65,7 @@
 
     <!-- Copy physical email templates to output folder during builds -->
     <ItemGroup>
-        <None Update="Modules\Shared\Email\Templates\*.html">
+        <None Update="Modules\Shared\Email\Templates\**\*.html">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>

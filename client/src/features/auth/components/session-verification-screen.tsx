@@ -94,7 +94,7 @@ export const SessionVerificationScreen: React.FC<SessionVerificationScreenProps>
                 animationDuration: '250ms',
               }}
             >
-              {stageLabel}
+              {isMounted ? stageLabel : ''}
             </p>
           </div>
 
@@ -154,13 +154,13 @@ export const SessionVerificationScreen: React.FC<SessionVerificationScreenProps>
           >
             <Shield size={10} className="text-success" />
             <span className="text-[10px] font-semibold text-muted tracking-wide uppercase">
-              {t('common:sessionVerification.securityBadge')}
+              {isMounted ? t('common:sessionVerification.securityBadge') : ''}
             </span>
           </div>
 
           {/* Protocol Version */}
           <span className="text-[10px] font-mono font-medium text-surface-tertiary-foreground tracking-widest">
-            {t('common:sessionVerification.protocol')}
+            {isMounted ? t('common:sessionVerification.protocol') : ''}
           </span>
         </div>
       </div>

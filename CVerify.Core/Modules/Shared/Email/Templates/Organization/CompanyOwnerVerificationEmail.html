@@ -1,0 +1,15 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.foreground }}; letter-spacing: -0.4px;">Verify company ownership</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Hi <strong>{{ full_name }}</strong>,
+</p>
+
+<p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Use the following verification code to confirm your ownership of the registered company on {{ product_name }}:
+</p>
+
+{{ code_value = otp_code }}
+{{ include 'Components/EmailCodeBlock.html' }}
+
+{{ alert_title = "Important Notice"; alert_text = "This code is valid for <strong>15 minutes</strong> and can only be used once. If you did not request this business ownership verification, please notify our security team."; alert_bg_color = colors.accent_light; alert_border_color = colors.accent; alert_title_color = colors.accent; alert_text_color = colors.text }}
+{{ include 'Components/EmailAlert.html' }}

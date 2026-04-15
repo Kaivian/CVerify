@@ -1,0 +1,23 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.foreground }}; letter-spacing: -0.4px;">Confirm identity credentials</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Hi <strong>{{ full_name }}</strong>,
+</p>
+
+<p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Use the following secure verification code to authorize your identity action on {{ product_name }}. This code is unique and expires quickly:
+</p>
+
+{{ code_value = otp_code }}
+{{ include 'Components/EmailCodeBlock.html' }}
+
+{{ alert_title = "Authorization Code Expiry Notice"; alert_text = "This code is valid for <strong>15 minutes</strong> and can only be used once. " + product_name + " support staff will never request this code from you. Do not forward this email or expose the code." }}
+{{ include 'Components/EmailAlert.html' }}
+
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-top: 1px solid {{ colors.surface_tertiary }}; margin: 32px 0 24px 0;">
+    <tr><td height="1" style="font-size: 1px; line-height: 1px;">&nbsp;</td></tr>
+</table>
+
+<p style="margin: 0; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 18px; color: {{ colors.foreground_muted }};">
+    If you did not initiate this authentication request, please inspect your profile settings or review session audit logs.
+</p>
