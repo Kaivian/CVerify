@@ -31,7 +31,7 @@
     </tr>
 </table>
 
-{% if action_link %}
+{{ if action_link }}
 {{ button_url = action_link; button_text = "Lock Account Immediately" }}
 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 32px 0;">
     <tr>
@@ -46,7 +46,7 @@
         </td>
     </tr>
 </table>
-{% endif %}
+{{ end }}
 
 {{ alert_title = "Important Security Notice"; alert_text = "If this activity was you, you can ignore this alert. If you do not recognize this activity, your account may be compromised. Please lock it immediately and change your password."; alert_bg_color = colors.danger_light; alert_border_color = colors.danger; alert_title_color = colors.danger_dark; alert_text_color = colors.danger_dark }}
 {{ include 'Components/EmailAlert.html' }}
