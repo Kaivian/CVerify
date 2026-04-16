@@ -127,3 +127,14 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--separator) transparent;
 }
+
+/* Centralized high-contrast visual focus ring style */
+@utility focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.15s ease, outline-offset 0.15s ease;
+  &:focus-visible {
+    outline-color: var(--focus);
+    outline-offset: 2px;
+  }
+}

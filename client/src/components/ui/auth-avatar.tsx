@@ -194,46 +194,48 @@ export function AuthAvatar() {
                 </div>
                 <div className="pointer-events-auto">
                   <Dropdown>
-                    <Button
-                      aria-label="Theme Menu"
-                      variant="ghost"
-                      size="sm"
-                      className="border border-border rounded-lg flex items-center h-7 px-2"
-                    >
-                      {(() => {
-                        const isSystem =
-                          typeof window !== "undefined" &&
-                          localStorage.getItem("theme") === "system";
-                        if (isSystem) {
+                    <Dropdown.Trigger>
+                      <Button
+                        aria-label="Theme Menu"
+                        variant="ghost"
+                        size="sm"
+                        className="border border-border rounded-lg flex items-center h-7 px-2 focus-ring"
+                      >
+                        {(() => {
+                          const isSystem =
+                            typeof window !== "undefined" &&
+                            localStorage.getItem("theme") === "system";
+                          if (isSystem) {
+                            return (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <LaptopMinimal className="size-3" />
+                                <Label className="text-[10px] cursor-pointer">
+                                  {t("navbar:menu.themes_system", { defaultValue: "System" })}
+                                </Label>
+                              </div>
+                            );
+                          }
+                          if (theme === "dark") {
+                            return (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <Moon className="size-3" />
+                                <Label className="text-[10px] cursor-pointer">
+                                  {t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
+                                </Label>
+                              </div>
+                            );
+                          }
                           return (
                             <div className="flex items-center justify-center gap-1.5">
-                              <LaptopMinimal className="size-3" />
+                              <Sun className="size-3" />
                               <Label className="text-[10px] cursor-pointer">
-                                {t("navbar:menu.themes_system", { defaultValue: "System" })}
+                                {t("navbar:menu.themes_light", { defaultValue: "Light" })}
                               </Label>
                             </div>
                           );
-                        }
-                        if (theme === "dark") {
-                          return (
-                            <div className="flex items-center justify-center gap-1.5">
-                              <Moon className="size-3" />
-                              <Label className="text-[10px] cursor-pointer">
-                                {t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
-                              </Label>
-                            </div>
-                          );
-                        }
-                        return (
-                          <div className="flex items-center justify-center gap-1.5">
-                            <Sun className="size-3" />
-                            <Label className="text-[10px] cursor-pointer">
-                              {t("navbar:menu.themes_light", { defaultValue: "Light" })}
-                            </Label>
-                          </div>
-                        );
-                      })()}
-                    </Button>
+                        })()}
+                      </Button>
+                    </Dropdown.Trigger>
                     <Dropdown.Popover className="min-w-[100px] bg-background border-2 rounded-xl p-1 z-9999 shadow-overlay">
                       <Dropdown.Menu
                         onAction={(key) => {
@@ -308,19 +310,21 @@ export function AuthAvatar() {
                 </div>
                 <div className="pointer-events-auto">
                   <Dropdown>
-                    <Button
-                      aria-label="Language Menu"
-                      variant="ghost"
-                      size="sm"
-                      className="border border-border rounded-lg flex items-center h-7 px-2"
-                    >
-                      <div className="flex items-center justify-center gap-1.5">
-                        <Globe className="size-3" />
-                        <Label className="text-[10px] cursor-pointer">
-                          {i18n.language === "vi" ? "VN" : "EN"}
-                        </Label>
-                      </div>
-                    </Button>
+                    <Dropdown.Trigger>
+                      <Button
+                        aria-label="Language Menu"
+                        variant="ghost"
+                        size="sm"
+                        className="border border-border rounded-lg flex items-center h-7 px-2 focus-ring"
+                      >
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Globe className="size-3" />
+                          <Label className="text-[10px] cursor-pointer">
+                            {i18n.language === "vi" ? "VN" : "EN"}
+                          </Label>
+                        </div>
+                      </Button>
+                    </Dropdown.Trigger>
                     <Dropdown.Popover className="min-w-[80px] bg-background border-2 rounded-xl p-1 z-9999 shadow-overlay">
                       <Dropdown.Menu
                         onAction={(key) => {

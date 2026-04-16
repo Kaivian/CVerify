@@ -63,7 +63,11 @@ export const SelectDropdown: React.FC<SelectDropdownProps> = ({
             {tooltip && (
               <Tooltip delay={0}>
                 <Tooltip.Trigger>
-                  <span className="text-muted/65 hover:text-foreground transition-colors cursor-help inline-flex items-center">
+                  <span 
+                    tabIndex={0}
+                    className="text-muted/65 hover:text-foreground transition-colors cursor-help inline-flex items-center focus-ring rounded-full p-0.5"
+                    aria-label={`More information about ${label}`}
+                  >
                     <Info size={13} />
                   </span>
                 </Tooltip.Trigger>
