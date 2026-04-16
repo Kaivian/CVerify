@@ -5,6 +5,9 @@ using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Shared.Exceptions;
 using Microsoft.Extensions.Time.Testing;
 
+using CVerify.API.Modules.Shared.System.Services;
+using Moq;
+
 namespace CVerify.API.UnitTests.Security;
 
 public class UsernameServiceTests
@@ -14,7 +17,7 @@ public class UsernameServiceTests
     public UsernameServiceTests()
     {
         // For unit testing pure logic methods, DB context is not required
-        _service = new UsernameService(null!, new FakeTimeProvider(), null!);
+        _service = new UsernameService(null!, new FakeTimeProvider(), null!, new Mock<IRateLimitPolicyService>().Object);
     }
 
     [Theory]

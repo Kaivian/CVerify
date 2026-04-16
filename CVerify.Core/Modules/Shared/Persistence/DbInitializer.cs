@@ -1695,7 +1695,7 @@ public static class DbInitializer
         await MigrateLegacyGoogleEmailsAsync(context);
 
         // One-time compatibility migration to generate unique usernames for legacy users
-        var serviceToUse = usernameService ?? new UsernameService(context, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<UsernameService>.Instance);
+        var serviceToUse = usernameService ?? new UsernameService(context, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<UsernameService>.Instance, new DbInitializerRateLimitPolicyService());
         await MigrateLegacyUsernamesAsync(context, serviceToUse);
     }
 
@@ -1788,5 +1788,12 @@ public static class DbInitializer
         }
 
         await context.SaveChangesAsync();
+    }
+
+    private class DbInitializerRateLimitPolicyService : CVerify.API.Modules.Shared.System.Services.IRateLimitPolicyService
+    {
+        public bool DisableRateLimits => false;
+        public bool ShouldEnforceCooldowns() => true;
+        public void LogBypass(string actionName, string? endpoint = null, string? identifier = null) { }
     }
 }

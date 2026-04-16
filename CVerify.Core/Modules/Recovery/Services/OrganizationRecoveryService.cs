@@ -80,18 +80,18 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
 
         // Enforce cooldown per Tax Code in Cache to prevent spamming
         var cooldownKey = $"cooldown:org-forgot-password:{normalizedTax}";
-        var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
+        var isCooldown = _rateLimitPolicyService.ShouldEnforceCooldowns()
+            ? await _cacheService.GetAsync<string>(cooldownKey)
+            : null;
+
         if (isCooldown != null)
         {
-            if (_rateLimitPolicyService.DisableRateLimits)
-            {
-                _rateLimitPolicyService.LogBypass("Business recovery cooldown", "ForgotPasswordAsync", normalizedTax);
-            }
-            else
-            {
-                _logger.LogWarning("[CorrelationID: {CorrelationId}] Business recovery cooldown active for Tax Code: {TaxCode}.", correlationId, normalizedTax);
-                throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery OTP.");
-            }
+            _logger.LogWarning("[CorrelationID: {CorrelationId}] Business recovery cooldown active for Tax Code: {TaxCode}.", correlationId, normalizedTax);
+            throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery OTP.");
+        }
+        else if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
+        {
+            _rateLimitPolicyService.LogBypass("Business recovery cooldown", "ForgotPasswordAsync", normalizedTax);
         }
 
         var org = await _context.Organizations
@@ -102,7 +102,7 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
         if (org == null)
         {
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Tax Code {TaxCode} does not exist in registry. Returning mock success.", correlationId, normalizedTax);
-            var mockCooldown = _rateLimitPolicyService.DisableRateLimits ? 0 : 60;
+            var mockCooldown = !_rateLimitPolicyService.ShouldEnforceCooldowns() ? 0 : 60;
             return new OrganizationForgotResponse(Guid.NewGuid(), "o***@company.vn", mockCooldown);
         }
 
@@ -126,7 +126,7 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
         if (!trustedEmails.Any())
         {
             _logger.LogWarning("[CorrelationID: {CorrelationId}] No active trust mailboxes found for organization {OrgId}.", correlationId, org.Id);
-            var mockCooldown = _rateLimitPolicyService.DisableRateLimits ? 0 : 60;
+            var mockCooldown = !_rateLimitPolicyService.ShouldEnforceCooldowns() ? 0 : 60;
             return new OrganizationForgotResponse(Guid.NewGuid(), "o***@company.vn", mockCooldown);
         }
 
@@ -182,8 +182,10 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
             }
 
             // Set 1-minute rate limiting cooldown in Cache
-            var cooldownTime = _rateLimitPolicyService.DisableRateLimits ? TimeSpan.Zero : TimeSpan.FromMinutes(1);
-            await _cacheService.SetAsync(cooldownKey, "active", cooldownTime);
+            if (_rateLimitPolicyService.ShouldEnforceCooldowns())
+            {
+                await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromMinutes(1));
+            }
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -192,7 +194,7 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
 
             var maskedConfirmation = MaskEmail(org.Email);
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Business recovery OTP dispatched successfully for organization {OrgId}.", correlationId, org.Id);
-            var actualCooldown = _rateLimitPolicyService.DisableRateLimits ? 0 : 60;
+            var actualCooldown = !_rateLimitPolicyService.ShouldEnforceCooldowns() ? 0 : 60;
             return new OrganizationForgotResponse(firstChallengeId, maskedConfirmation, actualCooldown);
         }
         catch (Exception ex)
@@ -234,10 +236,10 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
             throw new AuthException(AuthErrorCodes.ExpiredToken, "The recovery OTP challenge has expired.");
         }
 
-        var maxAttempts = _rateLimitPolicyService.DisableRateLimits ? 9999 : 5;
+        var maxAttempts = !_rateLimitPolicyService.ShouldEnforceCooldowns() ? 9999 : 5;
         if (verification.Attempts >= maxAttempts)
         {
-            if (_rateLimitPolicyService.DisableRateLimits)
+            if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
             {
                 _rateLimitPolicyService.LogBypass("Corporate OTP verification attempts limit", "VerifyRecoveryOtpAsync", request.ChallengeId.ToString());
             }

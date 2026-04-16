@@ -71,18 +71,18 @@ public class CandidateRecoveryService : ICandidateRecoveryService
 
         // Enforce cooldown in cache to prevent spamming
         var cooldownKey = $"cooldown:candidate-forgot-password:{normalizedEmail}";
-        var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
+        var isCooldown = _rateLimitPolicyService.ShouldEnforceCooldowns()
+            ? await _cacheService.GetAsync<string>(cooldownKey)
+            : null;
+
         if (isCooldown != null)
         {
-            if (_rateLimitPolicyService.DisableRateLimits)
-            {
-                _rateLimitPolicyService.LogBypass("Candidate forgot password cooldown", "ForgotPasswordAsync", normalizedEmail);
-            }
-            else
-            {
-                _logger.LogWarning("[CorrelationID: {CorrelationId}] Candidate forgot password cooldown active for {Email}.", correlationId, normalizedEmail);
-                throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery email.");
-            }
+            _logger.LogWarning("[CorrelationID: {CorrelationId}] Candidate forgot password cooldown active for {Email}.", correlationId, normalizedEmail);
+            throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery email.");
+        }
+        else if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
+        {
+            _rateLimitPolicyService.LogBypass("Candidate forgot password cooldown", "ForgotPasswordAsync", normalizedEmail);
         }
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
@@ -139,8 +139,10 @@ public class CandidateRecoveryService : ICandidateRecoveryService
             await _context.SaveChangesAsync(cancellationToken);
 
             // Set 1-minute rate limiting cooldown in Cache
-            var cooldownTime = _rateLimitPolicyService.DisableRateLimits ? TimeSpan.Zero : TimeSpan.FromMinutes(1);
-            await _cacheService.SetAsync(cooldownKey, "active", cooldownTime);
+            if (_rateLimitPolicyService.ShouldEnforceCooldowns())
+            {
+                await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromMinutes(1));
+            }
 
             await transaction.CommitAsync(cancellationToken);
 
