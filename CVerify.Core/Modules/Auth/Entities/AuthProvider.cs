@@ -55,6 +55,12 @@ public class AuthProvider
 
     public DateTimeOffset? LastProviderSyncAt { get; set; }
 
+    [Required]
+    [MaxLength(50)]
+    public string SyncStatus { get; set; } = "Pending";
+
+    public string? SyncError { get; set; }
+
     public virtual OAuthCredential? OAuthCredential { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

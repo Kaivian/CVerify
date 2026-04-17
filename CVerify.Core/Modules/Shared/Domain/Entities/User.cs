@@ -19,10 +19,9 @@ public class User
     [Column(TypeName = "citext")]
     public string Email { get; set; } = null!;
 
-    [Required]
     [Column("username", TypeName = "citext")]
     [MaxLength(32)]
-    public string Username { get; set; } = null!;
+    public string? Username { get; set; }
 
     [Column("last_username_change_at")]
     public DateTimeOffset? LastUsernameChangeAt { get; set; }

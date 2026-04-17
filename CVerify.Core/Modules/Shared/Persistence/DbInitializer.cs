@@ -248,6 +248,44 @@ public static class DbInitializer
                 CONSTRAINT fk_oauth_credentials_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
             );
 
+            -- Stores repositories associated with auth providers
+            CREATE TABLE IF NOT EXISTS source_code_repositories (
+                id UUID PRIMARY KEY,
+                auth_provider_id UUID NOT NULL,
+                external_repository_id VARCHAR(255) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                owner VARCHAR(255) NOT NULL,
+                description VARCHAR(1000),
+                html_url VARCHAR(1000),
+                default_branch VARCHAR(100),
+                owner_login VARCHAR(255) NOT NULL,
+                owner_type VARCHAR(50) NOT NULL,
+                is_private BOOLEAN NOT NULL DEFAULT FALSE,
+                primary_language VARCHAR(100),
+                stars_count INTEGER NOT NULL DEFAULT 0,
+                forks_count INTEGER NOT NULL DEFAULT 0,
+                open_issues_count INTEGER NOT NULL DEFAULT 0,
+                watchers_count INTEGER NOT NULL DEFAULT 0,
+                last_commit_at TIMESTAMP WITH TIME ZONE,
+                last_updated_utc TIMESTAMP WITH TIME ZONE NOT NULL,
+                last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                is_accessible BOOLEAN NOT NULL DEFAULT TRUE,
+                archived_externally BOOLEAN NOT NULL DEFAULT FALSE,
+                is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+                trust_score DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                custom_settings_json TEXT,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
+                last_synced_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_source_code_repositories_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_source_code_repositories_external_active ON source_code_repositories(auth_provider_id, external_repository_id);
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_owner_login ON source_code_repositories(owner_login);
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_language ON source_code_repositories(primary_language) WHERE primary_language IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_updated ON source_code_repositories(last_updated_utc DESC);
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_stars ON source_code_repositories(stars_count DESC);
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_accessible ON source_code_repositories(is_accessible) WHERE is_accessible = TRUE;
+
             -- Stores active/inactive historical password credentials to prevent reuse
             CREATE TABLE IF NOT EXISTS password_credentials (
                 id UUID PRIMARY KEY,
@@ -864,6 +902,24 @@ public static class DbInitializer
                     WHERE table_name = 'auth_providers' AND column_name = 'provider_profile_url'
                 ) THEN
                     ALTER TABLE auth_providers ADD COLUMN provider_profile_url VARCHAR(500);
+                END IF;
+
+                -- Safely provision sync_status column if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'sync_status'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN sync_status VARCHAR(50) NOT NULL DEFAULT 'Pending';
+                END IF;
+
+                -- Safely provision sync_error column if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'sync_error'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN sync_error TEXT;
                 END IF;
 
             END $$;
