@@ -40,10 +40,10 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     <Modal.Backdrop
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      className="bg-background/80 backdrop-blur-sm animate-in fade-in duration-200 z-[100]"
+      className="bg-background/85 backdrop-blur-sm animate-in fade-in duration-200 z-[100]"
     >
-      <Modal.Container size="cover">
-        <Modal.Dialog className="w-full max-w-5xl bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left relative focus-visible:outline-hidden focus:outline-hidden my-8 max-h-[90vh] overflow-y-auto">
+      <Modal.Container placement="center" scroll="inside">
+        <Modal.Dialog className="w-full max-w-6xl bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left relative focus-visible:outline-hidden focus:outline-hidden max-h-[90vh] flex flex-col justify-between animate-in zoom-in-95 duration-200">
           {/* Close Trigger */}
           <Modal.CloseTrigger
             aria-label="Close dialog"
@@ -133,7 +133,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                   {activeTab === "contributors" && (
                     <>
                       <MetricCards analysis={analysis} />
-                      
+
                       {/* Detailed activity summary */}
                       <Card className="p-5 border border-border/80 bg-surface rounded-2xl" glow={false}>
                         <Typography type="body-sm" className="font-bold text-foreground block mb-3">
