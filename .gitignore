@@ -20,7 +20,7 @@ project.fragment.lock.json
 /out/
 /build
 artifacts/
-.agents/
+.agents/workflows
 
 # Visual Studio / .NET Build [cite: 2, 3]
 [Dd]ebug/
