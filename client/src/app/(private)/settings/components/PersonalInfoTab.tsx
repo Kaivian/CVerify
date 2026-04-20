@@ -301,8 +301,8 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
         const request: WorkExperienceRequest = {
           jobTitle: item.jobTitle,
           company: item.company,
-          experienceCategory: Number(item.experienceCategory),
-          employmentType: Number(item.employmentType),
+          experienceCategory: item.experienceCategory!,
+          employmentType: item.employmentType!,
           location: item.location || null,
           startDate: item.startDate ? new Date(item.startDate).toISOString() : new Date().toISOString(),
           endDate: item.endDate ? new Date(item.endDate).toISOString() : null,

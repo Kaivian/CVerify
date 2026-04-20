@@ -85,39 +85,59 @@ export const workExperienceLinkSchema = z.object({
   url: z.string().url("Must be a valid URL").or(z.literal("")),
 });
 
-export const workExperienceEntrySchema = z.object({
-  id: z.string().optional(),
-  jobTitle: z.string().min(1, "Job title is required"),
-  company: z.string().min(1, "Company/Organization is required"),
-  experienceCategory: z.coerce.number().min(1, "Category is required"),
-  employmentType: z.coerce.number().min(1, "Employment type is required"),
-  location: z.string().nullable().optional(),
-  startDate: z.string().min(1, "Start date is required"),
-  endDate: z.string().nullable().optional(),
-  isCurrentlyWorking: z.boolean(),
-  description: z.string().min(5, "Description must be at least 5 characters"),
-  achievements: z.array(workExperienceAchievementSchema),
-  technologies: z.array(z.string()),
-  links: z.array(workExperienceLinkSchema),
-  _links: z.object({
-    repo: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
-    project: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
-    portfolio: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
-    demo: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
-    article: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
-  }).optional(),
-}).refine(
-  (data) => {
-    if (data.isCurrentlyWorking) {
-      return !data.endDate;
+/** Cleared dropdown uses `undefined`; require a positive enum id on validate (never use `0` as sentinel). */
+const experienceCategoryField = z.union([z.undefined(), z.number()]);
+const employmentTypeField = z.union([z.undefined(), z.number()]);
+
+export const workExperienceEntrySchema = z
+  .object({
+    id: z.string().optional(),
+    jobTitle: z.string().min(1, "Job title is required"),
+    company: z.string().min(1, "Company/Organization is required"),
+    experienceCategory: experienceCategoryField,
+    employmentType: employmentTypeField,
+    location: z.string().nullable().optional(),
+    startDate: z.string().min(1, "Start date is required"),
+    endDate: z.string().nullable().optional(),
+    isCurrentlyWorking: z.boolean(),
+    description: z.string().min(5, "Description must be at least 5 characters"),
+    achievements: z.array(workExperienceAchievementSchema),
+    technologies: z.array(z.string()),
+    links: z.array(workExperienceLinkSchema),
+    _links: z.object({
+      repo: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+      project: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+      portfolio: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+      demo: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+      article: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+    }).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.isCurrentlyWorking) {
+        return !data.endDate;
+      }
+      return !!data.endDate && new Date(data.endDate) >= new Date(data.startDate);
+    },
+    {
+      message: "End Date must be after Start Date when not currently working here",
+      path: ["endDate"],
     }
-    return !!data.endDate && new Date(data.endDate) >= new Date(data.startDate);
-  },
-  {
-    message: "End Date must be after Start Date when not currently working here",
-    path: ["endDate"],
-  }
-);
+  )
+  .refine(
+    (data) =>
+      typeof data.experienceCategory === "number" &&
+      !Number.isNaN(data.experienceCategory) &&
+      data.experienceCategory >= 1,
+    { message: "Category is required", path: ["experienceCategory"] }
+  )
+  .refine(
+    (data) =>
+      typeof data.employmentType === "number" &&
+      !Number.isNaN(data.employmentType) &&
+      data.employmentType >= 1,
+    { message: "Employment type is required", path: ["employmentType"] }
+  );
 
 export type WorkExperienceEntry = z.infer<typeof workExperienceEntrySchema>;
 
