@@ -16,6 +16,7 @@ import {
   Select,
   ListBox,
   Skeleton,
+  Link,
 } from "@heroui/react";
 import { PaginationWrapper } from "@/components/ui/pagination-wrapper";
 import { Github, Gitlab } from "@thesvg/react";
@@ -156,7 +157,7 @@ export default function SourceCodeProvidersPage() {
         pageSize,
       };
       const result = await sourceCodeProviderApi.fetchRepositories(params);
-      
+
       setRepositories((prev) => {
         if (isInitial) {
           return result.items;
@@ -326,9 +327,8 @@ export default function SourceCodeProvidersPage() {
     return (
       <div
         key={repo.id}
-        className={`flex flex-col border rounded-2xl p-6 transition-all duration-300 bg-surface relative select-none hover:shadow-lg h-fit w-full ${
-          !repo.isAccessible ? "opacity-60 border-dashed" : "hover:border-accent/40"
-        }`}
+        className={`flex flex-col border rounded-xl pt-3 px-5 pb-5 transition-all duration-300 bg-surface relative  hover:shadow-lg h-fit w-full ${!repo.isAccessible ? "opacity-60 border-dashed" : "hover:border-accent/40"
+          }`}
       >
         {/* Access Warning Bar if not accessible anymore */}
         {!repo.isAccessible && (
@@ -340,43 +340,40 @@ export default function SourceCodeProvidersPage() {
 
         <div className="flex justify-between items-start gap-3 mt-1.5">
           <div className="flex flex-col text-left min-w-0">
-            <Typography className="font-extrabold text-sm text-foreground truncate select-all">
-              {repo.name}
-            </Typography>
+            <Link href={repo.htmlUrl || "#"} target="_blank" rel="noopener noreferrer">
+              <Typography.Heading level={5} className="font-extrabold truncate">
+                {repo.name}
+              </Typography.Heading>
+            </Link>
             <span className="text-[10px] text-muted truncate">
               Owner: <strong>{repo.owner}</strong>
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center shrink-0">
             {repo.isPrivate ? (
-              <Chip size="sm" color="default" variant="soft" className="h-4.5 px-1 bg-foreground/10">
+              <Chip size="sm" color="default" variant="primary">
                 <Lock className="size-2.5 mr-0.5" />
-                <span className="text-[8.5px] uppercase tracking-wider font-extrabold">Private</span>
+                <span className="text-[8.5px] uppercase tracking-wider font-extrabold mt-0.5 mr-px">Private</span>
               </Chip>
             ) : (
-              <Chip size="sm" color="accent" variant="soft" className="h-4.5 px-1">
-                <Globe className="size-2.5 mr-0.5" />
-                <span className="text-[8.5px] uppercase tracking-wider font-extrabold">Public</span>
+              <Chip size="sm" color="accent" variant="soft">
+                <Globe className="size-3 mr-0.5" />
+                <span className="text-[8.5px] uppercase tracking-wider font-extrabold mt-px">Public</span>
               </Chip>
             )}
           </div>
         </div>
 
         <div className="flex-1 mt-3 text-left">
-          <Typography type="body-xs" className="text-muted leading-relaxed line-clamp-2 h-8 text-[11px]">
+          <Typography type="body-xs" className="text-muted leading-relaxed">
             {repo.description || "No description provided."}
           </Typography>
         </div>
 
-        {/* Verification and Trust Indicators / Skeleton Loader */}
-        {status === "analyzing" ? (
-          <div className="mt-4 p-2.5 rounded-xl border border-border/60 bg-surface-secondary/40 flex flex-col gap-2 animate-pulse text-left">
-            <div className="h-4.5 bg-foreground/10 rounded-sm w-2/3" />
-            <div className="h-3 bg-foreground/5 rounded-sm w-1/2" />
-          </div>
-        ) : status === "error" ? (
-          <div className="mt-4 p-2.5 rounded-xl border border-danger/20 bg-danger/5 flex items-center justify-between text-left transition-all">
+        {/* Verification and Trust Indicators */}
+        {status === "error" ? (
+          <div className="mt-3 p-3 rounded-lg border border-danger/20 bg-danger/5 flex items-center justify-between text-left transition-all">
             <div className="flex items-center gap-1.5">
               <Chip size="sm" color="danger" variant="soft" className="h-5 px-1.5">
                 <span className="text-[8.5px] uppercase tracking-wider font-extrabold">Error</span>
@@ -388,26 +385,19 @@ export default function SourceCodeProvidersPage() {
             </span>
           </div>
         ) : status === "success" ? null : (
-          <div className="mt-4 p-2.5 rounded-xl border border-border/60 bg-surface-secondary/40 flex items-center justify-between text-left">
-            <div className="flex items-center gap-1.5">
+          <div className="mt-3 p-3 rounded-lg border border-border/60 bg-surface-secondary/40 flex items-center justify-between text-left">
+            <div className="flex items-center">
               {repo.isVerified ? (
-                <Chip size="sm" color="success" variant="soft" className="h-5 px-1.5 flex items-center gap-0.5">
-                  <CheckCircle2 className="size-3 text-success shrink-0" />
-                  <span className="text-[8.5px] uppercase tracking-wider font-extrabold">Verified</span>
+                <Chip size="sm" color="success" variant="soft" className="items-center justify-center">
+                  <CheckCircle2 className="size-3.5 text-success shrink-0" />
+                  <span className="text-[10px] uppercase tracking-wider font-extrabold mr-px">Verified</span>
                 </Chip>
               ) : (
-                <Chip size="sm" color="default" variant="soft" className="h-5 px-1.5 bg-foreground/5 text-muted-foreground">
-                  <span className="text-[8.5px] uppercase tracking-wider font-semibold">Unverified</span>
+                <Chip size="sm" color="default" variant="soft" className="items-center justify-center">
+                  <span className="text-[10px] uppercase tracking-wider font-extrabold mr-px">Unverified</span>
                 </Chip>
               )}
-              <AnalysisStatusBadge status="idle" />
-            </div>
-
-            <div className="text-right">
-              <span className="text-[8px] text-muted block select-none uppercase tracking-wider">Trust Score</span>
-              <strong className="text-xs text-foreground font-extrabold">
-                {repo.trustScore.toFixed(0)}%
-              </strong>
+              <AnalysisStatusBadge status={status} />
             </div>
           </div>
         )}
@@ -422,25 +412,19 @@ export default function SourceCodeProvidersPage() {
               transition={{ duration: 0.35, ease: "easeInOut" }}
               className="overflow-hidden"
             >
-              <Separator variant="tertiary" className="mb-3 border-border/40" />
-              
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-accent flex items-center gap-1 select-none">
-                  <Sparkles className="size-3 animate-pulse" /> AI Analysis Complete
+              <Separator variant="tertiary" />
+
+              <div className="flex items-center justify-between my-4">
+                <span className="flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-wider text-accent">
+                  <Sparkles className="size-3.5" /> AI Analysis
                 </span>
-                <div className="flex items-center gap-1.5">
-                  <Chip size="sm" color="success" variant="soft" className="h-5 px-1.5">
-                    <CheckCircle2 className="size-3 text-success shrink-0 mr-0.5" />
-                    <span className="text-[8.5px] uppercase tracking-wider font-extrabold">
-                      {analysisResult.scoring.band} Grade
-                    </span>
-                  </Chip>
-                  <AnalysisStatusBadge status="success" />
+                <div className="flex items-center gap-2">
+                  <AnalysisStatusBadge status="success" band={analysisResult.scoring.band} />
                 </div>
               </div>
 
               {/* 2x2 Grid of indicators */}
-              <div className="grid grid-cols-2 gap-3 p-3 bg-surface-secondary/30 border border-border/40 rounded-xl text-left select-none mb-3">
+              <div className="grid grid-cols-2 gap-3 p-3 bg-surface-secondary/30 border border-border/40 rounded-lg text-left mb-3">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[9px] text-muted uppercase tracking-wider font-medium">Overall Score</span>
                   <span className="text-xs font-black text-foreground font-mono">
@@ -488,10 +472,10 @@ export default function SourceCodeProvidersPage() {
               {/* Skill Highlights */}
               {analysisResult.scoring.top_strengths.length > 0 && (
                 <div className="flex flex-col gap-1.5 mb-3 text-left">
-                  <span className="text-[9px] text-muted uppercase tracking-wider font-extrabold select-none">Top Skills</span>
-                  <div className="flex flex-wrap gap-1.5">
+                  <span className="text-[9px] text-muted uppercase tracking-wider font-extrabold ">Top Skills</span>
+                  <div className="flex flex-wrap gap-1">
                     {analysisResult.scoring.top_strengths.slice(0, 3).map((skill, idx) => (
-                      <Chip key={idx} size="sm" variant="soft" className="h-5 px-2 text-[9.5px] font-bold">
+                      <Chip key={idx} size="sm" variant="soft" className="text-[9px] font-bold">
                         {skill}
                       </Chip>
                     ))}
@@ -500,9 +484,9 @@ export default function SourceCodeProvidersPage() {
               )}
 
               {/* Recruiter / AI Summary */}
-              <div className="flex flex-col gap-1 text-left mb-1.5">
-                <span className="text-[9px] text-muted uppercase tracking-wider font-extrabold select-none">AI Summary</span>
-                <p className="text-[11px] text-muted leading-relaxed line-clamp-2 font-light">
+              <div className="flex flex-col gap-1 text-left">
+                <span className="text-[9px] text-muted uppercase tracking-wider font-extrabold ">AI Summary</span>
+                <p className="text-[11px] text-muted leading-relaxed">
                   {analysisResult.scoring.recruiter_summary}
                 </p>
               </div>
@@ -510,37 +494,27 @@ export default function SourceCodeProvidersPage() {
           )}
         </AnimatePresence>
 
+        <Separator variant="tertiary" className="my-4" />
+
         {/* Stats footer & actions */}
-        <div className="mt-3 flex items-center justify-between pt-3 border-t border-border/10">
+        <div className="flex items-end justify-between">
           <div className="flex items-center gap-3 text-[10px] text-muted">
             {repo.primaryLanguage && (
-              <span className="font-semibold text-foreground/80 bg-foreground/5 px-2 py-0.5 rounded-md border border-border/30">
-                {repo.primaryLanguage}
-              </span>
+              <Chip size="sm" variant="soft" className="rounded-md text-[9px] font-bold">{repo.primaryLanguage}</Chip>
             )}
-            <span className="flex items-center gap-0.5">
-              <Star className="size-3 text-yellow-500 fill-yellow-500/10 shrink-0" />
-              <span>{repo.starsCount}</span>
-            </span>
-            <span className="flex items-center gap-0.5">
-              <GitFork className="size-3 text-muted shrink-0" />
-              <span>{repo.forksCount}</span>
-            </span>
+            <div className="mb-0.5 flex gap-3">
+              <span className="flex items-center gap-0.5">
+                <Star className="size-3 text-yellow-500 fill-yellow-500/10 shrink-0 mb-px" />
+                <span>{repo.starsCount}</span>
+              </span>
+              <span className="flex items-center gap-0.5">
+                <GitFork className="size-3 text-muted shrink-0" />
+                <span>{repo.forksCount}</span>
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {repo.htmlUrl && repo.isAccessible && (
-              <a
-                href={repo.htmlUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-8 text-xs font-semibold px-3 text-muted hover:text-foreground hover:bg-foreground/5 rounded-xl flex items-center gap-1 transition-colors border border-border/10"
-              >
-                <span>Open</span>
-                <ExternalLink className="size-3 shrink-0" />
-              </a>
-            )}
-
             {repo.isAccessible && (
               <Button
                 size="sm"
@@ -548,10 +522,10 @@ export default function SourceCodeProvidersPage() {
                   status === "success"
                     ? "secondary"
                     : status === "error"
-                    ? "danger"
-                    : "primary"
+                      ? "danger"
+                      : "primary"
                 }
-                className="h-8 text-xs font-bold rounded-xl"
+                className="text-xs font-bold rounded-xl"
                 onClick={() => {
                   if (status === "success") {
                     setSelectedAnalysis(analysisResult);
@@ -641,7 +615,7 @@ export default function SourceCodeProvidersPage() {
       ) : (
         <div className="flex flex-col gap-6">
           {/* Connected Providers List */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 select-none">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ">
             {providers.map((prov) => {
               const syncing = isProviderSyncing(prov.id);
               const activeJob = Object.values(activeSyncJobs).find(
@@ -727,10 +701,10 @@ export default function SourceCodeProvidersPage() {
           <Separator variant="tertiary" />
 
           {/* Search, Sort and Filters toolbar */}
-          <div className="flex flex-col gap-3 border bg-surface rounded-2xl p-4 select-none">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-end">
+          <div className="flex flex-col gap-3 border bg-surface rounded-2xl p-4 ">
+            <div className="flex flex-wrap gap-3 items-end">
               {/* Left Column (2/5 width): Search input */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5 w-full text-left">
+              <div className="flex flex-col gap-1 flex-1 text-left">
                 <Label htmlFor="search-repo" className="text-xs text-muted">
                   Search
                 </Label>
@@ -744,15 +718,15 @@ export default function SourceCodeProvidersPage() {
                     placeholder="Search repository..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8 text-[11px]"
+                    className="text-[11px]"
                   />
                 </InputGroup>
               </div>
 
               {/* Right Column (3/5 width): Filters */}
-              <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 w-full items-end">
+              <div className="flex flex-wrap gap-3 items-end">
                 {/* Account selector */}
-                <div className="flex flex-col gap-1.5 w-full text-left">
+                <div className="flex flex-col gap-1 text-left">
                   <Label className="text-xs text-muted">Account</Label>
                   <Select
                     value={selectedProviderId}
@@ -760,12 +734,12 @@ export default function SourceCodeProvidersPage() {
                       setSelectedProviderId(val as string);
                       setPage(1);
                     }}
-                    className="w-full"
+                    className="w-auto"
                     variant="secondary"
                     aria-label="Account"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
-                      <Select.Value />
+                    <Select.Trigger className="bg-surface border border-border text-xs">
+                      <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
                     <Select.Popover className="rounded-xl z-50">
@@ -800,7 +774,7 @@ export default function SourceCodeProvidersPage() {
                 </div>
 
                 {/* Language filter */}
-                <div className="flex flex-col gap-1.5 w-full text-left">
+                <div className="flex flex-col gap-1 text-left">
                   <Label className="text-xs text-muted">Language</Label>
                   <Select
                     value={languageFilter}
@@ -808,12 +782,12 @@ export default function SourceCodeProvidersPage() {
                       setLanguageFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-full"
+                    className="w-auto"
                     variant="secondary"
                     aria-label="Language"
                   >
                     <Select.Trigger className="bg-surface border border-border">
-                      <Select.Value />
+                      <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
                     <Select.Popover className="rounded-xl z-50">
@@ -846,7 +820,7 @@ export default function SourceCodeProvidersPage() {
                 </div>
 
                 {/* Visibility Filter */}
-                <div className="flex flex-col gap-1.5 w-full text-left">
+                <div className="flex flex-col gap-1 text-left">
                   <Label className="text-xs text-muted">Visibility</Label>
                   <Select
                     value={visibilityFilter}
@@ -854,12 +828,12 @@ export default function SourceCodeProvidersPage() {
                       setVisibilityFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-full"
+                    className="w-auto"
                     variant="secondary"
                     aria-label="Visibility"
                   >
                     <Select.Trigger className="bg-surface border border-border">
-                      <Select.Value />
+                      <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
                     <Select.Popover className="rounded-xl z-50">
@@ -897,7 +871,7 @@ export default function SourceCodeProvidersPage() {
                 </div>
 
                 {/* Sorting Filter */}
-                <div className="flex flex-col gap-1.5 w-full text-left">
+                <div className="flex flex-col gap-1 text-left">
                   <Label className="text-xs text-muted">Sort By</Label>
                   <Select
                     value={sortBy}
@@ -905,12 +879,12 @@ export default function SourceCodeProvidersPage() {
                       setSortBy(val as string);
                       setPage(1);
                     }}
-                    className="w-full"
+                    className="w-auto"
                     variant="secondary"
                     aria-label="Sort By"
                   >
                     <Select.Trigger className="bg-surface border border-border">
-                      <Select.Value />
+                      <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
                     <Select.Popover className="rounded-xl z-50">
@@ -972,7 +946,7 @@ export default function SourceCodeProvidersPage() {
 
               let height = 180; // base height
               if (repo.description) height += 40;
-              
+
               if (status === "analyzing") {
                 height += 60;
               } else if (status === "error") {
@@ -999,7 +973,7 @@ export default function SourceCodeProvidersPage() {
             });
 
             const renderSkeletonCard = () => (
-              <div className="flex flex-col border border-border/40 rounded-2xl p-6 bg-surface relative select-none w-full gap-4">
+              <div className="flex flex-col border border-border/40 rounded-2xl p-6 bg-surface relative  w-full gap-3">
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-4.5 w-2/3 rounded-lg" />
@@ -1042,23 +1016,23 @@ export default function SourceCodeProvidersPage() {
 
             if (repositories.length === 0) {
               return (
-                <div className="text-center py-16 border border-dashed border-border rounded-3xl bg-surface text-muted text-xs flex flex-col items-center gap-2">
-                  <AlertCircle className="size-6 text-muted-foreground" />
-                  <span>No repositories found matching the search criteria.</span>
-                </div>
+                <Card className="flex items-center justify-center py-16 text-muted gap-2">
+                  <AlertCircle className="size-6 text-muted" />
+                  <Typography.Paragraph className="text-muted text-xs">No repositories found matching the search criteria.</Typography.Paragraph>
+                </Card>
               );
             }
 
             return (
-              <div className="flex flex-col gap-6 w-full">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start w-full">
+              <div className="flex flex-col gap-3 w-full">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start w-full">
                   {/* Column 1 (Left) */}
-                  <div className="flex flex-col gap-6 w-full">
+                  <div className="flex flex-col gap-4 w-full">
                     {col1.map((repo) => renderRepositoryCard(repo))}
                   </div>
 
                   {/* Column 2 (Right) */}
-                  <div className="flex flex-col gap-6 w-full">
+                  <div className="flex flex-col gap-4 w-full">
                     {col2.map((repo) => renderRepositoryCard(repo))}
                   </div>
                 </div>

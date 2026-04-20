@@ -40,7 +40,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     <Modal.Backdrop
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      className="bg-background/85 backdrop-blur-sm animate-in fade-in duration-200 z-[100]"
+      className="bg-background/85 backdrop-blur-sm animate-in fade-in duration-200 z-100"
     >
       <Modal.Container placement="center" scroll="inside">
         <Modal.Dialog className="w-full max-w-6xl bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left relative focus-visible:outline-hidden focus:outline-hidden max-h-[90vh] flex flex-col justify-between animate-in zoom-in-95 duration-200">
@@ -58,9 +58,9 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
               <span className="text-[10px] text-accent uppercase font-extrabold tracking-wider block mb-1">
                 AI Repository Intelligence Report
               </span>
-              <Typography type="h3" className="font-extrabold text-foreground font-display select-all text-xl">
+              <span className="font-extrabold text-foreground font-display select-all text-xl block">
                 {analysis.repo.full_name}
-              </Typography>
+              </span>
             </Modal.Heading>
           </Modal.Header>
 

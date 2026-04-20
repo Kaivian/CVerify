@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Modal, Typography } from '@heroui/react';
+import { Modal } from '@heroui/react';
 import { X } from 'lucide-react';
 
 interface DialogModalProps {
@@ -59,9 +59,9 @@ export const DialogModal: React.FC<DialogModalProps> = ({
           </Modal.CloseTrigger>
           <Modal.Header className="mb-4">
             <Modal.Heading className="outline-hidden">
-              <Typography type="h4" className="font-extrabold text-foreground font-display">
+              <span className="font-extrabold text-foreground font-display text-lg block">
                 {title}
-              </Typography>
+              </span>
             </Modal.Heading>
           </Modal.Header>
           <Modal.Body className="space-y-4 py-2 text-sm leading-relaxed text-muted-foreground select-text">
