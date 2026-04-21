@@ -1379,6 +1379,50 @@ public static class DbInitializer
             );
             CREATE INDEX IF NOT EXISTS idx_profile_activity_logs_user_id ON profile_activity_logs(user_id);
 
+            -- Stores background analysis jobs
+            CREATE TABLE IF NOT EXISTS analysis_jobs (
+                id UUID PRIMARY KEY,
+                repository_id UUID NOT NULL,
+                user_id UUID NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'Queued',
+                progress DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                current_step VARCHAR(100),
+                commit_sha VARCHAR(100),
+                started_at TIMESTAMP WITH TIME ZONE,
+                completed_at TIMESTAMP WITH TIME ZONE,
+                error_message VARCHAR(2000),
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                last_updated_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_analysis_jobs_repository FOREIGN KEY (repository_id) REFERENCES source_code_repositories(id) ON DELETE CASCADE,
+                CONSTRAINT fk_analysis_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_analysis_jobs_repository_id ON analysis_jobs(repository_id);
+            CREATE INDEX IF NOT EXISTS idx_analysis_jobs_user_id ON analysis_jobs(user_id);
+
+            -- Stores detailed events for active analysis jobs
+            CREATE TABLE IF NOT EXISTS analysis_job_events (
+                id UUID PRIMARY KEY,
+                job_id UUID NOT NULL,
+                step VARCHAR(100) NOT NULL,
+                progress DOUBLE PRECISION NOT NULL,
+                message VARCHAR(2000) NOT NULL,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_analysis_job_events_job FOREIGN KEY (job_id) REFERENCES analysis_jobs(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_analysis_job_events_job_id ON analysis_job_events(job_id);
+
+            -- Stores final analysis reports
+            CREATE TABLE IF NOT EXISTS analysis_reports (
+                id UUID PRIMARY KEY,
+                job_id UUID NOT NULL UNIQUE,
+                repository_id UUID NOT NULL,
+                report_data JSONB NOT NULL,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_analysis_reports_job FOREIGN KEY (job_id) REFERENCES analysis_jobs(id) ON DELETE CASCADE,
+                CONSTRAINT fk_analysis_reports_repository FOREIGN KEY (repository_id) REFERENCES source_code_repositories(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_analysis_reports_repository_id ON analysis_reports(repository_id);
+
             -- Optimized Indexes
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);

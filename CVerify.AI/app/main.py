@@ -4,6 +4,13 @@ import sys
 # Ensure parent directory is in sys.path so 'app' package can be resolved when run directly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import asyncio
+if sys.platform == "win32":
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    except Exception:
+        pass
+
 import json
 import logging
 import redis.asyncio as redis
@@ -84,6 +91,10 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="CVerify.AI Microservice", version="1.0.0", lifespan=lifespan)
+
+from app.routes.analysis_router import router as analysis_router
+app.include_router(analysis_router)
+
 claude_service = ClaudeService()
 
 class ChatMessage(BaseModel):

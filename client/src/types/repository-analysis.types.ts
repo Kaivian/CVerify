@@ -99,3 +99,27 @@ export interface RepositoryAnalysis {
   scoring: Scoring;
   ui_hints: UIHints;
 }
+
+export interface AnalysisJob {
+  id: string;
+  repositoryId: string;
+  userId: string;
+  status: string;
+  progress: number;
+  currentStep?: string;
+  commitSha?: string;
+  startedAt?: string;
+  completedAt?: string;
+  errorMessage?: string;
+  createdAtUtc: string;
+  lastUpdatedUtc: string;
+}
+
+export interface AnalysisJobEvent {
+  id: string;
+  jobId: string;
+  step: string;
+  progress: number;
+  message: string;
+  createdAtUtc: string;
+}
