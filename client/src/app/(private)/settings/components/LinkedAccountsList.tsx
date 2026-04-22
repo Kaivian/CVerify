@@ -66,6 +66,16 @@ export const LinkedAccountsList: React.FC = () => {
   const [confirming, setConfirming] = useState(false);
   const [loadingPendingDetails, setLoadingPendingDetails] = useState(false);
 
+  const closePendingModal = useCallback(() => {
+    setIsModalOpen(false);
+    setPendingId(null);
+    setPendingDetails(null);
+    if (typeof window !== "undefined") {
+      const newUrl = window.location.pathname + "?tab=account";
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, []);
+
   // Fetch all connections from the backend
   const loadConnections = useCallback(async () => {
     try {
@@ -117,9 +127,6 @@ export const LinkedAccountsList: React.FC = () => {
           setPendingId(pendingLinkId);
           setIsModalOpen(true);
         }, 0);
-        // Clean URL parameters safely, retaining tab=account
-        const newUrl = window.location.pathname + "?tab=account";
-        window.history.replaceState({}, document.title, newUrl);
       } else if (linkSuccess && provider) {
         const providerName =
           provider.charAt(0).toUpperCase() + provider.slice(1);
@@ -153,8 +160,7 @@ export const LinkedAccountsList: React.FC = () => {
           setPendingDetails(response.data);
         } else {
           toast.danger("Failed to load pending connection details.");
-          setIsModalOpen(false);
-          setPendingId(null);
+          closePendingModal();
         }
       } catch (err: unknown) {
         console.error(err);
@@ -164,14 +170,13 @@ export const LinkedAccountsList: React.FC = () => {
         } else {
           toast.danger("Failed to retrieve pending connection details.");
         }
-        setIsModalOpen(false);
-        setPendingId(null);
+        closePendingModal();
       } finally {
         setLoadingPendingDetails(false);
       }
     };
     fetchDetails();
-  }, [pendingId, fetchPendingLinkDetails]);
+  }, [pendingId, fetchPendingLinkDetails, closePendingModal]);
 
   const handleConnect = async (provider: string) => {
     setActionLoadingId(`${provider}-link`);
@@ -246,9 +251,7 @@ export const LinkedAccountsList: React.FC = () => {
       const response = await confirmLink(pendingId);
       if (response.success) {
         toast.success("Account successfully connected!");
-        setIsModalOpen(false);
-        setPendingId(null);
-        setPendingDetails(null);
+        closePendingModal();
         await loadConnections();
       } else {
         toast.danger(response.data?.message || "Failed to confirm connection.");
@@ -729,9 +732,7 @@ export const LinkedAccountsList: React.FC = () => {
         isOpen={isModalOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setIsModalOpen(false);
-            setPendingId(null);
-            setPendingDetails(null);
+            closePendingModal();
           }
         }}
         isDismissable={false}
@@ -835,11 +836,7 @@ export const LinkedAccountsList: React.FC = () => {
             <Modal.Footer className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setPendingId(null);
-                  setPendingDetails(null);
-                }}
+                onClick={closePendingModal}
                 className="rounded-xl text-xs h-9.5 px-4 font-semibold text-muted hover:text-foreground"
                 isDisabled={confirming}
               >

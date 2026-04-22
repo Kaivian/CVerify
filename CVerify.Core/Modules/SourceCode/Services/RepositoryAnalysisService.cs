@@ -101,6 +101,53 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         };
 
         _context.AnalysisJobs.Add(job);
+
+        var taskTypes = new List<string>();
+        try
+        {
+            var configPath = Path.Combine(AppContext.BaseDirectory, "pipeline_config.json");
+            if (!File.Exists(configPath)) configPath = "pipeline_config.json";
+            
+            if (File.Exists(configPath))
+            {
+                var configJson = File.ReadAllText(configPath);
+                using var doc = JsonDocument.Parse(configJson);
+                foreach (var element in doc.RootElement.GetProperty("stages").EnumerateArray())
+                {
+                    var taskType = element.GetProperty("taskType").GetString();
+                    if (!string.IsNullOrEmpty(taskType))
+                    {
+                        taskTypes.Add(taskType);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read pipeline_config.json in EnqueueAnalysisJobAsync.");
+        }
+
+        if (taskTypes.Count == 0)
+        {
+            taskTypes = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositorySummary" };
+        }
+
+        foreach (var tType in taskTypes)
+        {
+            var task = new AnalysisTask
+            {
+                Id = Guid.CreateVersion7(),
+                JobId = jobId,
+                TaskType = tType,
+                Status = "Queued",
+                Progress = 0.0,
+                RetryCount = 0,
+                CreatedAtUtc = _timeProvider.GetUtcNow(),
+                LastUpdatedUtc = _timeProvider.GetUtcNow()
+            };
+            _context.AnalysisTasks.Add(task);
+        }
+
         await _context.SaveChangesAsync();
 
         // 5. Enqueue Job ID
@@ -116,7 +163,82 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         if (job == null) return null;
 
-        return MapToDto(job);
+        var tasks = await _context.AnalysisTasks
+            .GroupJoin(
+                _context.AnalysisTaskResults,
+                task => task.Id,
+                res => res.TaskId,
+                (task, results) => new { task, result = results.FirstOrDefault() }
+            )
+            .Where(x => x.task.JobId == jobId)
+            .ToListAsync();
+
+        var orderList = new List<string>();
+        try
+        {
+            var configPath = Path.Combine(AppContext.BaseDirectory, "pipeline_config.json");
+            if (!File.Exists(configPath)) configPath = "pipeline_config.json";
+            if (File.Exists(configPath))
+            {
+                var configJson = File.ReadAllText(configPath);
+                using var doc = JsonDocument.Parse(configJson);
+                foreach (var element in doc.RootElement.GetProperty("stages").EnumerateArray())
+                {
+                    var taskType = element.GetProperty("taskType").GetString();
+                    if (!string.IsNullOrEmpty(taskType))
+                    {
+                        orderList.Add(taskType);
+                    }
+                }
+            }
+        }
+        catch {}
+
+        if (orderList.Count == 0)
+        {
+            orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositorySummary" };
+        }
+
+        var orderedTasks = tasks.OrderBy(x => {
+            var index = orderList.IndexOf(x.task.TaskType);
+            return index >= 0 ? index : 99;
+        }).ToList();
+
+        var taskDtos = orderedTasks.Select(x => new AnalysisTaskDto(
+            x.task.Id,
+            x.task.JobId,
+            x.task.TaskType,
+            x.task.Status,
+            x.task.Progress,
+            x.task.StartedAt,
+            x.task.CompletedAt,
+            x.task.DurationMs,
+            x.task.RetryCount,
+            x.task.ErrorMessage,
+            x.task.PromptTokens,
+            x.task.CompletionTokens,
+            x.task.EstimatedCostUsd,
+            x.task.ModelName,
+            x.result != null ? x.result.SchemaVersion : null,
+            x.result != null ? x.result.ResultData : null,
+            x.task.CreatedAtUtc
+        )).ToList();
+
+        return new AnalysisJobDto(
+            job.Id,
+            job.RepositoryId,
+            job.UserId,
+            job.Status,
+            job.Progress,
+            job.CurrentStep,
+            job.CommitSha,
+            job.StartedAt,
+            job.CompletedAt,
+            job.ErrorMessage,
+            job.CreatedAtUtc,
+            job.LastUpdatedUtc,
+            taskDtos
+        );
     }
 
     public async Task<IEnumerable<AnalysisJobEventDto>> GetJobEventsAsync(Guid userId, Guid jobId)
@@ -237,97 +359,326 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
             var decryptedToken = EncryptionHelper.Decrypt(credential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
 
-            // 4. Update status to Cloning
-            await UpdateJobStateAsync(job, "CloningRepository", 20.0, $"Cloning branch '{repo.DefaultBranch ?? "main"}'...", linkedCts.Token);
+            // 4. Load/Sort tasks to run in dependency order
+            var tasks = await _context.AnalysisTasks
+                .Where(t => t.JobId == jobId)
+                .ToListAsync(linkedCts.Token);
 
-            // 5. Connect to Python FastAPI microservice using HttpClient
-            var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
-            var payload = new
+            var orderList = new List<string>();
+            var weights = new Dictionary<string, double>();
+            double totalWeight = 0.0;
+            try
             {
-                repositoryId = job.RepositoryId,
-                repoName = repo.Name,
-                repoOwner = repo.Owner,
-                encryptedToken = decryptedToken,
-                defaultBranch = repo.DefaultBranch ?? "main"
-            };
-            var payloadJson = JsonSerializer.Serialize(payload);
-            var requestPath = "/api/v1/analysis/orchestrate/stream";
-
-            var requestMessage = new HttpRequestMessage(HttpMethod.Post, requestPath)
-            {
-                Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
-            };
-
-            // Sign payload with HMAC
-            var (signature, timestamp, nonce) = _hmacService.CreateSignatureHeaders("POST", requestPath, payloadJson);
-            requestMessage.Headers.Add("X-Client-Id", "cverify-core");
-            requestMessage.Headers.Add("X-Timestamp", timestamp);
-            requestMessage.Headers.Add("X-Nonce", nonce);
-            requestMessage.Headers.Add("X-Correlation-Id", jobId.ToString());
-            requestMessage.Headers.Add("X-Signature", signature);
-
-            using var response = await httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token);
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorResponse = await response.Content.ReadAsStringAsync(linkedCts.Token);
-                throw new HttpRequestException($"AI service returned status code {response.StatusCode}: {errorResponse}");
-            }
-
-            // Read SSE response stream
-            using var responseStream = await response.Content.ReadAsStreamAsync(linkedCts.Token);
-            using var reader = new StreamReader(responseStream);
-
-            string? finalReportJson = null;
-            string? line;
-
-            while ((line = await reader.ReadLineAsync(linkedCts.Token)) != null)
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                if (line.StartsWith("data: "))
+                var configPath = Path.Combine(AppContext.BaseDirectory, "pipeline_config.json");
+                if (!File.Exists(configPath)) configPath = "pipeline_config.json";
+                if (File.Exists(configPath))
                 {
-                    var dataStr = line.Substring(6).Trim();
-                    if (dataStr == "[DONE]") break;
-
-                    try
+                    var configJson = File.ReadAllText(configPath);
+                    using var doc = JsonDocument.Parse(configJson);
+                    foreach (var element in doc.RootElement.GetProperty("stages").EnumerateArray())
                     {
-                        using var jsonDoc = JsonDocument.Parse(dataStr);
-                        var root = jsonDoc.RootElement;
-
-                        // Check if it's the final completed report payload
-                        if (root.TryGetProperty("reportData", out var reportProp))
-                        {
-                            finalReportJson = reportProp.ToString();
-                        }
-                        // Otherwise, parse it as a progress event
-                        else if (root.TryGetProperty("status", out var statusProp))
-                        {
-                            var sseStatus = statusProp.GetString() ?? "RunningAgents";
-                            var sseStep = root.TryGetProperty("step", out var stepProp) ? stepProp.GetString() : sseStatus;
-                            var sseProgress = root.TryGetProperty("progress", out var progProp) ? progProp.GetDouble() : job.Progress;
-                            var sseMessage = root.TryGetProperty("message", out var msgProp) ? msgProp.GetString() : string.Empty;
-
-                            await UpdateJobStateAsync(job, sseStatus, sseProgress, sseMessage ?? sseStep ?? string.Empty, linkedCts.Token);
-                        }
-                    }
-                    catch (JsonException ex)
-                    {
-                        _logger.LogError(ex, "Failed to parse SSE event chunk from AI microservice: {Chunk}", dataStr);
+                        var taskType = element.GetProperty("taskType").GetString()!;
+                        var wt = element.GetProperty("weight").GetDouble();
+                        orderList.Add(taskType);
+                        weights[taskType] = wt;
+                        totalWeight += wt;
                     }
                 }
             }
+            catch {}
+
+            if (orderList.Count == 0)
+            {
+                orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositorySummary" };
+                weights["RepoStructure"] = 15.0;
+                weights["CommitIntelligence"] = 25.0;
+                weights["SkillExtraction"] = 15.0;
+                weights["ArchitectureAnalysis"] = 15.0;
+                weights["CodeQuality"] = 15.0;
+                weights["SecurityAnalysis"] = 10.0;
+                weights["RepositorySummary"] = 5.0;
+                totalWeight = 100.0;
+            }
+
+            tasks = tasks.OrderBy(x => {
+                var index = orderList.IndexOf(x.TaskType);
+                return index >= 0 ? index : 99;
+            }).ToList();
+
+            var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
+
+            // 5. Execute tasks sequentially
+            foreach (var task in tasks)
+            {
+                if (linkedCts.Token.IsCancellationRequested) break;
+
+                // Check if job was cancelled out-of-band
+                var jobStatus = await _context.AnalysisJobs
+                    .Where(j => j.Id == jobId)
+                    .Select(j => j.Status)
+                    .FirstOrDefaultAsync(linkedCts.Token);
+                
+                if (jobStatus == "Cancelled")
+                {
+                    throw new OperationCanceledException("Job was cancelled by the user.");
+                }
+
+                // If already completed, skip it
+                if (task.Status == "Completed")
+                {
+                    continue;
+                }
+
+                // Map task to progress ranges based dynamically on configuration weights
+                double startProgress = 10.0;
+                double accumulatedProgress = 10.0;
+                foreach (var t in tasks)
+                {
+                    if (t.TaskType == task.TaskType)
+                    {
+                        startProgress = accumulatedProgress;
+                    }
+                    var wt = weights.GetValueOrDefault(t.TaskType, 10.0);
+                    var scaledWt = (wt / totalWeight) * 85.0;
+                    if (t.Status == "Completed")
+                    {
+                        accumulatedProgress += scaledWt;
+                    }
+                }
+                double completedProgress = startProgress + (weights.GetValueOrDefault(task.TaskType, 10.0) / totalWeight) * 85.0;
+
+                // Update task and job to Running
+                task.Status = "Running";
+                task.StartedAt = _timeProvider.GetUtcNow();
+                task.Progress = 10.0;
+                task.LastUpdatedUtc = _timeProvider.GetUtcNow();
+
+                job.Status = "RunningAgents";
+                job.Progress = startProgress;
+                job.CurrentStep = task.TaskType;
+                job.LastUpdatedUtc = _timeProvider.GetUtcNow();
+
+                await SaveTaskEventAsync(task.Id, "Info", "StepStarted", $"Started task {task.TaskType}.");
+                await _context.SaveChangesAsync(linkedCts.Token);
+
+                await PublishTaskProgressEventAsync(jobId, task.Id, task.TaskType, "Running", 10.0, "RunningAgents", startProgress, $"Executing task {task.TaskType}...");
+
+                try
+                {
+                    var payload = new
+                    {
+                        jobId = jobId.ToString(),
+                        taskType = task.TaskType,
+                        repositoryId = job.RepositoryId.ToString(),
+                        repoName = repo.Name,
+                        repoOwner = repo.Owner,
+                        encryptedToken = decryptedToken,
+                        defaultBranch = repo.DefaultBranch ?? "main"
+                    };
+                    var payloadJson = JsonSerializer.Serialize(payload);
+                    var taskPath = "/api/v1/analysis/task/execute";
+                    var requestMessage = new HttpRequestMessage(HttpMethod.Post, taskPath)
+                    {
+                        Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
+                    };
+
+                    var (signature, timestamp, nonce) = _hmacService.CreateSignatureHeaders("POST", taskPath, payloadJson);
+                    requestMessage.Headers.Add("X-Client-Id", "cverify-core");
+                    requestMessage.Headers.Add("X-Timestamp", timestamp);
+                    requestMessage.Headers.Add("X-Nonce", nonce);
+                    requestMessage.Headers.Add("X-Correlation-Id", jobId.ToString());
+                    requestMessage.Headers.Add("X-Signature", signature);
+
+                    using var response = await httpClient.SendAsync(requestMessage, linkedCts.Token);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var errorResponse = await response.Content.ReadAsStringAsync(linkedCts.Token);
+                        throw new HttpRequestException($"AI task service returned status code {response.StatusCode}: {errorResponse}");
+                    }
+
+                    var responseJson = await response.Content.ReadAsStringAsync(linkedCts.Token);
+                    var taskResponse = JsonSerializer.Deserialize<TaskExecuteResponse>(responseJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (taskResponse == null)
+                    {
+                        throw new InvalidOperationException("Failed to deserialize task response.");
+                    }
+
+                    if (taskResponse.Status == "Failed")
+                    {
+                        throw new Exception(taskResponse.ErrorMessage ?? "Task execution failed.");
+                    }
+
+                    // Save result
+                    var resultData = taskResponse.ResultData ?? "{}";
+                    var existingResult = await _context.AnalysisTaskResults.FirstOrDefaultAsync(r => r.TaskId == task.Id, linkedCts.Token);
+                    if (existingResult != null)
+                    {
+                        existingResult.ResultData = resultData;
+                        existingResult.SchemaVersion = taskResponse.SchemaVersion ?? "2.0.0";
+                        existingResult.CreatedAtUtc = _timeProvider.GetUtcNow();
+                    }
+                    else
+                    {
+                        _context.AnalysisTaskResults.Add(new AnalysisTaskResult
+                        {
+                            TaskId = task.Id,
+                            SchemaVersion = taskResponse.SchemaVersion ?? "2.0.0",
+                            ResultData = resultData,
+                            CreatedAtUtc = _timeProvider.GetUtcNow()
+                        });
+                    }
+
+                    // Update task status
+                    task.Status = "Completed";
+                    task.Progress = 100.0;
+                    task.CompletedAt = _timeProvider.GetUtcNow();
+                    task.DurationMs = (long?)(task.CompletedAt - task.StartedAt)?.TotalMilliseconds;
+                    
+                    if (taskResponse.Telemetry != null)
+                    {
+                        task.PromptTokens = taskResponse.Telemetry.PromptTokens;
+                        task.CompletionTokens = taskResponse.Telemetry.CompletionTokens;
+                        task.CacheReadTokens = taskResponse.Telemetry.CacheReadTokens;
+                        task.CacheWriteTokens = taskResponse.Telemetry.CacheWriteTokens;
+                        task.EstimatedCostUsd = taskResponse.Telemetry.EstimatedCostUsd;
+                        task.ModelName = taskResponse.Telemetry.ModelName;
+                    }
+
+                    await SaveTaskEventAsync(task.Id, "Info", "StepCompleted", $"Completed task {task.TaskType}.");
+
+                    if (taskResponse.Events != null)
+                    {
+                        foreach (var ev in taskResponse.Events)
+                        {
+                            DateTimeOffset.TryParse(ev.Timestamp, out var evTime);
+                            _context.AnalysisTaskEvents.Add(new AnalysisTaskEvent
+                            {
+                                Id = Guid.CreateVersion7(),
+                                TaskId = task.Id,
+                                Timestamp = evTime == default ? _timeProvider.GetUtcNow() : evTime,
+                                Level = ev.Level ?? "Info",
+                                EventType = ev.EventType ?? "ProgressUpdate",
+                                Message = ev.Message ?? "",
+                                Metadata = ev.Metadata
+                            });
+                        }
+                    }
+
+                    job.Progress = completedProgress;
+                    await _context.SaveChangesAsync(linkedCts.Token);
+
+                    await PublishTaskProgressEventAsync(
+                        jobId,
+                        task.Id,
+                        task.TaskType,
+                        "Completed",
+                        100.0,
+                        "RunningAgents",
+                        completedProgress,
+                        $"Completed task {task.TaskType}.",
+                        task.DurationMs,
+                        task.PromptTokens,
+                        task.CompletionTokens,
+                        task.CacheReadTokens,
+                        task.CacheWriteTokens,
+                        task.EstimatedCostUsd,
+                        task.ModelName);
+                }
+                catch (Exception ex)
+                {
+                    task.Status = "Failed";
+                    task.ErrorMessage = ex.Message;
+                    task.CompletedAt = _timeProvider.GetUtcNow();
+                    task.DurationMs = (long?)(task.CompletedAt - task.StartedAt)?.TotalMilliseconds;
+
+                    await SaveTaskEventAsync(task.Id, "Error", "ErrorOccurred", $"Task failed: {ex.Message}");
+
+                    job.Status = "Failed";
+                    job.ErrorMessage = $"Task {task.TaskType} failed: {ex.Message}";
+                    job.CompletedAt = _timeProvider.GetUtcNow();
+                    job.LastUpdatedUtc = _timeProvider.GetUtcNow();
+
+                    await SaveEventAsync(jobId, "Failed", job.Progress, job.ErrorMessage);
+                    await _context.SaveChangesAsync(CancellationToken.None);
+
+                    await PublishTaskProgressEventAsync(
+                        jobId,
+                        task.Id,
+                        task.TaskType,
+                        "Failed",
+                        0.0,
+                        "Failed",
+                        job.Progress,
+                        job.ErrorMessage,
+                        task.DurationMs);
+                    throw; // Escalate to stop loop and log overall failure
+                }
+            }
+
+            // 6. Aggregate Results
+            await UpdateJobStateAsync(job, "AggregatingResults", 95.0, "Aggregating analysis results...", linkedCts.Token);
+
+            var partialResultsDict = new Dictionary<string, object>();
+            var results = await _context.AnalysisTaskResults
+                .Where(r => r.Task.JobId == jobId)
+                .ToListAsync(linkedCts.Token);
+
+            foreach (var res in results)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(res.ResultData);
+                    partialResultsDict[res.Task.TaskType] = doc.RootElement.Clone();
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogError(ex, "Failed to parse result data as JSON for task {TaskType} in job {JobId}", res.Task.TaskType, jobId);
+                }
+            }
+
+            var aggregatePayload = new
+            {
+                jobId = jobId.ToString(),
+                repositoryId = job.RepositoryId.ToString(),
+                repoOwner = repo.Owner,
+                repoName = repo.Name,
+                partialResults = partialResultsDict,
+                deleteWorkspace = true
+            };
+            var aggregatePayloadJson = JsonSerializer.Serialize(aggregatePayload);
+            var aggregatePath = "/api/v1/analysis/task/aggregate";
+
+            var aggregateMessage = new HttpRequestMessage(HttpMethod.Post, aggregatePath)
+            {
+                Content = new StringContent(aggregatePayloadJson, Encoding.UTF8, "application/json")
+            };
+
+            var (aggSignature, aggTimestamp, aggNonce) = _hmacService.CreateSignatureHeaders("POST", aggregatePath, aggregatePayloadJson);
+            aggregateMessage.Headers.Add("X-Client-Id", "cverify-core");
+            aggregateMessage.Headers.Add("X-Timestamp", aggTimestamp);
+            aggregateMessage.Headers.Add("X-Nonce", aggNonce);
+            aggregateMessage.Headers.Add("X-Correlation-Id", jobId.ToString());
+            aggregateMessage.Headers.Add("X-Signature", aggSignature);
+
+            using var aggregateResponse = await httpClient.SendAsync(aggregateMessage, linkedCts.Token);
+            if (!aggregateResponse.IsSuccessStatusCode)
+            {
+                var errorResponse = await aggregateResponse.Content.ReadAsStringAsync(linkedCts.Token);
+                throw new HttpRequestException($"AI aggregation service returned status code {aggregateResponse.StatusCode}: {errorResponse}");
+            }
+
+            var aggregateResponseJson = await aggregateResponse.Content.ReadAsStringAsync(linkedCts.Token);
+            using var aggregateDoc = JsonDocument.Parse(aggregateResponseJson);
+            var finalReportJson = aggregateDoc.RootElement.GetProperty("reportData").GetString();
 
             if (string.IsNullOrEmpty(finalReportJson))
             {
-                if (job.Status == "Failed")
-                {
-                    throw new InvalidOperationException(job.ErrorMessage ?? "AI microservice analysis failed.");
-                }
-                throw new InvalidOperationException("AI microservice stream ended without returning final report data.");
+                throw new InvalidOperationException("Aggregation response did not contain reportData.");
             }
 
-            // 6. Save Report
-            await UpdateJobStateAsync(job, "SavingReport", 95.0, "Saving repository report...", linkedCts.Token);
+            // 7. Save Report
+            await UpdateJobStateAsync(job, "SavingReport", 97.0, "Saving repository report...", linkedCts.Token);
 
             var report = new AnalysisReport
             {
@@ -339,19 +690,33 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             };
 
             _context.AnalysisReports.Add(report);
-            
-            // Mark repository as verified based on score in final report
+
+            // Mark repository as verified based on trust confidence in final report
             using var reportDoc = JsonDocument.Parse(finalReportJson);
-            if (reportDoc.RootElement.TryGetProperty("scoring", out var scoringProp) && 
-                scoringProp.TryGetProperty("final_score", out var finalScoreProp))
+            JsonElement confidenceProp = default;
+            bool hasConfidence = false;
+
+            if (reportDoc.RootElement.TryGetProperty("ai_conclusions", out var aiConclusionsProp) &&
+                aiConclusionsProp.TryGetProperty("trust", out var trustProp) &&
+                trustProp.TryGetProperty("confidence", out confidenceProp))
             {
-                var finalScore = finalScoreProp.GetDouble();
-                repo.IsVerified = finalScore >= 50.0;
-                repo.TrustScore = finalScore / 100.0;
+                hasConfidence = true;
+            }
+            else if (reportDoc.RootElement.TryGetProperty("trust", out var rootTrustProp) &&
+                     rootTrustProp.TryGetProperty("confidence", out confidenceProp))
+            {
+                hasConfidence = true;
+            }
+
+            if (hasConfidence)
+            {
+                var confidence = confidenceProp.GetDouble();
+                repo.IsVerified = confidence >= 50.0;
+                repo.TrustScore = confidence / 100.0;
                 repo.LastSyncedAt = _timeProvider.GetUtcNow();
             }
 
-            // 7. Complete Job
+            // 8. Complete Job
             job.Status = "Completed";
             job.Progress = 100.0;
             job.CurrentStep = "Completed";
@@ -366,7 +731,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         catch (OperationCanceledException) when (linkedCts.Token.IsCancellationRequested)
         {
             _logger.LogWarning("Repository analysis job {JobId} timed out or was cancelled.", jobId);
-            
+
             // Re-fetch job status to verify if it was manually cancelled
             var freshJob = await _context.AnalysisJobs.FirstOrDefaultAsync(j => j.Id == jobId);
             if (freshJob != null && freshJob.Status != "Cancelled")
@@ -410,6 +775,393 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     await _context.SaveChangesAsync(CancellationToken.None);
                 }
             }
+        }
+    }
+
+    public async Task<bool> RetryTaskAsync(Guid userId, Guid jobId, Guid taskId)
+    {
+        var job = await _context.AnalysisJobs
+            .FirstOrDefaultAsync(j => j.Id == jobId && j.UserId == userId);
+
+        if (job == null) return false;
+
+        // Only allow retrying if the job is in a terminal state (Failed, Completed, Cancelled, TimedOut)
+        var terminalStates = new[] { "Completed", "Failed", "Cancelled", "TimedOut" };
+        if (!terminalStates.Contains(job.Status))
+        {
+            return false;
+        }
+
+        var targetTask = await _context.AnalysisTasks
+            .FirstOrDefaultAsync(t => t.Id == taskId && t.JobId == jobId);
+
+        if (targetTask == null) return false;
+
+        // Perform dependency resetting based on target task type
+        var tasksToReset = new List<AnalysisTask>();
+        if (targetTask.TaskType == "RepoStructure")
+        {
+            // Reset ALL tasks to Queued
+            tasksToReset = await _context.AnalysisTasks
+                .Where(t => t.JobId == jobId)
+                .ToListAsync();
+        }
+        else
+        {
+            // Reset the target task and the RepositorySummary task
+            tasksToReset = await _context.AnalysisTasks
+                .Where(t => t.JobId == jobId && (t.Id == taskId || t.TaskType == "RepositorySummary"))
+                .ToListAsync();
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        foreach (var task in tasksToReset)
+        {
+            task.Status = "Queued";
+            task.Progress = 0.0;
+            task.StartedAt = null;
+            task.CompletedAt = null;
+            task.DurationMs = null;
+            task.ErrorMessage = null;
+            task.PromptTokens = null;
+            task.CompletionTokens = null;
+            task.CacheReadTokens = null;
+            task.CacheWriteTokens = null;
+            task.EstimatedCostUsd = null;
+            task.ModelName = null;
+            task.LastUpdatedUtc = now;
+
+            if (task.Id == taskId)
+            {
+                task.RetryCount += 1;
+            }
+
+            // Remove existing results for the tasks being reset
+            var existingResult = await _context.AnalysisTaskResults
+                .FirstOrDefaultAsync(r => r.TaskId == task.Id);
+            if (existingResult != null)
+            {
+                var archiveEvent = new AnalysisTaskEvent
+                {
+                    Id = Guid.CreateVersion7(),
+                    TaskId = task.Id,
+                    Timestamp = _timeProvider.GetUtcNow(),
+                    Level = "Info",
+                    EventType = "ResultVersionArchived",
+                    Message = $"Archived task result data before retry. RunNumber/Retry: {task.RetryCount}.",
+                    Metadata = existingResult.ResultData
+                };
+                _context.AnalysisTaskEvents.Add(archiveEvent);
+                _context.AnalysisTaskResults.Remove(existingResult);
+            }
+
+            // Save reset event
+            await SaveTaskEventAsync(task.Id, "Info", "StepStarted", $"Task reset due to retry of {targetTask.TaskType}.");
+        }
+
+        // Reset the job state so it runs again
+        job.Status = "Queued";
+        job.Progress = 0.0;
+        job.CurrentStep = "Queued";
+        job.ErrorMessage = null;
+        job.LastUpdatedUtc = now;
+
+        await SaveEventAsync(jobId, "Queued", 0.0, $"Retry initiated for task {targetTask.TaskType}.");
+        await _context.SaveChangesAsync();
+
+        // Broadcast to Redis
+        await PublishProgressEventAsync(jobId, "Queued", "Queued", 0.0, $"Retry initiated for task {targetTask.TaskType}.");
+
+        // Re-enqueue job
+        await _queue.EnqueueJobAsync(jobId);
+
+        return true;
+    }
+
+    public async Task<IEnumerable<AnalysisTaskEventDto>> GetTaskEventsAsync(Guid userId, Guid jobId, Guid taskId)
+    {
+        var taskExists = await _context.AnalysisTasks
+            .AnyAsync(t => t.Id == taskId && t.JobId == jobId && t.Job.UserId == userId);
+
+        if (!taskExists)
+        {
+            return Enumerable.Empty<AnalysisTaskEventDto>();
+        }
+
+        var events = await _context.AnalysisTaskEvents
+            .Where(e => e.TaskId == taskId)
+            .OrderBy(e => e.Timestamp)
+            .Select(e => new AnalysisTaskEventDto(
+                e.Id,
+                e.TaskId,
+                e.Timestamp,
+                e.Level,
+                e.EventType,
+                e.Message,
+                e.Metadata
+            ))
+            .ToListAsync();
+
+        return events;
+    }
+
+    public async Task<string?> GetJobSnapshotAsync(Guid userId, Guid jobId)
+    {
+        var job = await _context.AnalysisJobs
+            .FirstOrDefaultAsync(j => j.Id == jobId && j.UserId == userId);
+
+        if (job == null) return null;
+
+        // If completed, return the final persisted report directly
+        if (job.Status == "Completed")
+        {
+            var report = await _context.AnalysisReports
+                .Where(r => r.JobId == jobId)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .FirstOrDefaultAsync();
+            if (report != null)
+            {
+                return report.ReportData;
+            }
+        }
+
+        // Otherwise, fetch all completed task results for this job and aggregate them dynamically
+        var completedResults = await _context.AnalysisTaskResults
+            .Include(r => r.Task)
+            .Where(r => r.Task.JobId == jobId && r.Task.Status == "Completed")
+            .ToListAsync();
+
+        var repo = await _context.SourceCodeRepositories
+            .FirstOrDefaultAsync(r => r.Id == job.RepositoryId);
+
+        // If RepoStructure is not completed, we cannot aggregate. Return a basic default report.
+        var hasRepoStructure = completedResults.Any(r => r.Task.TaskType == "RepoStructure");
+        if (!hasRepoStructure)
+        {
+            return GetDefaultProgressReport(job, repo);
+        }
+
+        try
+        {
+            var partialResultsDict = new Dictionary<string, object>();
+            foreach (var res in completedResults)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(res.ResultData);
+                    partialResultsDict[res.Task.TaskType] = doc.RootElement.Clone();
+                }
+                catch (JsonException)
+                {
+                    _logger.LogWarning("Failed to parse result data as JSON for task {TaskType} in snapshot job {JobId}", res.Task.TaskType, jobId);
+                }
+            }
+
+            var aggregatePayload = new
+            {
+                jobId = jobId.ToString(),
+                repositoryId = job.RepositoryId.ToString(),
+                repoOwner = repo?.Owner ?? "",
+                repoName = repo?.Name ?? "",
+                partialResults = partialResultsDict,
+                deleteWorkspace = false
+            };
+
+            var aggregatePayloadJson = JsonSerializer.Serialize(aggregatePayload);
+            var aggregatePath = "/api/v1/analysis/task/aggregate";
+
+            var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, aggregatePath)
+            {
+                Content = new StringContent(aggregatePayloadJson, Encoding.UTF8, "application/json")
+            };
+
+            var (aggSignature, aggTimestamp, aggNonce) = _hmacService.CreateSignatureHeaders("POST", aggregatePath, aggregatePayloadJson);
+            requestMessage.Headers.Add("X-Client-Id", "cverify-core");
+            requestMessage.Headers.Add("X-Timestamp", aggTimestamp);
+            requestMessage.Headers.Add("X-Nonce", aggNonce);
+            requestMessage.Headers.Add("X-Correlation-Id", jobId.ToString());
+            requestMessage.Headers.Add("X-Signature", aggSignature);
+
+            using var aggregateResponse = await httpClient.SendAsync(requestMessage);
+            if (!aggregateResponse.IsSuccessStatusCode)
+            {
+                var errorResponse = await aggregateResponse.Content.ReadAsStringAsync();
+                _logger.LogWarning("AI aggregation service returned status code {StatusCode} during snapshot for job {JobId}: {ErrorResponse}. Falling back to default progress report.", 
+                    aggregateResponse.StatusCode, jobId, errorResponse);
+                return GetDefaultProgressReport(job, repo);
+            }
+
+            var aggregateResponseJson = await aggregateResponse.Content.ReadAsStringAsync();
+            using var aggregateDoc = JsonDocument.Parse(aggregateResponseJson);
+            var reportData = aggregateDoc.RootElement.GetProperty("reportData").GetString();
+            return reportData;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error aggregating dynamic snapshot for job {JobId}. Falling back to default progress report.", jobId);
+            return GetDefaultProgressReport(job, repo);
+        }
+    }
+
+    private string GetDefaultProgressReport(AnalysisJob job, SourceCodeRepository? repo)
+    {
+        var defaultReport = new
+        {
+            schemaVersion = "evidence-intelligence-v2",
+            facts = new
+            {
+                repo = new
+                {
+                    id = job.RepositoryId.ToString(),
+                    name = repo?.Name ?? "",
+                    full_name = repo != null ? $"{repo.Owner}/{repo.Name}" : "",
+                    url = repo != null ? $"https://github.com/{repo.Owner}/{repo.Name}" : "",
+                    description = (string?)null,
+                    fork = false,
+                    languages = new Dictionary<string, double>()
+                },
+                git_metrics = new
+                {
+                    total_commits = 0,
+                    user_commit_ratio = 0.0,
+                    is_primary_author = false,
+                    bus_factor = 0,
+                    active_contributors = 0,
+                    contributor_distribution = Array.Empty<object>()
+                },
+                quality_metrics = new
+                {
+                    files_scanned = 0,
+                    files_sampled = 0,
+                    skipped_files = 0,
+                    coverage_pct = 0.0,
+                    prompt_cache_efficiency = 0.0
+                }
+            },
+            ai_conclusions = new
+            {
+                classification = new
+                {
+                    primary_type = "Unclassified",
+                    all_types = Array.Empty<string>(),
+                    complexity = "low",
+                    benchmark_group = "unclassified",
+                    classification_rationale = "Analysis is in progress...",
+                    sampled_files = Array.Empty<string>(),
+                    ignored_files_count = 0,
+                    confidence_factors = Array.Empty<string>()
+                },
+                evidence_points = new
+                {
+                    total = 0,
+                    breakdown = new Dictionary<string, int>()
+                },
+                trust = new
+                {
+                    classification = "unclassified",
+                    confidence = 0.0,
+                    rule_flags = Array.Empty<string>(),
+                    ai_findings = Array.Empty<string>(),
+                    explanation = "Analysis is in progress..."
+                },
+                positioning = new
+                {
+                    benchmark_group = "unclassified",
+                    percentile_rank = 0,
+                    peer_group_size = 0,
+                    relative_strengths = Array.Empty<string>()
+                },
+                profile = new
+                {
+                    technologies = Array.Empty<object>(),
+                    skills = new Dictionary<string, List<string>>(),
+                    architecture = new
+                    {
+                        patterns = Array.Empty<string>(),
+                        explanation = "Analysis is in progress..."
+                    },
+                    engineering_practices = new
+                    {
+                        testing = new { frameworks = Array.Empty<string>(), has_tests = false, detail = "" },
+                        observability = new { logging_configured = false, metrics_configured = false, detail = "" },
+                        cicd = new { configured = false, providers = Array.Empty<string>() }
+                    }
+                },
+                findings = Array.Empty<object>(),
+                narrative = new
+                {
+                    recruiter_summary = "Repository analysis is in progress. Check back soon for results.",
+                    top_strengths = Array.Empty<object>(),
+                    limitations = Array.Empty<object>()
+                }
+            }
+        };
+        return JsonSerializer.Serialize(defaultReport);
+    }
+
+    private async Task SaveTaskEventAsync(Guid taskId, string level, string eventType, string message, string? metadata = null)
+    {
+        var ev = new AnalysisTaskEvent
+        {
+            Id = Guid.CreateVersion7(),
+            TaskId = taskId,
+            Timestamp = _timeProvider.GetUtcNow(),
+            Level = level,
+            EventType = eventType,
+            Message = message,
+            Metadata = metadata
+        };
+        _context.AnalysisTaskEvents.Add(ev);
+    }
+
+    private async Task PublishTaskProgressEventAsync(
+        Guid jobId, 
+        Guid taskId, 
+        string taskType, 
+        string taskStatus, 
+        double taskProgress, 
+        string jobStatus, 
+        double jobProgress, 
+        string message,
+        long? durationMs = null,
+        int? promptTokens = null,
+        int? completionTokens = null,
+        int? cacheReadTokens = null,
+        int? cacheWriteTokens = null,
+        decimal? estimatedCostUsd = null,
+        string? modelName = null)
+    {
+        try
+        {
+            var eventPayload = new
+            {
+                jobId = jobId,
+                taskId = taskId,
+                taskType = taskType,
+                taskStatus = taskStatus,
+                taskProgress = taskProgress,
+                status = jobStatus,
+                step = taskType,
+                progress = jobProgress,
+                message = message,
+                timestamp = _timeProvider.GetUtcNow().ToString("o"),
+                taskDurationMs = durationMs,
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                cacheReadTokens = cacheReadTokens,
+                cacheWriteTokens = cacheWriteTokens,
+                estimatedCostUsd = (double?)estimatedCostUsd,
+                modelName = modelName
+            };
+            var json = JsonSerializer.Serialize(eventPayload);
+
+            var sub = _redis.GetSubscriber();
+            await sub.PublishAsync($"repository:analysis:progress:{jobId}", json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish task progress event to Redis Pub/Sub for job {JobId}", jobId);
         }
     }
 
@@ -497,5 +1249,34 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             job.CreatedAtUtc,
             job.LastUpdatedUtc
         );
+    }
+
+    private class TaskExecuteResponse
+    {
+        public string Status { get; set; } = null!;
+        public string? ErrorMessage { get; set; }
+        public string? SchemaVersion { get; set; }
+        public string? ResultData { get; set; }
+        public TaskTelemetry? Telemetry { get; set; }
+        public List<TaskEvent>? Events { get; set; }
+    }
+
+    private class TaskTelemetry
+    {
+        public int? PromptTokens { get; set; }
+        public int? CompletionTokens { get; set; }
+        public int? CacheReadTokens { get; set; }
+        public int? CacheWriteTokens { get; set; }
+        public decimal? EstimatedCostUsd { get; set; }
+        public string? ModelName { get; set; }
+    }
+
+    private class TaskEvent
+    {
+        public string Timestamp { get; set; } = null!;
+        public string? Level { get; set; }
+        public string? EventType { get; set; }
+        public string Message { get; set; } = null!;
+        public string? Metadata { get; set; }
     }
 }

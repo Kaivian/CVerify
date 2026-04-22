@@ -43,6 +43,30 @@ public static class DbInitializer
         if (shouldReset)
         {
             const string dropSql = @"
+                DROP TABLE IF EXISTS analysis_task_events CASCADE;
+                DROP TABLE IF EXISTS analysis_task_results CASCADE;
+                DROP TABLE IF EXISTS analysis_tasks CASCADE;
+                DROP TABLE IF EXISTS analysis_reports CASCADE;
+                DROP TABLE IF EXISTS analysis_job_events CASCADE;
+                DROP TABLE IF EXISTS analysis_jobs CASCADE;
+                DROP TABLE IF EXISTS source_code_repositories CASCADE;
+
+                DROP TABLE IF EXISTS profile_activity_logs CASCADE;
+                DROP TABLE IF EXISTS profile_attachments CASCADE;
+                DROP TABLE IF EXISTS social_links CASCADE;
+                DROP TABLE IF EXISTS user_skills CASCADE;
+                DROP TABLE IF EXISTS user_preferred_locations CASCADE;
+                DROP TABLE IF EXISTS user_employment_preferences CASCADE;
+                DROP TABLE IF EXISTS career_preferences CASCADE;
+                
+                DROP TABLE IF EXISTS academic_achievements CASCADE;
+                DROP TABLE IF EXISTS education_entries CASCADE;
+                DROP TABLE IF EXISTS work_experience_links CASCADE;
+                DROP TABLE IF EXISTS work_experience_technologies CASCADE;
+                DROP TABLE IF EXISTS work_experience_achievements CASCADE;
+                DROP TABLE IF EXISTS work_experience_entries CASCADE;
+                DROP TABLE IF EXISTS user_profiles CASCADE;
+
                 DROP TABLE IF EXISTS representative_approval_votes CASCADE;
                 DROP TABLE IF EXISTS representative_rotation_requests CASCADE;
                 DROP TABLE IF EXISTS representative_authority_histories CASCADE;
@@ -1422,6 +1446,54 @@ public static class DbInitializer
                 CONSTRAINT fk_analysis_reports_repository FOREIGN KEY (repository_id) REFERENCES source_code_repositories(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_analysis_reports_repository_id ON analysis_reports(repository_id);
+
+            -- Stores background analysis tasks
+            CREATE TABLE IF NOT EXISTS analysis_tasks (
+                id UUID PRIMARY KEY,
+                job_id UUID NOT NULL,
+                task_type VARCHAR(50) NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'Queued',
+                progress DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                started_at TIMESTAMP WITH TIME ZONE,
+                completed_at TIMESTAMP WITH TIME ZONE,
+                duration_ms BIGINT,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                error_message VARCHAR(2000),
+                prompt_tokens INTEGER,
+                completion_tokens INTEGER,
+                cache_read_tokens INTEGER,
+                cache_write_tokens INTEGER,
+                estimated_cost_usd NUMERIC(10, 6),
+                model_name VARCHAR(100),
+                metadata JSONB,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                last_updated_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_analysis_tasks_job FOREIGN KEY (job_id) REFERENCES analysis_jobs(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_analysis_tasks_job_id ON analysis_tasks(job_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_analysis_tasks_job_id_task_type ON analysis_tasks(job_id, task_type);
+
+            -- Stores results of completed analysis tasks
+            CREATE TABLE IF NOT EXISTS analysis_task_results (
+                task_id UUID PRIMARY KEY,
+                schema_version VARCHAR(50) NOT NULL DEFAULT '2.0.0',
+                result_data JSONB NOT NULL,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_analysis_task_results_task FOREIGN KEY (task_id) REFERENCES analysis_tasks(id) ON DELETE CASCADE
+            );
+
+            -- Stores detailed events for active analysis tasks
+            CREATE TABLE IF NOT EXISTS analysis_task_events (
+                id UUID PRIMARY KEY,
+                task_id UUID NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                level VARCHAR(20) NOT NULL DEFAULT 'Info',
+                event_type VARCHAR(50) NOT NULL,
+                message VARCHAR(2000) NOT NULL,
+                metadata JSONB,
+                CONSTRAINT fk_analysis_task_events_task FOREIGN KEY (task_id) REFERENCES analysis_tasks(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_analysis_task_events_task_id ON analysis_task_events(task_id);
 
             -- Optimized Indexes
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);

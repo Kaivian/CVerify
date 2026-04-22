@@ -25,6 +25,26 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
     narrative = { recruiter_summary: "", top_strengths: [], limitations: [] }
   } = analysis;
 
+  const getClassificationBadge = (repoType?: string) => {
+    if (!repoType) return null;
+    switch (repoType) {
+      case "ORIGINAL_WORK":
+        return <Chip size="sm" color="success" variant="soft" className="h-5 px-2 text-[8px] font-extrabold uppercase tracking-wider">Original Work</Chip>;
+      case "FORK_NO_CONTRIBUTION":
+        return <Chip size="sm" color="default" variant="soft" className="h-5 px-2 text-[8px] font-extrabold uppercase tracking-wider">Ecosystem Familiarity</Chip>;
+      case "FORK_UPSTREAM_CONTRIBUTION":
+        return <Chip size="sm" color="success" variant="soft" className="h-5 px-2 text-[8px] font-extrabold uppercase tracking-wider">Open Source Contributor</Chip>;
+      case "POSSIBLE_CLONE":
+        return <Chip size="sm" color="danger" variant="soft" className="h-5 px-2 text-[8px] font-extrabold uppercase tracking-wider">⚠ Suspicious Clone</Chip>;
+      case "ORG_PUBLIC":
+        return <Chip size="sm" color="accent" variant="soft" className="h-5 px-2 text-[8px] font-extrabold uppercase tracking-wider">Org Public</Chip>;
+      case "ORG_PRIVATE_SELF_DECLARE":
+        return <Chip size="sm" color="warning" variant="soft" className="h-5 px-2 text-[8px] font-extrabold uppercase tracking-wider">Self-Declared</Chip>;
+      default:
+        return null;
+    }
+  };
+
   const totalFlagsCount = trust.rule_flags.length + trust.ai_findings.length;
 
   return (
@@ -44,14 +64,17 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
             <ShieldCheck className="size-6 text-success" />
           )}
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 flex-1">
           <Typography type="body-sm" className="font-extrabold uppercase tracking-wider text-[10px] text-muted">
             Verification Verdict
           </Typography>
-          <Typography type="body-sm" className="font-extrabold text-foreground text-sm capitalize">
-            {trust.classification.replace(/_/g, " ")}
-          </Typography>
-          <Typography type="body-xs" className="text-muted leading-relaxed mt-0.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Typography type="body-sm" className="font-extrabold text-foreground text-sm capitalize">
+              {trust.classification.replace(/_/g, " ")}
+            </Typography>
+            {getClassificationBadge(analysis.repo.repo_type)}
+          </div>
+          <Typography type="body-xs" className="text-muted leading-relaxed mt-1">
             {narrative?.recruiter_summary || trust.explanation}
           </Typography>
         </div>

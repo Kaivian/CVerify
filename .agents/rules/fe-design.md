@@ -1,5 +1,5 @@
 ---
-trigger: model_decision
+trigger: always_on
 description: Apply when modifying frontend pages, layouts, components, styling, or UX. Prioritize existing patterns, HeroUI components, design tokens, minimal customization, clean classNames, and strictly limit changes to the requested scope.
 ---
 

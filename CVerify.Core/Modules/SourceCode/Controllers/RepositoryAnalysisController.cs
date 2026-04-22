@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
@@ -98,6 +99,41 @@ public class RepositoryAnalysisController : ControllerBase
         return Ok(job);
     }
 
+    [HttpGet("repository-analyses/jobs/{jobId}/snapshot")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetJobSnapshot(Guid jobId, CancellationToken cancellationToken)
+    {
+        var snapshot = await _analysisService.GetJobSnapshotAsync(CurrentUserId, jobId);
+        if (snapshot == null)
+        {
+            return NotFound(new { Message = "Job snapshot not found or access denied." });
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(snapshot);
+            using var stream = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(stream))
+            {
+                writer.WriteStartObject();
+                writer.WriteString("jobId", jobId.ToString());
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    prop.WriteTo(writer);
+                }
+                writer.WriteEndObject();
+            }
+            var resultJson = System.Text.Encoding.UTF8.GetString(stream.ToArray());
+            return Content(resultJson, "application/json");
+        }
+        catch
+        {
+            return Content(snapshot, "application/json");
+        }
+    }
+
     [HttpGet("repository-analyses/jobs/{jobId}/events")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<AnalysisJobEventDto>))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -125,16 +161,53 @@ public class RepositoryAnalysisController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetLatestReport(Guid repoId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetLatestReport(
+        Guid repoId,
+        [FromServices] ApplicationDbContext context,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var report = await _analysisService.GetLatestReportAsync(CurrentUserId, repoId);
+            var repository = await context.SourceCodeRepositories
+                .Include(r => r.AuthProvider)
+                .FirstOrDefaultAsync(r => r.Id == repoId && r.AuthProvider.UserId == CurrentUserId && r.AuthProvider.DeletedAt == null, cancellationToken);
+
+            if (repository == null)
+            {
+                return NotFound(new { Message = "Repository not found or access denied." });
+            }
+
+            var report = await context.AnalysisReports
+                .Where(r => r.RepositoryId == repoId)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+
             if (report == null)
             {
                 return NotFound(new { Message = "No completed analysis report found for this repository." });
             }
-            return Content(report, "application/json");
+
+            try
+            {
+                using var doc = JsonDocument.Parse(report.ReportData);
+                using var stream = new MemoryStream();
+                using (var writer = new Utf8JsonWriter(stream))
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("jobId", report.JobId.ToString());
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        prop.WriteTo(writer);
+                    }
+                    writer.WriteEndObject();
+                }
+                var resultJson = System.Text.Encoding.UTF8.GetString(stream.ToArray());
+                return Content(resultJson, "application/json");
+            }
+            catch
+            {
+                return Content(report.ReportData, "application/json");
+            }
         }
         catch (KeyNotFoundException ex)
         {
@@ -239,5 +312,29 @@ public class RepositoryAnalysisController : ControllerBase
         {
             await sub.UnsubscribeAsync(channel, RedisMessageHandler);
         }
+    }
+
+    [HttpPost("repository-analyses/jobs/{jobId}/tasks/{taskId}/retry")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RetryTask(Guid jobId, Guid taskId, CancellationToken cancellationToken)
+    {
+        var success = await _analysisService.RetryTaskAsync(CurrentUserId, jobId, taskId);
+        if (!success)
+        {
+            return BadRequest(new { Message = "Task could not be retried. The job might be currently running, task/job does not exist, or does not belong to you." });
+        }
+        return Ok(new { Message = "Task retry initiated successfully." });
+    }
+
+    [HttpGet("repository-analyses/jobs/{jobId}/tasks/{taskId}/events")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<AnalysisTaskEventDto>))]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetTaskEvents(Guid jobId, Guid taskId, CancellationToken cancellationToken)
+    {
+        var events = await _analysisService.GetTaskEventsAsync(CurrentUserId, jobId, taskId);
+        return Ok(events);
     }
 }

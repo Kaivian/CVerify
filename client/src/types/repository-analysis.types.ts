@@ -14,6 +14,8 @@ export interface RepoInfo {
   forks: number;
   branches: number;
   open_prs: number;
+  repo_type?: string;
+  confidence_ceiling?: number;
 }
 
 export interface RepositoryEvidenceItem {
@@ -30,7 +32,9 @@ export interface RepositoryEvidenceFinding {
   finding: string;
   confidence: number;
   evidence: RepositoryEvidenceItem[];
+  evidence_signals?: string[];
   explanation: string;
+  impact?: "positive" | "warning" | "critical";
 }
 
 export interface RepositoryClassification {
@@ -86,16 +90,22 @@ export interface RepositoryProfileDetail {
     testing: {
       frameworks: string[];
       has_tests: boolean;
+      confidence: number;
+      evidence: string[];
       detail: string;
     };
     observability: {
       logging_configured: boolean;
       metrics_configured: boolean;
+      confidence: number;
+      evidence: string[];
       detail: string;
     };
     cicd: {
       configured: boolean;
       providers: string[];
+      confidence: number;
+      evidence: string[];
     };
   };
 }
@@ -112,7 +122,73 @@ export interface RepositoryNarrative {
   }>;
 }
 
+export interface ConfidenceMetadata {
+  confidence_score: number;       // 0 to 100
+  completeness_ratio: number;     // 0.0 to 1.0
+  evidence_coverage_count: number;// number of citations/references
+}
+
+export interface ContributorDistributionItem {
+  author: string;
+  email: string;
+  commits: number;
+  pct: number;
+}
+
+export interface GitMetrics {
+  total_commits: number;
+  user_commit_ratio: number;
+  is_primary_author: boolean;
+  bus_factor: number;
+  active_contributors: number;
+  contributor_distribution: ContributorDistributionItem[];
+}
+
+export interface QualityMetrics {
+  files_scanned: number;
+  files_sampled: number;
+  skipped_files: number;
+  coverage_pct: number;
+  prompt_cache_efficiency: number;
+}
+
+export interface RepositoryAnalysisFacts {
+  repo: RepoInfo;
+  git_metrics: GitMetrics;
+  quality_metrics: QualityMetrics;
+}
+
+export interface RiskAssessment {
+  risk_level: "Low" | "Medium" | "High";
+  risk_score: number;
+  critical_findings_count: number;
+  warning_findings_count: number;
+  explanation: string;
+}
+
+export interface RepositoryAnalysisAiConclusions {
+  classification: RepositoryClassification & {
+    classification_rationale?: string;
+    sampled_files?: string[];
+    ignored_files_count?: number;
+    confidence_factors?: string[];
+  };
+  evidence_points: EvidencePoints;
+  trust: TrustProfile;
+  risk_assessment?: RiskAssessment;
+  positioning: ComparativePositioning;
+  profile: RepositoryProfileDetail;
+  findings: RepositoryEvidenceFinding[];
+  narrative?: RepositoryNarrative;
+}
+
 export interface RepositoryAnalysis {
+  jobId?: string;
+  schemaVersion?: string;
+  facts?: RepositoryAnalysisFacts;
+  ai_conclusions?: RepositoryAnalysisAiConclusions;
+  
+  // For backwards compatibility:
   repo: RepoInfo;
   classification: RepositoryClassification;
   evidence_points: EvidencePoints;
@@ -121,7 +197,7 @@ export interface RepositoryAnalysis {
   positioning: ComparativePositioning;
   profile: RepositoryProfileDetail;
   findings: RepositoryEvidenceFinding[];
-  narrative?: RepositoryNarrative; // Decoupled and loaded dynamically
+  narrative?: RepositoryNarrative;
 }
 
 export interface AnalysisJob {
@@ -137,6 +213,7 @@ export interface AnalysisJob {
   errorMessage?: string;
   createdAtUtc: string;
   lastUpdatedUtc: string;
+  tasks?: AnalysisTask[];
 }
 
 export interface AnalysisJobEvent {
@@ -146,5 +223,38 @@ export interface AnalysisJobEvent {
   progress: number;
   message: string;
   createdAtUtc: string;
+}
+
+export interface AnalysisTask {
+  id: string;
+  jobId: string;
+  taskType: string;
+  status: string; // Queued, Running, Completed, Failed, Retrying
+  progress: number;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  retryCount: number;
+  errorMessage?: string;
+  promptTokens?: number;
+  completionTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  estimatedCostUsd?: number;
+  modelName?: string;
+  schemaVersion?: string;
+  resultData?: string;
+  confidence_meta?: ConfidenceMetadata;
+  createdAtUtc: string;
+}
+
+export interface AnalysisTaskEvent {
+  id: string;
+  taskId: string;
+  timestamp: string;
+  level: string; // Info, Warning, Error, Debug
+  eventType: string; // StepStarted, ProgressUpdate, FileAnalyzed, SystemLog, ErrorOccurred
+  message: string;
+  metadata?: string;
 }
 

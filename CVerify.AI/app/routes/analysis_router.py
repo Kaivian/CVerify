@@ -1,7 +1,7 @@
 import json
 import logging
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from app.middleware.hmac_auth import verify_hmac_signature
 from app.orchestrators.github_analysis_orchestrator import GitHubAnalysisOrchestrator
@@ -17,6 +17,23 @@ class AnalysisRequest(BaseModel):
     encryptedToken: str
     defaultBranch: str
 
+
+class TaskExecutionRequest(BaseModel):
+    jobId: str
+    taskType: str
+    repositoryId: str
+    repoName: str
+    repoOwner: str
+    encryptedToken: str
+    defaultBranch: str
+
+class AggregationRequest(BaseModel):
+    jobId: str
+    repositoryId: str
+    repoOwner: str
+    repoName: str
+    partialResults: dict
+    deleteWorkspace: bool = False
 
 @router.post("/api/v1/analysis/orchestrate/stream")
 async def orchestrate_stream(
@@ -35,7 +52,8 @@ async def orchestrate_stream(
                 repo_name=request_data.repoName,
                 repo_owner=request_data.repoOwner,
                 encrypted_token=request_data.encryptedToken,
-                default_branch=request_data.defaultBranch
+                default_branch=request_data.defaultBranch,
+                correlation_id=correlation_id
             ):
                 yield f"data: {json.dumps(progress_event)}\n\n"
             yield "data: [DONE]\n\n"
@@ -49,3 +67,52 @@ async def orchestrate_stream(
             yield f"data: {json.dumps(err_payload)}\n\n"
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
+
+@router.post("/api/v1/analysis/task/execute")
+async def execute_task(
+    request_data: TaskExecutionRequest,
+    correlation_id: str = Depends(verify_hmac_signature)
+):
+    extra_log = {"correlation_id": correlation_id, "job_id": request_data.jobId, "task_type": request_data.taskType}
+    logger.info(f"Received execute task request", extra=extra_log)
+    
+    orchestrator = GitHubAnalysisOrchestrator()
+    result = await orchestrator.execute_task(
+        task_type=request_data.taskType,
+        job_id=request_data.jobId,
+        repository_id=request_data.repositoryId,
+        repo_owner=request_data.repoOwner,
+        repo_name=request_data.repoName,
+        encrypted_token=request_data.encryptedToken,
+        default_branch=request_data.defaultBranch,
+        correlation_id=correlation_id
+    )
+    return result
+
+@router.post("/api/v1/analysis/task/aggregate")
+async def aggregate_results(
+    request_data: AggregationRequest,
+    correlation_id: str = Depends(verify_hmac_signature)
+):
+    extra_log = {"correlation_id": correlation_id, "job_id": request_data.jobId}
+    logger.info(f"Received aggregate results request", extra=extra_log)
+    
+    orchestrator = GitHubAnalysisOrchestrator()
+    try:
+        report = await orchestrator.aggregate_results(
+            job_id=request_data.jobId,
+            repository_id=request_data.repositoryId,
+            repo_owner=request_data.repoOwner,
+            repo_name=request_data.repoName,
+            partial_results=request_data.partialResults,
+            delete_workspace=request_data.deleteWorkspace,
+            correlation_id=correlation_id
+        )
+        return {"status": "Success", "reportData": json.dumps(report)}
+    except Exception as e:
+        logger.warning(f"Failed to aggregate results: {e}", extra=extra_log)
+        return JSONResponse(
+            status_code=400,
+            content={"status": "Failed", "errorMessage": str(e)}
+        )
+
