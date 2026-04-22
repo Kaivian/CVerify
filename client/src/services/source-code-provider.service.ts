@@ -1,6 +1,6 @@
 import { axiosClient } from './axios-client';
-import { PaginatedResult } from '../types/api.types';
-import {
+import type { PaginatedResult } from '../types/api.types';
+import type {
   SourceCodeProvider,
   SourceCodeRepository,
   RepositorySyncJobStatus,

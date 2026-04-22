@@ -308,7 +308,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
           endDate: item.endDate ? new Date(item.endDate).toISOString() : null,
           isCurrentlyWorking: item.isCurrentlyWorking,
           description: item.description,
-          achievements: (item.achievements || []).map((ach: any) => ({
+          achievements: (item.achievements || []).map((ach: { title: string; description: string }) => ({
             title: ach.title,
             description: ach.description,
           })),
@@ -341,10 +341,8 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
       onSaveSuccess();
     } catch (error: unknown) {
       console.error("Failed to save personal settings:", error);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const err = error as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const errMsg = (err as any).response?.data?.message || (err as any).message || "Failed to save personal information.";
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      const errMsg = err.response?.data?.message || err.message || "Failed to save personal information.";
       toast.danger(errMsg);
     }
   };

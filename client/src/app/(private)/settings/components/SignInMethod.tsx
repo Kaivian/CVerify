@@ -17,7 +17,7 @@ import {
 import { Mail, Key, Eye, EyeOff } from "lucide-react";
 import { Google } from "@thesvg/react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import PasswordStrengthMeter from "@/features/auth/components/password-strength-meter";
@@ -61,7 +61,6 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
   } = useAuth();
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [emailLoading, setEmailLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -148,7 +147,7 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
     register,
     handleSubmit,
     reset: resetForm,
-    watch,
+    control,
     setValue,
     trigger,
     getValues,
@@ -163,11 +162,14 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
     },
   });
 
-  const watchNewPassword = watch("newPassword");
+  const watchCurrentPassword = useWatch({ control, name: "currentPassword" });
+  const watchNewPassword = useWatch({ control, name: "newPassword" });
+  const watchConfirmNewPassword = useWatch({ control, name: "confirmNewPassword" });
 
   // Restore cooldown/timer state on mount or refresh
   useEffect(() => {
     if (!user?.id) return;
+    let timerId: NodeJS.Timeout | null = null;
     const storageKey = `cverify:v1:password-recovery:${user.id}`;
     const storedStr = localStorage.getItem(storageKey);
     if (storedStr) {
@@ -178,9 +180,11 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
           const now = Date.now();
           if (until > now) {
             const remaining = Math.ceil((until - now) / 1000);
-            setCooldownRemaining(remaining);
-            setMode("OTP_REQUESTED");
-            setIsFormOpen(true);
+            timerId = setTimeout(() => {
+              setCooldownRemaining(remaining);
+              setMode("OTP_REQUESTED");
+              setIsFormOpen(true);
+            }, 0);
           } else {
             localStorage.removeItem(storageKey);
           }
@@ -189,6 +193,9 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
         console.error("Failed to parse cooldown storage", e);
       }
     }
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
   }, [user?.id]);
 
   // Countdown timer decrement
@@ -439,9 +446,15 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
 
   // Load emails when panel opens
   useEffect(() => {
+    let timerId: NodeJS.Timeout | null = null;
     if (isEmailPanelOpen) {
-      loadLinkedEmails();
+      timerId = setTimeout(() => {
+        loadLinkedEmails();
+      }, 0);
     }
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
   }, [isEmailPanelOpen, loadLinkedEmails]);
 
   // Load linked emails on component mount to keep count accurate
@@ -653,10 +666,10 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
         const res = await fetchConnections();
         if (res.success && res.data) {
           otherGitHubCount = res.data.filter(
-            (c: any) => c.providerName === "github" && c.connected,
+            (c: { providerName: string; connected: boolean }) => c.providerName === "github" && c.connected,
           ).length;
           otherGitLabCount = res.data.filter(
-            (c: any) => c.providerName === "gitlab" && c.connected,
+            (c: { providerName: string; connected: boolean }) => c.providerName === "gitlab" && c.connected,
           ).length;
         }
       } catch (e) {
@@ -1447,14 +1460,14 @@ export const SignInMethod: React.FC<SignInMethodProps> = ({
                     isPending={user?.hasPassword ? isSubmitting : resetLoading}
                     isDisabled={
                       user?.hasPassword
-                        ? !watch("currentPassword") ||
-                          !watch("newPassword") ||
-                          !watch("confirmNewPassword") ||
+                        ? !watchCurrentPassword ||
+                          !watchNewPassword ||
+                          !watchConfirmNewPassword ||
                           !!errors.currentPassword ||
                           !!errors.newPassword ||
                           !!errors.confirmNewPassword
-                        : !watch("newPassword") ||
-                          !watch("confirmNewPassword") ||
+                        : !watchNewPassword ||
+                          !watchConfirmNewPassword ||
                           !!errors.newPassword ||
                           !!errors.confirmNewPassword
                     }

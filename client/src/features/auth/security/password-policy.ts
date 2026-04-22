@@ -148,7 +148,7 @@ export function evaluatePasswordStrength(
   policyId: string = 'default'
 ): PasswordEvaluationResult {
   const policy = passwordPoliciesRegistry[policyId] || passwordPoliciesRegistry.default;
-  const { isValid, passedRules, failedRules } = evaluatePasswordPolicy(password, policyId);
+  const { passedRules, failedRules } = evaluatePasswordPolicy(password, policyId);
   const maxPossibleScore = policy.rules.reduce((acc, r) => acc + (r.weight || 1), 0);
 
   if (!password) {

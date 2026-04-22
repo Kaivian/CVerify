@@ -62,9 +62,10 @@ function ReactivateContent() {
       };
       const target = dashboardMap[user.role] || "/";
       router.replace(target);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Reactivation failed:", err);
-      const errMsg = err.response?.data?.message || "Failed to reactivate account. Token may be expired or invalid.";
+      const axiosError = err as { response?: { data?: { message?: string } } };
+      const errMsg = axiosError.response?.data?.message || "Failed to reactivate account. Token may be expired or invalid.";
       toast.danger("Reactivation Failed", {
         description: errMsg,
       });

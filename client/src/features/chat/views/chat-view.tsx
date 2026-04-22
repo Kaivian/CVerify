@@ -116,7 +116,6 @@ export function ChatView() {
 
   const {
     listRef,
-    focusedIndex,
     setFocusedIndex,
     handleKeyDown: handleRovingKeyDown,
     getTabindex,

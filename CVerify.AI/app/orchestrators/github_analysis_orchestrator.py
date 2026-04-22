@@ -194,6 +194,14 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             if not report_dict["repo"].get("languages"):
                 report_dict["repo"]["languages"] = {t: round(100.0/len(all_techs), 1) for t in all_techs} if all_techs else {"Other": 100.0}
 
+            # Backfill scoring for C# backend compatibility (IsVerified / TrustScore mapping)
+            if "scoring" not in report_dict:
+                confidence = report_dict.get("trust", {}).get("confidence", 100)
+                report_dict["scoring"] = {
+                    "final_score": float(confidence),
+                    "band": "A" if confidence >= 90 else "B" if confidence >= 70 else "C" if confidence >= 50 else "D" if confidence >= 30 else "F"
+                }
+
             yield {
                 "status": "AggregatingResults",
                 "step": "AggregatingResults",

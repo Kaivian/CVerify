@@ -1,7 +1,7 @@
 import React from "react";
 import { Chip } from "@heroui/react";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
-import { AnalysisStatus } from "@/types/repository-analysis.types";
+import type { AnalysisStatus } from "@/types/repository-analysis.types";
 
 interface AnalysisStatusBadgeProps {
   status: AnalysisStatus;
