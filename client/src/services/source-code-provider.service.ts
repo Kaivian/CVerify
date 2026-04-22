@@ -33,5 +33,10 @@ export const sourceCodeProviderApi = {
   fetchSyncStatus: async (jobId: string): Promise<RepositorySyncJobStatus> => {
     const response = await axiosClient.get<RepositorySyncJobStatus>(`/source-code-providers/sync/status/${jobId}`);
     return response.data;
+  },
+
+  fetchCategories: async (): Promise<string[]> => {
+    const response = await axiosClient.get<string[]>('/source-code-providers/repositories/categories');
+    return response.data;
   }
 };

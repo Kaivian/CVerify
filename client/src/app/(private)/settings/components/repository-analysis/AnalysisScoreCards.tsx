@@ -44,7 +44,7 @@ export const AnalysisScoreCards: React.FC<AnalysisScoreCardsProps> = ({
             {classification.primary_type}
           </Typography>
           <span className="text-[10px] text-muted max-w-xs mt-1 block">
-            Complexity: <strong className="capitalize">{classification.complexity}</strong>. Benchmarked against <strong>{classification.benchmark_group.replace("_", " ")}</strong>.
+            Complexity: <strong className="capitalize">{classification.complexity || "medium"}</strong>. Benchmarked against <strong>{classification.benchmark_group?.replace("_", " ") || "repositories"}</strong>.
           </span>
         </Card>
 

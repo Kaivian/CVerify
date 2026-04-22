@@ -456,4 +456,39 @@ Please generate the ownership and trust report. You must strictly match the foll
 Remember to return ONLY the raw JSON string. Do not include markdown code block syntax.
 """
 
+    def get_classification_user_prompt(self, input_data: Any) -> str:
+        repo_name = input_data.get("repo_name", "unknown")
+        repo_owner = input_data.get("repo_owner", "unknown")
+        technologies = input_data.get("technologies", [])
+        files_str = input_data.get("files_str", "")
+
+        schema = """
+{
+    "schemaVersion": "2.0.0",
+    "data": {
+        "primary_type": "string (e.g. Portfolio Website, SaaS Platform, Library, CLI Tool, Game, Mobile App, AI System, Infrastructure Tool, or Unknown. NEVER output 'Fork' here)",
+        "all_types": ["string"],
+        "confidence": 0.0 to 1.0,
+        "evidence": ["string cite specific folder/file structures or dependencies that explain why this type was selected"],
+        "schema_version": "1.0",
+        "classifier_version": "2026.06"
+    }
+}
+"""
+        return f"""
+Please perform a specialized repository semantic domain classification on repository '{repo_owner}/{repo_name}'.
+Your goal is to categorize the project based on its code, structure, configuration files, and primary purposes.
+NOTE: Do NOT categorize as a 'Fork'—if it is a fork but contains library code, categorize it as a 'Library'. If it contains no discernible domain, categorize it as 'Unknown'.
+
+Technologies detected from directory scan: {', '.join(technologies)}
+
+Here are the sampled file contents:
+{files_str}
+
+Please generate a classification report. You must strictly match the following JSON Schema:
+{schema}
+
+Remember to return ONLY the raw JSON string. Do not include markdown code block syntax.
+"""
+
 

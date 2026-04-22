@@ -28,6 +28,8 @@ public record RepositoryDto(
     bool IsVerified,
     double TrustScore,
     string? CustomSettingsJson,
+    string? Classification,
+    string? AuthenticityType,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset LastSyncedAt
 );

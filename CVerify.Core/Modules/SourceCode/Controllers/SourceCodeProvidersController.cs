@@ -54,6 +54,7 @@ public class SourceCodeProvidersController : ControllerBase
         [FromQuery] string? visibility,
         [FromQuery] string? language,
         [FromQuery] string? sort,
+        [FromQuery] string? category,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
@@ -69,10 +70,20 @@ public class SourceCodeProvidersController : ControllerBase
             visibility,
             language,
             sort,
+            category,
             page,
             pageSize);
 
         return Ok(result);
+    }
+
+    [HttpGet("repositories/categories")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(System.Collections.Generic.IEnumerable<string>))]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetRepositoryCategories(CancellationToken cancellationToken)
+    {
+        var categories = await _sourceCodeProviderService.GetDistinctCategoriesAsync(CurrentUserId);
+        return Ok(categories);
     }
 
     [HttpPost("{providerId}/sync")]

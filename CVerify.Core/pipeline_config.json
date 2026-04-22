@@ -3,13 +3,13 @@
   "stages": [
     {
       "taskType": "RepoStructure",
-      "weight": 15.0,
+      "weight": 10.0,
       "prerequisites": [],
-      "providesCapabilities": [ "repo_metadata", "classification" ]
+      "providesCapabilities": [ "repo_metadata" ]
     },
     {
       "taskType": "CommitIntelligence",
-      "weight": 25.0,
+      "weight": 20.0,
       "prerequisites": [ "RepoStructure" ],
       "providesCapabilities": [ "trust_score", "git_metrics" ]
     },
@@ -38,9 +38,15 @@
       "providesCapabilities": [ "security_findings" ]
     },
     {
+      "taskType": "RepositoryClassification",
+      "weight": 10.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "classification" ]
+    },
+    {
       "taskType": "RepositorySummary",
       "weight": 5.0,
-      "prerequisites": [ "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis" ],
+      "prerequisites": [ "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "RepositoryClassification" ],
       "providesCapabilities": [ "narrative_summary", "recommendations" ]
     }
   ]

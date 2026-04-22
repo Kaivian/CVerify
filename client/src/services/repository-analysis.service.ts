@@ -23,11 +23,23 @@ const RepoInfoSchema = z.object({
   confidence_ceiling: z.number().nullish().transform((val) => val ?? 1.0),
 });
 
+const RepositoryAuthenticitySchema = z.object({
+  type: z.string().nullish().transform((val) => val ?? "ORIGINAL_WORK"),
+  confidence_ceiling: z.number().nullish().transform((val) => val ?? 1.0),
+  confidence_modifier: z.number().nullish().transform((val) => val ?? 1.0),
+  rationale: z.string().nullish().transform((val) => val ?? ""),
+  red_flags: z.array(z.string()).nullish().transform((val) => val ?? []),
+});
+
 const RepositoryClassificationSchema = z.object({
   primary_type: z.string().nullish().transform((val) => val ?? "Unclassified"),
   all_types: z.array(z.string()).nullish().transform((val) => val ?? []),
-  complexity: z.enum(["low", "medium", "high"]).catch("medium"),
-  benchmark_group: z.string().nullish().transform((val) => val ?? "unclassified"),
+  confidence: z.number().nullish().transform((val) => val ?? 0.8),
+  evidence: z.array(z.string()).nullish().transform((val) => val ?? []),
+  schema_version: z.string().nullish().transform((val) => val ?? "1.0"),
+  classifier_version: z.string().nullish().transform((val) => val ?? "2026.06"),
+  complexity: z.enum(["low", "medium", "high"]).catch("medium").optional(),
+  benchmark_group: z.string().nullish().transform((val) => val ?? "unclassified").optional(),
 });
 
 const EvidencePointsSchema = z.object({
@@ -169,6 +181,7 @@ const RiskAssessmentSchema = z.object({
 });
 
 const RepositoryAnalysisAiConclusionsSchema = z.object({
+  authenticity: RepositoryAuthenticitySchema.optional(),
   classification: RepositoryClassificationSchema.extend({
     classification_rationale: z.string().optional(),
     sampled_files: z.array(z.string()).optional(),
@@ -199,12 +212,24 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
   if (v && (v.facts || v.ai_conclusions)) {
     const facts = v.facts || {};
     const ai = v.ai_conclusions || {};
+
+    // Auto-backfill authenticity if missing
+    if (!ai.authenticity) {
+      ai.authenticity = {
+        type: facts.repo?.repo_type ?? v.repo?.repo_type ?? "ORIGINAL_WORK",
+        confidence_ceiling: facts.repo?.confidence_ceiling ?? v.repo?.confidence_ceiling ?? 1.0,
+        confidence_modifier: 1.0,
+        rationale: ai.classification?.classification_rationale ?? "",
+        red_flags: ai.classification?.confidence_factors ?? []
+      };
+    }
     
     return {
       schemaVersion: v.schemaVersion || "evidence-intelligence-v2",
       jobId: v.jobId,
       facts,
       ai_conclusions: ai,
+      authenticity: ai.authenticity,
       repo: facts.repo || v.repo,
       classification: ai.classification || v.classification,
       evidence_points: ai.evidence_points || v.evidence_points,
@@ -224,6 +249,14 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
       narrative: ai.narrative || v.narrative,
     };
   } else if (v) {
+    const legacyAuthenticity = {
+      type: v.repo?.repo_type ?? "ORIGINAL_WORK",
+      confidence_ceiling: v.repo?.confidence_ceiling ?? 1.0,
+      confidence_modifier: 1.0,
+      rationale: v.classification?.classification_rationale ?? "",
+      red_flags: v.classification?.confidence_factors ?? []
+    };
+
     return {
       schemaVersion: "legacy",
       jobId: v.jobId,
@@ -236,6 +269,7 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
       profile: v.profile,
       findings: v.findings,
       narrative: v.narrative,
+      authenticity: legacyAuthenticity,
       facts: {
         repo: v.repo,
         git_metrics: {
@@ -262,6 +296,7 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
         profile: v.profile,
         findings: v.findings,
         narrative: v.narrative,
+        authenticity: legacyAuthenticity,
       }
     };
   }
@@ -271,6 +306,7 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
   schemaVersion: z.string().default("legacy"),
   facts: RepositoryAnalysisFactsSchema.optional(),
   ai_conclusions: RepositoryAnalysisAiConclusionsSchema.optional(),
+  authenticity: RepositoryAuthenticitySchema.optional(),
   repo: RepoInfoSchema,
   classification: RepositoryClassificationSchema.default({}),
   evidence_points: EvidencePointsSchema.default({}),
