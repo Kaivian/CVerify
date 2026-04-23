@@ -1,4 +1,4 @@
-﻿# CVerify Backend Server Layer
+# CVerify Backend Server Layer
 
 Welcome to the **CVerify AI Backend Server Layer**. This is a highly resilient, enterprise-grade REST API built using the modern **.NET 10.0** ecosystem. The application follows a rigorous Clean Architecture pattern, prioritizing a decoupled design, fast fail-safe validation, explicit database naming conventions, cost-optimized caching strategies, and secure session management.
 
