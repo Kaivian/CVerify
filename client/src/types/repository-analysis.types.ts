@@ -195,6 +195,21 @@ export interface RepositoryAnalysis {
     };
   };
   narrative?: RepositoryNarrative;
+  cvSynthesis?: CvSynthesisDetail;
+}
+
+export interface CvHighlightItem {
+  signal: string;
+  impact: string;
+}
+
+export interface CvSynthesisDetail {
+  schemaVersion?: string;
+  title: string;
+  summary: string;
+  skills: string[];
+  highlights: CvHighlightItem[];
+  ownershipProfile: string;
 }
 
 export interface AnalysisJob {

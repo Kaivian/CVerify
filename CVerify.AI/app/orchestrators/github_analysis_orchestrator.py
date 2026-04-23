@@ -6,7 +6,7 @@ import logging
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, Any, Tuple, List, Literal
+from typing import AsyncGenerator, Any, Tuple, List, Literal, Optional, Union
 import redis.asyncio as redis
 from pydantic import BaseModel, Field, ValidationError
 from app.config import settings
@@ -14,8 +14,11 @@ from app.config import settings
 from app.github.technology_detector import TechnologyDetector
 from app.github.code_sampler import CodeSampler, CodeSamplingOptions
 from app.prompts.github_prompt_factory import GitHubPromptFactory
+from app.prompts.cv_prompt_factory import CvPromptFactory
 from app.services.claude_service import ClaudeService
 from app.github.repo_classifier import classify_repository
+
+from app.monitoring.observability import trace_stage, TraceContext, persist_trace_logs
 
 class ClassificationV2(BaseModel):
     primaryDomain: str
@@ -24,14 +27,30 @@ class ClassificationV2(BaseModel):
     isVerified: bool
     trustScore: float = Field(..., ge=0.0, le=1.0)
 
+class SectionItemV2(BaseModel):
+    title: str
+    content: str
+
 class SectionV2(BaseModel):
     type: Literal["engineering_practices", "security_findings", "architecture_insights"]
-    items: List[str]
+    items: List[Union[str, SectionItemV2]]
 
 class RiskV2(BaseModel):
     score: float = Field(..., ge=0.0, le=100.0)
     level: Literal["low", "medium", "high"]
     reasons: List[str]
+
+class CvHighlight(BaseModel):
+    signal: str
+    impact: str
+
+class CvSynthesisContract(BaseModel):
+    schemaVersion: Literal["v2"] = "v2"
+    title: str
+    skills: List[str]
+    summary: str
+    highlights: List[CvHighlight]
+    ownershipProfile: Literal["High contribution profile", "Standard contribution profile", "Low contribution profile", "External contributor context"]
 
 class ReportV2Contract(BaseModel):
     schemaVersion: Literal["v2"]
@@ -39,6 +58,7 @@ class ReportV2Contract(BaseModel):
     classification: ClassificationV2
     sections: List[SectionV2]
     risk: RiskV2
+    cvSynthesis: Optional[CvSynthesisContract] = None
 
     model_config = {
         "extra": "allow"
@@ -64,6 +84,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         self.tech_detector = TechnologyDetector()
         self.code_sampler = CodeSampler()
         self.prompt_factory = GitHubPromptFactory()
+        self.cv_prompt_factory = CvPromptFactory()
         self.claude_service = ClaudeService()
         self.redis_client = redis.from_url(settings.redis_url, decode_responses=True)
 
@@ -72,16 +93,14 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         logger_func(f"[{task_type}] {message}", extra={"job_id": job_id, "task_type": task_type})
         
         try:
-            payload = {
-                "jobId": job_id,
-                "taskType": task_type,
-                "taskStatus": "Running",
-                "level": level,
-                "message": message,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            }
-            channel = f"repository:analysis:progress:{job_id}"
-            await self.redis_client.publish(channel, json.dumps(payload))
+            from app.monitoring.observability import UIStreamingManager
+            await UIStreamingManager().enqueue_ui_event(
+                job_id=job_id,
+                task_type=task_type,
+                task_status="Running",
+                level=level,
+                message=message
+            )
         except Exception as e:
             logger.warning(f"Failed to publish progress log to Redis: {e}")
 
@@ -137,6 +156,20 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         correlation_id: str = "system"
     ) -> dict:
         extra_log = {"correlation_id": correlation_id, "job_id": job_id, "task_type": task_type}
+        
+        # Determine if debug mode is active
+        debug_mode = os.getenv("AI_DEBUG_MODE", "false").lower() == "true"
+        TraceContext.set(
+            pipeline_stage=task_type,
+            is_sampled=True, # Always log 100% of discrete task executions
+            extra={
+                "jobId": job_id,
+                "taskType": task_type,
+                "correlationId": correlation_id,
+                "debug": debug_mode
+            }
+        )
+        
         logger.info(f"Executing discrete analysis task {task_type} for job {job_id}", extra=extra_log)
         
         try:
@@ -156,8 +189,24 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 result = await self.analyze_classification(job_id, encrypted_token, correlation_id)
             elif task_type == "RepositorySummary":
                 result = await self.analyze_summary(job_id, encrypted_token, correlation_id)
+            elif task_type == "CvSynthesis":
+                result = await self.analyze_cv_synthesis(job_id, encrypted_token, correlation_id)
             else:
                 raise ValueError(f"Unknown task type: {task_type}")
+
+            # Save result data to local workspace file for downstream tasks (like CvSynthesis)
+            try:
+                temp_dir_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp_clones"))
+                job_dir = os.path.join(temp_dir_base, job_id)
+                if os.path.exists(job_dir):
+                    task_file = os.path.join(job_dir, f"{task_type}_result.json")
+                    with open(task_file, "w", encoding="utf-8") as f:
+                        f.write(json.dumps(result.get("data")))
+            except Exception as e:
+                logger.warning(f"Failed to write task result cache to workspace: {e}", extra=extra_log)
+
+            # Persist trace logs asynchronously
+            persist_trace_logs(job_id, debug_mode)
 
             return {
                 "status": "Completed",
@@ -169,6 +218,8 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             }
         except Exception as e:
             logger.exception(f"Error executing task {task_type} for job {job_id}: {e}", extra=extra_log)
+            # Persist logs even on failure to capture error traceback
+            persist_trace_logs(job_id, debug_mode)
             return {
                 "status": "Failed",
                 "errorMessage": str(e),
@@ -235,6 +286,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             logger.error(f"Failed to parse Claude output as JSON. Error: {e}", extra={"correlation_id": correlation_id})
             raise Exception("Claude output did not return a valid JSON format.")
 
+    @trace_stage("RepoStructure")
     async def analyze_structure(self, job_id: str, repository_id: str, repo_owner: str, repo_name: str, encrypted_token: str, default_branch: str, correlation_id: str) -> dict:
         extra_log = {"correlation_id": correlation_id}
         temp_dir_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp_clones"))
@@ -431,6 +483,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    @trace_stage("CommitIntelligence")
     async def analyze_commits(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
         meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
         
@@ -593,6 +646,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    @trace_stage("SkillExtraction")
     async def analyze_skills(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
         meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
         await self.publish_task_event(job_id, "SkillExtraction", "Extracting skill signatures and technology stack details...")
@@ -646,6 +700,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    @trace_stage("ArchitectureAnalysis")
     async def analyze_architecture(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
         meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
         await self.publish_task_event(job_id, "ArchitectureAnalysis", "Scanning codebase layout for architectural patterns...")
@@ -700,6 +755,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    @trace_stage("CodeQuality")
     async def analyze_quality(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
         meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
         await self.publish_task_event(job_id, "CodeQuality", "Inspecting code styling, testing configurations, and observability hooks...")
@@ -755,6 +811,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    @trace_stage("SecurityAnalysis")
     async def analyze_security(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
         meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
         await self.publish_task_event(job_id, "SecurityAnalysis", "Auditing dependencies and code for potential vulnerabilities...")
@@ -807,6 +864,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    @trace_stage("RepositorySummary")
     async def analyze_summary(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
         meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
         await self.publish_task_event(job_id, "RepositorySummary", "Compiling repository narrative summary and suggestions...")
@@ -862,6 +920,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    @trace_stage("RepositoryClassification")
     async def analyze_classification(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
         meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
         await self.publish_task_event(job_id, "RepositoryClassification", "Classifying repository's semantic domain...")
@@ -929,6 +988,175 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    @trace_stage("CvSynthesis")
+    async def analyze_cv_synthesis(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
+        meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
+        await self.publish_task_event(job_id, "CvSynthesis", "Synthesizing professional CV content from repository intelligence...")
+
+        # Setup paths
+        temp_dir_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp_clones"))
+        job_dir = os.path.join(temp_dir_base, job_id)
+
+        # 1. Deterministic inputs from meta and local cache files
+        repo_name = meta.get("repo_name", "unknown")
+        classification = "Unknown"
+        skills = []
+        user_commit_ratio = 1.0
+        total_commits = 1
+        raw_summary = "No summary available."
+        findings = []
+
+        # Read RepositoryClassification result
+        class_file = os.path.join(job_dir, "RepositoryClassification_result.json")
+        if os.path.exists(class_file):
+            try:
+                with open(class_file, "r", encoding="utf-8") as f:
+                    class_data = json.load(f)
+                    classification = class_data.get("primary_type", classification)
+            except Exception as e:
+                logger.warning(f"Failed to read classification cache: {e}", extra={"correlation_id": correlation_id})
+
+        # Read SkillExtraction result
+        skills_file = os.path.join(job_dir, "SkillExtraction_result.json")
+        if os.path.exists(skills_file):
+            try:
+                with open(skills_file, "r", encoding="utf-8") as f:
+                    skills_data = json.load(f)
+                    skills = [s.get("skill") for s in skills_data.get("skills", []) if s.get("skill")]
+            except Exception as e:
+                logger.warning(f"Failed to read skills cache: {e}", extra={"correlation_id": correlation_id})
+
+        # Fallback to technologies from meta if skills are empty
+        if not skills:
+            skills = meta.get("technologies", [])
+
+        # Read CommitIntelligence result
+        commits_file = os.path.join(job_dir, "CommitIntelligence_result.json")
+        if os.path.exists(commits_file):
+            try:
+                with open(commits_file, "r", encoding="utf-8") as f:
+                    commits_data = json.load(f)
+                    ownership = commits_data.get("ownership", {})
+                    user_commit_ratio = ownership.get("user_commit_ratio", user_commit_ratio)
+                    total_commits = ownership.get("total_commits", total_commits)
+            except Exception as e:
+                logger.warning(f"Failed to read commits cache: {e}", extra={"correlation_id": correlation_id})
+
+        # Read RepositorySummary result
+        summary_file = os.path.join(job_dir, "RepositorySummary_result.json")
+        if os.path.exists(summary_file):
+            try:
+                with open(summary_file, "r", encoding="utf-8") as f:
+                    summary_data = json.load(f)
+                    raw_summary = summary_data.get("recruiter_summary", raw_summary)
+                    for strength in summary_data.get("top_strengths", []):
+                        if strength.get("strength"):
+                            findings.append({"finding": strength.get("strength"), "impact": "positive"})
+                    for limitation in summary_data.get("limitations", []):
+                        if limitation.get("limitation"):
+                            findings.append({"finding": limitation.get("limitation"), "impact": "warning"})
+            except Exception as e:
+                logger.warning(f"Failed to read summary cache: {e}", extra={"correlation_id": correlation_id})
+
+        # Deterministic ownership profile mapping
+        if user_commit_ratio >= 0.70:
+            ownership_profile = "High contribution profile"
+        elif user_commit_ratio >= 0.20:
+            ownership_profile = "Standard contribution profile"
+        elif user_commit_ratio >= 0.05:
+            ownership_profile = "Low contribution profile"
+        else:
+            ownership_profile = "External contributor context"
+
+        # Safe default values builder function (no LLM fallback path)
+        def compile_deterministic_fallback() -> dict:
+            fallback_title = f"{classification} Developer" if classification != "Unknown" else "Software Developer"
+            fallback_highlights = [{"signal": f.get("finding", ""), "impact": f.get("impact", "positive")} for f in findings]
+            if not fallback_highlights:
+                fallback_highlights = [{"signal": "Contributed to repository codebase.", "impact": "positive"}]
+            return {
+                "schemaVersion": "v2",
+                "title": fallback_title,
+                "skills": skills,
+                "summary": f"Verified codebase contributions targeting a {classification} application.",
+                "highlights": fallback_highlights,
+                "ownershipProfile": ownership_profile
+            }
+
+        # Short-circuit logic for forks with no contributions
+        if meta.get("repo_type") == "FORK_NO_CONTRIBUTION":
+            await self.publish_task_event(job_id, "CvSynthesis", "Ecosystem familiarity evaluation only. Using deterministic fallback.")
+            result_data = compile_deterministic_fallback()
+            result_data["summary"] = "Repository is a fork with no detected direct developer contributions."
+            result_data["ownershipProfile"] = "External contributor context"
+            return {
+                "data": result_data,
+                "telemetry": None,
+                "events": []
+            }
+
+        # Prepare input payload for Claude
+        input_payload = {
+            "repo_name": repo_name,
+            "classification": classification,
+            "skills": skills,
+            "ownershipProfile": ownership_profile,
+            "rawSummary": raw_summary,
+            "findings": findings
+        }
+
+        system_prompt = self.cv_prompt_factory.get_system_prompt()
+        user_prompt = self.cv_prompt_factory.get_user_prompt(input_payload)
+
+        # Single-retry orchestration loop
+        parsed_data = None
+        telemetry = None
+        max_attempts = 2
+        attempt = 0
+
+        while attempt < max_attempts and parsed_data is None:
+            attempt += 1
+            await self.publish_task_event(job_id, "CvSynthesis", f"Invoking AI CV Synthesis model (Attempt {attempt})...")
+            try:
+                raw_text, attempt_telemetry = await self.claude_service.analyze_repo_with_telemetry(system_prompt, user_prompt, correlation_id)
+                telemetry = attempt_telemetry
+                parsed = self._extract_json(raw_text, correlation_id)
+                
+                # Validation check using Pydantic model
+                CvSynthesisContract.model_validate(parsed)
+                parsed_data = parsed
+            except Exception as e:
+                logger.warning(f"CV Synthesis attempt {attempt} failed validation: {e}", extra={"correlation_id": correlation_id})
+                if attempt < max_attempts:
+                    # Append error log to user prompt for self-correction retry
+                    user_prompt += f"\n\nYOUR PREVIOUS RESPONSE FAILED VALIDATION: {str(e)}\n"
+                    user_prompt += "Please fix the structure and ensure all Pydantic constraints are met exactly. Return ONLY valid JSON."
+                else:
+                    await self.publish_task_event(job_id, "CvSynthesis", "Validation failed twice. Falling back to deterministic builder.", "Warning")
+
+        if parsed_data is None:
+            # Execute deterministic fallback builder
+            parsed_data = compile_deterministic_fallback()
+
+        # Enforce deterministic constraints over LLM response to ensure total accuracy
+        parsed_data["schemaVersion"] = "v2"
+        parsed_data["skills"] = skills
+        parsed_data["ownershipProfile"] = ownership_profile
+        parsed_data["title"] = f"{classification} Developer" if classification != "Unknown" else "Software Developer"
+
+        return {
+            "data": parsed_data,
+            "telemetry": telemetry,
+            "events": [
+                {
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "level": "Info",
+                    "eventType": "StepCompleted",
+                    "message": "CV Synthesis complete."
+                }
+            ]
+        }
+
     async def aggregate_results(
         self,
         job_id: str,
@@ -959,6 +1187,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         security_data = partial_results.get("SecurityAnalysis", {})
         class_task_data = partial_results.get("RepositoryClassification", {})
         summary_data = partial_results.get("RepositorySummary", {})
+        cv_synthesis_data = partial_results.get("CvSynthesis", {})
 
         # Strict file-based CI/CD detection
         cicd_files_exist = False
@@ -1455,6 +1684,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             "classification": classification_v2,
             "sections": sections,
             "risk": risk_v2,
+            "cvSynthesis": cv_synthesis_data if cv_synthesis_data else None,
             
             # Legacy fields for backward compatibility
             "facts": {

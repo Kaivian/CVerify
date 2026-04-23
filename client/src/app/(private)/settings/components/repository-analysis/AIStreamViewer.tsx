@@ -23,6 +23,7 @@ const SHORT_TASK_NAMES: Record<string, string> = {
   SecurityAnalysis: "Security",
   RepositoryClassification: "Class",
   RepositorySummary: "Summary",
+  CvSynthesis: "CV",
 };
 
 export const AIStreamViewer: React.FC<AIStreamViewerProps> = ({

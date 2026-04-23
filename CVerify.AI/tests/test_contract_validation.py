@@ -93,5 +93,63 @@ class TestContractValidation(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ReportV2Contract.model_validate(payload)
 
+    def test_valid_cv_synthesis_passes(self):
+        """Verifies that a valid CvSynthesisContract payload parses successfully."""
+        from app.orchestrators.github_analysis_orchestrator import CvSynthesisContract
+        valid_cv = {
+            "schemaVersion": "v2",
+            "title": "SaaS Platform Developer",
+            "skills": ["Python", "FastAPI", "React"],
+            "summary": "Designed and maintained key backend services for CVerify repository intelligence.",
+            "highlights": [
+                {"signal": "Implemented OAuth token authorization controls.", "impact": "positive"},
+                {"signal": "Optimized SQL query response latency.", "impact": "positive"}
+            ],
+            "ownershipProfile": "High contribution profile"
+        }
+        try:
+            CvSynthesisContract.model_validate(valid_cv)
+        except ValidationError as e:
+            self.fail(f"ValidationError raised unexpectedly on CvSynthesisContract: {e}")
+
+    def test_invalid_ownership_profile(self):
+        """Verifies that an invalid ownershipProfile raises ValidationError."""
+        from app.orchestrators.github_analysis_orchestrator import CvSynthesisContract
+        invalid_cv = {
+            "schemaVersion": "v2",
+            "title": "SaaS Platform Developer",
+            "skills": ["Python"],
+            "summary": "Designed and maintained key backend services.",
+            "highlights": [
+                {"signal": "Implemented OAuth controls.", "impact": "positive"}
+            ],
+            "ownershipProfile": "Very active developer"  # Invalid enum value
+        }
+        with self.assertRaises(ValidationError):
+            CvSynthesisContract.model_validate(invalid_cv)
+
+    def test_valid_payload_with_dict_sections_passes(self):
+        """Verifies that a v2 payload containing dictionary section items passes validation."""
+        payload = self.valid_payload.copy()
+        payload["sections"] = [
+            {
+                "type": "engineering_practices",
+                "items": [
+                    {"title": "Testing", "content": "Pytest configured (configured)"},
+                    "CI/CD enabled"
+                ]
+            },
+            {
+                "type": "security_findings",
+                "items": [
+                    {"title": "No critical vulnerabilities", "content": "No warning findings detected."}
+                ]
+            }
+        ]
+        try:
+            ReportV2Contract.model_validate(payload)
+        except ValidationError as e:
+            self.fail(f"ValidationError raised unexpectedly on dictionary section items: {e}")
+
 if __name__ == "__main__":
     unittest.main()
