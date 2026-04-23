@@ -100,7 +100,7 @@ class TestContractValidation(unittest.TestCase):
             "schemaVersion": "v2",
             "title": "SaaS Platform Developer",
             "skills": ["Python", "FastAPI", "React"],
-            "summary": "Designed and maintained key backend services for CVerify repository intelligence.",
+            "summary": "Led the architectural design and full-stack development of the CVerify platform, implementing robust OAuth2 authorization flows, optimizing Postgres database queries to achieve a 40% reduction in API response latency, and establishing automated CI/CD workflows using GitHub Actions.",
             "highlights": [
                 {"signal": "Implemented OAuth token authorization controls.", "impact": "positive"},
                 {"signal": "Optimized SQL query response latency.", "impact": "positive"}
@@ -119,7 +119,7 @@ class TestContractValidation(unittest.TestCase):
             "schemaVersion": "v2",
             "title": "SaaS Platform Developer",
             "skills": ["Python"],
-            "summary": "Designed and maintained key backend services.",
+            "summary": "Led the architectural design and full-stack development of the CVerify platform, implementing robust OAuth2 authorization flows, optimizing Postgres database queries to achieve a 40% reduction in API response latency, and establishing automated CI/CD workflows using GitHub Actions.",
             "highlights": [
                 {"signal": "Implemented OAuth controls.", "impact": "positive"}
             ],

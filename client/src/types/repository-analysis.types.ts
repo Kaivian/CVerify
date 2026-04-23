@@ -1,4 +1,11 @@
-export type AnalysisStatus = "idle" | "analyzing" | "success" | "error";
+export type AnalysisStatus =
+  | "idle"
+  | "QUEUED"
+  | "ANALYZING"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "CANCELLED_PARTIAL"
+  | "FAILED";
 
 export interface RepoInfo {
   id: string;

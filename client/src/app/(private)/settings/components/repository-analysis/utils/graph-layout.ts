@@ -43,7 +43,7 @@ export function calculateGraphLayout(
   const lowerSearch = searchQuery.toLowerCase().trim();
 
   // 1. Filter Nodes
-  let filteredNodes = nodes.filter((node) => {
+  const filteredNodes = nodes.filter((node) => {
     // Basic type filters
     if (node.type === "skill" && !showSkills) return false;
     if (node.type === "evidence" && !showEvidence) return false;
