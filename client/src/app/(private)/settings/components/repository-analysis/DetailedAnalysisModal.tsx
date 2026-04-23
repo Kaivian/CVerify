@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Modal, Typography, Button, Spinner, Chip, ProgressBar, toast } from "@heroui/react";
+import { Modal, Typography, Button, Spinner, Chip, ProgressBar, toast, SearchField, Accordion } from "@heroui/react";
 import {
   X,
   LayoutDashboard,
@@ -10,8 +10,23 @@ import {
   Clock,
   Coins,
   Activity,
-  CheckCircle2
+  CheckCircle2,
+  Share2,
+  Filter,
+  RefreshCw,
+  GitFork,
+  BookOpen
 } from "lucide-react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  Handle,
+  Position,
+  MarkerType,
+  type NodeProps
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import type {
   RepositoryAnalysis,
   AnalysisJob,
@@ -23,6 +38,7 @@ import type {
 import { repositoryAnalysisApi } from "@/services/repository-analysis.service";
 import { AnalysisTaskTimeline } from "./AnalysisTaskTimeline";
 import { AIStreamViewer } from "./AIStreamViewer";
+import { useTrustGraphStore } from "./stores/use-trust-graph-store";
 
 interface ProgressEventData {
   taskId?: string;
@@ -77,6 +93,548 @@ export const getTaskConfidenceMeta = (task: AnalysisTask | undefined): Confidenc
   }
 };
 
+const CustomTrustNode: React.FC<NodeProps> = ({ id, data, type }) => {
+  const isSelected = useTrustGraphStore((s) => s.selectedNodeId === id);
+  const isHovered = useTrustGraphStore((s) => s.hoveredNodeId === id);
+  const hasActiveSelection = useTrustGraphStore((s) => s.selectedNodeId !== null || s.hoveredNodeId !== null);
+  const isConnected = useTrustGraphStore((s) => s.connectedNodes.has(id));
+  const setHoveredNodeId = useTrustGraphStore((s) => s.setHoveredNodeId);
+  const setSelectedNodeId = useTrustGraphStore((s) => s.setSelectedNodeId);
+
+  const nodeData = data as { label?: string; category?: string };
+  const label = nodeData.label || "";
+  const category = nodeData.category || "";
+
+  // Interaction classes
+  let opacityClass = "opacity-100";
+  let borderClass = "border-border";
+  let shadowClass = "shadow-xs";
+
+  if (hasActiveSelection) {
+    if (isConnected) {
+      if (isSelected || isHovered) {
+        borderClass = "border-accent ring-1 ring-accent";
+        shadowClass = "shadow-md";
+      } else {
+        borderClass = "border-accent/60";
+      }
+    } else {
+      opacityClass = "opacity-30";
+    }
+  }
+
+  let icon = <Activity className="size-4 text-muted" />;
+  let cardStyles = "bg-surface";
+
+  if (type === "developer") {
+    icon = <Crown className="size-4 text-warning" />;
+    cardStyles = "bg-surface border-warning/30";
+  } else if (type === "repository") {
+    icon = <Terminal className="size-4 text-accent" />;
+    cardStyles = "bg-surface-secondary border-accent/30";
+  } else if (type === "skill") {
+    icon = <Sparkles className="size-4 text-accent" />;
+    cardStyles = "bg-surface border-accent/20";
+  } else if (type === "evidence") {
+    const isSecurity = category === "security";
+    icon = isSecurity ? <AlertTriangle className="size-4 text-danger" /> : <CheckCircle2 className="size-4 text-success" />;
+    cardStyles = isSecurity ? "bg-surface border-danger/20" : "bg-surface border-success/20";
+  }
+
+  return (
+    <div
+      onMouseEnter={() => setHoveredNodeId(id)}
+      onMouseLeave={() => setHoveredNodeId(null)}
+      onClick={() => setSelectedNodeId(id)}
+      className={`p-3 rounded-xl border ${borderClass} ${cardStyles} ${opacityClass} ${shadowClass} flex items-center gap-2.5 min-w-[200px] max-w-[260px] text-xs font-sans text-left relative cursor-pointer select-none transition-opacity duration-150`}
+    >
+      {/* Handles */}
+      {type !== "developer" && type !== "evidence" && (
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="w-2 h-2 bg-border! border-0! -left-1"
+        />
+      )}
+      <div className="p-1.5 rounded-lg bg-surface-secondary/40 shrink-0">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex justify-between items-center gap-1">
+          <span className="text-[8px] text-muted-foreground font-medium block uppercase tracking-wider">
+            {type}
+          </span>
+          {type === "evidence" && (
+            <span className={`px-1 rounded text-[7.5px] font-extrabold uppercase shrink-0 ${category === "security" ? "bg-danger/10 text-danger" : "bg-success/10 text-success"
+              }`}>
+              {category}
+            </span>
+          )}
+          {type === "skill" && (
+            <span className="px-1 rounded text-[7.5px] font-extrabold uppercase bg-accent/10 text-accent shrink-0">
+              {category}
+            </span>
+          )}
+        </div>
+        <strong className="text-foreground font-bold truncate block mt-0.5">
+          {label}
+        </strong>
+      </div>
+      {type !== "skill" && (
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="w-2 h-2 bg-border! border-0! -right-1"
+        />
+      )}
+    </div>
+  );
+};
+
+const nodeTypes = {
+  developer: CustomTrustNode,
+  repository: CustomTrustNode,
+  skill: CustomTrustNode,
+  evidence: CustomTrustNode,
+};
+
+interface TrustGraphViewProps {
+  trustGraph: {
+    nodes: any[];
+    edges: any[];
+  } | null;
+  localAnalysis: RepositoryAnalysis | null;
+}
+
+const TrustGraphView: React.FC<TrustGraphViewProps> = ({ trustGraph, localAnalysis }) => {
+  const nodes = useTrustGraphStore((s) => s.nodes);
+  const edges = useTrustGraphStore((s) => s.edges);
+  const onNodesChange = useTrustGraphStore((s) => s.onNodesChange);
+  const onEdgesChange = useTrustGraphStore((s) => s.onEdgesChange);
+  const initializeGraph = useTrustGraphStore((s) => s.initializeGraph);
+
+  const selectedNodeId = useTrustGraphStore((s) => s.selectedNodeId);
+  const hoveredNodeId = useTrustGraphStore((s) => s.hoveredNodeId);
+  const connectedEdges = useTrustGraphStore((s) => s.connectedEdges);
+  const setSelectedNodeId = useTrustGraphStore((s) => s.setSelectedNodeId);
+
+  const searchQuery = useTrustGraphStore((s) => s.searchQuery);
+  const setSearchQuery = useTrustGraphStore((s) => s.setSearchQuery);
+  const showSkills = useTrustGraphStore((s) => s.showSkills);
+  const setShowSkills = useTrustGraphStore((s) => s.setShowSkills);
+  const showEvidence = useTrustGraphStore((s) => s.showEvidence);
+  const setShowEvidence = useTrustGraphStore((s) => s.setShowEvidence);
+  const showSecurityOnly = useTrustGraphStore((s) => s.showSecurityOnly);
+  const setShowSecurityOnly = useTrustGraphStore((s) => s.setShowSecurityOnly);
+  const resetFilters = useTrustGraphStore((s) => s.resetFilters);
+
+  // Initialize graph data once loaded
+  useEffect(() => {
+    console.log("TrustGraphView trustGraph received:", trustGraph);
+    if (trustGraph) {
+      initializeGraph(trustGraph.nodes, trustGraph.edges);
+    }
+  }, [trustGraph, initializeGraph]);
+
+  console.log("TrustGraphView nodes in store:", nodes);
+  console.log("TrustGraphView edges in store:", edges);
+
+  const flowEdges = useMemo(() => {
+    return edges.map((edge) => {
+      const isHighlighted = connectedEdges.has(edge.id);
+      const hasActiveSelection = selectedNodeId !== null || hoveredNodeId !== null;
+
+      let className = "normal-edge";
+      if (hasActiveSelection) {
+        className = isHighlighted ? "highlighted-edge" : "dimmed-edge";
+      }
+
+      return {
+        ...edge,
+        type: "smoothstep",
+        className,
+        style: {}, // Avoid style overrides to maintain Tailwind class specificity
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 15,
+          height: 15,
+          color: hasActiveSelection && !isHighlighted ? "var(--border)" : "var(--separator)",
+        },
+      };
+    });
+  }, [edges, connectedEdges, selectedNodeId, hoveredNodeId]);
+
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return nodes.find((n) => n.id === selectedNodeId) || null;
+  }, [nodes, selectedNodeId]);
+
+  if (!trustGraph || !trustGraph.nodes || trustGraph.nodes.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center border border-border bg-background/40 rounded-xl p-4 text-muted text-xs font-sans">
+        <Share2 className="size-5 mb-2 opacity-50" />
+        <span>No trust graph data generated for this repository.</span>
+      </div>
+    );
+  }
+
+  // Inspect Panel Render Method
+  const renderInspectPanel = () => {
+    if (!selectedNode) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-muted-foreground font-sans select-none">
+          <Share2 className="size-8 mb-3 opacity-40 text-muted" />
+          <span className="text-xs font-bold text-foreground">Select a Node to Inspect</span>
+          <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed max-w-[200px]">
+            Click any node in the trust graph to view complete metadata, authenticity checks, and cryptographic verification details.
+          </p>
+        </div>
+      );
+    }
+
+    if (selectedNode.type === "developer") {
+      const gitMetrics = localAnalysis?.facts?.git_metrics;
+      const repoOwner = localAnalysis?.repo.full_name ? localAnalysis.repo.full_name.split("/")[0] : "";
+      const devEmail = gitMetrics?.contributor_distribution?.find((c) => c.author.toLowerCase().includes(repoOwner.toLowerCase() || ""))?.email || "verified_git_signature@github.com";
+      return (
+        <div className="flex-1 flex flex-col gap-4 font-sans p-4 text-left">
+          <div className="space-y-1">
+            <Chip size="sm" variant="soft" className="h-5 text-[8.5px] font-extrabold uppercase rounded-md bg-warning/10 text-warning border border-warning/20">
+              Developer Identity
+            </Chip>
+            <h4 className="text-sm font-black text-foreground">{selectedNode.data.label}</h4>
+            <span className="text-[10px] text-muted font-mono block truncate">{devEmail}</span>
+          </div>
+
+          <div className="space-y-3 pt-2 border-t border-border/40">
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-[10.5px]">
+                <span className="text-muted font-semibold">User Contribution Ratio</span>
+                <span className="font-mono font-bold text-foreground">
+                  {((gitMetrics?.user_commit_ratio ?? 1) * 100).toFixed(1)}%
+                </span>
+              </div>
+              <ProgressBar
+                aria-label="User contribution ratio"
+                value={(gitMetrics?.user_commit_ratio ?? 1) * 100}
+                color="accent"
+                size="sm"
+                className="w-full"
+              >
+                <ProgressBar.Track>
+                  <ProgressBar.Fill />
+                </ProgressBar.Track>
+              </ProgressBar>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+              <div className="bg-surface-secondary/40 p-2 rounded-lg border border-border/40">
+                <span className="text-[8.5px] text-muted uppercase font-bold block">User Commits</span>
+                <strong className="text-xs font-mono font-bold text-foreground mt-0.5 block">
+                  {Math.round((gitMetrics?.user_commit_ratio ?? 1) * (gitMetrics?.total_commits ?? 0))}
+                </strong>
+              </div>
+              <div className="bg-surface-secondary/40 p-2 rounded-lg border border-border/40">
+                <span className="text-[8.5px] text-muted uppercase font-bold block">Total Commits</span>
+                <strong className="text-xs font-mono font-bold text-foreground mt-0.5 block">
+                  {gitMetrics?.total_commits ?? 0}
+                </strong>
+              </div>
+            </div>
+
+            <div className="bg-surface-secondary/20 p-3 rounded-xl border border-border/40 space-y-1.5">
+              <span className="text-[8.5px] text-muted uppercase font-extrabold block">Authenticity Insights</span>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                {localAnalysis?.trust_intelligence?.conflict_resolution_log?.length
+                  ? "Overrode active ownership discrepancy. Resolved commit profile alignment flags."
+                  : "Git history signature matches local developer credentials. Primary commit patterns verified."}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedNode.type === "repository") {
+      const repo = localAnalysis?.repo;
+      const classif = localAnalysis?.classification;
+      return (
+        <div className="flex-1 flex flex-col gap-4 font-sans p-4 text-left">
+          <div className="space-y-1">
+            <Chip size="sm" variant="soft" className="h-5 text-[8.5px] font-extrabold uppercase rounded-md bg-accent/10 text-accent border border-accent/20">
+              Target Repository
+            </Chip>
+            <h4 className="text-sm font-black text-foreground truncate">{repo?.full_name || selectedNode.data.label}</h4>
+            <a href={repo?.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent font-semibold flex items-center gap-1 hover:underline">
+              <Terminal className="size-3" /> View on GitHub
+            </a>
+          </div>
+
+          <div className="space-y-3.5 pt-2 border-t border-border/40 text-[10.5px]">
+            <div className="flex justify-between items-center py-1 border-b border-border/10">
+              <span className="text-muted font-semibold">Classification Domain</span>
+              <span className="font-extrabold text-foreground capitalize">
+                {classif?.primaryDomain?.replace(/_/g, " ") || "Unknown"}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-1 border-b border-border/10">
+              <span className="text-muted font-semibold">Verification Trust Score</span>
+              <span className="font-mono font-black text-success">
+                {((classif?.trustScore ?? 0) * 100).toFixed(0)}%
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="bg-surface-secondary/40 p-2 rounded-lg border border-border/40">
+                <span className="text-[8px] text-muted uppercase font-semibold block">Stars</span>
+                <strong className="text-xs font-mono font-bold text-foreground">{repo?.stars ?? 0}</strong>
+              </div>
+              <div className="bg-surface-secondary/40 p-2 rounded-lg border border-border/40">
+                <span className="text-[8px] text-muted uppercase font-semibold block">Forks</span>
+                <strong className="text-xs font-mono font-bold text-foreground">{repo?.forks ?? 0}</strong>
+              </div>
+            </div>
+
+            <div className="bg-surface-secondary/20 p-2.5 rounded-xl border border-border/40 text-[10px] text-muted-foreground leading-relaxed">
+              {repo?.description || `Authentic workspace scan. Active branches: ${repo?.branches ?? 1}. Open PRs: ${repo?.open_prs ?? 0}.`}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedNode.type === "skill") {
+      return (
+        <div className="flex-1 flex flex-col gap-4 font-sans p-4 text-left">
+          <div className="space-y-1">
+            <Chip size="sm" variant="soft" className="h-5 text-[8.5px] font-extrabold uppercase rounded-md bg-accent/15 text-accent border border-accent/20">
+              Technical Skill Node
+            </Chip>
+            <h4 className="text-sm font-black text-foreground">{selectedNode.data.label}</h4>
+            <span className="text-[10px] text-muted capitalize font-bold">Category: {selectedNode.data.category || "Skill Domain"}</span>
+          </div>
+
+          <div className="space-y-3 pt-2 border-t border-border/40 text-[10.5px]">
+            <div className="bg-surface-secondary/20 p-3 rounded-xl border border-border/40 space-y-2">
+              <span className="text-[8.5px] text-muted uppercase font-extrabold block">Calibration Signal</span>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                This technology signature was extracted by scanning local configuration dependencies, package lists, and verified code implementations.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedNode.type === "evidence") {
+      const findings = (localAnalysis as any)?.ai_conclusions?.findings || [];
+      const matchingFinding = findings.find((f: any) => f?.finding === selectedNode.data.label);
+      const isSecurity = selectedNode.data.category === "security";
+      const impact = matchingFinding?.impact || (isSecurity ? "warning" : "positive");
+      const explanation = matchingFinding?.explanation || "Evidence verify signal matches structural configurations and authentic contributor patterns.";
+
+      const getImpactClasses = (lvl: string) => {
+        switch (lvl.toLowerCase()) {
+          case "critical":
+            return "bg-danger/10 text-danger border border-danger/20";
+          case "warning":
+            return "bg-warning/10 text-warning border border-warning/20";
+          case "positive":
+          default:
+            return "bg-success/10 text-success border border-success/20";
+        }
+      };
+
+      return (
+        <div className="flex-1 flex flex-col gap-4 font-sans p-4 text-left overflow-y-auto max-h-[450px]">
+          <div className="space-y-1">
+            <Chip size="sm" variant="soft" className={`h-5 text-[8.5px] font-extrabold uppercase rounded-md ${getImpactClasses(impact)}`}>
+              Evidence / Finding
+            </Chip>
+            <h4 className="text-sm font-black text-foreground leading-tight">{selectedNode.data.label}</h4>
+            <span className="text-[10px] text-muted-foreground capitalize font-semibold block">Audit Category: {selectedNode.data.category}</span>
+          </div>
+
+          <div className="space-y-3 pt-2 border-t border-border/40 text-[10.5px]">
+            <div className="space-y-1">
+              <span className="text-[8.5px] text-muted uppercase font-bold block">Detailed Audit Narrative</span>
+              <p className="text-[10.5px] text-muted-foreground leading-relaxed whitespace-pre-wrap font-light">
+                {explanation}
+              </p>
+            </div>
+
+            {matchingFinding?.evidence_signals && matchingFinding.evidence_signals.length > 0 && (
+              <div className="space-y-1.5 pt-2">
+                <span className="text-[8.5px] text-muted uppercase font-extrabold block">Evidence Citations</span>
+                <div className="flex flex-col gap-1 max-h-[120px] overflow-y-auto pr-1">
+                  {matchingFinding.evidence_signals.map((sig: string, idx: number) => (
+                    <div key={idx} className="p-1.5 border border-border/40 bg-surface-secondary/40 rounded-lg text-[9px] font-mono text-foreground truncate select-all">
+                      {sig}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div className="flex flex-col gap-4 w-full text-left font-sans">
+      <style>{`
+        .normal-edge {
+          stroke: var(--separator) !important;
+          stroke-width: 1.5px !important;
+        }
+        .highlighted-edge {
+          stroke: var(--accent) !important;
+          stroke-width: 2.5px !important;
+        }
+        .dimmed-edge {
+          stroke: var(--border) !important;
+          stroke-width: 1px !important;
+          opacity: 0.25 !important;
+        }
+        .react-flow__background {
+          opacity: 0.4;
+        }
+      `}</style>
+
+      {/* Toolbar Layer */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-surface border border-border/80 p-3 rounded-2xl">
+        <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+          <SearchField
+            aria-label="Search nodes"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            className="flex-1"
+          >
+            <SearchField.Group className="bg-surface-secondary/65 border border-border/60 rounded-xl h-8.5 px-3 flex items-center gap-2">
+              <SearchField.SearchIcon className="text-muted-foreground size-3.5" />
+              <SearchField.Input
+                placeholder="Search nodes..."
+                className="w-full bg-transparent border-0 p-0 text-xs font-semibold text-foreground placeholder:text-muted focus:outline-hidden"
+              />
+              <SearchField.ClearButton className="text-muted-foreground hover:text-foreground cursor-pointer" />
+            </SearchField.Group>
+          </SearchField>
+          <Button
+            size="sm"
+            onClick={resetFilters}
+            className="bg-surface-secondary text-foreground hover:bg-surface-tertiary px-3 rounded-xl h-8.5 text-xs font-bold shrink-0"
+          >
+            <RefreshCw size={12} className="mr-1" />
+            Reset
+          </Button>
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex items-center gap-1.5 bg-surface-secondary/50 border border-border/40 rounded-xl p-1 shrink-0">
+          <Button
+            size="sm"
+            onClick={() => setShowSkills(!showSkills)}
+            className={`rounded-lg px-3 py-1 h-7.5 text-[10.5px] font-extrabold uppercase ${showSkills ? "bg-background text-foreground shadow-sm" : "bg-transparent text-muted hover:text-foreground"
+              }`}
+          >
+            <Sparkles size={11} className="mr-1" />
+            Skills
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowEvidence(!showEvidence)}
+            className={`rounded-lg px-3 py-1 h-7.5 text-[10.5px] font-extrabold uppercase ${showEvidence && !showSecurityOnly ? "bg-background text-foreground shadow-sm" : "bg-transparent text-muted hover:text-foreground"
+              }`}
+          >
+            <CheckCircle2 size={11} className="mr-1" />
+            Evidence
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (showSecurityOnly) {
+                setShowSecurityOnly(false);
+              } else {
+                setShowEvidence(true);
+                setShowSecurityOnly(true);
+              }
+            }}
+            className={`rounded-lg px-3 py-1 h-7.5 text-[10.5px] font-extrabold uppercase ${showSecurityOnly ? "bg-background text-danger shadow-sm" : "bg-transparent text-muted hover:text-danger"
+              }`}
+          >
+            <AlertTriangle size={11} className="mr-1" />
+            Security Only
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Graph & Inspect split screen container */}
+      <div className="flex gap-0 border border-border/80 bg-surface rounded-3xl overflow-hidden relative h-[520px]">
+        {/* Left main area: ReactFlow interactive canvas */}
+        <div className="flex-1 h-full relative">
+          <ReactFlow
+            nodes={nodes}
+            edges={flowEdges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.15 }}
+            minZoom={0.3}
+            maxZoom={1.5}
+            draggable={true}
+            nodesConnectable={false}
+            nodesDraggable={true}
+            elementsSelectable={true}
+            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+            onPaneClick={() => setSelectedNodeId(null)}
+          >
+            <Background gap={16} size={1} color="var(--separator)" />
+            <Controls showInteractive={false} className="bg-surface! border-border! shadow-xs!" />
+          </ReactFlow>
+        </div>
+
+        {/* Right side anchor Inspect Panel */}
+        <div className="w-[320px] h-full border-l border-border bg-surface-secondary/20 flex flex-col shrink-0 select-text">
+          {renderInspectPanel()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const parseSectionItem = (item: any) => {
+  if (item && typeof item === "object") {
+    return {
+      title: item.title || "Detail Item",
+      content: item.content || item.description || "",
+    };
+  }
+  const str = String(item);
+  let splitIdx = str.indexOf(" - ");
+  if (splitIdx !== -1) {
+    return {
+      title: str.substring(0, splitIdx).trim(),
+      content: str.substring(splitIdx + 3).trim(),
+    };
+  }
+  splitIdx = str.indexOf(": ");
+  if (splitIdx !== -1) {
+    return {
+      title: str.substring(0, splitIdx).trim(),
+      content: str.substring(splitIdx + 2).trim(),
+    };
+  }
+  return {
+    title: str,
+    content: "",
+  };
+};
+
 export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   isOpen,
   onOpenChange,
@@ -85,7 +643,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   repoId,
   onAnalysisComplete,
 }) => {
-  const [viewMode, setViewMode] = useState<"report" | "logs" | "costs">("report");
+  const [viewMode, setViewMode] = useState<"report" | "graph" | "logs" | "costs">("report");
   const [costs, setCosts] = useState<{
     jobId: string;
     totalCostUsd: number;
@@ -116,6 +674,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   const [isRetryingTaskId, setIsRetryingTaskId] = useState<string | null>(null);
   const [localAnalysis, setLocalAnalysis] = useState<RepositoryAnalysis | null>(analysis);
   const [elapsedTime, setElapsedTime] = useState<string>("00:00");
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const onAnalysisCompleteRef = useRef(onAnalysisComplete);
   useEffect(() => {
@@ -133,6 +692,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   if (analysis !== prevAnalysis) {
     setPrevAnalysis(analysis);
     setLocalAnalysis(analysis);
+    setValidationError(null);
     if (analysis) {
       setViewMode("report");
     } else {
@@ -145,6 +705,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   if (inputsChanged) {
     setPrevJobId(jobId);
     setPrevIsOpen(isOpen);
+    setValidationError(null);
     if (!jobId || !isOpen) {
       setJob(null);
       setLiveTaskEvents([]);
@@ -201,8 +762,11 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
         if (snapshot) {
           setLocalAnalysis(snapshot);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load job snapshot:", err);
+        if (err.name === "ZodError" || err.issues) {
+          setValidationError(err.issues ? JSON.stringify(err.issues, null, 2) : err.message || String(err));
+        }
       }
     };
 
@@ -357,8 +921,11 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
           if (onAnalysisCompleteRef.current) {
             onAnalysisCompleteRef.current(report);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Failed to load completed final data:", err);
+          if (err.name === "ZodError" || err.issues) {
+            setValidationError(err.issues ? JSON.stringify(err.issues, null, 2) : err.message || String(err));
+          }
         }
         return;
       }
@@ -397,7 +964,11 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                 setLocalAnalysis(snapshot);
               }
             })
-            .catch(() => { });
+            .catch((err: any) => {
+              if (err.name === "ZodError" || err.issues) {
+                setValidationError(err.issues ? JSON.stringify(err.issues, null, 2) : err.message || String(err));
+              }
+            });
         }
       } catch (err) {
         console.error("Failed to parse SSE message:", err);
@@ -423,9 +994,17 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   };
 
   const displayElapsedTime = useMemo(() => {
-    if (job && !isJobRunning && job.startedAt && job.completedAt) {
-      const diff = new Date(job.completedAt).getTime() - new Date(job.startedAt).getTime();
-      return formatDuration(diff);
+    if (job && !isJobRunning) {
+      if (job.startedAt && job.completedAt) {
+        const diff = new Date(job.completedAt).getTime() - new Date(job.startedAt).getTime();
+        return formatDuration(diff);
+      }
+      if (job.tasks && job.tasks.length > 0) {
+        const totalDurationMs = job.tasks.reduce((sum, t) => sum + (t.durationMs || 0), 0);
+        if (totalDurationMs > 0) {
+          return formatDuration(totalDurationMs);
+        }
+      }
     }
     return elapsedTime;
   }, [job, isJobRunning, elapsedTime]);
@@ -568,7 +1147,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   }, [tasks]);
 
   const repoName = localAnalysis?.repo.full_name || job?.currentStep || "Repository Analysis";
-  const commitsCount = localAnalysis?.ownership.total_commits ?? localAnalysis?.facts?.git_metrics?.total_commits ?? 0;
+  const commitsCount = localAnalysis?.facts?.git_metrics?.total_commits ?? 0;
   const contributorsCount = localAnalysis?.facts?.git_metrics?.active_contributors ?? 1;
 
   // Merge database logs with real-time SSE logs
@@ -594,18 +1173,23 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     if (!localAnalysis) return null;
 
     const classification = localAnalysis.classification || {
-      primary_type: "Unclassified",
-      complexity: "low",
-      benchmark_group: "unclassified"
+      primaryDomain: "Unknown",
+      subDomain: "General",
+      confidence: 0,
+      isVerified: false,
+      trustScore: 0
     };
 
-    const findings = localAnalysis.findings || [];
-    const securityFindings = findings.filter((f) => f.category?.toLowerCase() === "security");
-
-    const risk = localAnalysis.ai_conclusions?.risk_assessment || {
-      risk_level: "Low",
-      explanation: "Low risk profile. No significant security or code quality issues detected."
+    const risk = localAnalysis.risk || {
+      score: 0,
+      level: "low",
+      reasons: []
     };
+
+    const sections = localAnalysis.sections || [];
+    const engineeringSection = sections.find((s) => s.type === "engineering_practices");
+    const securitySection = sections.find((s) => s.type === "security_findings");
+    const architectureSection = sections.find((s) => s.type === "architecture_insights");
 
     const getRiskClasses = (level: string) => {
       switch (level.toLowerCase()) {
@@ -626,64 +1210,61 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
       return `Exceptional (${ep} Signals)`;
     };
 
+    const totalEvidencePoints = sections.reduce((sum, s) => sum + (s.items?.length ?? 0), 0);
+
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left font-sans select-none items-start">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left font-sans  items-start">
         {/* Column 1 (Left) */}
         <div className="flex flex-col gap-5">
           {/* Tier 1: Score & Verdict Card (Large) */}
           <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-4 min-h-[220px]">
-            <div className="flex justify-between items-start gap-4">
-              <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <div className="flex flex-col">
                 <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
                   Verification Verdict
                 </span>
-                <h3 className="text-lg font-black text-foreground capitalize flex items-center gap-1.5">
-                  <Crown className="size-4.5 text-warning shrink-0" />
-                  {localAnalysis.trust?.classification?.replace(/_/g, " ") || "Authentic Workspace"}
-                </h3>
-                <p className="text-xs text-muted leading-relaxed font-light mt-1">
-                  {localAnalysis.narrative?.recruiter_summary || localAnalysis.trust?.explanation}
-                </p>
-                {risk.explanation && (
-                  <p className="text-[10px] text-muted-foreground/80 leading-relaxed font-light mt-1.5 border-l-2 border-border/40 pl-2">
-                    <strong>Risk Assessment:</strong> {risk.explanation}
-                  </p>
-                )}
+                <div className="flex">
+                  <h3 className="text-lg font-black text-foreground capitalize flex items-center gap-1.5">
+                    <Crown className="size-4.5 text-warning shrink-0" />
+                    {classification.primaryDomain.replace(/_/g, " ")}
+                  </h3>
+                </div>
               </div>
-              {/* Risk Rating Badge */}
               <div
                 className={`px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider shrink-0 ${getRiskClasses(
-                  risk.risk_level
+                  risk.level
                 )}`}
               >
-                {risk.risk_level} Risk
+                {risk.level} Risk
               </div>
             </div>
-
-            <div className="flex gap-8 border-t border-border/30 pt-4 mt-auto">
+            <p className="text-xs text-muted leading-relaxed font-light">
+              {localAnalysis.narrative?.recruiter_summary || (risk.reasons.length > 0 ? risk.reasons.join(", ") : "Authentic workspace scan complete.")}
+            </p>
+            <div className="flex items-center justify-between">
               <div className="flex flex-col items-start justify-center gap-2">
                 <span className="text-[9px] text-muted uppercase font-bold">Evidence Strength:</span>
                 <strong className="text-sm text-foreground font-extrabold font-mono">
-                  {getEvidenceStrength(localAnalysis.evidence_points?.total ?? 0)}
+                  {getEvidenceStrength(totalEvidencePoints)}
                 </strong>
               </div>
               <div className="flex flex-col items-start justify-center gap-2">
-                <span className="text-[9px] text-muted uppercase font-bold">Trust Confidence:</span>
+                <span className="text-[9px] text-muted uppercase font-bold">Sub-Domain:</span>
+                <strong className="text-sm text-foreground font-extrabold capitalize font-sans truncate]">
+                  {classification.subDomain.replace(/_/g, " ")}
+                </strong>
+              </div>
+              <div className="flex flex-col items-start justify-center gap-2">
+                <span className="text-[9px] text-muted uppercase font-bold">Trust Score:</span>
                 <strong className="text-sm text-foreground font-extrabold font-mono">
-                  {localAnalysis.trust?.confidence ?? 100}%
-                </strong>
-              </div>
-              <div className="flex flex-col items-start justify-center gap-2">
-                <span className="text-[9px] text-muted uppercase font-bold">Complexity:</span>
-                <strong className="text-sm text-foreground font-extrabold capitalize font-sans">
-                  {classification.complexity || "Medium"}
+                  {(classification.trustScore * 100).toFixed(0)}%
                 </strong>
               </div>
             </div>
           </div>
 
-          {/* Tier 2: Skills & Technologies (Medium - Moved from Right) */}
-          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[220px]">
+          {/* Tier 2: Skills & Stack Matrix */}
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3">
             <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
               Skills & Stack Matrix
             </span>
@@ -702,137 +1283,113 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                 </div>
               </div>
 
-              {Object.entries(localAnalysis.profile?.skills || {}).map(([cat, list]) => (
-                <div key={cat} className="space-y-1">
+              {localAnalysis.repo.topics && localAnalysis.repo.topics.length > 0 && (
+                <div className="space-y-1">
                   <span className="text-[8px] text-accent uppercase font-extrabold block">
-                    {cat} Technologies
+                    Repository Topics
                   </span>
                   <div className="flex flex-wrap gap-1">
-                    {(list as string[]).map((skillName) => (
+                    {localAnalysis.repo.topics.map((topic) => (
                       <span
-                        key={skillName}
+                        key={topic}
                         className="text-[10.5px] border border-border/60 bg-surface-secondary text-foreground px-2 py-0.5 rounded-md font-semibold"
                       >
-                        {skillName}
+                        {topic}
                       </span>
                     ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Tier 2: Code Quality & Practices (Medium) */}
-          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[220px]">
-            <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
-              Engineering Practices & Integrations
-            </span>
-            {(() => {
-              const practices = localAnalysis.profile?.engineering_practices || {
-                testing: { frameworks: [], has_tests: false, detail: "" },
-                observability: { logging_configured: false, metrics_configured: false, detail: "" },
-                cicd: { configured: false, providers: [] }
-              };
-              return (
-                <div className="space-y-3.5">
-                  {/* Testing */}
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`p-1 px-2.5 rounded-lg border text-xs font-bold shrink-0 ${practices.testing.has_tests
-                        ? "text-success border-success/20 bg-success/5"
-                        : "text-muted border-border bg-surface-secondary"
-                        }`}
-                    >
-                      Testing
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <span className="text-xs font-bold text-foreground block">
-                        {practices.testing.has_tests
-                          ? `Configured (${practices.testing.frameworks?.join(", ") || "N/A"})`
-                          : "Not Configured"}
-                      </span>
-                      <span className="text-[10px] text-muted leading-relaxed block font-light">
-                        {practices.testing.detail || "No testing infrastructure detected."}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Observability */}
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`p-1 px-2.5 rounded-lg border text-xs font-bold shrink-0 ${practices.observability.logging_configured ||
-                        practices.observability.metrics_configured
-                        ? "text-success border-success/20 bg-success/5"
-                        : "text-muted border-border bg-surface-secondary"
-                        }`}
-                    >
-                      Monitor
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <span className="text-xs font-bold text-foreground block">
-                        {practices.observability.logging_configured ||
-                          practices.observability.metrics_configured
-                          ? "Configured Logs & Metrics"
-                          : "No Diagnostics"}
-                      </span>
-                      <span className="text-[10px] text-muted leading-relaxed block font-light">
-                        {practices.observability.detail || "No logging configuration details found."}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* CI/CD */}
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`p-1 px-2.5 rounded-lg border text-xs font-bold shrink-0 ${practices.cicd.configured
-                        ? "text-success border-success/20 bg-success/5"
-                        : "text-muted border-border bg-surface-secondary"
-                        }`}
-                    >
-                      CI/CD
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <span className="text-xs font-bold text-foreground block">
-                        {practices.cicd.configured
-                          ? `Configured (${practices.cicd.providers?.join(", ") || "N/A"})`
-                          : "Not Configured"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Tier 3: Security Findings (Compact) */}
-          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[180px]">
-            <span className="text-[9px] uppercase font-extrabold tracking-wider block text-danger">
-              Security Findings
-            </span>
-            <div className="flex flex-col gap-2">
-              {securityFindings.length === 0 ? (
-                <div className="text-xs text-muted-foreground italic font-light py-2">
-                  No high-risk secrets leaks or security violations detected.
-                </div>
-              ) : (
-                <div className="space-y-2 pr-1">
-                  {securityFindings.map((f, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2 border border-danger/10 bg-danger/5 text-danger text-[10.5px] rounded-lg"
-                    >
-                      <strong className="font-bold block">{f.finding}</strong>
-                      <span className="text-muted text-[9px] leading-relaxed block mt-0.5">
-                        {f.explanation}
-                      </span>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Tier 3: Metadata & Quality Stats (Compact - Moved from Right) */}
+          {/* Tier 4: Security Findings */}
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[180px]">
+            <span className="text-[9px] uppercase font-extrabold tracking-wider block text-danger">
+              Security Findings & Auditing
+            </span>
+            <div className="flex flex-col gap-2">
+              {!securitySection || !securitySection.items || securitySection.items.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic font-light py-2">
+                  No high-risk secrets leaks or security violations detected.
+                </div>
+              ) : (
+                <Accordion className="w-full" variant="surface">
+                  {securitySection.items.map((item, idx) => {
+                    const parsed = parseSectionItem(item);
+                    return (
+                      <Accordion.Item key={idx}>
+                        <Accordion.Heading>
+                          <Accordion.Trigger className="text-[10.5px] font-semibold text-danger flex items-center justify-between w-full">
+                            <span className="flex items-center gap-2">
+                              <AlertTriangle className="size-3.5 text-danger shrink-0" />
+                              {parsed.title}
+                            </span>
+                            <Accordion.Indicator />
+                          </Accordion.Trigger>
+                        </Accordion.Heading>
+                        <Accordion.Panel>
+                          <Accordion.Body className="text-[10.5px] text-muted-foreground leading-relaxed pl-5.5 font-light pt-2">
+                            {parsed.content || parsed.title}
+                          </Accordion.Body>
+                        </Accordion.Panel>
+                      </Accordion.Item>
+                    );
+                  })}
+                </Accordion>
+              )}
+            </div>
+          </div>
+          {/* Tier 3: Contributor Distributions */}
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3.5 min-h-[200px]">
+            <div className="flex justify-between items-center border-b border-border/20 pb-2">
+              <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
+                Contributor Distributions
+              </span>
+              <span className="text-[10px] text-muted font-light">
+                Bus Factor: <strong>{localAnalysis.facts?.git_metrics?.bus_factor ?? 1}</strong>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-0.5 bg-surface-secondary/20 p-2.5 rounded-xl border border-border/40">
+                <span className="text-[8.5px] text-muted uppercase font-bold block">Total Commits</span>
+                <strong className="text-lg text-foreground font-black font-mono">
+                  {localAnalysis.facts?.git_metrics?.total_commits ?? 0}
+                </strong>
+              </div>
+              <div className="space-y-0.5 bg-surface-secondary/20 p-2.5 rounded-xl border border-border/40">
+                <span className="text-[8.5px] text-muted uppercase font-bold block">User Commits</span>
+                <strong className="text-lg text-foreground font-black font-mono">
+                  {((localAnalysis.facts?.git_metrics?.user_commit_ratio ?? 1) * 100).toFixed(0)}%
+                </strong>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[8px] text-muted uppercase font-extrabold block">Top Commit Authors</span>
+              <div className="space-y-1.5 pr-1">
+                {(localAnalysis.facts?.git_metrics?.contributor_distribution || []).slice(0, 3).map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-xs">
+                    <span className="font-semibold text-foreground truncate max-w-[150px]">
+                      {item.author}
+                    </span>
+                    <span className="font-mono text-muted text-[10px]">
+                      {item.commits || 0} commits ({(item.pct || 0).toFixed(1)}%)
+                    </span>
+                  </div>
+                ))}
+                {(!localAnalysis.facts?.git_metrics?.contributor_distribution ||
+                  localAnalysis.facts.git_metrics.contributor_distribution.length === 0) && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-foreground">Target Developer</span>
+                      <span className="font-mono text-muted text-[10px]">100.0% contribution ratio</span>
+                    </div>
+                  )}
+              </div>
+            </div>
+          </div>
+          {/* Tier 5: Scope & Quality Metrics */}
           <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[180px]">
             <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
               Scope & Quality Metrics
@@ -865,11 +1422,65 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
               );
             })()}
           </div>
+          {/* Tier 5: Warnings & Observations */}
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 h-full">
+            <span className="text-[9px] uppercase font-extrabold tracking-wider block text-warning">
+              Anomalies & Warnings
+            </span>
+            <div className="flex flex-col gap-2 pr-1">
+              {(() => {
+                const uncertainty = localAnalysis.trust_intelligence?.uncertainty_metrics;
+                const hasFlags = (risk.reasons?.length ?? 0) > 0;
+                const hasUncertaintyMetrics = uncertainty && (
+                  uncertainty.timestamp_compression_ratio > 0.05 ||
+                  uncertainty.unverified_commits > 0 ||
+                  uncertainty.uncalibrated_identities > 0
+                );
+
+                if (!hasFlags && !hasUncertaintyMetrics) {
+                  return (
+                    <div className="text-xs text-muted-foreground italic font-light py-2">
+                      No warnings or stylistic flags recorded.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {risk.reasons?.map((reason, idx) => (
+                      <div
+                        key={`reason-${idx}`}
+                        className="p-2 border border-warning/10 bg-warning/5 text-warning text-[10.5px] rounded-lg"
+                      >
+                        <strong className="font-bold">Warning:</strong> {reason}
+                      </div>
+                    ))}
+
+                    {uncertainty && uncertainty.timestamp_compression_ratio > 0.05 && (
+                      <div className="p-2 border border-danger/10 bg-danger/5 text-danger text-[10.5px] rounded-lg">
+                        <strong className="font-bold">Violated:</strong> Suspicious commit frequency (compression ratio: {(uncertainty.timestamp_compression_ratio * 100).toFixed(1)}%). Possible automated commit spoofing or history rewrite.
+                      </div>
+                    )}
+                    {uncertainty && uncertainty.unverified_commits > 0 && (
+                      <div className="p-2 border border-warning/10 bg-warning/5 text-warning text-[10.5px] rounded-lg">
+                        <strong className="font-bold">Warning:</strong> Scanned {uncertainty.unverified_commits} commits lacking verified GitHub signatures.
+                      </div>
+                    )}
+                    {uncertainty && uncertainty.uncalibrated_identities > 0 && (
+                      <div className="p-2 border border-warning/10 bg-warning/5 text-warning text-[10.5px] rounded-lg">
+                        <strong className="font-bold">Warning:</strong> Detected {uncertainty.uncalibrated_identities} contributor email(s) not registered with GitHub API.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
         </div>
 
         {/* Column 2 (Right) */}
         <div className="flex flex-col gap-5">
-          {/* Tier 1: AI Reasoning & Talent Insights (Large) */}
+          {/* Tier 1: AI Reasoning & Talent Insights */}
           <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[220px]">
             <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
               AI Talent Insights & Strengths
@@ -892,107 +1503,101 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
             </div>
           </div>
 
-          {/* Tier 1: Architecture & Directory Layout (Large - Moved from Left) */}
+          {/* Tier 3: Engineering Practices & Controls */}
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[200px]">
+            <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
+              Engineering Practices & Controls
+            </span>
+            <div className="flex flex-col gap-2">
+              {!engineeringSection || !engineeringSection.items || engineeringSection.items.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic font-light py-2">
+                  No explicit engineering practices or control findings recorded.
+                </div>
+              ) : (
+                <Accordion className="w-full" variant="surface">
+                  {engineeringSection.items.map((item, idx) => {
+                    const parsed = parseSectionItem(item);
+                    return (
+                      <Accordion.Item key={idx}>
+                        <Accordion.Heading>
+                          <Accordion.Trigger className="text-[10.5px] font-semibold text-foreground flex items-center justify-between w-full">
+                            <span className="flex items-center gap-2">
+                              <CheckCircle2 className="size-3.5 text-success shrink-0" />
+                              {parsed.title}
+                            </span>
+                            <Accordion.Indicator />
+                          </Accordion.Trigger>
+                        </Accordion.Heading>
+                        <Accordion.Panel>
+                          <Accordion.Body className="text-[10.5px] text-muted-foreground leading-relaxed pl-5.5 font-light pt-2">
+                            {parsed.content || parsed.title}
+                          </Accordion.Body>
+                        </Accordion.Panel>
+                      </Accordion.Item>
+                    );
+                  })}
+                </Accordion>
+              )}
+            </div>
+          </div>
+
+          {/* Tier 2: Architecture & Structure */}
           <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[200px]">
             <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
               Codebase Architecture & Structure
             </span>
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-1.5">
-                {localAnalysis.profile?.architecture?.patterns?.map((pattern, idx) => (
-                  <Chip
-                    key={pattern || idx}
-                    size="sm"
-                    variant="soft"
-                    color="accent"
-                    className="h-6.5 text-xs font-semibold px-2"
-                  >
-                    {pattern}
-                  </Chip>
-                ))}
-                {(!localAnalysis.profile?.architecture?.patterns ||
-                  localAnalysis.profile.architecture.patterns.length === 0) && (
-                    <Chip size="sm" variant="soft" className="h-6.5 text-xs font-medium">
-                      Standard Architecture
-                    </Chip>
-                  )}
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed font-light mt-1">
-                {localAnalysis.profile?.architecture?.explanation ||
-                  "Workspace contains standard design layouts."}
-              </p>
+            <div className="flex flex-col gap-2">
+              {!architectureSection || !architectureSection.items || architectureSection.items.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic font-light py-2">
+                  No codebase design or architectural insight findings recorded.
+                </div>
+              ) : (
+                <Accordion className="w-full" variant="surface">
+                  {architectureSection.items.map((item, idx) => {
+                    const parsed = parseSectionItem(item);
+                    return (
+                      <Accordion.Item key={idx}>
+                        <Accordion.Heading>
+                          <Accordion.Trigger className="text-[10.5px] font-semibold text-foreground flex items-center justify-between w-full">
+                            <span className="flex items-center gap-2">
+                              <Terminal className="size-3.5 text-accent shrink-0" />
+                              {parsed.title}
+                            </span>
+                            <Accordion.Indicator />
+                          </Accordion.Trigger>
+                        </Accordion.Heading>
+                        <Accordion.Panel>
+                          <Accordion.Body className="text-[10.5px] text-muted-foreground leading-relaxed pl-5.5 font-light pt-2">
+                            {parsed.content || parsed.title}
+                          </Accordion.Body>
+                        </Accordion.Panel>
+                      </Accordion.Item>
+                    );
+                  })}
+                </Accordion>
+              )}
             </div>
           </div>
 
-          {/* Tier 2: Contributor Distributions (Medium) */}
-          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3.5 min-h-[200px]">
-            <div className="flex justify-between items-center border-b border-border/20 pb-2">
-              <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
-                Contributor Distributions
-              </span>
-              <span className="text-[10px] text-muted font-light">
-                Bus Factor: <strong>{localAnalysis.facts?.git_metrics?.bus_factor ?? 1}</strong>
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-0.5 bg-surface-secondary/20 p-2.5 rounded-xl border border-border/40">
-                <span className="text-[8.5px] text-muted uppercase font-bold block">Total Commits</span>
-                <strong className="text-lg text-foreground font-black font-mono">
-                  {localAnalysis.ownership?.total_commits ?? 0}
-                </strong>
-              </div>
-              <div className="space-y-0.5 bg-surface-secondary/20 p-2.5 rounded-xl border border-border/40">
-                <span className="text-[8.5px] text-muted uppercase font-bold block">User Commits</span>
-                <strong className="text-lg text-foreground font-black font-mono">
-                  {((localAnalysis.ownership?.user_commit_ratio ?? 1) * 100).toFixed(0)}%
-                </strong>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <span className="text-[8px] text-muted uppercase font-extrabold block">Top Commit Authors</span>
-              <div className="space-y-1.5 pr-1">
-                {(localAnalysis.facts?.git_metrics?.contributor_distribution || []).slice(0, 3).map((item: ContributorDistributionItem & { username?: string; commit_ratio?: number }, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center text-xs">
-                    <span className="font-semibold text-foreground truncate max-w-[150px]">
-                      {item.author || item.username}
-                    </span>
-                    <span className="font-mono text-muted text-[10px]">
-                      {item.commits || 0} commits (
-                      {(item.pct || (item.commit_ratio ? item.commit_ratio * 100 : 0)).toFixed(1)}%)
-                    </span>
-                  </div>
-                ))}
-                {(!localAnalysis.facts?.git_metrics?.contributor_distribution ||
-                  localAnalysis.facts.git_metrics.contributor_distribution.length === 0) && (
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-foreground">Target Developer</span>
-                      <span className="font-mono text-muted text-[10px]">100.0% contribution ratio</span>
-                    </div>
-                  )}
-              </div>
-            </div>
-          </div>
-
-          {/* Tier 3: Reliability Index (Compact) */}
-          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[180px]">
+          {/* Tier 4: Reliability Index */}
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[200px]">
             <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
-              Reliability & Citations
+              Reliability & Trust Calibration
             </span>
             {(() => {
-              const task = job?.tasks?.find((t) => t.taskType === "RepoStructure");
-              const meta = getTaskConfidenceMeta(task);
-              const score = meta?.confidence_score ?? localAnalysis.trust?.confidence ?? 100;
+              const score = Math.round(classification.confidence * 100);
               const completeness =
-                meta?.completeness_ratio ??
-                (localAnalysis.facts?.quality_metrics?.files_sampled
+                localAnalysis.facts?.quality_metrics?.files_sampled
                   ? localAnalysis.facts.quality_metrics.files_sampled /
                   Math.max(1, localAnalysis.facts.quality_metrics.files_scanned)
-                  : 1.0);
-              const citations = meta?.evidence_coverage_count ?? localAnalysis.findings?.length ?? 0;
+                  : 1.0;
+              const uncertainty = localAnalysis.trust_intelligence?.uncertainty_metrics || {
+                variance: 0,
+                sampling_bias_risk: 0,
+                adversarial_manipulation_risk: 0
+              };
               return (
-                <div className="space-y-2.5 text-xs text-muted-foreground">
+                <div className="space-y-2 text-xs text-muted-foreground">
                   <div className="flex justify-between items-center py-1 border-b border-border/20">
                     <span className="font-semibold text-foreground">Reliability Score</span>
                     <strong
@@ -1008,49 +1613,30 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                       {(completeness * 100).toFixed(0)}%
                     </strong>
                   </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="font-semibold text-foreground">Citations Count</span>
+                  <div className="flex justify-between items-center py-1 border-b border-border/20">
+                    <span className="font-semibold text-foreground">Statistical Variance</span>
                     <strong className="font-mono text-foreground font-extrabold">
-                      {citations} refs
+                      {uncertainty.variance}%
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-border/20">
+                    <span className="font-semibold text-foreground">Sampling Bias Risk</span>
+                    <strong className="font-mono text-foreground font-extrabold">
+                      {(uncertainty.sampling_bias_risk * 100).toFixed(1)}%
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="font-semibold text-foreground">Adversarial Risk</span>
+                    <strong
+                      className={`font-mono font-extrabold ${uncertainty.adversarial_manipulation_risk > 30 ? "text-danger" : "text-success"
+                        }`}
+                    >
+                      {uncertainty.adversarial_manipulation_risk}%
                     </strong>
                   </div>
                 </div>
               );
             })()}
-          </div>
-
-          {/* Tier 3: Warnings & observations (Compact - Moved from Left) */}
-          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col gap-3 min-h-[180px]">
-            <span className="text-[9px] uppercase font-extrabold tracking-wider block text-warning">
-              Anomalies & Warnings
-            </span>
-            <div className="flex flex-col gap-2">
-              {localAnalysis.trust?.rule_flags.length === 0 &&
-                localAnalysis.trust?.ai_findings.length === 0 ? (
-                <div className="text-xs text-muted-foreground italic font-light py-2">
-                  No warnings or stylistic flags recorded.
-                </div>
-              ) : (
-                <div className="space-y-2 pr-1">
-                  {localAnalysis.trust?.rule_flags.map((flag, idx) => (
-                    <div
-                      key={`rule-${idx}`}
-                      className="p-2 border border-danger/10 bg-danger/5 text-danger text-[10.5px] rounded-lg"
-                    >
-                      <strong className="font-bold">Violated:</strong> {flag}
-                    </div>
-                  ))}
-                  {localAnalysis.trust?.ai_findings.map((finding, idx) => (
-                    <div
-                      key={`ai-${idx}`}
-                      className="p-2 border border-warning/10 bg-warning/5 text-warning text-[10.5px] rounded-lg"
-                    >
-                      <strong className="font-bold">Warning:</strong> {finding}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -1193,7 +1779,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
           </Modal.CloseTrigger>
 
           {/* Modal Header */}
-          <Modal.Header className="mb-4 pr-10 flex flex-col items-start gap-3 border-b border-border/20 pb-4">
+          <Modal.Header className="pr-10 flex flex-col items-start gap-3 border-b border-border/20 pb-4">
             <Modal.Heading className="outline-hidden text-left w-full flex items-center justify-between gap-4">
               <div>
                 <span className="text-[10px] text-accent uppercase font-extrabold tracking-wider block mb-1">
@@ -1206,7 +1792,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
 
               {/* View mode toggle (only shown when job is completed) */}
               {job?.status === "Completed" && (
-                <div className="flex gap-1 bg-surface-secondary border border-border/80 rounded-xl p-1 shrink-0 font-sans select-none">
+                <div className="flex gap-1 bg-surface-secondary border border-border/80 rounded-xl p-1 shrink-0 font-sans ">
                   <Button
                     size="sm"
                     onClick={() => setViewMode("report")}
@@ -1217,6 +1803,17 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                   >
                     <LayoutDashboard size={13} className="mr-1" />
                     Dashboard
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setViewMode("graph")}
+                    className={`rounded-lg px-3.5 py-1 text-xs font-bold ${activeViewMode === "graph"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "bg-transparent text-muted hover:text-foreground"
+                      }`}
+                  >
+                    <Share2 size={13} className="mr-1" />
+                    Trust Graph
                   </Button>
                   <Button
                     size="sm"
@@ -1245,7 +1842,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
             </Modal.Heading>
 
             {/* Top Summary Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 w-full bg-surface-secondary/40 border border-border/40 rounded-2xl p-3 text-[11px] font-mono text-muted-foreground select-none">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 w-full bg-surface-secondary/40 border border-border/40 rounded-2xl p-3 text-[11px] font-mono text-muted-foreground ">
               <div className="flex flex-col gap-0.5">
                 <span className="text-[9px] text-muted font-bold uppercase tracking-wider font-sans">
                   Status
@@ -1341,7 +1938,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
 
             {/* Overall Job Progress Ticker */}
             {isJobRunning && job && (
-              <div className="w-full space-y-1 mt-1 font-mono text-[10px] select-none text-muted-foreground">
+              <div className="w-full space-y-1 mt-1 font-mono text-[10px]  text-muted-foreground">
                 <div className="flex justify-between items-center">
                   <span>Pipeline Execution Progress</span>
                   <span className="text-accent font-bold">{Math.round(job.progress)}%</span>
@@ -1362,8 +1959,49 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
           </Modal.Header>
 
           {/* Modal Body */}
-          <Modal.Body className="flex-1 overflow-y-auto space-y-6 select-text py-2 max-h-[60vh]">
-            {!localAnalysis && !job ? (
+          <Modal.Body className="flex-1 overflow-y-auto space-y-6 select-text max-h-[60vh]">
+            {validationError ? (
+              <div className="flex flex-col items-center justify-center p-8 border border-danger/20 bg-danger/5 rounded-2xl text-left select-text min-h-[350px]">
+                <AlertTriangle className="size-12 text-danger mb-4 shrink-0 animate-bounce" />
+                <h3 className="text-lg font-extrabold text-foreground mb-2">Repository Intelligence Diagnostic Failure</h3>
+                <p className="text-xs text-muted-foreground mb-6 max-w-lg leading-relaxed text-center font-sans">
+                  The AI analysis response for this repository failed to validate against the strict schema contract. This safety boundary prevents rendering corrupted or partial data in the UI.
+                </p>
+                <div className="flex gap-3 mb-6 ">
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    className="rounded-xl font-bold px-4 text-xs"
+                    onClick={() => {
+                      if (repoId) {
+                        setValidationError(null);
+                        repositoryAnalysisApi.triggerAnalysis(repoId)
+                          .then(() => toast.success("Reanalysis queued successfully!"))
+                          .catch((e) => toast.danger("Failed to trigger reanalysis: " + e.message));
+                      }
+                    }}
+                  >
+                    Reanalyze Repository
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl font-bold px-4 text-xs border-border/40"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+                <details className="w-full bg-background border border-border rounded-2xl p-4 overflow-hidden">
+                  <summary className="text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer ">
+                    View Debug Diagnostics & Schema Errors
+                  </summary>
+                  <div className="mt-3 font-mono text-[10px] text-danger max-h-[220px] overflow-y-auto whitespace-pre-wrap select-all">
+                    {validationError}
+                  </div>
+                </details>
+              </div>
+            ) : !localAnalysis && !job ? (
               <div className="flex flex-col items-center justify-center h-[300px] gap-4">
                 <Spinner size="lg" />
                 <Typography className="text-muted text-xs">
@@ -1372,6 +2010,8 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
               </div>
             ) : activeViewMode === "report" && localAnalysis ? (
               renderBentoGrid()
+            ) : activeViewMode === "graph" && localAnalysis ? (
+              <TrustGraphView trustGraph={localAnalysis.trust_intelligence?.trust_graph || null} localAnalysis={localAnalysis} />
             ) : activeViewMode === "costs" ? (
               renderCostsView()
             ) : (
@@ -1418,7 +2058,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
           </Modal.Body>
 
           {/* Modal Footer */}
-          <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator select-none">
+          <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator ">
             <Button
               onClick={() => onOpenChange(false)}
               className="rounded-xl text-xs font-semibold px-4 h-9"

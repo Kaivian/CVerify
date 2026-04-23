@@ -11,14 +11,27 @@ interface AnalysisScoreCardsProps {
 export const AnalysisScoreCards: React.FC<AnalysisScoreCardsProps> = ({
   analysis,
 }) => {
-  const {
-    evidence_points = { total: 0, breakdown: {} },
-    classification = { primary_type: "Unclassified", complexity: "low", benchmark_group: "unclassified" }
-  } = analysis;
+  const classification = analysis.classification || {
+    primaryDomain: "Unknown",
+    subDomain: "General",
+    confidence: 0,
+    isVerified: false,
+    trustScore: 0
+  };
+
+  const sections = analysis.sections || [];
+
+  // Count items in each section as category breakdown
+  const breakdown = sections.reduce((acc, section) => {
+    acc[section.type] = section.items?.length ?? 0;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const totalEP = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
 
   const getProgressColor = (points: number) => {
-    if (points >= 200) return "success";
-    if (points >= 50) return "accent";
+    if (points >= 15) return "success";
+    if (points >= 5) return "accent";
     return "danger";
   };
 
@@ -34,17 +47,17 @@ export const AnalysisScoreCards: React.FC<AnalysisScoreCardsProps> = ({
             className={`w-24 h-24 rounded-full flex flex-col items-center justify-center border-4 border-accent/30 bg-accent/5 text-accent mb-4`}
           >
             <span className="text-3xl font-black font-display tracking-tight leading-none">
-              {evidence_points.total}
+              {totalEP}
             </span>
             <span className="text-[10px] uppercase font-bold tracking-wider opacity-85 mt-0.5">
-              Total EP
+              Total Signals
             </span>
           </div>
           <Typography className="text-lg font-black text-foreground">
-            {classification.primary_type}
+            {classification.primaryDomain}
           </Typography>
           <span className="text-[10px] text-muted max-w-xs mt-1 block">
-            Complexity: <strong className="capitalize">{classification.complexity || "medium"}</strong>. Benchmarked against <strong>{classification.benchmark_group?.replace("_", " ") || "repositories"}</strong>.
+            Sub-Domain: <strong className="capitalize">{classification.subDomain || "general"}</strong>.
           </span>
         </Card>
 
@@ -58,23 +71,23 @@ export const AnalysisScoreCards: React.FC<AnalysisScoreCardsProps> = ({
           </div>
 
           <div className="space-y-5">
-            {Object.entries(evidence_points.breakdown).map(([category, points]) => (
+            {Object.entries(breakdown).map(([category, points]) => (
               <div key={category} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-extrabold text-foreground flex items-center gap-1 capitalize">
-                    {category === "backend" && <Award className="size-3 text-primary" />}
-                    {category === "frontend" && <Sparkles className="size-3 text-success" />}
-                    {category === "security" && <Shield className="size-3 text-danger" />}
-                    {category !== "backend" && category !== "frontend" && category !== "security" && <Star className="size-3 text-muted" />}
-                    {category}
+                    {category === "engineering_practices" && <Award className="size-3 text-primary" />}
+                    {category === "architecture_insights" && <Sparkles className="size-3 text-success" />}
+                    {category === "security_findings" && <Shield className="size-3 text-danger" />}
+                    {category !== "engineering_practices" && category !== "architecture_insights" && category !== "security_findings" && <Star className="size-3 text-muted" />}
+                    {category.replace("_", " ")}
                   </span>
                   <span className="font-extrabold text-foreground font-mono">
-                    {points} EP
+                    {points} Signals
                   </span>
                 </div>
                 <ProgressBar
                   aria-label={category}
-                  value={Math.min(100, (points / 300) * 100)} // Scaled visually relative to 300 EP max
+                  value={Math.min(100, (points / 20) * 100)} // Scaled visually relative to 20 signals max
                   color={getProgressColor(points)}
                   size="sm"
                   className="w-full"
@@ -91,4 +104,5 @@ export const AnalysisScoreCards: React.FC<AnalysisScoreCardsProps> = ({
     </div>
   );
 };
+
 export default AnalysisScoreCards;

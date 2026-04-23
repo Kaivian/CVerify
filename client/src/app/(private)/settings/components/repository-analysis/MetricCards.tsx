@@ -6,8 +6,8 @@ import {
   GitPullRequest,
   GitBranch,
   Crown,
-  FileCode2,
-  CalendarDays,
+  Users,
+  Activity,
 } from "lucide-react";
 import type { RepositoryAnalysis } from "@/types/repository-analysis.types";
 
@@ -16,10 +16,14 @@ interface MetricCardsProps {
 }
 
 export const MetricCards: React.FC<MetricCardsProps> = ({ analysis }) => {
-  const {
-    repo,
-    ownership = { user_commit_ratio: 1, total_commits: 1, is_primary_author: true, architectural_ownership_pct: 100, critical_path_ownership_pct: 100, maintenance_duration_months: 1, explanation: "" }
-  } = analysis;
+  const repo = analysis.repo;
+  const gitMetrics = analysis.facts?.git_metrics || {
+    total_commits: 0,
+    user_commit_ratio: 1.0,
+    is_primary_author: true,
+    bus_factor: 1,
+    active_contributors: 1
+  };
 
   const metrics = [
     {
@@ -44,23 +48,23 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ analysis }) => {
     },
     {
       label: "Total Commits",
-      value: ownership.total_commits,
+      value: gitMetrics.total_commits,
       icon: <GitCommit className="size-4 text-accent" />,
     },
     {
-      label: "Architectural Share",
-      value: `${ownership.architectural_ownership_pct}%`,
+      label: "Contribution Ratio",
+      value: `${(gitMetrics.user_commit_ratio * 100).toFixed(0)}%`,
       icon: <Crown className="size-4 text-yellow-500" />,
     },
     {
-      label: "Critical Path Share",
-      value: `${ownership.critical_path_ownership_pct}%`,
-      icon: <FileCode2 className="size-4 text-primary" />,
+      label: "Bus Factor",
+      value: gitMetrics.bus_factor,
+      icon: <Users className="size-4 text-primary" />,
     },
     {
-      label: "Active Duration",
-      value: `${ownership.maintenance_duration_months} Mos`,
-      icon: <CalendarDays className="size-4 text-muted-foreground" />,
+      label: "Active Authors",
+      value: gitMetrics.active_contributors,
+      icon: <Activity className="size-4 text-muted-foreground" />,
     },
   ];
 
@@ -85,3 +89,5 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ analysis }) => {
     </div>
   );
 };
+
+export default MetricCards;
