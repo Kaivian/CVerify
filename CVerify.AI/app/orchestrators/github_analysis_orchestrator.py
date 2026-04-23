@@ -1063,45 +1063,111 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             "limitations": [{"limitation": l.get("limitation"), "rationale": l.get("rationale")} for l in summary_data.get("limitations", [])]
         }
 
-        # Determine risk level and score based on findings counts & impact levels
+        # Determine risk level and score based on configuration-driven weights
+        def load_risk_policy() -> dict:
+            policy_path = os.path.join(os.path.dirname(__file__), "..", "scoring", "risk_policy.json")
+            if os.path.exists(policy_path):
+                try:
+                    with open(policy_path, "r", encoding="utf-8") as f:
+                        return json.load(f).get("weights", {})
+                except Exception:
+                    pass
+            return {}
+
+        policy = load_risk_policy()
+        sec_cfg = policy.get("security", {"base_score": 15.0, "sec_critical": 35.0, "sec_warning": 15.0, "vuln_critical": 20.0, "vuln_warning": 10.0})
+        maint_cfg = policy.get("maintainability", {"base_low": 15.0, "base_medium": 35.0, "base_high": 60.0, "qual_critical": 20.0, "qual_warning": 10.0})
+        arch_cfg = policy.get("architecture", {"base_score": 15.0, "arch_critical": 30.0, "arch_warning": 15.0})
+        op_cfg = policy.get("operational", {"base_score": 10.0, "no_cicd": 25.0, "no_tests": 20.0, "no_logging": 20.0, "no_metrics": 15.0, "op_critical": 20.0, "op_warning": 10.0})
+        dep_cfg = policy.get("dependency", {"base_score": 15.0, "dep_critical": 20.0, "dep_warning": 10.0})
+        unc_cfg = policy.get("evidence_uncertainty", {"low_commits": 30.0, "low_user_ratio": 25.0})
+        overall_cfg = policy.get("overall", {"max_weight": 0.7, "avg_weight": 0.3})
+
         critical_sec = sum(1 for f in findings if f.get("category") == "security" and f.get("impact") == "critical")
         warning_sec = sum(1 for f in findings if f.get("category") == "security" and f.get("impact") == "warning")
-        critical_qual = sum(1 for f in findings if f.get("category") == "quality" and f.get("impact") == "critical")
-        warning_qual = sum(1 for f in findings if f.get("category") == "quality" and f.get("impact") == "warning")
+        vuln_critical = sum(1 for v in security_data.get("vulnerabilities", []) if v.get("severity") == "critical")
+        vuln_warning = sum(1 for v in security_data.get("vulnerabilities", []) if v.get("severity") in ("warning", "medium"))
+        
+        complexity = classification_dict.get("complexity", "medium")
+        qual_critical = sum(1 for f in findings if f.get("category") == "quality" and f.get("impact") == "critical")
+        qual_warning = sum(1 for f in findings if f.get("category") == "quality" and f.get("impact") == "warning")
 
-        if critical_sec > 0 or warning_sec >= 3 or critical_qual >= 2:
-            risk_level = "High"
-            risk_score = min(100.0, 75.0 + 5.0 * (critical_sec + warning_sec + critical_qual))
-            factors = []
-            if critical_sec > 0:
-                factors.append(f"{critical_sec} critical security issue(s)")
-            if warning_sec >= 3:
-                factors.append(f"{warning_sec} warning security issues")
-            if critical_qual >= 2:
-                factors.append(f"{critical_qual} critical quality issue(s)")
-            explanation = f"High risk profile identified due to: {', '.join(factors)}."
-        elif warning_sec > 0 or critical_qual > 0 or warning_qual >= 3:
-            risk_level = "Medium"
-            risk_score = min(74.0, 45.0 + 5.0 * (warning_sec + critical_qual + (warning_qual // 3)))
-            factors = []
-            if warning_sec > 0:
-                factors.append(f"{warning_sec} warning security issue(s)")
-            if critical_qual > 0:
-                factors.append(f"{critical_qual} critical quality issue(s)")
-            if warning_qual >= 3:
-                factors.append(f"{warning_qual} warning quality issues")
-            explanation = f"Medium risk profile identified due to: {', '.join(factors)}."
-        else:
-            risk_level = "Low"
-            risk_score = 15.0
-            explanation = "Low risk profile. No significant security or code quality issues detected."
+        arch_critical = sum(1 for f in findings if ("architecture" in f.get("finding", "").lower() or "structure" in f.get("finding", "").lower()) and f.get("impact") == "critical")
+        arch_warning = sum(1 for f in findings if ("architecture" in f.get("finding", "").lower() or "structure" in f.get("finding", "").lower()) and f.get("impact") == "warning")
+
+        cicd_ok = quality_data.get("cicd", {}).get("configured", False)
+        has_tests = quality_data.get("testing", {}).get("has_tests", False)
+        logging_ok = quality_data.get("observability", {}).get("logging_configured", False)
+        metrics_ok = quality_data.get("observability", {}).get("metrics_configured", False)
+        op_crit = sum(1 for f in findings if f.get("category") == "quality" and "test" in f.get("finding", "").lower() and f.get("impact") == "critical")
+        op_warn = sum(1 for f in findings if f.get("category") == "quality" and "test" in f.get("finding", "").lower() and f.get("impact") == "warning")
+
+        total_commits = ownership_info.get("total_commits", 1)
+        user_ratio = ownership_info.get("user_commit_ratio", 1.0)
+        confidence_ceiling = meta.get("confidence_ceiling", 1.0)
+
+        # 6-dimensional risk score calculations
+        security_score = min(100.0, sec_cfg["base_score"] + sec_cfg["sec_critical"] * critical_sec + sec_cfg["sec_warning"] * warning_sec + sec_cfg["vuln_critical"] * vuln_critical + sec_cfg["vuln_warning"] * vuln_warning)
+        
+        complexity_base = maint_cfg["base_high"] if complexity == "high" else maint_cfg["base_medium"] if complexity == "medium" else maint_cfg["base_low"]
+        maintainability_score = min(100.0, complexity_base + maint_cfg["qual_critical"] * qual_critical + maint_cfg["qual_warning"] * qual_warning)
+        
+        architecture_score = min(100.0, arch_cfg["base_score"] + arch_cfg["arch_critical"] * arch_critical + arch_cfg["arch_warning"] * arch_warning)
+        
+        operational_score = op_cfg["base_score"]
+        if not cicd_ok: operational_score += op_cfg["no_cicd"]
+        if not has_tests: operational_score += op_cfg["no_tests"]
+        if not logging_ok: operational_score += op_cfg["no_logging"]
+        if not metrics_ok: operational_score += op_cfg["no_metrics"]
+        operational_score = min(100.0, operational_score + op_cfg["op_critical"] * op_crit + op_cfg["op_warning"] * op_warn)
+
+        dep_score = dep_cfg["base_score"]
+        for f in findings:
+            desc = f.get("explanation", "").lower() or ""
+            title = f.get("finding", "").lower() or ""
+            if "dependency" in desc or "dependency" in title or "package" in desc or "package" in title:
+                dep_score += dep_cfg["dep_critical"] if f.get("impact") == "critical" else dep_cfg["dep_warning"]
+        dep_score = min(100.0, dep_score)
+
+        uncertainty_score = 100.0 - (confidence_ceiling * 100.0)
+        if total_commits < 5: uncertainty_score += unc_cfg["low_commits"]
+        if user_ratio < 0.2: uncertainty_score += unc_cfg["low_user_ratio"]
+        uncertainty_score = min(100.0, uncertainty_score)
+
+        # Overall risk level mapping
+        max_dim = max(security_score, maintainability_score, architecture_score, operational_score, dep_score, uncertainty_score)
+        avg_dim = (security_score + maintainability_score + architecture_score + operational_score + dep_score + uncertainty_score) / 6.0
+        overall_score = round(overall_cfg["max_weight"] * max_dim + overall_cfg["avg_weight"] * avg_dim, 1)
+
+        risk_level = "High" if overall_score >= 70.0 else "Medium" if overall_score >= 35.0 else "Low"
+
+        # Determine Contributing Factors
+        top_factors = []
+        if security_score >= 70.0: top_factors.append("Vulnerable code patterns / dependencies")
+        if maintainability_score >= 70.0: top_factors.append("High structural complexity / tech debt")
+        if operational_score >= 70.0: top_factors.append("Missing automated testing or CI/CD pipelines")
+        if dep_score >= 70.0: top_factors.append("Supply chain / outdated package warnings")
+        if uncertainty_score >= 70.0: top_factors.append("Sparse commit history or low authorship ratio")
+        
+        if not top_factors:
+            if overall_score >= 35.0: top_factors.append("Moderate warnings in quality/security indicators")
+            else: top_factors.append("Project demonstrates solid engineering practices")
 
         risk_assessment = {
             "risk_level": risk_level,
-            "risk_score": risk_score,
-            "critical_findings_count": critical_sec + critical_qual,
-            "warning_findings_count": warning_sec + warning_qual,
-            "explanation": explanation
+            "risk_score": overall_score,
+            "critical_findings_count": critical_sec + qual_critical,
+            "warning_findings_count": warning_sec + qual_warning,
+            "explanation": f"Overall risk is {risk_level} due to: " + ", ".join(top_factors) + ".",
+            "top_factors": top_factors,
+            "dimensions": {
+                "security": security_score,
+                "maintainability": maintainability_score,
+                "architecture": architecture_score,
+                "operational": operational_score,
+                "dependency": dep_score,
+                "evidence_uncertainty": uncertainty_score
+            }
         }
 
         # Structure the payload strictly separating facts from ai conclusions

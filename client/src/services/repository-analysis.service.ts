@@ -172,12 +172,23 @@ const RepositoryAnalysisFactsSchema = z.object({
   quality_metrics: QualityMetricsSchema,
 });
 
+const RiskAssessmentDimensionsSchema = z.object({
+  security: z.number(),
+  maintainability: z.number(),
+  architecture: z.number(),
+  operational: z.number(),
+  dependency: z.number(),
+  evidence_uncertainty: z.number(),
+});
+
 const RiskAssessmentSchema = z.object({
   risk_level: z.enum(["Low", "Medium", "High"]),
   risk_score: z.number(),
-  critical_findings_count: z.number(),
-  warning_findings_count: z.number(),
+  critical_findings_count: z.number().nullish().transform((val) => val ?? 0),
+  warning_findings_count: z.number().nullish().transform((val) => val ?? 0),
   explanation: z.string(),
+  top_factors: z.array(z.string()).nullish().transform((val) => val ?? []),
+  dimensions: RiskAssessmentDimensionsSchema.optional(),
 });
 
 const RepositoryAnalysisAiConclusionsSchema = z.object({
@@ -363,6 +374,42 @@ export const repositoryAnalysisApi = {
 
   getTaskEvents: async (jobId: string, taskId: string): Promise<AnalysisTaskEvent[]> => {
     const response = await axiosClient.get<AnalysisTaskEvent[]>(`/repository-analyses/jobs/${jobId}/tasks/${taskId}/events`);
+    return response.data;
+  },
+
+  getAnalysisCosts: async (jobId: string): Promise<{
+    jobId: string;
+    totalCostUsd: number;
+    totalTokens: number;
+    totalDurationMs: number;
+    executions: Array<{
+      id: string;
+      jobId: string;
+      taskId: string;
+      executionType: string;
+      provider: string;
+      model: string;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      cachedTokens: number;
+      estimatedCostUsd: number;
+      durationMs: number;
+      createdAtUtc: string;
+    }>;
+  }> => {
+    const response = await axiosClient.get<any>(`/repository-analyses/jobs/${jobId}/costs`);
+    return response.data;
+  },
+
+  getPlatformCostSummary: async (): Promise<{
+    costPerRepository: Array<{ repositoryName: string; totalCostUsd: number; totalTokens: number }>;
+    costPerUser: Array<{ userEmail: string; totalCostUsd: number; totalTokens: number }>;
+    costPerModel: Array<{ modelName: string; totalCostUsd: number; totalTokens: number }>;
+    costPerProvider: Array<{ providerName: string; totalCostUsd: number; totalTokens: number }>;
+    monthlyTrends: Array<{ year: number; month: number; totalCostUsd: number; totalTokens: number }>;
+  }> => {
+    const response = await axiosClient.get<any>('/repository-analyses/costs/platform-summary');
     return response.data;
   }
 };

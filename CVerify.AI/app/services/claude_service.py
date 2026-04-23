@@ -193,7 +193,9 @@ class ClaudeService:
                 "cacheReadTokens": cache_read,
                 "cacheWriteTokens": cache_creation,
                 "estimatedCostUsd": float(cost),
-                "modelName": settings.claude_model
+                "modelName": settings.claude_model,
+                "provider": "Anthropic",
+                "durationMs": duration
             }
 
             logger.info(

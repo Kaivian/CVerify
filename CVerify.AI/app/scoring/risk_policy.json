@@ -1,0 +1,45 @@
+{
+  "weights": {
+    "security": {
+      "base_score": 15.0,
+      "sec_critical": 35.0,
+      "sec_warning": 15.0,
+      "vuln_critical": 20.0,
+      "vuln_warning": 10.0
+    },
+    "maintainability": {
+      "base_low": 15.0,
+      "base_medium": 35.0,
+      "base_high": 60.0,
+      "qual_critical": 20.0,
+      "qual_warning": 10.0
+    },
+    "architecture": {
+      "base_score": 15.0,
+      "arch_critical": 30.0,
+      "arch_warning": 15.0
+    },
+    "operational": {
+      "base_score": 10.0,
+      "no_cicd": 25.0,
+      "no_tests": 20.0,
+      "no_logging": 20.0,
+      "no_metrics": 15.0,
+      "op_critical": 20.0,
+      "op_warning": 10.0
+    },
+    "dependency": {
+      "base_score": 15.0,
+      "dep_critical": 20.0,
+      "dep_warning": 10.0
+    },
+    "evidence_uncertainty": {
+      "low_commits": 30.0,
+      "low_user_ratio": 25.0
+    },
+    "overall": {
+      "max_weight": 0.7,
+      "avg_weight": 0.3
+    }
+  }
+}

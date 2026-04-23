@@ -104,6 +104,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<AnalysisTask> AnalysisTasks => Set<AnalysisTask>();
     public DbSet<AnalysisTaskResult> AnalysisTaskResults => Set<AnalysisTaskResult>();
     public DbSet<AnalysisTaskEvent> AnalysisTaskEvents => Set<AnalysisTaskEvent>();
+    public DbSet<AnalysisExecution> AnalysisExecutions => Set<AnalysisExecution>();
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
     public DbSet<UserPreferredLocation> UserPreferredLocations => Set<UserPreferredLocation>();
@@ -546,6 +547,26 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.Task)
                   .WithMany()
                   .HasForeignKey(e => e.TaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalysisExecution configurations
+        modelBuilder.Entity<AnalysisExecution>(entity =>
+        {
+            entity.ToTable("analysis_executions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.HasIndex(e => e.TaskId).HasDatabaseName("idx_analysis_executions_task_id");
+            entity.HasIndex(e => e.JobId).HasDatabaseName("idx_analysis_executions_job_id");
+
+            entity.HasOne(e => e.Task)
+                  .WithMany()
+                  .HasForeignKey(e => e.TaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Job)
+                  .WithMany()
+                  .HasForeignKey(e => e.JobId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 

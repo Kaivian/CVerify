@@ -97,6 +97,22 @@ public class SourceCodeRepository
     public string? AuthenticityType { get; set; }
 
     [Required]
+    public double LatestRiskScore { get; set; } = 0.0;
+
+    [Required]
+    [MaxLength(50)]
+    public string LatestRiskLevel { get; set; } = "Low";
+
+    [Required]
+    [MaxLength(50)]
+    public string LatestAnalysisStatus { get; set; } = "NeverAnalyzed";
+
+    public DateTimeOffset? LatestAnalysisCompletedAtUtc { get; set; }
+
+    [Column(TypeName = "jsonb")]
+    public string? LatestRiskFactorsJson { get; set; }
+
+    [Required]
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
     [Required]

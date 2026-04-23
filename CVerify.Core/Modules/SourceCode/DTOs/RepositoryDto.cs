@@ -30,6 +30,11 @@ public record RepositoryDto(
     string? CustomSettingsJson,
     string? Classification,
     string? AuthenticityType,
+    double LatestRiskScore,
+    string LatestRiskLevel,
+    string LatestAnalysisStatus,
+    DateTimeOffset? LatestAnalysisCompletedAtUtc,
+    string? LatestRiskFactorsJson,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset LastSyncedAt
 );

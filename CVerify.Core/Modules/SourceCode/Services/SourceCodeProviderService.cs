@@ -183,14 +183,21 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             query = query.Where(r => r.Classification != null && EF.Functions.ILike(r.Classification, category));
         }
 
-        // Apply Sorting
+        // Apply Sorting:
+        // Priority 1: Completed
+        // Priority 2: Pending
+        // Priority 3: Others
+        var orderedQuery = query
+            .OrderByDescending(r => r.LatestAnalysisStatus == "Completed")
+            .ThenByDescending(r => r.LatestAnalysisStatus == "Pending");
+
         query = sort?.ToLowerInvariant() switch
         {
-            "stars" => query.OrderByDescending(r => r.StarsCount),
-            "name_asc" => query.OrderBy(r => r.Name),
-            "name_desc" => query.OrderByDescending(r => r.Name),
-            "updated" => query.OrderByDescending(r => r.LastUpdatedUtc),
-            _ => query.OrderByDescending(r => r.LastUpdatedUtc) // default
+            "stars" => orderedQuery.ThenByDescending(r => r.StarsCount),
+            "name_asc" => orderedQuery.ThenBy(r => r.Name),
+            "name_desc" => orderedQuery.ThenByDescending(r => r.Name),
+            "updated" => orderedQuery.ThenByDescending(r => r.LastUpdatedUtc),
+            _ => orderedQuery.ThenByDescending(r => r.LastUpdatedUtc) // default
         };
 
         var totalCount = await query.CountAsync();
@@ -225,6 +232,11 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 r.CustomSettingsJson,
                 r.Classification,
                 r.AuthenticityType,
+                r.LatestRiskScore,
+                r.LatestRiskLevel,
+                r.LatestAnalysisStatus,
+                r.LatestAnalysisCompletedAtUtc,
+                r.LatestRiskFactorsJson,
                 r.CreatedAtUtc,
                 r.LastSyncedAt
             ))
