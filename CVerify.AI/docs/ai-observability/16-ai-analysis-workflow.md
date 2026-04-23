@@ -1,12 +1,12 @@
 # 16 - AI Analysis Workflow
 
-This document traces the workflow of the repository intelligence pipeline, from the C# backend invocation through the Python FastAPI microservice to Claude and back.
+This document traces the workflow of the repository intelligence pipeline, from the C# backend task execution loop through the Python FastAPI microservice to Claude and back.
 
 ---
 
 ## Detailed Sequence Diagram
 
-The following diagram maps the exact step-by-step execution flow, including error fallbacks, correlation ID propagation, and cancellations.
+The following diagram maps the exact step-by-step execution flow of the discrete task execution pipeline:
 
 ```mermaid
 sequenceDiagram
@@ -18,96 +18,75 @@ sequenceDiagram
     participant Git as Git Subprocess
     participant DB as EF Core Database
 
-    %% STEP 1: REST API CALL WITH HMAC
-    CoreSvc->>AI_Router: POST /api/v1/analysis/orchestrate/stream (JSON Payload + HMAC)
-    Note over CoreSvc, AI_Router: Correlation ID passed in header X-Correlation-Id
+    %% STEP 1: PREPARATION
+    CoreSvc->>DB: Queued Job & Tasks created in SQL DB
+    CoreSvc->>CoreSvc: Read pipeline_config.json for task ordering
     
-    activate AI_Router
-    AI_Router->>AI_Router: Verify HMAC, Client ID, Timestamp & Nonce
-    AI_Router->>AI_Router: Bind Correlation ID to Request state
-    AI_Router->>AI_Orch: orchestrate_async(repository_id, name, owner, token, branch)
-    activate AI_Orch
-    
-    %% STEP 2: GIT CLONE WITH RETRY BRANCH FALLBACK
-    AI_Orch-->>AI_Router: Yield status: "CloningRepository" (progress 20.0)
-    AI_Router-->>CoreSvc: Stream SSE: CloningRepository
-    AI_Orch->>Git: git clone --branch [branch] [clone_url] [clone_dir]
-    activate Git
-    
-    alt Git Clone Succeeds
-        Git-->>AI_Orch: Return code 0
-    else Git Clone Fails (Branch mismatch)
-        Git-->>AI_Orch: Return code != 0
-        deactivate Git
-        AI_Orch->>AI_Orch: Delete failed clone_dir
-        AI_Orch->>Git: git clone [clone_url] [clone_dir] (Retry default branch fallback)
-        activate Git
-        alt Fallback Succeeds
-            Git-->>AI_Orch: Return code 0
-        else Fallback Fails
-            Git-->>AI_Orch: Return code != 0
-            deactivate Git
-            AI_Orch-->>AI_Router: Raise Exception("Git clone failed")
-            AI_Router-->>CoreSvc: Stream SSE: {"status": "Failed", "step": "Failed", "message": "Git clone failed..."}
+    %% STEP 2: DISCRETE EXECUTION LOOP
+    loop For each task (RepoStructure, CommitIntelligence, SkillExtraction, etc.)
+        CoreSvc->>DB: Set Task & Job state to Running
+        CoreSvc->>AI_Router: POST /api/v1/analysis/task/execute (JSON Payload + HMAC)
+        activate AI_Router
+        AI_Router->>AI_Router: Verify HMAC signature & bind correlation ID to TraceContext
+        AI_Router->>AI_Orch: execute_task(task_type, job_id, repoOwner, repoName...)
+        activate AI_Orch
+        
+        alt Task: RepoStructure
+            AI_Orch->>AI_Orch: Classify repo (original vs fork vs clone)
+            AI_Orch->>Git: git clone --branch [branch] [clone_url] (Shallow clone depth=100)
+            activate Git
+            alt Clone branch fails
+                Git-->>AI_Orch: Return non-zero code
+                deactivate Git
+                AI_Orch->>Git: git clone [clone_url] (Retry default branch fallback)
+                activate Git
+                Git-->>AI_Orch: Return code 0
+                deactivate Git
+            end
+            AI_Orch->>AI_Orch: Walk directories, run TechnologyDetector
+        else Task: CommitIntelligence
+            AI_Orch->>Git: Run git log commands
+            AI_Orch->>AI_Orch: Parse commits count, user ratio, bus factor
+            AI_Orch->>Claude: Invoke Claude to audit repository authenticity
+        else Other Tasks (3 - 9)
+            AI_Orch->>AI_Orch: Load cached results of preceding tasks from workspace files
+            AI_Orch->>Claude: Invoke Claude with task prompt and code samples
+            activate Claude
+            Claude-->>AI_Orch: Return JSON text block
+            deactivate Claude
         end
+        
+        AI_Orch->>AI_Orch: Cache result in temp_clones/{job_id}/{task_type}_result.json
+        AI_Orch-->>AI_Router: Return Task Result & Telemetry
+        deactivate AI_Orch
+        AI_Router-->>CoreSvc: Return TaskExecuteResponse JSON
+        deactivate AI_Router
+        
+        CoreSvc->>DB: Save TaskResult, update Task to Completed, update progress
     end
 
-    %% STEP 3: TECHNOLOGY DETECTION
-    AI_Orch-->>AI_Router: Yield status: "DetectingTechnologyStack" (progress 40.0)
-    AI_Router-->>CoreSvc: Stream SSE: DetectingTechnologyStack
-    AI_Orch->>AI_Orch: Walk directories, read manifests (first 2000 bytes)
-    
-    %% STEP 4: FILE SAMPLING
-    AI_Orch-->>AI_Router: Yield status: "SamplingCode" (progress 60.0)
-    AI_Router-->>CoreSvc: Stream SSE: SamplingCode
-    AI_Orch->>AI_Orch: Check size limit (150MB) and file count limit (10k)
-    alt Size Exceeded
-        AI_Orch-->>AI_Router: Raise Exception("Repository exceeds limit")
-        AI_Router-->>CoreSvc: Stream SSE: {"status": "Failed", "message": "Repository exceeds..."}
-    end
-    AI_Orch->>AI_Orch: Sort code files by size, extract largest 10 files (first 100 lines each)
-
-    %% STEP 5: PROMPT GENERATION
-    AI_Orch->>AI_Orch: Build System Prompt & User Prompt (inject manifests & code snippets)
-
-    %% STEP 6: CLAUDE INVOCATION
-    AI_Orch-->>AI_Router: Yield status: "RunningAgents" (progress 80.0)
-    AI_Router-->>CoreSvc: Stream SSE: RunningAgents
-    AI_Orch->>Claude: analyze_repo(system_prompt, user_prompt)
-    activate Claude
-    
-    alt Claude API Call Succeeds
-        Claude-->>AI_Orch: Return text response
-    else Claude API Call Fails (Rate limit / Connection)
-        Claude-->>AI_Orch: Log & Re-raise Exception
-        deactivate Claude
-        AI_Orch-->>AI_Router: Raise Exception("Claude analysis service failure")
-        AI_Router-->>CoreSvc: Stream SSE: {"status": "Failed", "message": "Claude analysis service failure..."}
-    end
-
-    %% STEP 7: JSON PARSING AND SCORING BACKFILL
-    AI_Orch->>AI_Orch: Extract braces { ... } from Claude response text
-    alt JSON Parsing Fails
-        AI_Orch-->>AI_Router: Raise Exception("Claude output did not return valid JSON")
-        AI_Router-->>CoreSvc: Stream SSE: {"status": "Failed"}
-    else JSON Parsing Succeeds
-        AI_Orch->>AI_Orch: Inject repo details (id, name, full_name, url)
-        AI_Orch->>AI_Orch: Backfill scoring.final_score if missing
-    end
-
-    %% STEP 8: FINAL AGGREGATION & TERMINATION
-    AI_Orch-->>AI_Router: Yield status: "AggregatingResults" (progress 90.0)
-    AI_Router-->>CoreSvc: Stream SSE: AggregatingResults
-    AI_Orch-->>AI_Router: Yield final {"reportData": "JSON string"}
+    %% STEP 3: RESULTS AGGREGATION
+    CoreSvc->>DB: Set Job state to AggregatingResults
+    CoreSvc->>AI_Router: POST /api/v1/analysis/task/aggregate (JSON Payload + HMAC)
+    activate AI_Router
+    AI_Router->>AI_Router: Verify HMAC
+    AI_Router->>AI_Orch: aggregate_results(job_id, repository_id, partial_results...)
+    activate AI_Orch
+    AI_Orch->>AI_Orch: Verify CI/CD configuration files on disk
+    AI_Orch->>AI_Orch: Reconcile and calibrate skills (truth calibration layer)
+    AI_Orch->>AI_Orch: Calculate risk scores & adversarial metrics (compression, unverified)
+    AI_Orch->>AI_Orch: Construct trust graph nodes & edges
+    AI_Orch->>AI_Orch: Validate output against Pydantic ReportV2Contract model
+    AI_Orch->>AI_Orch: Delete temporary clones workspace (deleteWorkspace=true)
+    AI_Orch-->>AI_Router: Return aggregated Report V2 payload
     deactivate AI_Orch
-    AI_Router-->>CoreSvc: Stream SSE: reportData payload
-    AI_Router-->>CoreSvc: Stream SSE: [DONE] (closes HTTP stream)
+    AI_Router-->>CoreSvc: Return AggregateResponse
     deactivate AI_Router
     
-    %% STEP 9: persistence
+    %% STEP 4: PERSISTENCE
     CoreSvc->>DB: Save AnalysisReport (JSONB)
-    CoreSvc->>DB: Set SourceCodeRepository.IsVerified and TrustScore
-    CoreSvc->>DB: Update AnalysisJob (Status: Completed, Progress: 100.0)
+    CoreSvc->>DB: ParseV2ReportMetadata and update SourceCodeRepository flags
+    CoreSvc->>DB: Set AnalysisJob status to Completed (Progress 100.0)
 ```
 
 ---
@@ -115,21 +94,27 @@ sequenceDiagram
 ## Error and Cancellation Pathways
 
 ### 1. User/Timeout Cancellation
-*   **Trigger**: The user clicks "Cancel" in the UI, or the CVerify.Core background processor surpasses the 10-minute timeout limit.
+*   **Trigger**: The user cancels the job, or execution exceeds the 10-minute timeout.
 *   **Workflow**:
-    1.  C# `RepositoryAnalysisService` cancels the asynchronous http client query task (triggers `CancellationToken` cancellation).
-    2.  `RepositoryAnalysisService` catches `OperationCanceledException`.
-    3.  If the status of the job in the SQL database is not already `Cancelled` (user-triggered), the worker updates it to `TimedOut` and sets the error message.
-    4.  The service logs `Repository analysis job {JobId} timed out or was cancelled.`
-    5.  The worker publishes a progress event payload to Redis Pub/Sub with status `Cancelled` or `TimedOut` to close any open client browser SSE streams.
+    1.  C# `RepositoryAnalysisService` cancels the HTTP client cancellation token.
+    2.  Catches `OperationCanceledException` in `ExecuteAnalysisJobAsync`.
+    3.  If the job is not already `Cancelled` (user-triggered), updates status in database to `TimedOut` and records error.
+    4.  Publishes progress event to Redis Pub/Sub to close any active frontend SSE progress connections.
 
-### 2. Git Clone Fallback Retry Path
+### 2. Git Clone Fallback Path
 *   **Trigger**: Subprocess clone of the designated branch fails (due to branch renaming or removal).
 *   **Workflow**:
-    1.  Python microservice catches `subprocess.run` failure.
-    2.  Executes `shutil.rmtree(clone_dir, ignore_errors=True)` to clean the workspace.
-    3.  Fires a second `subprocess.run` cloning only the repository root *without* branch tags.
-    4.  If this succeeds, execution proceeds normally to technology stack scans.
+    1.  Python microservice catches `subprocess.run` clone failure.
+    2.  Deletes failed directory via `shutil.rmtree(clone_dir, ignore_errors=True)`.
+    3.  Attempts second `subprocess.run` cloning only the repository root *without* branch tags (remote falls back to its default branch).
+    4.  If fallback fails, raises a generic Exception to halt the task.
+
+### 3. CV Synthesis Self-Correction Retry
+*   **Trigger**: Claude returns an unparseable JSON format, or Pydantic validation fails during CV Synthesis.
+*   **Workflow**:
+    1.  Orchestrator catches validation error.
+    2.  If it is attempt 1, appends the validation error trace to the user prompt and invokes Claude again for self-correction (attempt 2).
+    3.  If attempt 2 also fails, it triggers the deterministic fallback builder to prevent pipeline crashes.
 
 ---
 
@@ -137,12 +122,12 @@ sequenceDiagram
 
 | Field | Reference Value / Path |
 |---|---|
-| **Entry Points** | `/api/v1/analysis/orchestrate/stream` in [app/routes/analysis_router.py](../routes/analysis_router.py) |
+| **Entry Points** | `/api/v1/analysis/task/execute` and `/api/v1/analysis/task/aggregate` in [app/routes/analysis_router.py](../routes/analysis_router.py) |
 | **Dependencies** | Python: `fastapi`, `anthropic`, `redis`, `subprocess`. C#: `HttpClient`, `EF Core`, `StackExchange.Redis`. |
 | **Execution Flow** | Orchestrated sequence detailed in sequence diagram. |
-| **Common Failure Modes** | Invalid HMAC headers (clock skew), Claude parser crash (invalid text formatting), DB write timeout. |
+| **Common Failure Modes** | Invalid HMAC headers, Claude API rate limits, Pydantic validation failures. |
 | **Related Files** | [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py), `RepositoryAnalysisService.cs` |
 | **Related Services** | [ClaudeService](../services/claude_service.py) |
-| **Related DTOs** | `AnalysisRequest` |
-| **Related Database Tables** | `AnalysisJobs`, `AnalysisJobEvents`, `AnalysisReports` |
+| **Related DTOs** | `TaskExecutionRequest`, `AggregationRequest`, `TaskExecuteResponse` |
+| **Related Database Tables** | `AnalysisJobs`, `AnalysisTasks`, `AnalysisTaskResults`, `AnalysisReports` |
 | **Related Frontend Components** | `DetailedAnalysisModal.tsx` |

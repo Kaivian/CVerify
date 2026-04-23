@@ -33,7 +33,12 @@ graph TD
         AI_Orch -->|Invokes| Tech[technology_detector.py]
         AI_Orch -->|Invokes| Sampler[code_sampler.py]
         AI_Orch -->|Invokes| Prompt[github_prompt_factory.py]
+        AI_Orch -->|Invokes| CvPrompt[cv_prompt_factory.py]
         AI_Orch -->|Invokes| Claude[claude_service.py]
+        Claude -->|Records Usage| CostTrack[ai_cost_tracker.py]
+        AI_Router -->|Initializes TraceContext| Obs[observability.py]
+        AI_Orch -->|Sets Traces| Obs
+        Claude -->|Streams telemetries| Obs
     end
 
     %% External Interfaces
@@ -81,7 +86,6 @@ graph TD
         subgraph UnusedServices [app/scoring & app/embedding & app/monitoring]
             Percentile[percentile_service.py]
             Weighted[weighted_scoring_engine.py]
-            CostTrack[ai_cost_tracker.py]
             Metrics[pipeline_metrics.py]
             EmbedSvc[embedding_service.py]
         end

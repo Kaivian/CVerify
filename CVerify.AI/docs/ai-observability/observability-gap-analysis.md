@@ -7,7 +7,7 @@ This document audits the legacy observability defects in `CVerify.AI` and highli
 ### Gap 1: Request Correlation ID Propagation
 * **Defect**: The correlation ID formatter existed in `main.py` but required manual `extra={"correlation_id": ...}` propagation. Down-funnel components like `GitHubAnalysisOrchestrator` and `ClaudeService` had no correlation ID argument.
 * **Impact**: Git clones, sampler walks, and Claude API exceptions were logged as `CorrelationId: system`, rendering production traceability impossible.
-* **Resolution**: Updated `orchestrate_async`, `analyze_repo`, and `stream_chat` signatures to accept and propagate `correlation_id` to all logger calls.
+* **Resolution**: Implemented contextvars-based trace context (`TraceContext`) inside `observability.py`. Incoming request correlation IDs are bound to the coroutine context, ensuring all logger calls automatically format with the correct trace ID. Forwarded the correlation ID through parameters to individual tasks and ClaudeService to log usage telemetry and calculate costs.
 
 ### Gap 2: Claude Token & Cost Analytics
 * **Defect**: Response token metadata was discarded, and the `AiCostTracker` was a dead skeleton.

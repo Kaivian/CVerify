@@ -1,74 +1,79 @@
 # 07 - Repository Analysis Pipeline
 
-This document details the step-by-step execution pipeline of the CVerify Repository Intelligence Engine, defining the inputs, outputs, duration estimates, potential failures, and log signatures for each of the 8 distinct phases.
+This document details the step-by-step execution pipeline of the CVerify Repository Intelligence Engine, defining the inputs, outputs, configuration weights, and expected outcomes for each of the 9 discrete tasks and the final aggregation stage.
 
 ---
 
 ## Pipeline Stage Breakdown
 
-The entire analysis lifecycle is decomposed into 8 sequential stages, executed within `GitHubAnalysisOrchestrator.orchestrate_async()` and orchestrated from the C# core backend:
+The analysis lifecycle is decomposed into 9 sequential task executions followed by a final calibration and aggregation stage. These tasks are orchestrated from the C# core backend (`RepositoryAnalysisService.ExecuteAnalysisJobAsync`) and run on the Python FastAPI service:
 
-| Stage | Name | Input | Output | Est. Duration | Failures |
+| Stage | Task Type | Weight | Technical Purpose | Input | Output |
 |---|---|---|---|---|---|
-| **1** | **Prepare Job Workspace** | Job ID | Temp workspace directory structure | < 1 sec | Directory permission error |
-| **2** | **Git Clone Repository** | GitHub OAuth token, Repository URL, Branch | Shallow cloned files on disk | 2 - 25 sec | Invalid token, missing branch, git host offline |
-| **3** | **Technology Detection** | Cloned files list | List of detected framework/library tags | 1 - 3 sec | Missing package files |
-| **4** | **Codebase File Sampling** | Local repository path, maximum file/size settings | Selected manifests, doc files, and code snippets | 2 - 5 sec | Repo size > 150MB, files count > 10,000 |
-| **5** | **Prompt Generation** | Ingested manifests, technology lists, file contents | Formatted System & User Prompt strings | < 1 sec | Zipping array length mismatch |
-| **6** | **Invoke Claude Analysis** | Compiled Prompt strings | Raw output Markdown JSON text block | 10 - 45 sec | Rate limits, API timeout, authentication block |
-| **7** | **JSON Parsing & Backfilling** | Raw text block | Valid JSON dict structure, score & band fields | < 1 sec | Output truncated, unparseable JSON |
-| **8** | **Report Streaming & Persistence** | Report JSON | Updated DB records, completed SSE closure payload | 1 - 2 sec | DB lock, Redis connection failure |
+| **1** | **RepoStructure** | 10.0 | Classifies repository metadata, shallow clones branch, and scans file directories. | Repo URL, branch, credentials | Technology tags list, directories walk metadata |
+| **2** | **CommitIntelligence** | 20.0 | Audits local git log history to calculate factual authorship ratios, bus factor, and trust classifications. | Local Git repository history | Factual git metrics and authenticity evaluation |
+| **3** | **SkillExtraction** | 15.0 | Scans code snippets and walks manifests to extract tech skill signatures. | Code samples, manifests | Categorized skills list with evidence citations |
+| **4** | **ArchitectureAnalysis** | 15.0 | Maps codebase design patterns and structural layouts. | Code samples, file directories | Identified architectural patterns (e.g. MVC, layered) |
+| **5** | **CodeQuality** | 15.0 | Checks test frameworks, logging configurations, and CI/CD pipelines. | Code samples, file directory checks | Test coverage, observability, and quality findings |
+| **6** | **SecurityAnalysis** | 10.0 | Audits dependencies and code snippets for vulnerabilities. | Code samples, manifest file imports | Vulnerabilities list and security findings |
+| **7** | **RepositoryClassification** | 10.0 | Classifies semantic domains (SaaS platform, CLI tool, CRUD application, Library, etc.). | Code samples, README context | Categorized primary and sub-domains |
+| **8** | **RepositorySummary** | 5.0 | Compiles recruiter narratives, strengths, and recommendations. | Code samples, previous task caches | Recruiter executive summaries, strengths list |
+| **9** | **CvSynthesis** | 5.0 | Refines narrative summary and formats findings into recruiter-ready CV elements. | Manifest details, preceding results | Formatted CV profile title, summary, and highlights |
+| **10** | **Aggregation** | N/A | Performs truth calibration, risk modeling, adversarial checks, trust graph compilation, and Pydantic validation. | Workspace file caches | Final Report V2 JSON payload |
 
 ---
 
 ## Detailed Stage Analysis
 
-### Stage 1: Prepare Job Workspace
-*   **Action**: Creates a `temp_clones/` base directory (if missing) and requests a unique temporary directory via Python's standard `tempfile.TemporaryDirectory`.
-*   **Failures**: File permission denials when creating folders inside the microservice root.
-*   **Log Signature**: None explicitly written.
+### 1. RepoStructure
+*   **Action**: Pre-classifies the repository, generates the local temporary directory in `temp_clones/`, and performs a shallow clone of the target branch (depth=100). Walks directories to detect technologies from filenames and manifests.
+*   **Failures**: Git authentication errors, remote branch missing, workspace permission errors.
+*   **Logs**: `Cloning branch '{default_branch}' from GitHub...`
 
-### Stage 2: Git Clone Repository
-*   **Action**: Executes `subprocess.run` to call `git clone --depth 1`. If a branch is specified, it tries to clone that branch. If it fails, it deletes the folder and retries cloning the repository's default branch.
-*   **Failures**: Incorrect credentials, branch name missing from remote repository, connection timeouts.
-*   **Log Signature**:
-    *   *Error*: `Clone failed for {repo_owner}/{repo_name}` (logged as traceback by `logger.exception`).
+### 2. CommitIntelligence
+*   **Action**: Runs shell commands to parse local Git logs (`git log --format=%ae|%an --all`). Calculates user commit ratios, active authors, and bus factor. Calls Claude to evaluate commit history authenticity.
+*   **Failures**: Empty git logs, missing credentials.
+*   **Logs**: `Reading local Git history logs...`
 
-### Stage 3: Technology Detection
-*   **Action**: Recursively walks the directory structure. Ingests the first 2,000 bytes of manifest files (e.g. `package.json`, `requirements.txt`, `.csproj`) and checks for names of common libraries/frameworks.
-*   **Failures**: Inability to parse manifest text, missing encoding types.
-*   **Log Signature**: None.
+### 3. SkillExtraction
+*   **Action**: Calls Claude using `get_skills_user_prompt` on sampled manifests and files, returning skills mapped to categories (frontend, backend, devops, database) with evidence.
+*   **Failures**: Out of token budgets, unparseable LLM output.
+*   **Logs**: `Extracting skill signatures and technology stack details...`
 
-### Stage 4: Codebase File Sampling
-*   **Action**: Iterates over files (ignoring `.git`, `node_modules`, `bin`, `obj`, etc.). Checks total files limit (>10,000) and total directory size (>150MB). Selects manifest files, key docs, and up to 10 largest source files, reading the first 100 lines of each.
-*   **Failures**: Triggers size limit errors or files limit errors.
-*   **Log Signature**:
-    *   *Error*: `Sampling failed for {repo_owner}/{repo_name}: {error_message}` (logged via `logger.error`).
+### 4. ArchitectureAnalysis
+*   **Action**: Evaluates patterns and directory structure layouts using Claude (`get_architecture_user_prompt`).
+*   **Failures**: Claude rate limits.
+*   **Logs**: `Scanning codebase layout for architectural patterns...`
 
-### Stage 5: Prompt Generation
-*   **Action**: Synthesizes the system prompt (schema instructions) and compiles user inputs into a structured markdown-delimited string representing the file contents.
-*   **Failures**: Out of memory errors for exceptionally large arrays.
-*   **Log Signature**: None.
+### 5. CodeQuality
+*   **Action**: Audits test files (xUnit, pytest, Jest), checks logging/metrics configuration, and walks manifest files.
+*   **Failures**: Codebase size limit errors (>150MB or >10k files).
+*   **Logs**: `Inspecting code styling, testing configurations, and observability hooks...`
 
-### Stage 6: Invoke Claude Analysis
-*   **Action**: Sends prompts to Anthropic Claude via `AsyncAnthropic.messages.create()`.
-*   **Failures**: Rate limits (HTTP 429), Context Length exceeded, Anthropic Service outages.
-*   **Log Signature**:
-    *   *Error*: `Error calling Anthropic Claude API for repository analysis: {error_message}`.
+### 6. SecurityAnalysis
+*   **Action**: Walks code directories to audit configuration files, packages, and dependency versions for vulnerabilities.
+*   **Failures**: Token limits.
+*   **Logs**: `Auditing dependencies and code for potential vulnerabilities...`
 
-### Stage 7: JSON Parsing & Backfilling
-*   **Action**: Trims response text, locates the outermost braces `{ ... }`, parses it into a dictionary, inserts `repository_id` and name fields, and backfills `scoring.final_score` from `trust.confidence` if scoring is missing.
-*   **Failures**: Truncated completions causing syntax errors during JSON decoding.
-*   **Log Signature**:
-    *   *Warning*: `Failed to parse extracted JSON block: {parse_err}`
-    *   *Error*: `Failed to parse Claude output as JSON. Output: ...`
+### 7. RepositoryClassification
+*   **Action**: Classifies repository's semantic domain (e.g. SaaS Platform, CLI Tool) while excluding 'Fork' classifications to prevent skill inflation.
+*   **Failures**: Rate limits.
+*   **Logs**: `Classifying repository's semantic domain...`
 
-### Stage 8: Report Streaming & Persistence
-*   **Action**: Yields progress and report data frames over SSE connection to CVerify.Core. C# backend writes final `AnalysisReport` records and flags the repo as verified or not in the DB.
-*   **Failures**: SQL Server constraints, database lock issues, Redis channel socket closed.
-*   **Log Signature**:
-    *   *Error*: `Error during repository analysis flow: {error_message}` (in `analysis_router.py`).
-    *   *Core Error*: `Failed to run analysis job {JobId}` (in C# `RepositoryAnalysisService.cs`).
+### 8. RepositorySummary
+*   **Action**: Compiles Narrative recruiter summaries using preceding cached tasks for context.
+*   **Failures**: Claude timeouts.
+*   **Logs**: `Compiling repository narrative summary and suggestions...`
+
+### 9. CvSynthesis
+*   **Action**: Compiles title, skills, recruiter-ready summary, highlights, and contribution profiles.
+*   **Failures**: Validation failures (triggers a retry or fallback).
+*   **Logs**: `Synthesizing professional CV content from repository intelligence...`
+
+### 10. Aggregation
+*   **Action**: Calibrates skills and authorship, checks for CI/CD files (Jenkinsfile, `.github/workflows`), runs risk and adversarial algorithms, constructs trust graph, validates V2 schema, and cleans up the temporary directory.
+*   **Failures**: Pydantic validation failures.
+*   **Logs**: `Workspace lifecycle audit: Cleaned up workspace folder for job {job_id}`
 
 ---
 
@@ -76,12 +81,12 @@ The entire analysis lifecycle is decomposed into 8 sequential stages, executed w
 
 | Field | Reference Value / Path |
 |---|---|
-| **Entry Points** | `orchestrate_async` in [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
-| **Dependencies** | Python: `TechnologyDetector`, `CodeSampler`, `GitHubPromptFactory`, `ClaudeService` |
-| **Execution Flow** | Stage 1 (Temp Dir) → Stage 2 (Git Clone) → Stage 3 (Tech Scan) → Stage 4 (Sampling) → Stage 5 (Prompts) → Stage 6 (Claude) → Stage 7 (JSON Extract) → Stage 8 (SSE Return) |
-| **Common Failure Modes** | Repository size limits (150MB), Git auth errors, Claude schema structural deviations. |
-| **Related Files** | [app/routes/analysis_router.py](../routes/analysis_router.py), [app/github/code_sampler.py](../github/code_sampler.py), [app/github/technology_detector.py](../github/technology_detector.py) |
+| **Entry Points** | `execute_task` and `aggregate_results` in [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
+| **Dependencies** | Python: `TechnologyDetector`, `CodeSampler`, `GitHubPromptFactory`, `CvPromptFactory`, `ClaudeService` |
+| **Execution Flow** | C# Worker loops through 9 `execute_task` calls ➔ Python saves results to workspace disk ➔ C# calls `aggregate_results` ➔ Python cleans up and returns validated Report V2. |
+| **Common Failure Modes** | Invalid API keys, task execution interruption, missing pipeline config on server, workspace disk space limit. |
+| **Related Files** | [app/routes/analysis_router.py](../routes/analysis_router.py), `RepositoryAnalysisService.cs` |
 | **Related Services** | [ClaudeService](../services/claude_service.py) |
-| **Related DTOs** | `AnalysisRequest` |
-| **Related Database Tables** | `AnalysisJobs`, `AnalysisJobEvents`, `AnalysisReports`, `SourceCodeRepositories` |
+| **Related DTOs** | `TaskExecutionRequest`, `AggregationRequest`, `ReportV2Contract` |
+| **Related Database Tables** | `AnalysisJobs`, `AnalysisTasks`, `AnalysisTaskResults`, `AnalysisReports` |
 | **Related Frontend Components** | `DetailedAnalysisModal.tsx` |
