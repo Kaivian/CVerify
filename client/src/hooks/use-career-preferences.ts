@@ -9,6 +9,7 @@ export function useCareerPreferences() {
     error,
     fetchCareer,
     updateCareer,
+    acceptAiSuggestions,
     setError
   } = useProfileStore();
 
@@ -22,9 +23,11 @@ export function useCareerPreferences() {
     career,
     isLoading: !!loading.career,
     isUpdating: !!loading.updateCareer,
+    isAcceptingSuggestions: !!loading.acceptAiSuggestions,
     error,
     refreshCareer: fetchCareer,
     updateCareer,
+    acceptAiSuggestions,
     clearError: () => setError(null)
   };
 }

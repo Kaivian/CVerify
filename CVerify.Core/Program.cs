@@ -373,6 +373,7 @@ builder.Services.AddScoped<IOtpPolicyService, OtpPolicyService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IEducationService, EducationService>();
 builder.Services.AddScoped<IAchievementService, AchievementService>();
+builder.Services.AddScoped<ICareerReadinessEngine, CareerReadinessEngine>();
 builder.Services.AddScoped<ICareerService, CareerService>();
 builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();

@@ -37,6 +37,38 @@ async function getPublicProfile(username: string): Promise<PublicProfileResponse
   }
 }
 
+function formatExpectedSalary(cp: any): string | null {
+  const min = cp.expectedSalaryMin;
+  const max = cp.expectedSalaryMax;
+  const currency = cp.expectedSalaryCurrency || 'VND';
+  const type = cp.expectedSalaryType || 'Monthly';
+  const negotiable = cp.expectedSalaryNegotiable;
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('en-US').format(num);
+  };
+
+  let salaryStr = '';
+
+  if (min !== null && min !== undefined && max !== null && max !== undefined) {
+    salaryStr = `${formatNumber(min)} - ${formatNumber(max)} ${currency} / ${type}`;
+  } else if (min !== null && min !== undefined) {
+    salaryStr = `From ${formatNumber(min)} ${currency} / ${type}`;
+  } else if (max !== null && max !== undefined) {
+    salaryStr = `Up to ${formatNumber(max)} ${currency} / ${type}`;
+  }
+
+  if (negotiable) {
+    if (salaryStr) {
+      salaryStr += ' (Negotiable)';
+    } else {
+      salaryStr = 'Negotiable';
+    }
+  }
+
+  return salaryStr || null;
+}
+
 export default async function PublicProfilePage({ params }: PageProps) {
   const { username } = await params;
 
@@ -55,6 +87,25 @@ export default async function PublicProfilePage({ params }: PageProps) {
   if (!profile) {
     notFound();
   }
+
+  const cp = profile.careerPreference;
+  const preferredWorkEnvironments = cp?.preferredWorkEnvironments || [];
+  const workStyles = cp?.workStyles || [];
+  const companyValues = cp?.companyValues || [];
+  const preferredLocations = cp?.preferredLocations || [];
+  const desiredJobPositions = cp?.desiredJobPositions || [];
+  const notes = cp?.workPreferenceNotes;
+  const salaryText = cp ? formatExpectedSalary(cp) : null;
+
+  const hasPreferences = !!(
+    preferredWorkEnvironments.length > 0 ||
+    workStyles.length > 0 ||
+    companyValues.length > 0 ||
+    preferredLocations.length > 0 ||
+    desiredJobPositions.length > 0 ||
+    salaryText ||
+    (notes && notes.trim().length > 0)
+  );
 
   return (
     <div className="dark relative min-h-screen w-full bg-background text-foreground flex flex-col justify-between overflow-hidden">
@@ -76,14 +127,14 @@ export default async function PublicProfilePage({ params }: PageProps) {
           </Typography>
         </Link>
         <Link href="/login">
-          <Button size="sm" variant="outline" className="font-semibold text-xs rounded-xl bg-foreground/10 text-foreground border border-border/40 backdrop-blur-sm">
+          <Button slot="button" size="sm" variant="outline" className="font-semibold text-xs rounded-xl bg-foreground/10 text-foreground border border-border/40 backdrop-blur-sm">
             Sign In
           </Button>
         </Link>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 max-w-3xl w-full mx-auto px-6 py-12 flex flex-col justify-center">
+      <main className="relative z-10 flex-1 max-w-3xl w-full mx-auto px-6 py-12 flex flex-col gap-8 justify-center">
         <Card className="p-8 md:p-12 rounded-3xl border border-border/30 bg-background/30 backdrop-blur-xl shadow-2xl relative overflow-hidden flex flex-col items-center text-center">
           {/* Subtle glowing ring behind avatar */}
           <div className="absolute top-12 w-28 h-28 rounded-full bg-indigo-500/20 blur-xl pointer-events-none" />
@@ -176,6 +227,136 @@ export default async function PublicProfilePage({ params }: PageProps) {
             </div>
           )}
         </Card>
+
+        {/* Work Preferences Cards */}
+        {hasPreferences && (
+          <div className="flex flex-col gap-6 w-full">
+            <Typography type="body-sm" className="text-lg md:text-xl font-extrabold tracking-tight text-left pl-2 select-none">
+              Ideal Work Preferences
+            </Typography>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+              {/* Desired Job Positions Card */}
+              {desiredJobPositions.length > 0 && (
+                <Card className="p-6 md:p-8 rounded-3xl border border-border/30 bg-background/30 backdrop-blur-xl shadow-xl flex flex-col gap-4 text-left">
+                  <span className="text-xs font-bold uppercase tracking-wider text-teal-400 select-none">
+                    Desired Job Positions
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {desiredJobPositions.map((pos: string) => (
+                      <span
+                        key={pos}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold bg-teal-500/10 text-teal-300 border border-teal-500/20"
+                      >
+                        {pos}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Preferred Locations Card */}
+              {preferredLocations.length > 0 && (
+                <Card className="p-6 md:p-8 rounded-3xl border border-border/30 bg-background/30 backdrop-blur-xl shadow-xl flex flex-col gap-4 text-left">
+                  <span className="text-xs font-bold uppercase tracking-wider text-rose-400 select-none">
+                    Preferred Locations
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {preferredLocations.map((loc: string) => (
+                      <span
+                        key={loc}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/20"
+                      >
+                        {loc}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Preferred Work Environment Card */}
+              {preferredWorkEnvironments.length > 0 && (
+                <Card className="p-6 md:p-8 rounded-3xl border border-border/30 bg-background/30 backdrop-blur-xl shadow-xl flex flex-col gap-4 text-left">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 select-none">
+                    Preferred Work Environment
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {preferredWorkEnvironments.map((env: string) => (
+                      <span
+                        key={env}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
+                      >
+                        {env}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Work Style Card */}
+              {workStyles.length > 0 && (
+                <Card className="p-6 md:p-8 rounded-3xl border border-border/30 bg-background/30 backdrop-blur-xl shadow-xl flex flex-col gap-4 text-left">
+                  <span className="text-xs font-bold uppercase tracking-wider text-purple-400 select-none">
+                    Work Style
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {workStyles.map((style: string) => (
+                      <span
+                        key={style}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                      >
+                        {style}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Company Values Card */}
+              {companyValues.length > 0 && (
+                <Card className="p-6 md:p-8 rounded-3xl border border-border/30 bg-background/30 backdrop-blur-xl shadow-xl flex flex-col gap-4 text-left md:col-span-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-400 select-none">
+                    Company Values
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {companyValues.map((val: string) => (
+                      <span
+                        key={val}
+                        className="px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                      >
+                        {val}
+                      </span>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Expected Salary Card */}
+              {salaryText && (
+                <Card className="p-6 md:p-8 rounded-3xl border border-border/30 bg-background/30 backdrop-blur-xl shadow-xl flex flex-col gap-3 text-left md:col-span-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 select-none">
+                    Expected Salary
+                  </span>
+                  <Typography type="body-sm" className="text-sm font-semibold text-foreground font-outfit mt-1">
+                    {salaryText}
+                  </Typography>
+                </Card>
+              )}
+
+              {/* Work Preference Notes Card */}
+              {notes && notes.trim().length > 0 && (
+                <Card className="p-6 md:p-8 rounded-3xl border border-border/30 bg-background/30 backdrop-blur-xl shadow-xl flex flex-col gap-3 text-left md:col-span-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 select-none">
+                    Work Preference Notes
+                  </span>
+                  <Typography type="body-sm" className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line mt-1">
+                    {notes}
+                  </Typography>
+                </Card>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}

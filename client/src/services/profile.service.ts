@@ -13,6 +13,8 @@ import {
   type PublicProfileResponse,
   type WorkExperienceRequest,
   type WorkExperienceResponse,
+  type CareerPreferencesDashboardResponse,
+  type AcceptAiSuggestionsRequest,
 } from '../types/profile.types';
 
 export const profileApi = {
@@ -85,13 +87,18 @@ export const profileApi = {
   },
 
   // Career hiring availability and localizations
-  fetchCareer: async (): Promise<CareerPreferenceResponse> => {
-    const response = await axiosClient.get<CareerPreferenceResponse>('/v1/users/career');
+  fetchCareer: async (): Promise<CareerPreferencesDashboardResponse> => {
+    const response = await axiosClient.get<CareerPreferencesDashboardResponse>('/v1/users/career');
     return response.data;
   },
 
-  updateCareer: async (data: UpdateCareerPreferenceRequest): Promise<CareerPreferenceResponse> => {
-    const response = await axiosClient.put<CareerPreferenceResponse>('/v1/users/career', data);
+  updateCareer: async (data: UpdateCareerPreferenceRequest): Promise<CareerPreferencesDashboardResponse> => {
+    const response = await axiosClient.patch<CareerPreferencesDashboardResponse>('/v1/users/career', data);
+    return response.data;
+  },
+
+  acceptAiSuggestions: async (data: AcceptAiSuggestionsRequest): Promise<CareerPreferencesDashboardResponse> => {
+    const response = await axiosClient.post<CareerPreferencesDashboardResponse>('/v1/users/career/accept-suggestions', data);
     return response.data;
   },
 

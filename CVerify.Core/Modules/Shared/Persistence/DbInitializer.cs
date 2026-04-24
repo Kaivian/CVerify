@@ -58,6 +58,7 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS user_preferred_locations CASCADE;
                 DROP TABLE IF EXISTS user_employment_preferences CASCADE;
                 DROP TABLE IF EXISTS career_preferences CASCADE;
+                DROP TABLE IF EXISTS ai_inferred_preferences CASCADE;
                 
                 DROP TABLE IF EXISTS academic_achievements CASCADE;
                 DROP TABLE IF EXISTS education_entries CASCADE;
@@ -1268,11 +1269,206 @@ public static class DbInitializer
                 salary_expectations DECIMAL(18,2),
                 remote_preference VARCHAR(20),
                 open_to_work_status VARCHAR(20),
+                preferred_work_environments TEXT,
+                work_styles TEXT,
+                company_values TEXT,
+                desired_job_positions TEXT,
+                expected_salary_min DECIMAL(18,2),
+                expected_salary_max DECIMAL(18,2),
+                expected_salary_currency VARCHAR(10),
+                expected_salary_type VARCHAR(20),
+                expected_salary_negotiable BOOLEAN NOT NULL DEFAULT FALSE,
+                is_expected_salary_visible BOOLEAN NOT NULL DEFAULT FALSE,
+                work_preference_notes TEXT,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE,
                 CONSTRAINT fk_career_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'preferred_work_environments') THEN
+                    ALTER TABLE career_preferences ADD COLUMN preferred_work_environments TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'work_styles') THEN
+                    ALTER TABLE career_preferences ADD COLUMN work_styles TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'company_values') THEN
+                    ALTER TABLE career_preferences ADD COLUMN company_values TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'desired_job_positions') THEN
+                    ALTER TABLE career_preferences ADD COLUMN desired_job_positions TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'expected_salary_min') THEN
+                    ALTER TABLE career_preferences ADD COLUMN expected_salary_min DECIMAL(18,2);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'expected_salary_max') THEN
+                    ALTER TABLE career_preferences ADD COLUMN expected_salary_max DECIMAL(18,2);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'expected_salary_currency') THEN
+                    ALTER TABLE career_preferences ADD COLUMN expected_salary_currency VARCHAR(10);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'expected_salary_type') THEN
+                    ALTER TABLE career_preferences ADD COLUMN expected_salary_type VARCHAR(20);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'expected_salary_negotiable') THEN
+                    ALTER TABLE career_preferences ADD COLUMN expected_salary_negotiable BOOLEAN NOT NULL DEFAULT FALSE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'is_expected_salary_visible') THEN
+                    ALTER TABLE career_preferences ADD COLUMN is_expected_salary_visible BOOLEAN NOT NULL DEFAULT FALSE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'work_preference_notes') THEN
+                    ALTER TABLE career_preferences ADD COLUMN work_preference_notes TEXT;
+                END IF;
+            END $$;
+
+            -- Safely migrate career_preferences columns to native arrays and add new columns
+            DO $$
+            BEGIN
+                -- 1. Check if preferred_work_environments is text
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' 
+                      AND column_name = 'preferred_work_environments' 
+                      AND data_type = 'text'
+                ) THEN
+                    ALTER TABLE career_preferences RENAME COLUMN preferred_work_environments TO preferred_work_environments_old;
+                    ALTER TABLE career_preferences ADD COLUMN preferred_work_environments VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    UPDATE career_preferences SET preferred_work_environments = ARRAY(
+                        SELECT json_array_elements_text(preferred_work_environments_old::json)
+                    ) WHERE preferred_work_environments_old IS NOT NULL 
+                      AND preferred_work_environments_old <> '' 
+                      AND preferred_work_environments_old LIKE '[%';
+                    ALTER TABLE career_preferences DROP COLUMN preferred_work_environments_old;
+                END IF;
+
+                -- 2. Check if work_styles is text
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' 
+                      AND column_name = 'work_styles' 
+                      AND data_type = 'text'
+                ) THEN
+                    ALTER TABLE career_preferences RENAME COLUMN work_styles TO work_styles_old;
+                    ALTER TABLE career_preferences ADD COLUMN work_styles VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    UPDATE career_preferences SET work_styles = ARRAY(
+                        SELECT json_array_elements_text(work_styles_old::json)
+                    ) WHERE work_styles_old IS NOT NULL 
+                      AND work_styles_old <> '' 
+                      AND work_styles_old LIKE '[%';
+                    ALTER TABLE career_preferences DROP COLUMN work_styles_old;
+                END IF;
+
+                -- 3. Check if company_values is text
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' 
+                      AND column_name = 'company_values' 
+                      AND data_type = 'text'
+                ) THEN
+                    ALTER TABLE career_preferences RENAME COLUMN company_values TO company_values_old;
+                    ALTER TABLE career_preferences ADD COLUMN company_values VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    UPDATE career_preferences SET company_values = ARRAY(
+                        SELECT json_array_elements_text(company_values_old::json)
+                    ) WHERE company_values_old IS NOT NULL 
+                      AND company_values_old <> '' 
+                      AND company_values_old LIKE '[%';
+                    ALTER TABLE career_preferences DROP COLUMN company_values_old;
+                END IF;
+
+                -- 4. Check if desired_job_positions is text
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' 
+                      AND column_name = 'desired_job_positions' 
+                      AND data_type = 'text'
+                ) THEN
+                    ALTER TABLE career_preferences RENAME COLUMN desired_job_positions TO desired_job_positions_old;
+                    ALTER TABLE career_preferences ADD COLUMN desired_job_positions VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    UPDATE career_preferences SET desired_job_positions = ARRAY(
+                        SELECT json_array_elements_text(desired_job_positions_old::json)
+                    ) WHERE desired_job_positions_old IS NOT NULL 
+                      AND desired_job_positions_old <> '' 
+                      AND desired_job_positions_old LIKE '[%';
+                    ALTER TABLE career_preferences DROP COLUMN desired_job_positions_old;
+                END IF;
+
+                -- 5. Add open_to_work_status if missing or not default
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' AND column_name = 'open_to_work_status'
+                ) THEN
+                    ALTER TABLE career_preferences ADD COLUMN open_to_work_status VARCHAR(20) DEFAULT 'casual' NOT NULL;
+                ELSE
+                    ALTER TABLE career_preferences ALTER COLUMN open_to_work_status SET DEFAULT 'casual';
+                    UPDATE career_preferences SET open_to_work_status = 'casual' WHERE open_to_work_status IS NULL;
+                    ALTER TABLE career_preferences ALTER COLUMN open_to_work_status SET NOT NULL;
+                END IF;
+
+                -- 6. Add open_to_relocation if missing
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' AND column_name = 'open_to_relocation'
+                ) THEN
+                    ALTER TABLE career_preferences ADD COLUMN open_to_relocation BOOLEAN DEFAULT FALSE NOT NULL;
+                END IF;
+
+                -- 7. Add leadership_track if missing
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' AND column_name = 'leadership_track'
+                ) THEN
+                    ALTER TABLE career_preferences ADD COLUMN leadership_track VARCHAR(30) DEFAULT 'undecided' NOT NULL;
+                END IF;
+
+                -- 8. Add company_stage_preferences if missing
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' AND column_name = 'company_stage_preferences'
+                ) THEN
+                    ALTER TABLE career_preferences ADD COLUMN company_stage_preferences VARCHAR(50)[] DEFAULT ARRAY[]::VARCHAR[] NOT NULL;
+                END IF;
+
+                -- 9. Add preferred_industries if missing
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' AND column_name = 'preferred_industries'
+                ) THEN
+                    ALTER TABLE career_preferences ADD COLUMN preferred_industries VARCHAR(100)[] DEFAULT ARRAY[]::VARCHAR[] NOT NULL;
+                END IF;
+
+                -- 10. Add target_skills if missing
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'career_preferences' AND column_name = 'target_skills'
+                ) THEN
+                    ALTER TABLE career_preferences ADD COLUMN target_skills VARCHAR(100)[] DEFAULT ARRAY[]::VARCHAR[] NOT NULL;
+                END IF;
+            END $$;
+
+            -- AI Inferred Preferences table
+            CREATE TABLE IF NOT EXISTS ai_inferred_preferences (
+                user_id UUID PRIMARY KEY,
+                inferred_primary_role VARCHAR(100),
+                inferred_seniority VARCHAR(50),
+                inferred_skills VARCHAR(100)[] DEFAULT ARRAY[]::VARCHAR[] NOT NULL,
+                inferred_salary_min DECIMAL(18,2),
+                inferred_salary_max DECIMAL(18,2),
+                inferred_salary_currency VARCHAR(10) DEFAULT 'USD',
+                inferred_industries VARCHAR(100)[] DEFAULT ARRAY[]::VARCHAR[] NOT NULL,
+                confidence_score DECIMAL(5,2) DEFAULT 0.00 NOT NULL,
+                synthesis_rationale TEXT,
+                last_analyzed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_ai_inferred_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_career_prefs_desired_roles ON career_preferences USING gin (desired_job_positions);
+            CREATE INDEX IF NOT EXISTS idx_career_prefs_target_skills ON career_preferences USING gin (target_skills);
+            CREATE INDEX IF NOT EXISTS idx_ai_inferred_skills ON ai_inferred_preferences USING gin (inferred_skills);
 
             -- Normalized User Skills
             CREATE TABLE IF NOT EXISTS user_skills (
