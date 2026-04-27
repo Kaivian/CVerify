@@ -108,7 +108,7 @@ export const setupWorkspaceSchema = z
     organizationUsername: z.string().regex(/^[a-z0-9_]{3,30}$/, {
       message: 'Workspace name must be 3-30 characters, lowercase alphanumeric or underscore',
     }),
-    password: enterprisePasswordValidation,
+    password: passwordValidation,
     confirmPassword: z.string().min(1, { message: 'auth:validation.confirmPasswordRequired' }),
   })
   .refine((data) => data.password === data.confirmPassword, {

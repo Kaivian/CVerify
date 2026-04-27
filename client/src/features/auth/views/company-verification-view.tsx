@@ -23,19 +23,18 @@ import {
 } from "@heroui/react";
 import OtpInput from "@/components/ui/otp-input";
 import {
-  Eye,
-  EyeOff,
   Check,
   ArrowRight,
   ArrowLeft,
   ShieldCheck,
   Mail,
-  Lock,
   Search,
   AlertTriangle,
   AlertCircle,
   RefreshCw,
   UserCheck,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import PasswordStrengthMeter from "../components/password-strength-meter";
 import { evaluatePasswordStrength } from "../security/password-policy";
@@ -144,8 +143,9 @@ export function CompanyVerificationView() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const [isConfirmVisible, setIsConfirmVisible] = useState(false);
+
 
   // Step names & descriptions
   const steps = [
@@ -173,6 +173,37 @@ export function CompanyVerificationView() {
     return () => clearInterval(interval);
   }, [cooldown]);
 
+  // Centralized reset action clearing ALL onboarding state variables and cache artifacts
+  const resetOnboardingState = useCallback(() => {
+    setStep(1);
+    setTaxCode("");
+    setCompanyName("");
+    setTaxCodeTouched(false);
+    setCompanyNameTouched(false);
+    setVerifiedCompanyInfo(null);
+    setStep1Token("");
+    setRecoveryInfo(null);
+    setOwnerEmail("");
+    setOwnerEmailTouched(false);
+    setOtpSent(false);
+    setChallengeId("");
+    setOtpCode("");
+    setCooldown(0);
+    setStep2Token("");
+    setVerifiedEmail("");
+    setCompanyDisplayName("");
+    setOrganizationUsername("");
+    setSlugTouched(false);
+    setPassword("");
+    setConfirmPassword("");
+    setIsVisible(false);
+    setIsConfirmVisible(false);
+
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("cverify_company_onboarding_state");
+    }
+  }, []);
+
   // Sync active OTP session state with backend
   const syncOtpSession = useCallback(async (email: string, chalId: string) => {
     if (!email || !chalId) return;
@@ -187,84 +218,36 @@ export function CompanyVerificationView() {
           }
           setOtpSent(true);
         } else {
-          setChallengeId("");
-          setOtpSent(false);
-          setCooldown(0);
-          toast.warning("Active verification session has expired. Please request a new code.");
+          resetOnboardingState();
+          toast.warning("Active verification session has expired. Please restart the onboarding process.");
         }
       }
     } catch (err) {
       console.error("Failed to sync OTP session with backend", err);
     }
-  }, [fetchOtpSession]);
+  }, [fetchOtpSession, resetOnboardingState]);
 
-  // State Persistence: Restore progress on mount
+  // Route entry validation
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = sessionStorage.getItem("cverify_company_onboarding_state");
-    if (!saved) return;
-    try {
-      const state = JSON.parse(saved);
-      setTimeout(() => {
-        if (state.step) setStep(state.step);
-        if (state.taxCode) setTaxCode(state.taxCode);
-        if (state.companyName) setCompanyName(state.companyName);
-        if (state.verifiedCompanyInfo) setVerifiedCompanyInfo(state.verifiedCompanyInfo);
-        if (state.step1Token) setStep1Token(state.step1Token);
-        if (state.activeLinkTab) setActiveLinkTab(state.activeLinkTab);
-        if (state.ownerEmail) setOwnerEmail(state.ownerEmail);
-        if (state.otpSent) setOtpSent(state.otpSent);
-        if (state.challengeId) setChallengeId(state.challengeId);
-        if (state.step2Token) setStep2Token(state.step2Token);
-        if (state.verifiedEmail) setVerifiedEmail(state.verifiedEmail);
-        if (state.companyDisplayName) setCompanyDisplayName(state.companyDisplayName);
-        if (state.organizationUsername) setOrganizationUsername(state.organizationUsername);
-
-        // Verify restored OTP challenge state against backend
-        if (state.challengeId && state.ownerEmail) {
-          syncOtpSession(state.ownerEmail, state.challengeId);
-        }
-      }, 0);
-    } catch (e) {
-      console.error("Failed to restore onboarding state from sessionStorage", e);
+    if (step === 2 && !step1Token) {
+      toast.danger("Access Denied", {
+        description: "Please complete the registry verification step first."
+      });
+      resetOnboardingState();
+    } else if (step === 3 && (!step2Token || !verifiedEmail)) {
+      toast.danger("Access Denied", {
+        description: "Please complete the identity link verification step first."
+      });
+      resetOnboardingState();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [step, step1Token, step2Token, verifiedEmail, resetOnboardingState]);
 
-  // State Persistence: Cache wizard inputs and token states in SessionStorage on change
+  // Clear legacy persisted session storage cache once on mount
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const state = {
-      step,
-      taxCode,
-      companyName,
-      verifiedCompanyInfo,
-      step1Token,
-      activeLinkTab,
-      ownerEmail,
-      otpSent,
-      challengeId,
-      step2Token,
-      verifiedEmail,
-      companyDisplayName,
-      organizationUsername,
-    };
-    sessionStorage.setItem("cverify_company_onboarding_state", JSON.stringify(state));
-  }, [
-    step,
-    taxCode,
-    companyName,
-    verifiedCompanyInfo,
-    step1Token,
-    activeLinkTab,
-    ownerEmail,
-    otpSent,
-    challengeId,
-    step2Token,
-    verifiedEmail,
-    companyDisplayName,
-    organizationUsername,
-  ]);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("cverify_company_onboarding_state");
+    }
+  }, []);
 
   // Focus & Visibility Synchronization: regain active OTP timers and state instantly on focus regain
   useEffect(() => {
@@ -442,7 +425,7 @@ export function CompanyVerificationView() {
   const handleSendOtp = async () => {
     if (!ownerEmail || !validateEmail(ownerEmail)) return;
     setIsLoading(true);
-    
+
     // Generate idempotency key for this request
     const idempotencyKey = crypto.randomUUID();
 
@@ -503,21 +486,21 @@ export function CompanyVerificationView() {
     }
   };
 
-  // Step 3 Password complexity checks
-  const isPasswordValid =
-    evaluatePasswordStrength(password, "enterprise").percentage === 100;
-
   const slugRegex = /^[a-z0-9-]{4,32}$/;
   const isSlugValid = slugRegex.test(organizationUsername);
   const isReservedSlug = RESERVED_SLUGS.includes(organizationUsername);
   const isImpersonating = isLookalikeSlug(organizationUsername);
+
+  const passwordStrength = evaluatePasswordStrength(password, "enterprise");
+  const isPasswordValid = passwordStrength.percentage === 100;
+  const isPasswordsMatch = password === confirmPassword;
 
   const isStep3Valid =
     companyDisplayName.trim().length >= 2 &&
     isSlugValid &&
     !isReservedSlug &&
     isPasswordValid &&
-    password === confirmPassword;
+    isPasswordsMatch;
 
   // Step 3: Setup workspace final provisioning
   const handleStep3Submit = async (e: React.FormEvent) => {
@@ -531,9 +514,8 @@ export function CompanyVerificationView() {
       {
         step2Token,
         organizationUsername,
-        password,
-        confirmPassword,
         companyDisplayName,
+        password,
       },
       idempotencyKey,
     );
@@ -541,17 +523,27 @@ export function CompanyVerificationView() {
     setIsLoading(false);
 
     if (result.success) {
-      toast.success("Workspace Provisioned successfully!", {
+      toast.success("Company created successfully", {
         description:
-          "Welcome to CVerify. Your organization trust level is Level 1 (Legal Verified)!",
+          "Please sign in or create an account to claim ownership.",
       });
-      router.push("/");
+      const targetEmail = verifiedEmail;
+      resetOnboardingState();
+      router.replace(`/login?email=${encodeURIComponent(targetEmail)}`);
     } else {
-      toast.danger("Provisioning failed", {
-        description:
-          result.error?.message ||
-          "Failed to set up workspace organization username.",
-      });
+      const isExpired = result.error?.code === "TOKEN_EXPIRED" || result.error?.message?.toLowerCase().includes("expired");
+      if (isExpired) {
+        toast.danger("Session Expired", {
+          description: "Your verification token has expired. Please restart the onboarding process."
+        });
+        resetOnboardingState();
+      } else {
+        toast.danger("Provisioning failed", {
+          description:
+            result.error?.message ||
+            "Failed to set up workspace organization username.",
+        });
+      }
     }
   };
 
@@ -567,9 +559,8 @@ export function CompanyVerificationView() {
           size="sm"
           className="absolute top-6 left-4 text-muted"
           onPress={() => {
-            setRecoveryInfo(null);
-            setStep(1);
-            router.push("/login");
+            resetOnboardingState();
+            router.replace("/login");
           }}
         >
           <ArrowLeft className="size-3.5" />
@@ -656,13 +647,12 @@ export function CompanyVerificationView() {
                 <div className="flex flex-col items-center relative z-10 flex-1">
                   {/* Circle */}
                   <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 font-bold font-mono text-xs ${
-                      step > s.id
-                        ? "bg-accent border-accent text-accent-foreground"
-                        : step === s.id
-                          ? "border-accent text-accent bg-surface"
-                          : "border-border text-muted bg-surface"
-                    }`}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 font-bold font-mono text-xs ${step > s.id
+                      ? "bg-accent border-accent text-accent-foreground"
+                      : step === s.id
+                        ? "border-accent text-accent bg-surface"
+                        : "border-border text-muted bg-surface"
+                      }`}
                   >
                     {step > s.id ? (
                       <Check className="size-4 stroke-[2.5]" />
@@ -674,11 +664,10 @@ export function CompanyVerificationView() {
                   {/* Labels stacked below */}
                   <div className="flex flex-col items-center mt-3 text-center px-1">
                     <span
-                      className={`text-xs font-bold tracking-wide transition-colors whitespace-nowrap ${
-                        step >= s.id
-                          ? "text-foreground font-semibold"
-                          : "text-muted"
-                      }`}
+                      className={`text-xs font-bold tracking-wide transition-colors whitespace-nowrap ${step >= s.id
+                        ? "text-foreground font-semibold"
+                        : "text-muted"
+                        }`}
                     >
                       {s.label}
                     </span>
@@ -784,7 +773,10 @@ export function CompanyVerificationView() {
                     variant="secondary"
                     fullWidth
                     className="rounded-xl"
-                    onPress={() => router.push("/login")}
+                    onPress={() => {
+                      resetOnboardingState();
+                      router.replace("/login");
+                    }}
                   >
                     Back to Sign In
                   </Button>
@@ -966,7 +958,7 @@ export function CompanyVerificationView() {
                       variant="outline"
                       fullWidth
                       className="rounded-xl"
-                      onPress={() => setStep(1)}
+                      onPress={() => resetOnboardingState()}
                     >
                       Back to step 1
                     </Button>
@@ -1057,115 +1049,115 @@ export function CompanyVerificationView() {
                 </Form>
               )
             ) : // GOOGLE SSO LINK SUITE
-            verifiedEmail ? (
-              // GOOGLE SSO LINK SUITE (LINKED STATE)
-              <div className="w-full flex flex-col flex-1 overflow-hidden animate-in fade-in duration-300">
-                <div className="flex-1 overflow-y-auto w-full px-6 pb-4 flex flex-col gap-6">
-                  <div className="flex items-center gap-3 bg-success-soft/25 p-4 rounded-xl">
-                    <div className="w-8 h-8 rounded-full bg-success text-success-foreground flex items-center justify-center">
-                      <Check className="size-4" />
+              verifiedEmail ? (
+                // GOOGLE SSO LINK SUITE (LINKED STATE)
+                <div className="w-full flex flex-col flex-1 overflow-hidden animate-in fade-in duration-300">
+                  <div className="flex-1 overflow-y-auto w-full px-6 pb-4 flex flex-col gap-6">
+                    <div className="flex items-center gap-3 bg-success-soft/25 p-4 rounded-xl">
+                      <div className="w-8 h-8 rounded-full bg-success text-success-foreground flex items-center justify-center">
+                        <Check className="size-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-success">
+                          Google Account Linked
+                        </h4>
+                        <p className="text-xs text-success/80 font-medium">
+                          Your identity has been successfully verified.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-success">
-                        Google Account Linked
-                      </h4>
-                      <p className="text-xs text-success/80 font-medium">
-                        Your identity has been successfully verified.
-                      </p>
+
+                    <div className="flex gap-4 items-end">
+                      <TextField
+                        isReadOnly
+                        name="linkedGoogleEmail"
+                        type="email"
+                        className="w-full"
+                      >
+                        <Label>Linked Google Email</Label>
+                        <Input
+                          value={verifiedEmail}
+                          className="rounded-xl"
+                          readOnly
+                        />
+                      </TextField>
+
+                      <Button
+                        variant="outline"
+                        className="rounded-xl"
+                        onPress={() => {
+                          setVerifiedEmail("");
+                          setStep2Token("");
+                        }}
+                      >
+                        <RefreshCw className="size-4 mr-2" /> Link another email
+                      </Button>
                     </div>
                   </div>
 
-                  <div className="flex gap-4 items-end">
-                    <TextField
-                      isReadOnly
-                      name="linkedGoogleEmail"
-                      type="email"
-                      className="w-full"
-                    >
-                      <Label>Linked Google Email</Label>
-                      <Input
-                        value={verifiedEmail}
-                        className="rounded-xl"
-                        readOnly
-                      />
-                    </TextField>
-
+                  <div className="flex gap-4 px-6 py-3 border-t border-border">
                     <Button
-                      variant="outline"
+                      fullWidth
+                      variant="secondary"
                       className="rounded-xl"
-                      onPress={() => {
-                        setVerifiedEmail("");
-                        setStep2Token("");
-                      }}
+                      onPress={() => resetOnboardingState()}
                     >
-                      <RefreshCw className="size-4 mr-2" /> Link another email
+                      Back to step 1
+                    </Button>
+                    <Button
+                      fullWidth
+                      className="rounded-xl"
+                      onPress={() => setStep(3)}
+                    >
+                      Confirm & Continue
+                      <ArrowRight className="size-4 ml-2" />
                     </Button>
                   </div>
                 </div>
+              ) : (
+                // GOOGLE SSO LINK SUITE (UNLINKED STATE)
+                <div className="w-full flex flex-col flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-y-auto w-full px-18 pb-6 flex flex-col gap-6 items-center">
+                    <div className="text-center justify-center">
+                      <Typography.Heading
+                        level={3}
+                        className="text-xl font-bold text-foreground text-center justify-center"
+                      >
+                        Secure OAuth Linking
+                      </Typography.Heading>
+                      <Typography className="text-xs text-muted text-center leading-relaxed">
+                        Authenticate via Google Single Sign-On. Your Google email
+                        identity will serve as your primary owner account
+                        workspace.
+                      </Typography>
+                    </div>
 
-                <div className="flex gap-4 px-6 py-3 border-t border-border">
-                  <Button
-                    fullWidth
-                    variant="secondary"
-                    className="rounded-xl"
-                    onPress={() => setStep(1)}
-                  >
-                    Back to step 1
-                  </Button>
-                  <Button
-                    fullWidth
-                    className="rounded-xl"
-                    onPress={() => setStep(3)}
-                  >
-                    Confirm & Continue
-                    <ArrowRight className="size-4 ml-2" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              // GOOGLE SSO LINK SUITE (UNLINKED STATE)
-              <div className="w-full flex flex-col flex-1 overflow-hidden">
-                <div className="flex-1 overflow-y-auto w-full px-18 pb-6 flex flex-col gap-6 items-center">
-                  <div className="text-center justify-center">
-                    <Typography.Heading
-                      level={3}
-                      className="text-xl font-bold text-foreground text-center justify-center"
+                    <Button
+                      variant="tertiary"
+                      fullWidth
+                      className="rounded-xl text-sm"
+                      size="lg"
+                      onPress={handleGoogleSignIn}
+                      isDisabled={isGoogleLoading || isLoading}
+                      isPending={isGoogleLoading}
                     >
-                      Secure OAuth Linking
-                    </Typography.Heading>
-                    <Typography className="text-xs text-muted text-center leading-relaxed">
-                      Authenticate via Google Single Sign-On. Your Google email
-                      identity will serve as your primary owner account
-                      workspace.
-                    </Typography>
+                      {!isGoogleLoading && <Google />}
+                      Link with Google
+                    </Button>
                   </div>
 
-                  <Button
-                    variant="tertiary"
-                    fullWidth
-                    className="rounded-xl text-sm"
-                    size="lg"
-                    onPress={handleGoogleSignIn}
-                    isDisabled={isGoogleLoading || isLoading}
-                    isPending={isGoogleLoading}
-                  >
-                    {!isGoogleLoading && <Google />}
-                    Link with Google
-                  </Button>
+                  <div className="flex gap-6 px-18 py-6 border-t border-border bg-surface shrink-0 w-full">
+                    <Button
+                      fullWidth
+                      variant="secondary"
+                      className="rounded-xl"
+                      onPress={() => resetOnboardingState()}
+                    >
+                      Back to step 1
+                    </Button>
+                  </div>
                 </div>
-
-                <div className="flex gap-6 px-18 py-6 border-t border-border bg-surface shrink-0 w-full">
-                  <Button
-                    fullWidth
-                    variant="secondary"
-                    className="rounded-xl"
-                    onPress={() => setStep(1)}
-                  >
-                    Back to step 1
-                  </Button>
-                </div>
-              </div>
-            )}
+              )}
           </div>
         )}
 
@@ -1278,89 +1270,63 @@ export function CompanyVerificationView() {
                   )}
                 </TextField>
 
-                {/* Password */}
+                {/* Workspace Credentials Disclaimer */}
+                <div className="p-3.5 bg-surface-secondary border border-border rounded-xl text-xs text-muted leading-relaxed">
+                  <strong className="text-foreground font-semibold block mb-0.5">Workspace Credentials:</strong>
+                  This password establishes credentials for the Workspace login page (using slug + password). The ownership verification email is only used as a contact to automatically bootstrap admin permissions on registration, and is not a company user account or authenticated identity.
+                </div>
+
+                {/* Workspace Password */}
                 <TextField isRequired name="password" type="password">
-                  <Label>Set Account Password</Label>
+                  <Label>Workspace Password</Label>
                   <InputGroup>
                     <InputGroup.Input
-                      type={isPasswordVisible ? "text" : "password"}
-                      placeholder="Create a strong account password"
+                      type={isVisible ? "text" : "password"}
+                      placeholder="Workspace password (min 12 chars)"
                       value={password}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setPassword(e.target.value)
-                      }
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={isLoading}
                     />
                     <InputGroup.Suffix>
                       <Button
                         isIconOnly
-                        aria-label={
-                          isPasswordVisible ? "Hide password" : "Show password"
-                        }
-                        size="sm"
                         variant="ghost"
-                        className="text-muted hover:text-foreground"
-                        onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                        size="sm"
+                        className="text-muted"
+                        onPress={() => setIsVisible(!isVisible)}
+                        isDisabled={isLoading}
                       >
-                        {isPasswordVisible ? (
-                          <Eye className="size-4" />
-                        ) : (
-                          <EyeOff className="size-4" />
-                        )}
+                        {isVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
                       </Button>
                     </InputGroup.Suffix>
                   </InputGroup>
-                  <FieldError />
-                  <PasswordStrengthMeter
-                    value={password}
-                    policyId="enterprise"
-                  />
+                  <PasswordStrengthMeter value={password} policyId="enterprise" />
                 </TextField>
 
-                {/* Confirm Password */}
-                <TextField
-                  isRequired
-                  name="confirmPassword"
-                  type="password"
-                  isInvalid={
-                    confirmPassword.length > 0 && password !== confirmPassword
-                  }
-                >
-                  <Label>Confirm Account Password</Label>
-                  <FieldError />
+                {/* Confirm Workspace Password */}
+                <TextField isRequired name="confirmPassword" type="password">
+                  <Label>Confirm Workspace Password</Label>
                   <InputGroup>
                     <InputGroup.Input
                       type={isConfirmVisible ? "text" : "password"}
-                      placeholder="Re-enter password to confirm"
+                      placeholder="Repeat workspace password"
                       value={confirmPassword}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setConfirmPassword(e.target.value)
-                      }
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      disabled={isLoading}
                     />
                     <InputGroup.Suffix>
                       <Button
                         isIconOnly
-                        aria-label={
-                          isConfirmVisible ? "Hide password" : "Show password"
-                        }
-                        size="sm"
                         variant="ghost"
-                        className="text-muted hover:text-foreground"
+                        size="sm"
+                        className="text-muted"
                         onPress={() => setIsConfirmVisible(!isConfirmVisible)}
+                        isDisabled={isLoading}
                       >
-                        {isConfirmVisible ? (
-                          <Eye className="size-4" />
-                        ) : (
-                          <EyeOff className="size-4" />
-                        )}
+                        {isConfirmVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
                       </Button>
                     </InputGroup.Suffix>
                   </InputGroup>
-                  {confirmPassword.length > 0 &&
-                    password !== confirmPassword && (
-                      <FieldError className="text-danger text-xs mt-1">
-                        Passwords must match exactly.
-                      </FieldError>
-                    )}
                 </TextField>
               </div>
 
@@ -1369,7 +1335,11 @@ export function CompanyVerificationView() {
                 <Button
                   variant="secondary"
                   className="rounded-xl"
-                  onPress={() => setStep(2)}
+                  onPress={() => {
+                    setStep(2);
+                    setStep2Token("");
+                    setVerifiedEmail("");
+                  }}
                   isDisabled={isLoading}
                 >
                   Back to step 2
@@ -1381,11 +1351,7 @@ export function CompanyVerificationView() {
                   isDisabled={!isStep3Valid || isLoading}
                   isPending={isLoading}
                 >
-                  {isLoading ? (
-                    <Spinner color="current" size="sm" />
-                  ) : (
-                    <Lock className="size-4 mr-2" />
-                  )}
+                  {isLoading && <Spinner color="current" size="sm" />}
                   Provision Workspace Organization
                 </Button>
               </div>

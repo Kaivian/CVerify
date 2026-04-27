@@ -38,12 +38,18 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly IIdentityStateResolver _identityStateResolver;
     private readonly ILogger<AuthController> _logger;
+    private readonly IWorkspaceProvisioningService _workspaceProvisioningService;
 
-    public AuthController(IAuthService authService, IIdentityStateResolver identityStateResolver, ILogger<AuthController> logger)
+    public AuthController(
+        IAuthService authService,
+        IIdentityStateResolver identityStateResolver,
+        ILogger<AuthController> logger,
+        IWorkspaceProvisioningService workspaceProvisioningService)
     {
         _authService = authService;
         _identityStateResolver = identityStateResolver;
         _logger = logger;
+        _workspaceProvisioningService = workspaceProvisioningService;
     }
 
     [HttpPost("login")]
@@ -1186,7 +1192,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("setup-workspace")]
     [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AuthResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SetupWorkspaceResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SetupWorkspace([FromBody] SetupWorkspaceRequest request, CancellationToken cancellationToken)
     {
@@ -1195,7 +1201,7 @@ public class AuthController : ControllerBase
 
         try
         {
-            var result = await _authService.SetupWorkspaceAsync(request, userAgent, ipAddress, cancellationToken);
+            var result = await _workspaceProvisioningService.SetupWorkspaceAsync(request, userAgent, ipAddress, cancellationToken);
             return Ok(result);
         }
         catch (AuthException ex)
@@ -1232,7 +1238,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var result = await _authService.VerifyCompanyOnboardingAsync(request, cancellationToken);
+            var result = await _workspaceProvisioningService.VerifyCompanyOnboardingAsync(request, cancellationToken);
             return Ok(result);
         }
         catch (AuthException ex)
@@ -1252,7 +1258,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var result = await _authService.VerifyOnboardingOtpAsync(request, step1Token, cancellationToken);
+            var result = await _workspaceProvisioningService.VerifyOnboardingOtpAsync(request, step1Token, cancellationToken);
             return Ok(result);
         }
         catch (AuthException ex)
@@ -1271,7 +1277,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var result = await _authService.VerifyOnboardingGoogleAsync(request, cancellationToken);
+            var result = await _workspaceProvisioningService.VerifyOnboardingGoogleAsync(request, cancellationToken);
             return Ok(result);
         }
         catch (AuthException ex)
@@ -1282,7 +1288,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("onboarding/complete")]
     [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AuthResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SetupWorkspaceResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CompleteOnboarding(
         [FromBody] CompleteOnboardingRequest request,
@@ -1293,7 +1299,7 @@ public class AuthController : ControllerBase
 
         try
         {
-            var result = await _authService.CompleteOnboardingAsync(request, userAgent, ipAddress, cancellationToken);
+            var result = await _workspaceProvisioningService.CompleteOnboardingAsync(request, userAgent, ipAddress, cancellationToken);
             return Ok(result);
         }
         catch (AuthException ex)
@@ -1491,6 +1497,9 @@ public class AuthController : ControllerBase
 
             dbContext.UserEmails.Add(userEmail);
             await dbContext.SaveChangesAsync(cancellationToken);
+
+            // Claim any pending relationships for the newly linked email
+            await _authService.ClaimPendingRelationshipsAsync(userId);
 
             // 5. Invalidate cache
             await _identityStateResolver.InvalidateCacheAsync(normalizedEmail);

@@ -182,3 +182,9 @@ export interface DeletionInitiationResponse {
 export interface ReactivateRequest {
   reactivationToken: string;
 }
+
+export interface SetupWorkspaceResponseData {
+  success: boolean;
+  email: string;
+  organizationUsername: string;
+}

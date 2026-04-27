@@ -38,6 +38,8 @@ public class Organization
 
     public int VerificationLevel { get; set; } = 0; // 0 = Unverified/Onboarding, 1 = Legal Verified, 2 = Domain Verified, 3 = Domain Ownership Verified
 
+    public DateTimeOffset? InitialAdminAssignedAt { get; set; }
+
     [MaxLength(255)]
     public string? RepresentativeName { get; set; }
 

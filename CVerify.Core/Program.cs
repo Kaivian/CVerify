@@ -357,6 +357,8 @@ builder.Services.AddScoped<IStorageService, R2StorageService>();
 // Register Application Services
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IWorkspaceProvisioningService, WorkspaceProvisioningService>();
+builder.Services.AddScoped<IWorkspaceMembershipService, WorkspaceMembershipService>();
 builder.Services.AddScoped<IPasswordRecoveryService, PasswordRecoveryService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IIdentityStateResolver, IdentityStateResolver>();

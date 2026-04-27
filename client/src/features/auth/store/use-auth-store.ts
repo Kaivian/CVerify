@@ -115,6 +115,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     logout: (broadcast = true) => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem("cverify_company_onboarding_state");
+      }
       set({
         user: null,
         isAuthenticated: false,
