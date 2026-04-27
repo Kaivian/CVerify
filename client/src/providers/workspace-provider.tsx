@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
-export type WorkspaceType = "ADMIN" | "COMPONENTS" | "AUDIT" | "AI";
+export type WorkspaceType = "ADMIN" | "COMPONENTS" | "AUDIT" | "AI" | "ORGANIZATION";
 
 interface WorkspaceContextProps {
   activeWorkspace: WorkspaceType;
@@ -28,6 +28,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       target = "COMPONENTS";
     } else if (pathname.startsWith("/admin/audit-logs")) {
       target = "AUDIT";
+    } else if (pathname.startsWith("/workspace/")) {
+      target = "ORGANIZATION";
     }
 
     // Set state asynchronously to avoid cascading synchronous renders warning

@@ -581,12 +581,14 @@ public class AuthService : IAuthService
         {
             var storedToken = await _context.RefreshTokens
                 .Include(t => t.User)
+                .Include(t => t.Organization)
                 .FirstOrDefaultAsync(t => t.Token == refreshTokenStr);
 
             if (storedToken == null) return null;
 
             // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
-            var userLockKey = $"lock:user:sessions:{storedToken.UserId}";
+            var lockTargetId = storedToken.UserId ?? storedToken.OrganizationId;
+            var userLockKey = $"lock:user:sessions:{lockTargetId}";
             var userLockValue = Guid.NewGuid().ToString("N");
             var userLockAcquired = await _cacheService.AcquireLockAsync(userLockKey, userLockValue, TimeSpan.FromSeconds(10));
             if (!userLockAcquired)
@@ -599,6 +601,7 @@ public class AuthService : IAuthService
                 // Re-fetch token within the user-scoped lock to ensure it wasn't mutated or revoked concurrently
                 var reFetchedToken = await _context.RefreshTokens
                     .Include(t => t.User)
+                    .Include(t => t.Organization)
                     .FirstOrDefaultAsync(t => t.Id == storedToken.Id);
 
                 var validationResult = ValidateRefreshToken(reFetchedToken);
@@ -647,63 +650,136 @@ public class AuthService : IAuthService
                     {
                         _logger.LogInformation("Safe concurrent refresh race handled. SessionId: {SessionId}.", reFetchedToken!.SessionId);
 
-                        var user = reFetchedToken.User;
-                        var roles = await _identityRepository.GetUserRolesAsync(user.Id);
-                        var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
+                        if (reFetchedToken.UserId.HasValue)
+                        {
+                            var user = reFetchedToken.User;
+                            var roles = await _identityRepository.GetUserRolesAsync(user.Id);
+                            var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
 
-                        var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: reFetchedToken.SessionId);
+                            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: reFetchedToken.SessionId);
 
-                        // Re-set cookies for the active rotated token
-                        var refreshExpiry = activeReplacement.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
-                        _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
-                        _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
+                            // Re-set cookies for the active rotated token
+                            var refreshExpiry = activeReplacement.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                            _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
+                            _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
 
-                        return await CreateAuthResponseAsync(user, roles, permissions,
-                            user.Status == UserStatus.ACTIVE, user.Status.ToString(),
-                            user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                            return await CreateAuthResponseAsync(user, roles, permissions,
+                                user.Status == UserStatus.ACTIVE, user.Status.ToString(),
+                                user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                        }
+                        else if (reFetchedToken.OrganizationId.HasValue)
+                        {
+                            var credential = await _context.OrganizationCredentials
+                                .Include(oc => oc.Organization)
+                                .FirstOrDefaultAsync(oc => oc.OrganizationId == reFetchedToken.OrganizationId && oc.DeletedAt == null);
+
+                            if (credential == null || credential.Organization.DeletedAt != null) return null;
+
+                            var roles = new[] { "BUSINESS" };
+                            var permissions = Enumerable.Empty<string>();
+
+                            var jwt = _tokenService.GenerateCompanyJwtToken(credential, roles, permissions, sessionId: reFetchedToken.SessionId);
+
+                            var refreshExpiry = activeReplacement.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                            _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
+                            _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
+
+                            return new AuthResponse(credential.OrganizationId, credential.Organization.Email, credential.Username, credential.Organization.Name, null, roles, permissions, true, "ACTIVE", "DASHBOARD");
+                        }
+                        return null;
                     }
                 }
 
                 // Normal path: validationResult == RefreshTokenValidationResult.Valid
-                var oldUser = reFetchedToken!.User;
-                var oldRoles = await _identityRepository.GetUserRolesAsync(oldUser.Id);
-                var oldPermissions = await _identityRepository.GetUserPermissionsAsync(oldUser.Id);
-
-                // Compare User-Agents for hijack warnings
-                var currentUserAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString();
-                if (!string.IsNullOrWhiteSpace(reFetchedToken.UserAgent) &&
-                    !string.Equals(reFetchedToken.UserAgent, currentUserAgent, StringComparison.OrdinalIgnoreCase))
+                if (reFetchedToken!.UserId.HasValue)
                 {
-                    _logger.LogWarning("SECURITY WARNING: User-Agent changed during token refresh for Session {SessionId}. Original: '{OriginalUA}', Current: '{CurrentUA}'",
-                        reFetchedToken.SessionId, reFetchedToken.UserAgent, currentUserAgent);
+                    var oldUser = reFetchedToken.User;
+                    var oldRoles = await _identityRepository.GetUserRolesAsync(oldUser.Id);
+                    var oldPermissions = await _identityRepository.GetUserPermissionsAsync(oldUser.Id);
+
+                    // Compare User-Agents for hijack warnings
+                    var currentUserAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString();
+                    if (!string.IsNullOrWhiteSpace(reFetchedToken.UserAgent) &&
+                        !string.Equals(reFetchedToken.UserAgent, currentUserAgent, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogWarning("SECURITY WARNING: User-Agent changed during token refresh for Session {SessionId}. Original: '{OriginalUA}', Current: '{CurrentUA}'",
+                            reFetchedToken.SessionId, reFetchedToken.UserAgent, currentUserAgent);
+                    }
+
+                    var newRefreshTokenStr = _tokenService.GenerateRefreshToken();
+
+                    using var rotationTx = await _context.Database.BeginTransactionAsync();
+                    RefreshToken newRefreshToken;
+                    try
+                    {
+                        newRefreshToken = await RotateRefreshTokenAsync(reFetchedToken, newRefreshTokenStr);
+                        await rotationTx.CommitAsync();
+                    }
+                    catch
+                    {
+                        await rotationTx.RollbackAsync();
+                        throw;
+                    }
+
+                    var newJwt = _tokenService.GenerateJwtToken(oldUser, oldRoles, oldPermissions, sessionId: reFetchedToken.SessionId);
+
+                    var newRefreshExpiry = newRefreshToken.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                    _tokenService.SetTokenInsideCookie("access_token", newJwt, DateTime.UtcNow.AddMinutes(15));
+                    _tokenService.SetTokenInsideCookie("refresh_token", newRefreshTokenStr, newRefreshExpiry);
+
+                    await LogAuditEventAsync(oldUser.Id, "TOKEN_ROTATED", $"Token rotated successfully. New token issued for Session {reFetchedToken.SessionId}.");
+
+                    return await CreateAuthResponseAsync(oldUser, oldRoles, oldPermissions,
+                        oldUser.Status == UserStatus.ACTIVE, oldUser.Status.ToString(),
+                        oldUser.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                }
+                else if (reFetchedToken.OrganizationId.HasValue)
+                {
+                    var credential = await _context.OrganizationCredentials
+                        .Include(oc => oc.Organization)
+                        .FirstOrDefaultAsync(oc => oc.OrganizationId == reFetchedToken.OrganizationId && oc.DeletedAt == null);
+
+                    if (credential == null || credential.Organization.DeletedAt != null) return null;
+
+                    var roles = new[] { "BUSINESS" };
+                    var permissions = Enumerable.Empty<string>();
+
+                    // Compare User-Agents for hijack warnings
+                    var currentUserAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString();
+                    if (!string.IsNullOrWhiteSpace(reFetchedToken.UserAgent) &&
+                        !string.Equals(reFetchedToken.UserAgent, currentUserAgent, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogWarning("SECURITY WARNING: User-Agent changed during token refresh for Session {SessionId}. Original: '{OriginalUA}', Current: '{CurrentUA}'",
+                            reFetchedToken.SessionId, reFetchedToken.UserAgent, currentUserAgent);
+                    }
+
+                    var newRefreshTokenStr = _tokenService.GenerateRefreshToken();
+
+                    using var rotationTx = await _context.Database.BeginTransactionAsync();
+                    RefreshToken newRefreshToken;
+                    try
+                    {
+                        newRefreshToken = await RotateRefreshTokenAsync(reFetchedToken, newRefreshTokenStr);
+                        await rotationTx.CommitAsync();
+                    }
+                    catch
+                    {
+                        await rotationTx.RollbackAsync();
+                        throw;
+                    }
+
+                    var newJwt = _tokenService.GenerateCompanyJwtToken(credential, roles, permissions, sessionId: reFetchedToken.SessionId);
+
+                    var newRefreshExpiry = newRefreshToken.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                    _tokenService.SetTokenInsideCookie("access_token", newJwt, DateTime.UtcNow.AddMinutes(15));
+                    _tokenService.SetTokenInsideCookie("refresh_token", newRefreshTokenStr, newRefreshExpiry);
+
+                    await LogAuditEventAsync(null, "COMPANY_TOKEN_ROTATED", $"Company Token rotated successfully. New token issued for Session {reFetchedToken.SessionId}.");
+
+                    return new AuthResponse(credential.OrganizationId, credential.Organization.Email, credential.Username, credential.Organization.Name, null, roles, permissions, true, "ACTIVE", "DASHBOARD");
                 }
 
-                var newRefreshTokenStr = _tokenService.GenerateRefreshToken();
-
-                using var rotationTx = await _context.Database.BeginTransactionAsync();
-                RefreshToken newRefreshToken;
-                try
-                {
-                    newRefreshToken = await RotateRefreshTokenAsync(reFetchedToken, newRefreshTokenStr);
-                    await rotationTx.CommitAsync();
-                }
-                catch
-                {
-                    await rotationTx.RollbackAsync();
-                    throw;
-                }
-
-                var newJwt = _tokenService.GenerateJwtToken(oldUser, oldRoles, oldPermissions, sessionId: reFetchedToken.SessionId);
-
-                var newRefreshExpiry = newRefreshToken.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
-                _tokenService.SetTokenInsideCookie("access_token", newJwt, DateTime.UtcNow.AddMinutes(15));
-                _tokenService.SetTokenInsideCookie("refresh_token", newRefreshTokenStr, newRefreshExpiry);
-
-                await LogAuditEventAsync(oldUser.Id, "TOKEN_ROTATED", $"Token rotated successfully. New token issued for Session {reFetchedToken.SessionId}.");
-
-                return await CreateAuthResponseAsync(oldUser, oldRoles, oldPermissions,
-                    oldUser.Status == UserStatus.ACTIVE, oldUser.Status.ToString(),
-                    oldUser.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                return null;
             }
             finally
             {
@@ -774,6 +850,7 @@ public class AuthService : IAuthService
         var newRefreshToken = new RefreshToken
         {
             UserId = oldToken.UserId,
+            OrganizationId = oldToken.OrganizationId,
             Token = newRefreshTokenStr,
             SessionId = oldToken.SessionId,
             RememberMe = oldToken.RememberMe,
@@ -814,6 +891,33 @@ public class AuthService : IAuthService
         if (userIdClaim == null) return null;
 
         var userId = Guid.Parse(userIdClaim.Value);
+
+        var actorTypeClaim = _httpContextAccessor.HttpContext?.User.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+
+        if (isBusiness)
+        {
+            var credential = await _context.OrganizationCredentials
+                .Include(oc => oc.Organization)
+                .FirstOrDefaultAsync(oc => oc.OrganizationId == userId && oc.DeletedAt == null);
+
+            if (credential == null || credential.Organization.DeletedAt != null) return null;
+
+            return new UserProfileResponse(
+                credential.OrganizationId,
+                credential.Organization.Email,
+                credential.Username,
+                credential.Organization.Name,
+                null,
+                new[] { "BUSINESS" },
+                Enumerable.Empty<string>(),
+                true,
+                "ACTIVE",
+                "DASHBOARD",
+                null,
+                true
+            );
+        }
 
         var roles = (await _cacheService.GetSetAsync($"auth:user:{userId}:roles")).ToList();
         var permissions = (await _cacheService.GetSetAsync($"auth:user:{userId}:permissions")).ToList();
@@ -2843,13 +2947,19 @@ public class AuthService : IAuthService
 
     public async Task<IEnumerable<SessionInfo>> GetActiveSessionsAsync()
     {
-        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null) return Enumerable.Empty<SessionInfo>();
+        var httpContext = _httpContextAccessor.HttpContext;
+        var user = httpContext?.User;
+        if (user == null) return Enumerable.Empty<SessionInfo>();
 
-        var userId = Guid.Parse(userIdClaim.Value);
+        var idClaim = user.FindFirst(ClaimTypes.NameIdentifier);
+        if (idClaim == null || !Guid.TryParse(idClaim.Value, out var targetId))
+            return Enumerable.Empty<SessionInfo>();
+
+        var actorType = user.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
 
         // Primary: Retrieve current SessionId from the cryptographically verified JWT 'sid' claim
-        var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+        var currentSessionIdClaim = user.FindFirst("sid")?.Value;
         Guid? currentSessionId = null;
         if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
         {
@@ -2859,7 +2969,7 @@ public class AuthService : IAuthService
         {
             // Rolling Deployment Fallback: if JWT token is older and lacks the 'sid' claim,
             // fall back to reading & validating the refresh token cookie
-            var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+            var currentRefreshToken = httpContext?.Request.Cookies["refresh_token"];
             if (!string.IsNullOrEmpty(currentRefreshToken))
             {
                 var storedToken = await _context.RefreshTokens
@@ -2871,9 +2981,13 @@ public class AuthService : IAuthService
             }
         }
 
-        var activeTokens = await _context.RefreshTokens
-            .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > _timeProvider.GetUtcNow())
-            .ToListAsync();
+        var activeTokens = isBusiness
+            ? await _context.RefreshTokens
+                .Where(t => t.OrganizationId == targetId && t.RevokedAt == null && t.ExpiresAt > _timeProvider.GetUtcNow())
+                .ToListAsync()
+            : await _context.RefreshTokens
+                .Where(t => t.UserId == targetId && t.RevokedAt == null && t.ExpiresAt > _timeProvider.GetUtcNow())
+                .ToListAsync();
 
         var sessions = activeTokens
             .GroupBy(t => t.SessionId)
@@ -2899,13 +3013,18 @@ public class AuthService : IAuthService
 
     public async Task<bool> RevokeSessionAsync(Guid sessionId)
     {
-        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null) return false;
+        var httpContext = _httpContextAccessor.HttpContext;
+        var user = httpContext?.User;
+        if (user == null) return false;
 
-        var userId = Guid.Parse(userIdClaim.Value);
+        var idClaim = user.FindFirst(ClaimTypes.NameIdentifier);
+        if (idClaim == null || !Guid.TryParse(idClaim.Value, out var targetId)) return false;
+
+        var actorType = user.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
 
         // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
-        var lockKey = $"lock:user:sessions:{userId}";
+        var lockKey = $"lock:user:sessions:{targetId}";
         var lockValue = Guid.NewGuid().ToString("N");
         var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
         if (!acquired)
@@ -2916,7 +3035,7 @@ public class AuthService : IAuthService
         try
         {
             // Find current SessionId to determine if it is a self-revocation
-            var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+            var currentSessionIdClaim = user.FindFirst("sid")?.Value;
             Guid? currentSessionId = null;
             if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
             {
@@ -2925,7 +3044,7 @@ public class AuthService : IAuthService
             else
             {
                 // Fallback for rolling deployment
-                var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+                var currentRefreshToken = httpContext?.Request.Cookies["refresh_token"];
                 if (!string.IsNullOrEmpty(currentRefreshToken))
                 {
                     var storedToken = await _context.RefreshTokens
@@ -2940,14 +3059,18 @@ public class AuthService : IAuthService
             // Reject current session revocation (Self-Revocation Prevention)
             if (currentSessionId.HasValue && sessionId == currentSessionId.Value)
             {
-                _logger.LogWarning("Revocation rejected: Attempted self-revocation of active session {SessionId} for User {UserId}.", sessionId, userId);
-                await LogAuditEventAsync(userId, "SELF_REVOCATION_REJECTED", $"User attempted to revoke current active session {sessionId}. Operation rejected.");
+                _logger.LogWarning("Revocation rejected: Attempted self-revocation of active session {SessionId} for User {UserId}.", sessionId, targetId);
+                await LogAuditEventAsync(isBusiness ? null : targetId, "SELF_REVOCATION_REJECTED", $"User attempted to revoke current active session {sessionId}. Operation rejected.");
                 throw new AuthException(AuthErrorCodes.InvalidToken, "You cannot revoke your currently active session.");
             }
 
-            var activeTokens = await _context.RefreshTokens
-                .Where(t => t.UserId == userId && t.SessionId == sessionId && t.RevokedAt == null)
-                .ToListAsync();
+            var activeTokens = isBusiness
+                ? await _context.RefreshTokens
+                    .Where(t => t.OrganizationId == targetId && t.SessionId == sessionId && t.RevokedAt == null)
+                    .ToListAsync()
+                : await _context.RefreshTokens
+                    .Where(t => t.UserId == targetId && t.SessionId == sessionId && t.RevokedAt == null)
+                    .ToListAsync();
 
             if (!activeTokens.Any()) return false;
 
@@ -2962,7 +3085,7 @@ public class AuthService : IAuthService
             // Cache invalidation: write false to Redis to block access instantly
             await _cacheService.SetAsync($"auth:session:{sessionId}:active", "false", TimeSpan.FromHours(24));
 
-            await LogAuditEventAsync(userId, "SESSION_REVOKED", $"Session {sessionId} successfully revoked by owner.");
+            await LogAuditEventAsync(isBusiness ? null : targetId, "SESSION_REVOKED", $"Session {sessionId} successfully revoked by owner.");
 
             return true;
         }
@@ -2974,13 +3097,18 @@ public class AuthService : IAuthService
 
     public async Task<bool> RevokeAllOtherSessionsAsync(CancellationToken cancellationToken = default)
     {
-        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null) return false;
+        var httpContext = _httpContextAccessor.HttpContext;
+        var user = httpContext?.User;
+        if (user == null) return false;
 
-        var userId = Guid.Parse(userIdClaim.Value);
+        var idClaim = user.FindFirst(ClaimTypes.NameIdentifier);
+        if (idClaim == null || !Guid.TryParse(idClaim.Value, out var targetId)) return false;
+
+        var actorType = user.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
 
         // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
-        var lockKey = $"lock:user:sessions:{userId}";
+        var lockKey = $"lock:user:sessions:{targetId}";
         var lockValue = Guid.NewGuid().ToString("N");
         var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
         if (!acquired)
@@ -2991,7 +3119,7 @@ public class AuthService : IAuthService
         try
         {
             // Find current SessionId
-            var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+            var currentSessionIdClaim = user.FindFirst("sid")?.Value;
             Guid? currentSessionId = null;
             if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
             {
@@ -3000,7 +3128,7 @@ public class AuthService : IAuthService
             else
             {
                 // Fallback for rolling deployment
-                var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+                var currentRefreshToken = httpContext?.Request.Cookies["refresh_token"];
                 if (!string.IsNullOrEmpty(currentRefreshToken))
                 {
                     var storedToken = await _context.RefreshTokens
@@ -3012,9 +3140,13 @@ public class AuthService : IAuthService
                 }
             }
 
-            var otherActiveTokens = await _context.RefreshTokens
-                .Where(t => t.UserId == userId && t.RevokedAt == null && (currentSessionId == null || t.SessionId != currentSessionId))
-                .ToListAsync(cancellationToken);
+            var otherActiveTokens = isBusiness
+                ? await _context.RefreshTokens
+                    .Where(t => t.OrganizationId == targetId && t.RevokedAt == null && (currentSessionId == null || t.SessionId != currentSessionId))
+                    .ToListAsync(cancellationToken)
+                : await _context.RefreshTokens
+                    .Where(t => t.UserId == targetId && t.RevokedAt == null && (currentSessionId == null || t.SessionId != currentSessionId))
+                    .ToListAsync(cancellationToken);
 
             if (!otherActiveTokens.Any()) return true;
 
@@ -3036,7 +3168,7 @@ public class AuthService : IAuthService
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                _logger.LogError(ex, "Failed to revoke all other sessions for user {UserId}", userId);
+                _logger.LogError(ex, "Failed to revoke all other sessions for target {TargetId}", targetId);
                 return false;
             }
 
@@ -3046,7 +3178,7 @@ public class AuthService : IAuthService
                 await _cacheService.SetAsync($"auth:session:{token.SessionId}:active", "false", TimeSpan.FromHours(24));
             }
 
-            await LogAuditEventAsync(userId, "ALL_OTHER_SESSIONS_REVOKED", $"Revoked {uniqueSessionCount} other active sessions successfully.");
+            await LogAuditEventAsync(isBusiness ? null : targetId, "ALL_OTHER_SESSIONS_REVOKED", $"Revoked {uniqueSessionCount} other active sessions successfully.");
 
             return true;
         }

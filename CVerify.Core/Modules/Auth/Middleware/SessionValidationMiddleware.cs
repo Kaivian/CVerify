@@ -34,34 +34,57 @@ public class SessionValidationMiddleware
                 var cacheService = scope.ServiceProvider.GetRequiredService<ICacheService>();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-                // 1. Validate overall user SessionVersion (user-wide invalidation)
-                var cacheKey = $"auth:user:{userId}:session_version";
-                var cachedVersionStr = await cacheService.GetAsync<string>(cacheKey);
-                int activeVersion;
+                var actorTypeClaim = context.User.FindFirst("actor_type")?.Value;
+                bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
 
-                if (string.IsNullOrEmpty(cachedVersionStr))
+                if (isBusiness)
                 {
-                    // Cache miss: Load from PostgreSQL
-                    var user = await dbContext.Users.FindAsync(userId);
-                    if (user == null || user.Status != UserStatus.ACTIVE)
+                    // Validate overall organization status
+                    var orgCacheKey = $"auth:org:{userId}:status";
+                    var cachedStatus = await cacheService.GetAsync<string>(orgCacheKey);
+
+                    if (string.IsNullOrEmpty(cachedStatus))
+                    {
+                        var org = await dbContext.Organizations.FindAsync(userId);
+                        if (org == null || org.DeletedAt != null || !string.Equals(org.Status, "active", StringComparison.OrdinalIgnoreCase))
+                        {
+                            InvalidateSession(context);
+                            return;
+                        }
+                        await cacheService.SetAsync(orgCacheKey, "active", TimeSpan.FromHours(24));
+                    }
+                }
+                else
+                {
+                    // 1. Validate overall user SessionVersion (user-wide invalidation)
+                    var cacheKey = $"auth:user:{userId}:session_version";
+                    var cachedVersionStr = await cacheService.GetAsync<string>(cacheKey);
+                    int activeVersion;
+
+                    if (string.IsNullOrEmpty(cachedVersionStr))
+                    {
+                        // Cache miss: Load from PostgreSQL
+                        var user = await dbContext.Users.FindAsync(userId);
+                        if (user == null || user.Status != UserStatus.ACTIVE)
+                        {
+                            InvalidateSession(context);
+                            return;
+                        }
+                        activeVersion = user.SessionVersion;
+                        await cacheService.SetAsync(cacheKey, activeVersion.ToString(), TimeSpan.FromHours(24));
+                    }
+                    else
+                    {
+                        activeVersion = int.Parse(cachedVersionStr);
+                    }
+
+                    if (tokenVersionClaim == null || 
+                        !int.TryParse(tokenVersionClaim.Value, out var tokenVersion) || 
+                        tokenVersion != activeVersion)
                     {
                         InvalidateSession(context);
                         return;
                     }
-                    activeVersion = user.SessionVersion;
-                    await cacheService.SetAsync(cacheKey, activeVersion.ToString(), TimeSpan.FromHours(24));
-                }
-                else
-                {
-                    activeVersion = int.Parse(cachedVersionStr);
-                }
-
-                if (tokenVersionClaim == null || 
-                    !int.TryParse(tokenVersionClaim.Value, out var tokenVersion) || 
-                    tokenVersion != activeVersion)
-                {
-                    InvalidateSession(context);
-                    return;
                 }
 
                 // 2. Validate SessionId (manual single/bulk remote session revocation)

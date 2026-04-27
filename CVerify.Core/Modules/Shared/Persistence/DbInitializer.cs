@@ -96,6 +96,7 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS otp_verifications CASCADE;
                 DROP TABLE IF EXISTS organization_verifications CASCADE;
                 DROP TABLE IF EXISTS organization_authorities CASCADE;
+                DROP TABLE IF EXISTS organization_memberships CASCADE;
                 DROP TABLE IF EXISTS organization_members CASCADE;
                 DROP TABLE IF EXISTS organizations CASCADE;
                 DROP TABLE IF EXISTS password_credentials CASCADE;
@@ -425,6 +426,19 @@ public static class DbInitializer
                 CONSTRAINT fk_organization_authorities_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
                 CONSTRAINT fk_organization_authorities_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+
+            -- Stores organization memberships (Organization Membership Layer)
+            CREATE TABLE IF NOT EXISTS organization_memberships (
+                id UUID PRIMARY KEY,
+                organization_id UUID NOT NULL,
+                user_id UUID NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                status VARCHAR(50) NOT NULL DEFAULT 'active',
+                joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_organization_memberships_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+                CONSTRAINT fk_organization_memberships_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_memberships_org_user ON organization_memberships(organization_id, user_id);
 
             -- Stores workspaces (Workspace Identity Layer)
             CREATE TABLE IF NOT EXISTS workspaces (
@@ -2011,6 +2025,41 @@ public static class DbInitializer
             SELECT '01900000-0000-0000-0000-000000000005'::uuid, '01900000-0000-0000-0000-000000000004'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'workspace_admin'
             WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000004'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
 
+            -- Seed Tier 1 Organization Membership (Owner)
+            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+            SELECT '01900000-0000-0000-0000-000000000006'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'OWNER', 'active'
+            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
+
+            -- Seed Tier 1 HR User
+            INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
+            SELECT '01900000-0000-0000-0000-000000000007'::uuid, 'hr1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 HR Manager', 'ACTIVE', NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'hr1@testbusiness.com');
+
+            -- Seed Tier 1 HR Organization Membership
+            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+            SELECT '01900000-0000-0000-0000-000000000008'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000007'::uuid, 'HR', 'active'
+            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000007'::uuid);
+
+            -- Seed Tier 1 Representative User
+            INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
+            SELECT '01900000-0000-0000-0000-000000000009'::uuid, 'rep1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Representative', 'ACTIVE', NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'rep1@testbusiness.com');
+
+            -- Seed Tier 1 Representative Organization Membership
+            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+            SELECT '01900000-0000-0000-0000-00000000001a'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000009'::uuid, 'REPRESENTATIVE', 'active'
+            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000009'::uuid);
+
+            -- Seed Tier 1 Standard Member User
+            INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
+            SELECT '01900000-0000-0000-0000-00000000001b'::uuid, 'member1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Staff Member', 'ACTIVE', NOW()
+            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'member1@testbusiness.com');
+
+            -- Seed Tier 1 Standard Member Organization Membership
+            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+            SELECT '01900000-0000-0000-0000-00000000001c'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-00000000001b'::uuid, 'MEMBER', 'active'
+            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-00000000001b'::uuid);
+
             -- Seed Tier 2 Organization
             INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status, initial_admin_assigned_at)
             SELECT '01900000-0000-0000-0000-000000000011'::uuid, 'FPT Software Tier 2 Test', '2222222222', 'tier2@testbusiness.com', 'tier2-business', TRUE, 2, 'active', NOW()
@@ -2040,6 +2089,16 @@ public static class DbInitializer
             INSERT INTO workspace_members (id, workspace_id, user_id, role)
             SELECT '01900000-0000-0000-0000-000000000015'::uuid, '01900000-0000-0000-0000-000000000014'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'workspace_admin'
             WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000014'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
+
+            -- Seed Tier 2 Organization Membership (Owner)
+            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+            SELECT '01900000-0000-0000-0000-000000000016'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'OWNER', 'active'
+            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
+
+            -- Seed Tier 2 Organization Membership for Tier 1 Owner (as MEMBER)
+            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+            SELECT '01900000-0000-0000-0000-00000000001d'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'MEMBER', 'active'
+            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
         ";
 
         var superAdminEmail = Environment.GetEnvironmentVariable("SUPER_ADMIN_EMAIL")?.Trim().ToLowerInvariant() ?? "admin@system.com";

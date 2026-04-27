@@ -198,6 +198,33 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                 .ToListAsync(cancellationToken);
             _context.OrganizationAuthorities.RemoveRange(otherAuthorities);
 
+            // 6b. Setup organization membership
+            var orgMembership = await _context.OrganizationMemberships
+                .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == user.Id, cancellationToken);
+            if (orgMembership == null)
+            {
+                orgMembership = new OrganizationMembership
+                {
+                    OrganizationId = org.Id,
+                    UserId = user.Id,
+                    Role = "OWNER",
+                    Status = "active",
+                    JoinedAt = _timeProvider.GetUtcNow()
+                };
+                _context.OrganizationMemberships.Add(orgMembership);
+            }
+            else
+            {
+                orgMembership.Role = "OWNER";
+                orgMembership.Status = "active";
+            }
+
+            // Remove other OWNER organization memberships to prevent multi-ownership leakage
+            var otherOrgMemberships = await _context.OrganizationMemberships
+                .Where(om => om.OrganizationId == org.Id && om.UserId != user.Id && om.Role == "OWNER")
+                .ToListAsync(cancellationToken);
+            _context.OrganizationMemberships.RemoveRange(otherOrgMemberships);
+
             // Set verification level and status
             org.VerificationLevel = 2; // Level 2 (Domain/Ownership verified)
             org.Status = "active";
@@ -349,6 +376,33 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                 .Where(oa => oa.OrganizationId == org.Id && oa.UserId != user.Id)
                 .ToListAsync(cancellationToken);
             _context.OrganizationAuthorities.RemoveRange(otherAuthorities);
+
+            // Setup organization membership
+            var orgMembership = await _context.OrganizationMemberships
+                .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == user.Id, cancellationToken);
+            if (orgMembership == null)
+            {
+                orgMembership = new OrganizationMembership
+                {
+                    OrganizationId = org.Id,
+                    UserId = user.Id,
+                    Role = "OWNER",
+                    Status = "active",
+                    JoinedAt = _timeProvider.GetUtcNow()
+                };
+                _context.OrganizationMemberships.Add(orgMembership);
+            }
+            else
+            {
+                orgMembership.Role = "OWNER";
+                orgMembership.Status = "active";
+            }
+
+            // Remove other OWNER organization memberships to prevent multi-ownership leakage
+            var otherOrgMemberships = await _context.OrganizationMemberships
+                .Where(om => om.OrganizationId == org.Id && om.UserId != user.Id && om.Role == "OWNER")
+                .ToListAsync(cancellationToken);
+            _context.OrganizationMemberships.RemoveRange(otherOrgMemberships);
 
             // Invalidate/rotate webhook and API credentials
             // Audited as part of compliance security actions

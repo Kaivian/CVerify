@@ -31,6 +31,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
     private readonly IAuthService _authService;
     private readonly EnvConfiguration _envConfig;
     private readonly ILogger<WorkspaceProvisioningService> _logger;
+    private readonly IWorkspaceMembershipService _workspaceMembershipService;
 
     public WorkspaceProvisioningService(
         ApplicationDbContext context,
@@ -41,7 +42,8 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
         IGoogleTokenValidator googleTokenValidator,
         IAuthService authService,
         EnvConfiguration envConfig,
-        ILogger<WorkspaceProvisioningService> logger)
+        ILogger<WorkspaceProvisioningService> logger,
+        IWorkspaceMembershipService workspaceMembershipService)
     {
         _context = context;
         _cacheService = cacheService;
@@ -52,6 +54,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
         _authService = authService;
         _envConfig = envConfig;
         _logger = logger;
+        _workspaceMembershipService = workspaceMembershipService;
     }
 
     private string NormalizeEmailPolicy(string email)
@@ -398,6 +401,9 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             _context.OrganizationVerifications.Add(verification);
             await _context.SaveChangesAsync(cancellationToken);
 
+            // Link existing active user to the organization immediately if they already exist
+            await _workspaceMembershipService.BootstrapInitialAdminAsync(org.Email, cancellationToken);
+
             await transaction.CommitAsync(cancellationToken);
 
             return new SetupWorkspaceResponse(true, org.Email, org.Username);
@@ -508,6 +514,9 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             link.UserId = null;
             link.OrganizationId = org.Id;
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Link existing active user to the organization immediately if they already exist
+            await _workspaceMembershipService.BootstrapInitialAdminAsync(org.Email, cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
 
