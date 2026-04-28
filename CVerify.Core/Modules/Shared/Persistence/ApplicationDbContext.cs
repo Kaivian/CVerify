@@ -576,16 +576,22 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.Id).ValueGeneratedNever();
             entity.HasIndex(e => e.TaskId).HasDatabaseName("idx_analysis_executions_task_id");
             entity.HasIndex(e => e.JobId).HasDatabaseName("idx_analysis_executions_job_id");
+            entity.HasIndex(e => e.UserId).HasDatabaseName("idx_analysis_executions_user_id");
 
             entity.HasOne(e => e.Task)
-                  .WithMany()
-                  .HasForeignKey(e => e.TaskId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany()
+                .HasForeignKey(e => e.TaskId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(e => e.Job)
-                  .WithMany()
-                  .HasForeignKey(e => e.JobId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                .WithMany()
+                .HasForeignKey(e => e.JobId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // PasswordCredential configurations

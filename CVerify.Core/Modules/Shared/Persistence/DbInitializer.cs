@@ -1810,6 +1810,7 @@ public static class DbInitializer
                 id UUID PRIMARY KEY,
                 job_id UUID NOT NULL,
                 task_id UUID NOT NULL,
+                user_id UUID NOT NULL,
                 execution_type VARCHAR(50) NOT NULL DEFAULT 'LLM_CALL',
                 provider VARCHAR(50) NOT NULL,
                 model VARCHAR(100) NOT NULL,
@@ -1821,10 +1822,12 @@ public static class DbInitializer
                 duration_ms BIGINT NOT NULL,
                 created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 CONSTRAINT fk_analysis_executions_task FOREIGN KEY (task_id) REFERENCES analysis_tasks(id) ON DELETE CASCADE,
-                CONSTRAINT fk_analysis_executions_job FOREIGN KEY (job_id) REFERENCES analysis_jobs(id) ON DELETE CASCADE
+                CONSTRAINT fk_analysis_executions_job FOREIGN KEY (job_id) REFERENCES analysis_jobs(id) ON DELETE CASCADE,
+                CONSTRAINT fk_analysis_executions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_analysis_executions_task_id ON analysis_executions(task_id);
             CREATE INDEX IF NOT EXISTS idx_analysis_executions_job_id ON analysis_executions(job_id);
+            CREATE INDEX IF NOT EXISTS idx_analysis_executions_user_id ON analysis_executions(user_id);
 
             -- Stores detailed events for active analysis tasks
             CREATE TABLE IF NOT EXISTS analysis_task_events (
@@ -2112,6 +2115,37 @@ public static class DbInitializer
         catch (Exception)
         {
             // Ignore if type doesn't exist yet (first-time boot runs the script to create it with DELETION_PENDING)
+        }
+
+        // Migrate analysis_executions to include user_id if missing
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'analysis_executions' AND column_name = 'user_id'
+                    ) THEN
+                        ALTER TABLE analysis_executions ADD COLUMN user_id UUID;
+                        
+                        UPDATE analysis_executions ae
+                        SET user_id = aj.user_id
+                        FROM analysis_jobs aj
+                        WHERE ae.job_id = aj.id;
+                        
+                        DELETE FROM analysis_executions WHERE user_id IS NULL;
+
+                        ALTER TABLE analysis_executions ALTER COLUMN user_id SET NOT NULL;
+                        
+                        ALTER TABLE analysis_executions ADD CONSTRAINT fk_analysis_executions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+                        CREATE INDEX IF NOT EXISTS idx_analysis_executions_user_id ON analysis_executions(user_id);
+                    END IF;
+                END $$;");
+        }
+        catch (Exception)
+        {
+            // Ignore migration conflicts
         }
 
         // Apply updated idx_users_email_active unique index constraint to existing databases

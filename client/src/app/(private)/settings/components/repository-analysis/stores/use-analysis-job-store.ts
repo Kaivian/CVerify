@@ -9,7 +9,18 @@ export interface RepoJobState {
   progress: number;
   currentStep: string;
   logs: string[];
-  taskEvents: (AnalysisTaskEvent & { taskType?: string })[];
+  taskEvents: (AnalysisTaskEvent & {
+    taskType?: string;
+    taskStatus?: string;
+    taskProgress?: number;
+    taskDurationMs?: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    estimatedCostUsd?: number;
+    modelName?: string;
+  })[];
   latestReport: RepositoryAnalysis | null;
   partialSnapshot: RepositoryAnalysis | null;
   lastUpdated: number;
@@ -301,7 +312,18 @@ export const useAnalysisJobStore = create<AnalysisJobStore>((set, get) => {
 
             let updatedTaskEvents = prevState.taskEvents;
             if (payload.taskType && payload.message) {
-              const newEvent: AnalysisTaskEvent & { taskType?: string } = {
+              const newEvent: AnalysisTaskEvent & {
+                taskType?: string;
+                taskStatus?: string;
+                taskProgress?: number;
+                taskDurationMs?: number;
+                promptTokens?: number;
+                completionTokens?: number;
+                cacheReadTokens?: number;
+                cacheWriteTokens?: number;
+                estimatedCostUsd?: number;
+                modelName?: string;
+              } = {
                 id: payload.id || `live-${Date.now()}-${Math.random()}`,
                 taskId: payload.taskId || "",
                 timestamp: payload.timestamp || new Date().toISOString(),
@@ -310,6 +332,15 @@ export const useAnalysisJobStore = create<AnalysisJobStore>((set, get) => {
                 message: payload.message,
                 metadata: payload.metadata,
                 taskType: payload.taskType,
+                taskStatus: payload.taskStatus || (payload.eventType === "AI_TASK_FAILED" ? "Failed" : undefined),
+                taskProgress: payload.taskProgress,
+                taskDurationMs: payload.taskDurationMs,
+                promptTokens: payload.promptTokens,
+                completionTokens: payload.completionTokens,
+                cacheReadTokens: payload.cacheReadTokens,
+                cacheWriteTokens: payload.cacheWriteTokens,
+                estimatedCostUsd: payload.estimatedCostUsd,
+                modelName: payload.modelName,
               };
 
               if (!updatedTaskEvents.some((e) => e.message === newEvent.message && e.timestamp === newEvent.timestamp)) {

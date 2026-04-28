@@ -230,6 +230,12 @@ export const useAiStore = create<AIState>((set, get) => ({
 
             try {
               const data = JSON.parse(dataStr);
+              if (data.status === "FAILED") {
+                throw new Error(data.error || "Chat generation failed.");
+              }
+              if (data.status === "ABORTED" || data.event === "AI_STREAM_ABORTED") {
+                throw new Error("AI_STREAM_ABORTED");
+              }
               if (data.error) {
                 throw new Error(data.error);
               }
@@ -245,7 +251,7 @@ export const useAiStore = create<AIState>((set, get) => ({
               }
             } catch (e: unknown) {
               const error = e as Error;
-              if (error.message?.includes('stream error') || error.message?.includes('FastAPI')) {
+              if (error.message === "AI_STREAM_ABORTED" || error.message?.includes("failed") || error.message?.includes("stream error") || error.message?.includes("FastAPI")) {
                 throw error;
               }
               // Ignore standard parse warnings on raw metadata
@@ -287,7 +293,7 @@ export const useAiStore = create<AIState>((set, get) => ({
       }
 
       const error = err as Error;
-      if (error.name === 'AbortError') {
+      if (error.name === 'AbortError' || error.message === 'AI_STREAM_ABORTED') {
         console.log('Stream cancelled by user');
         set((state) => ({
           messages: state.messages.map((m) =>

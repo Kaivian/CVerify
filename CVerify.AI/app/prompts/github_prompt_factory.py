@@ -217,7 +217,9 @@ Here are the sampled file contents:
 Please generate a skills report. You must strictly match the following JSON Schema:
 {schema}
 
-Remember to return ONLY the raw JSON string. Do not include markdown code block syntax.
+Remember:
+1. Return ONLY the raw JSON string. Do not include markdown code block syntax.
+2. Limit the skills array to a maximum of 20 of the most significant and clearly evidenced technical skills to prevent response truncation.
 """
 
     def get_architecture_user_prompt(self, input_data: Any) -> str:
@@ -251,7 +253,9 @@ Here are the sampled file contents:
 Please generate an architectural report. You must strictly match the following JSON Schema:
 {schema}
 
-Remember to return ONLY the raw JSON string. Do not include markdown code block syntax.
+Remember:
+1. Return ONLY the raw JSON string. Do not include markdown code block syntax.
+2. Limit the patterns array to a maximum of 10 of the most relevant architectural patterns observed.
 """
 
     def get_quality_user_prompt(self, input_data: Any) -> str:
@@ -305,7 +309,9 @@ Here are the sampled file contents:
 Please generate a code quality report. You must strictly match the following JSON Schema:
 {schema}
 
-Remember to return ONLY the raw JSON string. Do not include markdown code block syntax.
+Remember:
+1. Return ONLY the raw JSON string. Do not include markdown code block syntax.
+2. Limit the findings array to a maximum of 5 of the most critical quality findings.
 """
 
     def get_security_user_prompt(self, input_data: Any) -> str:
@@ -350,7 +356,9 @@ Here are the sampled file contents:
 Please generate a security report. You must strictly match the following JSON Schema:
 {schema}
 
-Remember to return ONLY the raw JSON string. Do not include markdown code block syntax.
+Remember:
+1. Return ONLY the raw JSON string. Do not include markdown code block syntax.
+2. Limit the vulnerabilities array to a maximum of 5 entries and the findings array to a maximum of 5 of the most critical security findings.
 """
 
     def get_summary_user_prompt(self, input_data: Any) -> str:

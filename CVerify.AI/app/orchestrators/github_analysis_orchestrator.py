@@ -181,6 +181,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         )
         
         logger.info(f"Executing discrete analysis task {task_type} for job {job_id}", extra=extra_log)
+        start_time = time.perf_counter()
         
         try:
             if task_type == "RepoStructure":
@@ -227,20 +228,72 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 "events": result.get("events", [])
             }
         except Exception as e:
+            duration = int((time.perf_counter() - start_time) * 1000)
             logger.exception(f"Error executing task {task_type} for job {job_id}: {e}", extra=extra_log)
+            
+            # Extract accumulated execution records from TraceContext
+            executions = TraceContext.get().get("executions", [])
+            task_prompt_tokens = sum(ev.get("promptTokens", 0) for ev in executions)
+            task_completion_tokens = sum(ev.get("completionTokens", 0) for ev in executions)
+            task_cache_read = sum(ev.get("cacheReadTokens", 0) for ev in executions)
+            task_cache_write = sum(ev.get("cacheWriteTokens", 0) for ev in executions)
+            task_cost = sum(ev.get("estimatedCostUsd", 0) for ev in executions)
+            
+            # Clear context executions
+            TraceContext.set(executions=[])
+            
+            telemetry = None
+            if executions:
+                telemetry = {
+                    "promptTokens": task_prompt_tokens,
+                    "completionTokens": task_completion_tokens,
+                    "totalTokens": task_prompt_tokens + task_completion_tokens,
+                    "cacheReadTokens": task_cache_read,
+                    "cacheWriteTokens": task_cache_write,
+                    "estimatedCostUsd": float(task_cost),
+                    "durationMs": duration,
+                    "modelName": executions[0].get("model") if executions else settings.claude_model,
+                    "provider": "Anthropic"
+                }
+            
+            err_str = str(e).lower()
+            error_code = "UNKNOWN_ERROR"
+            retryable = True
+            
+            if "rate limit" in err_str or "429" in err_str:
+                error_code = "RATE_LIMIT_EXCEEDED"
+                retryable = True
+            elif "timeout" in err_str or "time out" in err_str:
+                error_code = "TIMEOUT"
+                retryable = True
+            elif "connection" in err_str or "dns" in err_str:
+                error_code = "SERVICE_UNAVAILABLE"
+                retryable = True
+            elif "json" in err_str or "parse" in err_str or "format" in err_str:
+                error_code = "PARSING_ERROR"
+                retryable = False
+            elif "invalid_prompt" in err_str or "bad request" in err_str:
+                error_code = "INVALID_REQUEST"
+                retryable = False
+            
             # Persist logs even on failure to capture error traceback
             persist_trace_logs(job_id, debug_mode)
+            
             return {
                 "status": "Failed",
                 "errorMessage": str(e),
+                "errorCode": error_code,
+                "retryable": retryable,
+                "taskId": task_type,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "schemaVersion": "2.0.0",
                 "resultData": None,
-                "telemetry": None,
+                "telemetry": telemetry,
                 "events": [
                     {
                         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                         "level": "Error",
-                        "eventType": "ErrorOccurred",
+                        "eventType": "AI_TASK_FAILED",
                         "message": str(e)
                     }
                 ]
@@ -266,29 +319,130 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         sample = await self.code_sampler.sample_async(clone_dir, encrypted_token, options)
         return meta, sample
 
+    def _repair_json_string(self, candidate: str) -> str:
+        chars = []
+        stack = []
+        in_string = False
+        i = 0
+        n = len(candidate)
+        
+        while i < n:
+            c = candidate[i]
+            
+            if not in_string:
+                if c == '"':
+                    in_string = True
+                    chars.append(c)
+                    i += 1
+                elif c == '{':
+                    stack.append('}')
+                    chars.append(c)
+                    i += 1
+                elif c == '[':
+                    stack.append(']')
+                    chars.append(c)
+                    i += 1
+                elif c in ('}', ']'):
+                    if stack and stack[-1] == c:
+                        stack.pop()
+                    chars.append(c)
+                    i += 1
+                elif c == ',':
+                    # Check for trailing comma
+                    next_idx = i + 1
+                    while next_idx < n and candidate[next_idx].isspace():
+                        next_idx += 1
+                    if next_idx < n and candidate[next_idx] in ('}', ']'):
+                        # Skip the comma, move directly to brace/bracket
+                        i = next_idx
+                    else:
+                        chars.append(c)
+                        i += 1
+                else:
+                    chars.append(c)
+                    i += 1
+            else: # in_string is True
+                if c == '\\':
+                    # If it's a valid escape sequence for quote or backslash, preserve it as-is
+                    if i + 1 < n and candidate[i + 1] in ('"', '\\'):
+                        chars.append(c)
+                        chars.append(candidate[i + 1])
+                        i += 2
+                    else:
+                        # Escape the backslash
+                        chars.append('\\')
+                        chars.append('\\')
+                        i += 1
+                elif c == '"':
+                    # Check if this is the end of the string
+                    next_idx = i + 1
+                    while next_idx < n and candidate[next_idx].isspace():
+                        next_idx += 1
+                    # If we've reached the end of the candidate string, or it is followed by structural JSON chars,
+                    # it's a valid closing quote.
+                    if next_idx >= n or candidate[next_idx] in (',', '}', ']', ':'):
+                        in_string = False
+                        chars.append(c)
+                        i += 1
+                    else:
+                        # Inner unescaped double quote - escape it
+                        chars.append('\\')
+                        chars.append('"')
+                        i += 1
+                elif c == '\n':
+                    chars.append('\\')
+                    chars.append('n')
+                    i += 1
+                elif c == '\r':
+                    chars.append('\\')
+                    chars.append('r')
+                    i += 1
+                elif c == '\t':
+                    chars.append('\\')
+                    chars.append('t')
+                    i += 1
+                else:
+                    chars.append(c)
+                    i += 1
+                    
+        # If we ended inside a string literal, close it
+        if in_string:
+            chars.append('"')
+            
+        # Clean up any trailing comma at the end of the reconstructed characters
+        while chars and (chars[-1].isspace() or chars[-1] == ','):
+            if chars[-1] == ',':
+                chars.pop()
+                break
+            chars.pop()
+            
+        # Close any open braces or brackets
+        while stack:
+            chars.append(stack.pop())
+            
+        return "".join(chars)
+
     def _extract_json(self, text: str, correlation_id: str) -> dict:
         text = text.strip()
         first_brace = text.find('{')
         last_brace = text.rfind('}')
         
-        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-            json_candidate = text[first_brace:last_brace + 1]
-            try:
-                return json.loads(json_candidate)
-            except Exception as e:
-                logger.warning(f"Failed to parse raw extracted JSON block, attempting escape sanitization: {e}", extra={"correlation_id": correlation_id})
+        if first_brace != -1:
+            if last_brace != -1 and last_brace > first_brace:
+                json_candidate = text[first_brace:last_brace + 1]
                 try:
-                    import re
-                    pattern = re.compile(r'(\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))|\\')
-                    def replace(match):
-                        if match.group(1):
-                            return match.group(1)
-                        return r'\\'
-                    sanitized = pattern.sub(replace, json_candidate)
-                    return json.loads(sanitized)
-                except Exception as retry_err:
-                    logger.error(f"Failed to parse sanitized JSON block: {retry_err}", extra={"correlation_id": correlation_id})
-                    raise Exception(f"Claude output returned invalid JSON inside block. Sanitization failed: {retry_err}. Original error: {e}")
+                    return json.loads(json_candidate)
+                except Exception as e:
+                    logger.warning(f"Failed to parse raw extracted JSON block: {e}. Attempting repair fallback.", extra={"correlation_id": correlation_id})
+            
+            try:
+                # Scan from first_brace to the absolute end of the generated text to capture and heal truncated suffix
+                full_candidate = text[first_brace:]
+                repaired = self._repair_json_string(full_candidate)
+                return json.loads(repaired)
+            except Exception as retry_err:
+                logger.error(f"Failed to parse repaired JSON block: {retry_err}", extra={"correlation_id": correlation_id})
+                raise Exception(f"Claude output returned invalid JSON inside block. Sanitization failed: {retry_err}")
         
         try:
             return json.loads(text)

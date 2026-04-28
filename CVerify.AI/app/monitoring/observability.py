@@ -117,6 +117,10 @@ class StructuredJsonFormatter(logging.Formatter):
         elif record.levelno >= logging.INFO and any(word in record.getMessage().lower() for word in ["completed", "success", "successful"]):
             status = "success"
 
+        # Extract stage and taskId from record extra or trace context
+        stage = getattr(record, "stage", None) or ctx.get("pipeline_stage") or record.name
+        task_id = getattr(record, "taskId", None) or ctx.get("extra", {}).get("taskType") or ctx.get("extra", {}).get("jobId") or "system"
+
         # Build payload conforming to W3C and OTEL concepts
         log_obj = {
             "trace_id": ctx.get("trace_id") or "system",
@@ -124,7 +128,9 @@ class StructuredJsonFormatter(logging.Formatter):
             "parent_span_id": ctx.get("parent_span_id"),
             "timestamp": datetime.now(timezone.utc).isoformat()[:-6] + "Z",
             "version": "1.0.0",
-            "pipelineStage": ctx.get("pipeline_stage") or record.name,
+            "pipelineStage": stage,
+            "stage": stage,
+            "taskId": task_id,
             "eventType": getattr(record, "eventType", "progress"),
             "message": record.getMessage(),
             "status": status
@@ -139,12 +145,20 @@ class StructuredJsonFormatter(logging.Formatter):
         # Inject token details
         if hasattr(record, "tokenUsage"):
             log_obj["tokenUsage"] = record.tokenUsage
+            if isinstance(log_obj["tokenUsage"], dict) and "total" not in log_obj["tokenUsage"]:
+                log_obj["tokenUsage"]["total"] = log_obj["tokenUsage"].get("input", 0) + log_obj["tokenUsage"].get("output", 0)
         elif "input_tokens" in record.__dict__ or "output_tokens" in record.__dict__:
+            input_tokens = record.__dict__.get("input_tokens", 0) or 0
+            output_tokens = record.__dict__.get("output_tokens", 0) or 0
+            total_tokens = record.__dict__.get("total_tokens")
+            if total_tokens is None:
+                total_tokens = input_tokens + output_tokens
             log_obj["tokenUsage"] = {
-                "input": record.__dict__.get("input_tokens", 0),
-                "output": record.__dict__.get("output_tokens", 0),
-                "cacheRead": record.__dict__.get("cache_read_input_tokens", 0),
-                "cacheWrite": record.__dict__.get("cache_creation_input_tokens", 0)
+                "input": input_tokens,
+                "output": output_tokens,
+                "total": total_tokens,
+                "cacheRead": record.__dict__.get("cache_read_input_tokens", 0) or 0,
+                "cacheWrite": record.__dict__.get("cache_creation_input_tokens", 0) or 0
             }
 
         # Inject estimated cost
@@ -226,7 +240,8 @@ class ConsoleColoredFormatter(logging.Formatter):
 
         # Build payload conforming to W3C and OTEL concepts (so we keep TraceContext.append_event updated)
         timestamp_iso = datetime.now(timezone.utc).isoformat()[:-6] + "Z"
-        pipeline_stage = ctx.get("pipeline_stage") or record.name
+        stage = getattr(record, "stage", None) or ctx.get("pipeline_stage") or record.name
+        task_id = getattr(record, "taskId", None) or ctx.get("extra", {}).get("taskType") or ctx.get("extra", {}).get("jobId") or "system"
         
         log_obj = {
             "trace_id": ctx.get("trace_id") or "system",
@@ -234,7 +249,9 @@ class ConsoleColoredFormatter(logging.Formatter):
             "parent_span_id": ctx.get("parent_span_id"),
             "timestamp": timestamp_iso,
             "version": "1.0.0",
-            "pipelineStage": pipeline_stage,
+            "pipelineStage": stage,
+            "stage": stage,
+            "taskId": task_id,
             "eventType": getattr(record, "eventType", "progress"),
             "message": record.getMessage(),
             "status": status
@@ -254,12 +271,20 @@ class ConsoleColoredFormatter(logging.Formatter):
         token_usage = None
         if hasattr(record, "tokenUsage"):
             token_usage = record.tokenUsage
+            if isinstance(token_usage, dict) and "total" not in token_usage:
+                token_usage["total"] = token_usage.get("input", 0) + token_usage.get("output", 0)
         elif "input_tokens" in record.__dict__ or "output_tokens" in record.__dict__:
+            input_tokens = record.__dict__.get("input_tokens", 0) or 0
+            output_tokens = record.__dict__.get("output_tokens", 0) or 0
+            total_tokens = record.__dict__.get("total_tokens")
+            if total_tokens is None:
+                total_tokens = input_tokens + output_tokens
             token_usage = {
-                "input": record.__dict__.get("input_tokens", 0),
-                "output": record.__dict__.get("output_tokens", 0),
-                "cacheRead": record.__dict__.get("cache_read_input_tokens", 0),
-                "cacheWrite": record.__dict__.get("cache_creation_input_tokens", 0)
+                "input": input_tokens,
+                "output": output_tokens,
+                "total": total_tokens,
+                "cacheRead": record.__dict__.get("cache_read_input_tokens", 0) or 0,
+                "cacheWrite": record.__dict__.get("cache_creation_input_tokens", 0) or 0
             }
         
         if token_usage is not None:
@@ -319,7 +344,7 @@ class ConsoleColoredFormatter(logging.Formatter):
         level_name = record.levelname.ljust(5)
         level_part = f"{level_color}{self.BOLD}{level_name}{self.RESET}"
         
-        stage_part = f"{self.MAGENTA}[{pipeline_stage}]{self.RESET}"
+        stage_part = f"{self.MAGENTA}[{stage}]{self.RESET}"
         
         trace_id = log_obj["trace_id"]
         trace_part = ""
@@ -604,6 +629,7 @@ def trace_stage(stage_name: str):
                         result["telemetry"] = {
                             "promptTokens": task_prompt_tokens,
                             "completionTokens": task_completion_tokens,
+                            "totalTokens": task_prompt_tokens + task_completion_tokens,
                             "cacheReadTokens": task_cache_read,
                             "cacheWriteTokens": task_cache_write,
                             "estimatedCostUsd": float(task_cost),
@@ -621,6 +647,7 @@ def trace_stage(stage_name: str):
                             "tokenUsage": {
                                 "input": task_prompt_tokens,
                                 "output": task_completion_tokens,
+                                "total": task_prompt_tokens + task_completion_tokens,
                                 "cacheRead": task_cache_read,
                                 "cacheWrite": task_cache_write
                             },
