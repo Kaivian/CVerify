@@ -203,6 +203,10 @@ export interface RepositoryAnalysis {
   };
   narrative?: RepositoryNarrative;
   cvSynthesis?: CvSynthesisDetail;
+  evidenceStrength?: {
+    score: number;
+    label: string;
+  };
 }
 
 export interface CvHighlightItem {

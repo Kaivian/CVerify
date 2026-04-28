@@ -27,7 +27,8 @@ export const AnalysisScoreCards: React.FC<AnalysisScoreCardsProps> = ({
     return acc;
   }, {} as Record<string, number>);
 
-  const totalEP = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
+  const hasWeightedStrength = !!analysis.evidenceStrength;
+  const totalEP = analysis.evidenceStrength?.score ?? Object.values(breakdown).reduce((sum, val) => sum + val, 0);
 
   const getProgressColor = (points: number) => {
     if (points >= 15) return "success";
@@ -47,10 +48,10 @@ export const AnalysisScoreCards: React.FC<AnalysisScoreCardsProps> = ({
             className={`w-24 h-24 rounded-full flex flex-col items-center justify-center border-4 border-accent/30 bg-accent/5 text-accent mb-4`}
           >
             <span className="text-3xl font-black font-display tracking-tight leading-none">
-              {totalEP}
+              {totalEP.toFixed(0)}
             </span>
             <span className="text-[10px] uppercase font-bold tracking-wider opacity-85 mt-0.5">
-              Total Signals
+              {hasWeightedStrength ? "Weighted Score" : "Total Signals"}
             </span>
           </div>
           <Typography className="text-lg font-black text-foreground">

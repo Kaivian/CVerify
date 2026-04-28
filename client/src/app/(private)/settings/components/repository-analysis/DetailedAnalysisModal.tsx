@@ -1063,7 +1063,9 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
       return `Exceptional (${ep} Signals)`;
     };
 
-    const totalEvidencePoints = sections.reduce((sum, s) => sum + (s.items?.length ?? 0), 0);
+    const hasWeightedStrength = !!localAnalysis.evidenceStrength;
+    const totalEvidencePoints = localAnalysis.evidenceStrength?.score ?? sections.reduce((sum, s) => sum + (s.items?.length ?? 0), 0);
+    const strengthLabel = localAnalysis.evidenceStrength?.label ?? getEvidenceStrength(totalEvidencePoints);
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left font-sans  items-start">
@@ -1113,7 +1115,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
               <div className="flex flex-col items-start justify-center gap-2">
                 <span className="text-[9px] text-muted uppercase font-bold">Evidence Strength:</span>
                 <strong className="text-sm text-foreground font-extrabold font-mono">
-                  {getEvidenceStrength(totalEvidencePoints)}
+                  {hasWeightedStrength ? `${strengthLabel} (${totalEvidencePoints.toFixed(0)} pts)` : strengthLabel}
                 </strong>
               </div>
               <div className="flex flex-col items-start justify-center gap-2">

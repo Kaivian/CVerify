@@ -452,7 +452,8 @@ export default function SourceCodeProvidersPage() {
         return renderSkeletonCard(true, repo.id);
       }
 
-      const totalEvidence = analysisResult.sections?.reduce((sum, s) => sum + s.items.length, 0) ?? 0;
+      const hasWeightedStrength = !!analysisResult.evidenceStrength;
+      const totalEvidence = analysisResult.evidenceStrength?.score ?? analysisResult.sections?.reduce((sum, s) => sum + s.items.length, 0) ?? 0;
       const trustScorePct = ((analysisResult.classification?.trustScore ?? 0) * 100).toFixed(0);
       const primaryDomain = analysisResult.classification?.primaryDomain || "Unclassified";
       const riskLevel = analysisResult.risk?.level ?? "low";
@@ -634,7 +635,7 @@ export default function SourceCodeProvidersPage() {
                 <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Evidence Strength</span>
                   <span className="text-sm font-black text-foreground font-mono mt-1">
-                    {totalEvidence} <span className="text-[10px] text-muted font-normal">Signals</span>
+                    {totalEvidence.toFixed(0)} <span className="text-[10px] text-muted font-normal">{hasWeightedStrength ? "Weighted Pts" : "Signals"}</span>
                   </span>
                 </div>
 
