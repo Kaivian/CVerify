@@ -55,8 +55,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         loading: { ...state.loading, [slug]: false }
       }));
       return details;
-    } catch (err: any) {
-      const errMsg = err?.response?.data?.message || err?.message || 'Failed to load workspace';
+    } catch (err) {
+      const errorObject = err as { response?: { data?: { message?: string } }; message?: string };
+      const errMsg = errorObject?.response?.data?.message || errorObject?.message || 'Failed to load workspace';
       set((state) => ({
         errors: { ...state.errors, [slug]: errMsg },
         loading: { ...state.loading, [slug]: false }

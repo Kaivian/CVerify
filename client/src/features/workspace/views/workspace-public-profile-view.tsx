@@ -1,0 +1,176 @@
+"use client";
+
+import React, { useEffect } from "react";
+import { useWorkspaceStore } from "../store/use-workspace-store";
+import { Card } from "@/components/ui/card";
+import { Typography, Chip } from "@heroui/react";
+import { Building2, Globe, MapPin, Briefcase, Calendar, ShieldCheck, AlertTriangle } from "lucide-react";
+import { SkeletonLoader } from "@/components/ui/states";
+
+interface WorkspacePublicProfileViewProps {
+  organizationSlug: string;
+}
+
+export const WorkspacePublicProfileView: React.FC<WorkspacePublicProfileViewProps> = ({
+  organizationSlug,
+}) => {
+  const fetchWorkspace = useWorkspaceStore((s) => s.fetchWorkspace);
+  const workspaceDetails = useWorkspaceStore((s) => s.workspaces[organizationSlug]);
+  const isDetailsLoading = useWorkspaceStore((s) => s.loading[organizationSlug]);
+  const detailsError = useWorkspaceStore((s) => s.errors[organizationSlug]);
+
+  // Sample static data for public viewing
+  const description = "Leading technology solutions provider specializing in developer screening, automated credential validation, and AI-driven skill mapping systems. Empowering modern hiring teams worldwide.";
+  const website = "https://cverify.dev";
+  const location = "Hanoi, Vietnam";
+  const industry = "Information Technology & Services";
+  const founded = "2022";
+
+  useEffect(() => {
+    if (organizationSlug) {
+      fetchWorkspace(organizationSlug);
+    }
+  }, [organizationSlug, fetchWorkspace]);
+
+  if (isDetailsLoading) {
+    return (
+      <div className="space-y-6 max-w-7xl mx-auto p-4 font-outfit text-foreground">
+        <div className="h-10 w-48 bg-separator/50 animate-pulse rounded-lg mb-4" />
+        <Card className="p-0 overflow-hidden">
+          <SkeletonLoader rows={6} columns={4} />
+        </Card>
+      </div>
+    );
+  }
+
+  if (detailsError || !workspaceDetails) {
+    const isAccessDenied = detailsError?.toLowerCase().includes("forbidden") || detailsError?.toLowerCase().includes("forbid") || detailsError?.includes("403");
+    return (
+      <div className="max-w-xl mx-auto py-20 font-outfit text-foreground">
+        <Card className="p-8 border border-border bg-surface text-center">
+          <div className="size-16 rounded-2xl bg-danger/10 flex items-center justify-center border border-danger/20 mx-auto mb-5 text-danger">
+            <AlertTriangle size={28} />
+          </div>
+          <Typography type="h4" className="font-bold text-foreground mb-2">
+            {isAccessDenied ? "Access Denied" : "Workspace Loading Error"}
+          </Typography>
+          <Typography type="body-xs" className="text-muted leading-relaxed mb-6">
+            {isAccessDenied 
+              ? "You do not have permission to access this organization workspace. Please verify your membership credentials or switch accounts."
+              : detailsError || "Organization not found"}
+          </Typography>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 font-outfit max-w-7xl mx-auto text-foreground">
+      {/* 1. Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-surface border border-border text-foreground select-none">
+        <div className="space-y-1">
+          <Typography
+            type="h2"
+            className="text-2xl font-bold flex items-center gap-2 text-foreground"
+          >
+            <Building2 size={24} className="text-accent" />
+            {workspaceDetails.organizationName}
+          </Typography>
+          <Typography type="body-xs" className="text-muted font-light mt-0.5">
+            Workspace context: <span className="font-mono text-accent">@{workspaceDetails.organizationSlug}</span>
+          </Typography>
+        </div>
+        <div className="flex gap-2">
+          <Chip color="success" variant="soft" size="sm" className="font-semibold text-xs py-1">
+            <ShieldCheck size={12} className="inline mr-1" />
+            Verified Enterprise
+          </Chip>
+        </div>
+      </div>
+
+      {/* 2. Public profile details view */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2">
+          <Card className="p-6 md:p-8 bg-surface border border-border rounded-2xl space-y-6">
+            <div className="flex justify-between items-center pb-4 border-b border-separator/40">
+              <Typography type="h3" className="font-bold text-foreground">
+                About the Company
+              </Typography>
+            </div>
+
+            <div className="space-y-6">
+              <Typography type="body-xs" className="text-muted leading-relaxed text-sm">
+                {description}
+              </Typography>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-separator/40">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+                    <Globe size={16} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted font-bold uppercase block">Website</span>
+                    <a href={website} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-accent hover:underline">
+                      {website.replace("https://", "")}
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+                    <MapPin size={16} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted font-bold uppercase block">Headquarters</span>
+                    <span className="text-xs font-bold text-foreground">
+                      {location}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+                    <Briefcase size={16} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted font-bold uppercase block">Industry</span>
+                    <span className="text-xs font-bold text-foreground">
+                      {industry}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
+                    <Calendar size={16} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted font-bold uppercase block">Founded</span>
+                    <span className="text-xs font-bold text-foreground">
+                      {founded}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Side Widget card */}
+        <div>
+          <Card className="p-6 bg-surface border border-border rounded-2xl space-y-4">
+            <Typography type="h4" className="font-bold text-foreground flex items-center gap-2">
+              <ShieldCheck size={18} className="text-accent" />
+              Public Authority
+            </Typography>
+            <Typography type="body-xs" className="text-muted leading-relaxed">
+              This organization profile is publicly visible to candidates applying for active job postings and collaborating on shared evidence boards.
+            </Typography>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default WorkspacePublicProfileView;

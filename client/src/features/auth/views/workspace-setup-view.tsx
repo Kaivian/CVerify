@@ -18,7 +18,6 @@ function WorkspaceSetupContent() {
 
   const email = searchParams.get('email') || '';
   const verificationToken = searchParams.get('token') || '';
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
 
   // State values
   const [workspaceName, setWorkspaceName] = useState("");

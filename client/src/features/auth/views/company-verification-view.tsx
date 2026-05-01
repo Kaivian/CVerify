@@ -233,12 +233,18 @@ export function CompanyVerificationView() {
       toast.danger("Access Denied", {
         description: "Please complete the registry verification step first."
       });
-      resetOnboardingState();
+      const timer = setTimeout(() => {
+        resetOnboardingState();
+      }, 0);
+      return () => clearTimeout(timer);
     } else if (step === 3 && (!step2Token || !verifiedEmail)) {
       toast.danger("Access Denied", {
         description: "Please complete the identity link verification step first."
       });
-      resetOnboardingState();
+      const timer = setTimeout(() => {
+        resetOnboardingState();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [step, step1Token, step2Token, verifiedEmail, resetOnboardingState]);
 

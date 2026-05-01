@@ -54,6 +54,8 @@ export function AuthAvatar() {
 
   if (!user) return null;
 
+  const isBusiness = user.role === "BUSINESS";
+
   const initials = user.fullName
     ? user.fullName
       .split(" ")
@@ -130,30 +132,34 @@ export function AuthAvatar() {
       <Dropdown.Popover className="min-w-[240px] rounded-xl p-1 z-9999 bg-background border-2">
         <Dropdown.Menu onAction={handleAction} className="outline-hidden">
           <Dropdown.Section className="gap-1">
-            <Dropdown.Item
-              id="profile"
-              textValue={t("navbar:menu.profile", { defaultValue: "View Profile" })}
-              className="rounded-lg"
-            >
-              <div className="flex items-center gap-2.5 w-full">
-                <User className="size-4 shrink-0 text-muted" />
-                <Label className="cursor-pointer font-semibold text-foreground">
-                  {t("navbar:menu.profile", { defaultValue: "View Profile" })}
-                </Label>
-              </div>
-            </Dropdown.Item>
-            <Dropdown.Item
-              id="settings"
-              textValue={t("navbar:menu.settings", { defaultValue: "Profile Settings" })}
-              className="rounded-lg"
-            >
-              <div className="flex items-center gap-2.5 w-full">
-                <Settings className="size-4 shrink-0 text-muted" />
-                <Label className="cursor-pointer font-semibold text-foreground">
-                  {t("navbar:menu.settings", { defaultValue: "Profile Settings" })}
-                </Label>
-              </div>
-            </Dropdown.Item>
+            {!isBusiness && (
+              <>
+                <Dropdown.Item
+                  id="profile"
+                  textValue={t("navbar:menu.profile", { defaultValue: "View Profile" })}
+                  className="rounded-lg"
+                >
+                  <div className="flex items-center gap-2.5 w-full">
+                    <User className="size-4 shrink-0 text-muted" />
+                    <Label className="cursor-pointer font-semibold text-foreground">
+                      {t("navbar:menu.profile", { defaultValue: "View Profile" })}
+                    </Label>
+                  </div>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  id="settings"
+                  textValue={t("navbar:menu.settings", { defaultValue: "Profile Settings" })}
+                  className="rounded-lg"
+                >
+                  <div className="flex items-center gap-2.5 w-full">
+                    <Settings className="size-4 shrink-0 text-muted" />
+                    <Label className="cursor-pointer font-semibold text-foreground">
+                      {t("navbar:menu.settings", { defaultValue: "Profile Settings" })}
+                    </Label>
+                  </div>
+                </Dropdown.Item>
+              </>
+            )}
             <Dropdown.Item
               id="balance"
               textValue={t("navbar:menu.remainCredit", { defaultValue: "Remain Credit" })}
