@@ -1,0 +1,62 @@
+# ==============================================================================
+# CVerify.AI — Docker Compose
+# ==============================================================================
+# Quick start (after copying .env.example → .env and filling in values):
+#
+#   docker compose up --build
+#
+# Services:
+#   cverify-ai   – FastAPI microservice on http://localhost:8000
+#   redis        – Redis instance for nonce cache & pub-sub
+# ==============================================================================
+
+services:
+
+  # ----------------------------------------------------------------------------
+  # CVerify AI FastAPI Microservice
+  # ----------------------------------------------------------------------------
+  cverify-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cverify-ai
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override Redis URL so it points to the compose service name, not localhost
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      # Mount temp_clones so workspace survives container restarts during dev
+      - cverify_workspaces:/app/temp_clones
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ----------------------------------------------------------------------------
+  # Redis — nonce cache, pub-sub progress streaming
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: cverify-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cverify_workspaces:
+    driver: local

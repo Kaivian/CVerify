@@ -148,3 +148,10 @@ cython_debug/
 .vscode/
 *.swp
 *.swo
+
+# CVerify.AI runtime workspace (temporary git clones & task result caches)
+temp_clones/
+
+# Keep the .env.example template but never commit the real .env
+.env
+!.env.example
