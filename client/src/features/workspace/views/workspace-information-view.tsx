@@ -39,6 +39,7 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
 
   useEffect(() => {
     if (workspaceDetails) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDescription(workspaceDetails.description || "");
       setWebsite(workspaceDetails.website || "");
       setLocation(workspaceDetails.location || "");

@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWorkspaceStore } from "@/features/workspace/store/use-workspace-store";
 import { Card } from "@/components/ui/card";
-import { Typography, Chip, Button } from "@heroui/react";
-import { Building2, Shield, ShieldCheck, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Typography, Chip, Button, Tabs } from "@heroui/react";
+import { Building2, Shield, ShieldCheck, AlertTriangle, ArrowLeft, List, Key, Users, History } from "lucide-react";
 import { SkeletonLoader } from "@/components/ui/states";
+import { RolesList } from "@/features/workspace/views/roles-list";
+import { RoleAssignments } from "@/features/workspace/views/role-assignments";
+import { PermissionGrid } from "@/features/workspace/views/permission-grid";
+import { RoleAuditLogs } from "@/features/workspace/views/role-audit-logs";
 
 export default function WorkspaceRolesPage() {
   const params = useParams();
@@ -17,6 +21,8 @@ export default function WorkspaceRolesPage() {
   const workspaceDetails = useWorkspaceStore((s) => s.workspaces[organizationSlug]);
   const isDetailsLoading = useWorkspaceStore((s) => s.loading[organizationSlug]);
   const detailsError = useWorkspaceStore((s) => s.errors[organizationSlug]);
+
+  const [selectedTab, setSelectedTab] = useState("roles");
 
   useEffect(() => {
     if (organizationSlug) {
@@ -109,28 +115,80 @@ export default function WorkspaceRolesPage() {
 
       {/* Main card */}
       <Card className="p-6 md:p-8 bg-surface border border-border rounded-2xl">
-        <div className="flex items-center gap-3 mb-4 select-none">
+        <div className="flex items-center gap-3 mb-6 select-none">
           <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center">
             <Shield size={20} />
           </div>
           <div>
             <Typography type="h3" className="font-bold text-foreground">
-              Business Roles Matrix
+              Business Roles & Governance
             </Typography>
             <Typography type="body-xs" className="text-muted">
-              Configure fine-grained resource permission maps and assign custom organizational roles.
+              Configure fine-grained resource permission maps, manage role assignments, and review audit trails.
             </Typography>
           </div>
         </div>
 
-        <div className="mt-8 border border-dashed border-border/80 rounded-2xl p-12 text-center select-none">
-          <Typography type="h4" className="font-bold text-foreground mb-2">
-            Roles Matrix Under Construction
-          </Typography>
-          <Typography type="body-xs" className="text-muted max-w-md mx-auto mb-6">
-            The role mapping engine is currently being optimized for multitenancy scale. Live controls will become available in the next deployment cycle.
-          </Typography>
-        </div>
+        {/* HeroUI Tabs Layout switcher */}
+        <Tabs
+          className="w-full"
+          variant="secondary"
+          selectedKey={selectedTab}
+          onSelectionChange={(key) => setSelectedTab(key as string)}
+        >
+          <Tabs.ListContainer>
+            <Tabs.List
+              aria-label="Roles Management Panels"
+              className="flex items-center gap-6 h-10 border-b border-divider w-full select-none"
+            >
+              <Tabs.Tab
+                id="roles"
+                className="flex items-center justify-center gap-2 h-full pb-3 text-xs font-semibold cursor-pointer"
+              >
+                <List size={13} />
+                <span>Roles Matrix</span>
+                <Tabs.Indicator className="bottom-0!" />
+              </Tabs.Tab>
+              <Tabs.Tab
+                id="assignments"
+                className="flex items-center justify-center gap-2 h-full pb-3 text-xs font-semibold cursor-pointer"
+              >
+                <Users size={13} />
+                <span>Scoped Assignments</span>
+                <Tabs.Indicator className="bottom-0!" />
+              </Tabs.Tab>
+              <Tabs.Tab
+                id="grid"
+                className="flex items-center justify-center gap-2 h-full pb-3 text-xs font-semibold cursor-pointer"
+              >
+                <Key size={13} />
+                <span>Permission Grid</span>
+                <Tabs.Indicator className="bottom-0!" />
+              </Tabs.Tab>
+              <Tabs.Tab
+                id="audit"
+                className="flex items-center justify-center gap-2 h-full pb-3 text-xs font-semibold cursor-pointer"
+              >
+                <History size={13} />
+                <span>Audit Trail Logs</span>
+                <Tabs.Indicator className="bottom-0!" />
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs.ListContainer>
+
+          <Tabs.Panel id="roles" className="pt-6">
+            {selectedTab === "roles" && <RolesList organizationSlug={organizationSlug} />}
+          </Tabs.Panel>
+          <Tabs.Panel id="assignments" className="pt-6">
+            {selectedTab === "assignments" && <RoleAssignments organizationSlug={organizationSlug} />}
+          </Tabs.Panel>
+          <Tabs.Panel id="grid" className="pt-6">
+            {selectedTab === "grid" && <PermissionGrid organizationSlug={organizationSlug} />}
+          </Tabs.Panel>
+          <Tabs.Panel id="audit" className="pt-6">
+            {selectedTab === "audit" && <RoleAuditLogs organizationSlug={organizationSlug} />}
+          </Tabs.Panel>
+        </Tabs>
       </Card>
     </div>
   );

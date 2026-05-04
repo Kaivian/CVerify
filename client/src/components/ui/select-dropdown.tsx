@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Select, Label, ListBox, Tooltip } from '@heroui/react';
+import { Select, ListBox } from '@heroui/react';
 import { Info } from 'lucide-react';
 
 interface Option {
@@ -57,30 +57,23 @@ export const SelectDropdown: React.FC<SelectDropdownProps> = ({
       aria-label={label || placeholder || "Select dropdown"}
     >
       {label && (
-        <Label className="text-xs font-bold text-muted mb-1.5 block">
+        <label className="text-xs font-bold text-muted mb-1.5 block">
           <span className="flex items-center gap-1.5">
             <span>{label}</span>
             {tooltip && (
-              <Tooltip delay={0}>
-                <Tooltip.Trigger>
-                  <span 
-                    tabIndex={0}
-                    className="text-muted/65 hover:text-foreground transition-colors cursor-help inline-flex items-center focus-ring rounded-full p-0.5"
-                    aria-label={`More information about ${label}`}
-                  >
-                    <Info size={13} />
-                  </span>
-                </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="font-outfit text-xs font-semibold px-2.5 py-1.5 shadow-md border border-border bg-content1 text-foreground">
-                  <Tooltip.Arrow />
-                  <span>{tooltip}</span>
-                </Tooltip.Content>
-              </Tooltip>
+              <span 
+                title={tooltip}
+                tabIndex={0}
+                className="text-muted/65 hover:text-foreground transition-colors cursor-help inline-flex items-center rounded-full p-0.5"
+                aria-label={`More information about ${label}`}
+              >
+                <Info size={13} />
+              </span>
             )}
           </span>
-        </Label>
+        </label>
       )}
-      <Select.Trigger className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-field-border bg-field text-foreground text-xs font-semibold focus:outline-hidden cursor-pointer hover:border-border transition-all select-none focus-visible:ring-2 focus-visible:ring-focus">
+      <Select.Trigger className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-border bg-surface text-foreground text-xs font-semibold focus:outline-hidden cursor-pointer hover:border-border transition-all select-none focus-visible:ring-2 focus-visible:ring-focus">
         <Select.Value />
         <Select.Indicator className="size-4 text-muted" />
       </Select.Trigger>

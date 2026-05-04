@@ -15,5 +15,7 @@ public interface ICacheService
     Task RemoveFromSetAsync(string key, string value);
     Task<bool> AcquireLockAsync(string key, string value, TimeSpan expiry);
     Task<bool> ReleaseLockAsync(string key, string value);
+    Task<bool> SetExpireAsync(string key, TimeSpan expiration);
+    Task DeleteAsync(string key);
 }
 
