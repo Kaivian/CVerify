@@ -32,12 +32,13 @@ const mapEducationFromDb = (ee: EducationEntryResponse) => ({
   id: ee.id,
   label: ee.label,
   school: ee.schoolName,
+  isCurrentlyStudying: ee.isCurrentlyStudying || false,
   period: {
     start: ee.startDate ? parseDate(ee.startDate.split("T")[0]) : null,
     end: ee.endDate ? parseDate(ee.endDate.split("T")[0]) : null,
   },
   gpa: ee.gpa,
-  gpaScale: ee.gpaScale,
+  gpaScale: ee.gpaScale || 4,
 });
 
 // Map Academic Achievement Response to Form representation
@@ -136,7 +137,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
   } = useWorkExperience();
 
   const methods = useForm<PersonalInfoFormValues>({
-    resolver: zodResolver(personalInfoSchema),
+    resolver: zodResolver(personalInfoSchema) as any,
     defaultValues: {
       education: [],
       achievements: [],
@@ -209,8 +210,8 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
           gpaScale: item.gpaScale ?? null,
           description: null,
           startDate: item.period?.start ? new Date(item.period.start.toString()).toISOString() : null,
-          endDate: item.period?.end ? new Date(item.period.end.toString()).toISOString() : null,
-          isCurrentlyStudying: false,
+          endDate: item.isCurrentlyStudying ? null : (item.period?.end ? new Date(item.period.end.toString()).toISOString() : null),
+          isCurrentlyStudying: item.isCurrentlyStudying ?? false,
         };
 
         if (item.id && dbEduIds.includes(item.id)) {
@@ -482,7 +483,29 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
 
   return (
     <FormProvider {...methods}>
-      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+      <form
+        onSubmit={handleSubmit(handleFormSubmit, (errors) => {
+          console.log("[Personal Info Save] Form validation failed:", errors);
+          
+          const errorMsgList: string[] = [];
+          if (errors.education) {
+            errorMsgList.push("Education details contain validation errors.");
+          }
+          if (errors.achievements) {
+            errorMsgList.push("Academic Achievements contain validation errors.");
+          }
+          if (errors.workExperiences) {
+            errorMsgList.push("Work Experience contains validation errors.");
+          }
+          
+          const fullMessage = errorMsgList.length > 0 
+            ? `Validation failed: ${errorMsgList.join(" ")}` 
+            : "Please resolve form validation errors before saving.";
+          
+          toast.danger(fullMessage);
+        })}
+        className="space-y-6"
+      >
         {/* Modular Education Section with GPA inputs */}
         <EducationSection />
 

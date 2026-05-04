@@ -29,6 +29,7 @@ import {
   toast,
   Skeleton,
   Button,
+  Dropdown,
 } from "@heroui/react";
 import { useProfile } from "@/hooks/use-profile";
 import { type UpdateProfileRequest } from "@/types/profile.types";
@@ -100,7 +101,12 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   onDirtyChange,
   onSaveSuccess,
 }) => {
-  const { user, updateProfile: updateLocalAuthUser } = useAuth();
+  const {
+    user,
+    updateProfile: updateLocalAuthUser,
+    fetchLinkedProviders,
+    fetchConnections,
+  } = useAuth();
   const { profile, isLoading, isFetched, updateProfile } = useProfile();
 
   // Avatar upload states
@@ -111,6 +117,74 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   const [lastSelectedFile, setLastSelectedFile] = useState<File | null>(null);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [connectedProviders, setConnectedProviders] = useState<string[]>([]);
+
+  useEffect(() => {
+    const checkConnections = async () => {
+      try {
+        const provs: string[] = [];
+        const responseProviders = await fetchLinkedProviders();
+        if (responseProviders.success && responseProviders.data) {
+          const googleProv = responseProviders.data.find(
+            (p) => p.providerName === "google" && p.connected
+          );
+          if (googleProv) {
+            provs.push("google");
+          }
+        }
+        const responseConnections = await fetchConnections();
+        if (responseConnections.success && responseConnections.data) {
+          const hasGithub = responseConnections.data.some(
+            (c) => c.providerName === "github" && c.connected
+          );
+          if (hasGithub) provs.push("github");
+          
+          const hasGitlab = responseConnections.data.some(
+            (c) => c.providerName === "gitlab" && c.connected
+          );
+          if (hasGitlab) provs.push("gitlab");
+        }
+        setConnectedProviders(provs);
+      } catch (err) {
+        console.error("Failed to fetch connected providers:", err);
+      }
+    };
+    checkConnections();
+  }, [fetchLinkedProviders, fetchConnections]);
+
+  const handleDeleteAvatar = async () => {
+    setIsUploadingAvatar(true);
+    setUploadProgress(null);
+    try {
+      await profileApi.deleteAvatar();
+      updateLocalAuthUser({
+        avatarUrl: undefined,
+      });
+      toast.success("Avatar removed successfully.");
+    } catch (error: unknown) {
+      console.error("Failed to delete avatar:", error);
+      toast.danger("Failed to remove avatar.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleSyncAvatar = async (provider: string) => {
+    setIsUploadingAvatar(true);
+    setUploadProgress(null);
+    try {
+      const result = await profileApi.syncAvatar(provider);
+      updateLocalAuthUser({
+        avatarUrl: result.avatarUrl,
+      });
+      toast.success(`Avatar synced from ${provider.charAt(0).toUpperCase() + provider.slice(1)} successfully.`);
+    } catch (error: unknown) {
+      console.error(`Failed to sync avatar from ${provider}:`, error);
+      toast.danger(`Failed to sync avatar from ${provider}.`);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   // Temporary diagnostics effect to trace avatar rendering
   useEffect(() => {
@@ -538,27 +612,68 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                   accept="image/jpeg,image/png,image/webp,image/gif"
                   onChange={handleAvatarChange}
                 />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  isDisabled={isUploadingAvatar}
-                  onPress={() => fileInputRef.current?.click()}
-                  className="rounded-xl font-bold text-xs mt-2 select-none w-full"
-                >
-                  {isUploadingAvatar ? (
-                    <span className="flex items-center gap-1.5">
-                      <Spinner size="sm" color="current" />
-                      <span>
-                        {uploadProgress !== null
-                          ? `${uploadProgress}%`
-                          : "Uploading..."}
-                      </span>
-                    </span>
-                  ) : (
-                    "Change Avatar"
-                  )}
-                </Button>
+                <div className="flex flex-col gap-2 w-full mt-2">
+                  <Dropdown>
+                    <Dropdown.Trigger>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        isDisabled={isUploadingAvatar}
+                        className="rounded-xl font-bold text-xs select-none w-full"
+                      >
+                        {isUploadingAvatar ? (
+                          <span className="flex items-center gap-1.5 justify-center">
+                            <Spinner size="sm" color="current" />
+                            <span>{uploadProgress !== null ? `${uploadProgress}%` : "Working..."}</span>
+                          </span>
+                        ) : (
+                          "Modify Avatar"
+                        )}
+                      </Button>
+                    </Dropdown.Trigger>
+                    <Dropdown.Popover className="min-w-[180px] bg-background border border-border/80 rounded-xl p-1 z-9999 shadow-overlay text-left">
+                      <Dropdown.Menu
+                        onAction={(key) => {
+                          if (key === "upload") {
+                            fileInputRef.current?.click();
+                          } else if (key === "delete") {
+                            handleDeleteAvatar();
+                          } else if (key.toString().startsWith("sync-")) {
+                            const provider = key.toString().replace("sync-", "");
+                            handleSyncAvatar(provider);
+                          }
+                        }}
+                        className="outline-hidden"
+                      >
+                        <Dropdown.Section>
+                          <Dropdown.Item id="upload" className="rounded-lg font-semibold text-xs text-foreground cursor-pointer">
+                            Upload Picture
+                          </Dropdown.Item>
+                          {connectedProviders.map((prov) => (
+                            <Dropdown.Item
+                              key={`sync-${prov}`}
+                              id={`sync-${prov}`}
+                              className="rounded-lg font-semibold text-xs text-foreground cursor-pointer"
+                            >
+                              Sync from {prov.charAt(0).toUpperCase() + prov.slice(1)}
+                            </Dropdown.Item>
+                          ))}
+                        </Dropdown.Section>
+                        {user?.avatarUrl && (
+                          <Dropdown.Section>
+                            <Dropdown.Item
+                              id="delete"
+                              className="rounded-lg font-bold text-xs text-danger hover:bg-danger-soft cursor-pointer"
+                            >
+                              Remove Picture
+                            </Dropdown.Item>
+                          </Dropdown.Section>
+                        )}
+                      </Dropdown.Menu>
+                    </Dropdown.Popover>
+                  </Dropdown>
+                </div>
               </div>
 
               {/* Right Column — Form Content */}

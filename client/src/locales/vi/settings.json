@@ -1,6 +1,6 @@
 {
   "title": "Cài Đặt Tài Khoản",
-  "subtitle": "Cấu hình thông tin cá nhân, bảo mật, thông báo và các tùy chọn hệ thống lữ hành của bạn.",
+  "subtitle": "Cấu hình thông tin cá nhân, bảo mật, thông báo và các tùy chọn hệ thống của bạn.",
   "tabs": {
     "profile": "Thông tin cá nhân",
     "security": "Bảo mật tài khoản",
@@ -32,6 +32,6 @@
     "themeDark": "Giao diện tối",
     "themeLight": "Giao diện sáng",
     "currency": "Đồng tiền mặc định",
-    "marketingEmails": "Nhận email thông tin khuyến mãi hành trình từ CVerify AI"
+    "marketingEmails": "Nhận email thông tin xác thực và cơ hội việc làm từ CVerify AI"
   }
 }
