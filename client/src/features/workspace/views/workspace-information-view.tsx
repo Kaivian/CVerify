@@ -19,15 +19,14 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
   const workspaceDetails = useWorkspaceStore((s) => s.workspaces[organizationSlug]);
   const isDetailsLoading = useWorkspaceStore((s) => s.loading[organizationSlug]);
   const detailsError = useWorkspaceStore((s) => s.errors[organizationSlug]);
+  const updateWorkspaceDetails = useWorkspaceStore((s) => s.updateWorkspaceDetails);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [description, setDescription] = useState(
-    "Leading technology solutions provider specializing in developer screening, automated credential validation, and AI-driven skill mapping systems. Empowering modern hiring teams worldwide."
-  );
-  const [website, setWebsite] = useState("https://cverify.dev");
-  const [location, setLocation] = useState("Hanoi, Vietnam");
-  const [industry, setIndustry] = useState("Information Technology & Services");
-  const [founded, setFounded] = useState("2022");
+  const [description, setDescription] = useState("");
+  const [website, setWebsite] = useState("");
+  const [location, setLocation] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [founded, setFounded] = useState("");
 
   // Save State
   const [isSaving, setIsSaving] = useState(false);
@@ -37,6 +36,16 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
       fetchWorkspace(organizationSlug);
     }
   }, [organizationSlug, fetchWorkspace]);
+
+  useEffect(() => {
+    if (workspaceDetails) {
+      setDescription(workspaceDetails.description || "");
+      setWebsite(workspaceDetails.website || "");
+      setLocation(workspaceDetails.location || "");
+      setIndustry(workspaceDetails.industry || "");
+      setFounded(workspaceDetails.founded || "");
+    }
+  }, [workspaceDetails]);
 
   if (isDetailsLoading) {
     return (
@@ -76,6 +85,13 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
   const handleSave = () => {
     setIsSaving(true);
     setTimeout(() => {
+      updateWorkspaceDetails(organizationSlug, {
+        description,
+        website,
+        location,
+        industry,
+        founded
+      });
       setIsSaving(false);
       setIsEditing(false);
     }, 800);

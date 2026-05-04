@@ -15,6 +15,19 @@ export interface WorkspaceDetails {
   organizationSlug: string;
   userRole: 'OWNER' | 'REPRESENTATIVE' | 'HR' | 'MEMBER';
   linkedOrganizations: LinkedOrganization[];
+  description?: string;
+  website?: string;
+  location?: string;
+  industry?: string;
+  founded?: string;
+  companySize?: string;
+  mission?: string;
+  vision?: string;
+  coreValues?: string;
+  bannerUrl?: string;
+  logoUrl?: string;
+  followersCount?: number;
+  isFollowing?: boolean;
 }
 
 export interface PaginatedWorkspaceMembers {
@@ -23,3 +36,4 @@ export interface PaginatedWorkspaceMembers {
   page: number;
   pageSize: number;
 }
+

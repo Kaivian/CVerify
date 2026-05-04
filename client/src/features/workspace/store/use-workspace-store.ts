@@ -9,8 +9,24 @@ interface WorkspaceState {
   myOrganizations: LinkedOrganization[] | null;
   fetchWorkspace: (slug: string) => Promise<WorkspaceDetails | null>;
   fetchMyOrganizations: () => Promise<LinkedOrganization[] | null>;
+  updateWorkspaceDetails: (slug: string, updates: Partial<WorkspaceDetails>) => void;
+  toggleFollowWorkspace: (slug: string) => void;
   invalidateCache: (slug?: string) => void;
 }
+
+const DEFAULT_DETAILS = {
+  description: "Leading technology solutions provider specializing in developer screening, automated credential validation, and AI-driven skill mapping systems. Empowering modern hiring teams worldwide.",
+  website: "https://cverify.dev",
+  location: "Hanoi, Vietnam",
+  industry: "Information Technology & Services",
+  founded: "2022",
+  companySize: "201-500",
+  mission: "To establish a source of technical truth and enable seamless verification for developers and companies globally.",
+  vision: "A world where skill validation is instant, verifiable, and free of bias.",
+  coreValues: "Trust, integrity, developers first, continuous innovation, and open collaboration.",
+  followersCount: 7120,
+  isFollowing: false,
+};
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: {},
@@ -34,7 +50,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workspaceService.getWorkspaceDetails(slug)
         .then((details) => {
           set((state) => ({
-            workspaces: { ...state.workspaces, [slug]: details }
+            workspaces: {
+              ...state.workspaces,
+              [slug]: {
+                ...DEFAULT_DETAILS,
+                ...details,
+                // Keep frontend-only updates during session if already modified
+                ...state.workspaces[slug],
+              }
+            }
           }));
         })
         .catch((err) => {
@@ -50,11 +74,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
     try {
       const details = await workspaceService.getWorkspaceDetails(slug);
+      const augmented: WorkspaceDetails = {
+        ...DEFAULT_DETAILS,
+        ...details,
+      };
       set((state) => ({
-        workspaces: { ...state.workspaces, [slug]: details },
+        workspaces: { ...state.workspaces, [slug]: augmented },
         loading: { ...state.loading, [slug]: false }
       }));
-      return details;
+      return augmented;
     } catch (err) {
       const errorObject = err as { response?: { data?: { message?: string } }; message?: string };
       const errMsg = errorObject?.response?.data?.message || errorObject?.message || 'Failed to load workspace';
@@ -64,6 +92,39 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }));
       return null;
     }
+  },
+  updateWorkspaceDetails: (slug: string, updates: Partial<WorkspaceDetails>) => {
+    set((state) => {
+      const current = state.workspaces[slug];
+      if (!current) return state;
+      return {
+        workspaces: {
+          ...state.workspaces,
+          [slug]: {
+            ...current,
+            ...updates,
+          }
+        }
+      };
+    });
+  },
+  toggleFollowWorkspace: (slug: string) => {
+    set((state) => {
+      const current = state.workspaces[slug];
+      if (!current) return state;
+      const isFollowing = !current.isFollowing;
+      const followersCount = (current.followersCount ?? 0) + (isFollowing ? 1 : -1);
+      return {
+        workspaces: {
+          ...state.workspaces,
+          [slug]: {
+            ...current,
+            isFollowing,
+            followersCount,
+          }
+        }
+      };
+    });
   },
   invalidateCache: (slug?: string) => {
     if (slug) {
@@ -76,3 +137,4 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
   }
 }));
+

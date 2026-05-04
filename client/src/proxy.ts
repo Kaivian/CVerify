@@ -44,12 +44,26 @@ export async function proxy(request: NextRequest) {
   const accessToken = request.cookies.get('access_token')?.value;
 
   // Define route classifications
-  const isDashboardRoute = ['/admin', '/business', '/user', '/chat', '/workspace'].some(p => pathname.startsWith(p));
+  let isDashboardRoute = ['/admin', '/business', '/user', '/chat'].some(p => pathname.startsWith(p));
+
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments[0] === 'workspace') {
+    if (segments.length <= 2) {
+      // /workspace or /workspace/{organizationSlug} are public
+      isDashboardRoute = false;
+    } else {
+      const subPath = segments[2];
+      const publicSubPaths = ['about', 'jobs', 'posts', 'people'];
+      if (!publicSubPaths.includes(subPath)) {
+        isDashboardRoute = true;
+      }
+    }
+  }
 
   // Development environment gated edge logging to prevent production data leakage
   if (isDev) {
     console.log(
-      `[Security Proxy] Route: ${pathname} | Token Present: ${!!accessToken}`
+      `[Security Proxy] Route: ${pathname} | Token Present: ${!!accessToken} | Dashboard: ${isDashboardRoute}`
     );
   }
 

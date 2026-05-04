@@ -109,7 +109,7 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
                 <div className="flex items-center gap-2 min-w-0">
                   {Icon && (
                     <Icon
-                      size={isMobile ? 20 : 18}
+                      size={20}
                       className={[
                         "shrink-0 transition-colors duration-200",
                         hasActiveDescendant ? "text-accent" : "text-muted",

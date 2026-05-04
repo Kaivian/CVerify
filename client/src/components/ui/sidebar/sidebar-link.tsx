@@ -71,7 +71,7 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       style={{
         paddingLeft: collapsed
           ? undefined
-          : `${depth > 0 ? (isMobile ? 12 : 6) : isMobile ? 14 : 9}px`,
+          : `${depth > 0 ? (isMobile ? 12 : 6) : isMobile ? 14 : 16}px`,
       }}
       className={[
         "relative flex items-center w-full rounded-xl font-semibold transition-all duration-200 group cursor-pointer",
@@ -95,8 +95,8 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       {/* Render icon if provided */}
       {Icon && (
         <Icon
-          size={isMobile ? 20 : 20}
-          className="shrink-0 transition-transform duration-200 ml-1"
+          size={20}
+          className="shrink-0 transition-transform duration-200"
         />
       )}
 
