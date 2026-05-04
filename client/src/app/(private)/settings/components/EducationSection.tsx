@@ -114,11 +114,7 @@ const GPAField: React.FC<{
     name: `education.${index}.gpaScale`,
   });
 
-  const [isSelected, setIsSelected] = React.useState(gpaScaleValue === 10);
-
-  React.useEffect(() => {
-    setIsSelected(gpaScaleValue === 10);
-  }, [gpaScaleValue]);
+  const isSelected = gpaScaleValue === 10;
 
   return (
     <Controller
@@ -139,7 +135,6 @@ const GPAField: React.FC<{
                 onChange={(selected) => {
                   const oldScale = isSelected ? 10 : 4;
                   const newScale = selected ? 10 : 4;
-                  setIsSelected(selected);
                   setValue(`education.${index}.gpaScale`, newScale, {
                     shouldDirty: true,
                     shouldValidate: true,

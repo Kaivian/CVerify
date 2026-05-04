@@ -34,7 +34,8 @@ import {
 import { useProfile } from "@/hooks/use-profile";
 import { type UpdateProfileRequest } from "@/types/profile.types";
 import { profileApi } from "@/services/profile.service";
-import { AvatarCropperModal } from "./AvatarCropperModal";
+import { ImageCropperModal } from "@/components/ui/image-cropper-modal";
+import { validateImageDimensions } from "@/lib/utils/image-crop.utils";
 import { useAuthStore } from "@/features/auth/store/use-auth-store";
 import { useProfileStore } from "@/stores/use-profile-store";
 
@@ -262,7 +263,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     }
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -279,14 +280,19 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       return;
     }
 
-    setLastSelectedFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setCropImageSrc(objectUrl);
-    setIsCropModalOpen(true);
-
-    // Reset file input so that the same file can be selected again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    try {
+      await validateImageDimensions(file, 256, 256);
+      setLastSelectedFile(file);
+      const objectUrl = URL.createObjectURL(file);
+      setCropImageSrc(objectUrl);
+      setIsCropModalOpen(true);
+    } catch (err: unknown) {
+      toast.danger(typeof err === "string" ? err : "Selected image does not meet size requirements.");
+    } finally {
+      // Reset file input so that the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -614,24 +620,22 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                 />
                 <div className="flex flex-col gap-2 w-full mt-2">
                   <Dropdown>
-                    <Dropdown.Trigger>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        isDisabled={isUploadingAvatar}
-                        className="rounded-xl font-bold text-xs select-none w-full"
-                      >
-                        {isUploadingAvatar ? (
-                          <span className="flex items-center gap-1.5 justify-center">
-                            <Spinner size="sm" color="current" />
-                            <span>{uploadProgress !== null ? `${uploadProgress}%` : "Working..."}</span>
-                          </span>
-                        ) : (
-                          "Modify Avatar"
-                        )}
-                      </Button>
-                    </Dropdown.Trigger>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      isDisabled={isUploadingAvatar}
+                      className="rounded-xl font-bold text-xs select-none w-full"
+                    >
+                      {isUploadingAvatar ? (
+                        <span className="flex items-center gap-1.5 justify-center">
+                          <Spinner size="sm" color="current" />
+                          <span>{uploadProgress !== null ? `${uploadProgress}%` : "Working..."}</span>
+                        </span>
+                      ) : (
+                        "Modify Avatar"
+                      )}
+                    </Button>
                     <Dropdown.Popover className="min-w-[180px] bg-background border border-border/80 rounded-xl p-1 z-9999 shadow-overlay text-left">
                       <Dropdown.Menu
                         onAction={(key) => {
@@ -930,12 +934,16 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           onReset={handleReset}
         />
       </form>
-      <AvatarCropperModal
+      <ImageCropperModal
+        key={cropImageSrc || "closed"}
         isOpen={isCropModalOpen}
         onOpenChange={setIsCropModalOpen}
         imageSrc={cropImageSrc}
+        type="avatar"
         onCropComplete={handleCropComplete}
         onCancel={handleCropCancel}
+        isUploading={isUploadingAvatar}
+        uploadProgress={uploadProgress || 0}
       />
     </FormProvider>
   );
