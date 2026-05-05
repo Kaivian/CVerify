@@ -154,20 +154,20 @@ export function AuditLogsView() {
                   <Table.Header>
                     <Table.Column
                       isRowHeader
-                      className="font-extrabold uppercase text-[10px] tracking-wider py-4"
+                      className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted"
                     >
                       {t("dashboard-admin:auditLogs.table.timestamp")}
                     </Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">
                       {t("dashboard-admin:auditLogs.table.triggeredBy")}
                     </Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">
                       {t("dashboard-admin:auditLogs.table.eventType")}
                     </Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">
                       {t("dashboard-admin:auditLogs.table.actionDetail")}
                     </Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 hidden md:table-cell">
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted hidden md:table-cell">
                       {t("dashboard-admin:auditLogs.table.connectionOrigin")}
                     </Table.Column>
                   </Table.Header>
@@ -179,17 +179,17 @@ export function AuditLogsView() {
                           key={log.id}
                           className="border-b border-separator last:border-none hover:bg-surface-secondary/40"
                         >
-                          <Table.Cell className="text-muted font-mono text-[11px] py-4 whitespace-nowrap">
+                          <Table.Cell className="text-muted font-mono text-[11px] py-4 px-6 whitespace-nowrap">
                             {new Date(log.createdAt).toLocaleString()}
                           </Table.Cell>
-                          <Table.Cell className="font-bold text-foreground text-xs py-4">
+                          <Table.Cell className="font-bold text-foreground text-xs py-4 px-6">
                             {log.userEmail || (
                               <span className="text-muted font-normal">
                                 {t("dashboard-admin:auditLogs.systemContext")}
                               </span>
                             )}
                           </Table.Cell>
-                          <Table.Cell className="py-4">
+                          <Table.Cell className="py-4 px-6">
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold tracking-wide uppercase ${
                                 badge.color === "danger"
@@ -204,10 +204,10 @@ export function AuditLogsView() {
                               {badge.label}
                             </span>
                           </Table.Cell>
-                          <Table.Cell className="text-muted text-xs max-w-md py-4 leading-relaxed font-normal">
+                          <Table.Cell className="text-muted text-xs max-w-md py-4 px-6 leading-relaxed font-normal">
                             {log.description}
                           </Table.Cell>
-                          <Table.Cell className="py-4 whitespace-nowrap hidden md:table-cell">
+                          <Table.Cell className="py-4 px-6 whitespace-nowrap hidden md:table-cell">
                             <div className="flex flex-col text-[10px] text-muted font-mono">
                               <span>IP: {log.ipAddress || "Internal"}</span>
                               <span
@@ -229,13 +229,15 @@ export function AuditLogsView() {
         )}
 
         {logs.length > 0 && (
-          <PaginationWrapper
-            page={page}
-            totalPages={totalPages}
-            totalItems={totalCount}
-            itemsPerPage={pageSize}
-            onPageChange={(p) => setPage(p)}
-          />
+          <div className="p-4 border-t border-separator/60">
+            <PaginationWrapper
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalCount}
+              itemsPerPage={pageSize}
+              onPageChange={(p) => setPage(p)}
+            />
+          </div>
         )}
       </Card>
     </div>

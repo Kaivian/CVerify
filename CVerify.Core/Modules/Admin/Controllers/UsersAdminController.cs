@@ -1,189 +1,248 @@
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Admin.DTOs;
-using CVerify.API.Modules.AiChat.Entities;
-using CVerify.API.Modules.Auth.Services;
-using CVerify.API.Modules.Shared.Domain.Entities;
-using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Admin.Services;
+using CVerify.API.Modules.Auth.DTOs;
 using CVerify.API.Modules.Shared.Persistence;
-using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.Shared.Security.Authorization.Attributes;
+using CVerify.API.Modules.Shared.Exceptions;
 
 namespace CVerify.API.Modules.Admin.Controllers;
 
 [ApiController]
 [Route("api/admin/users")]
-[Authorize(Roles = "SUPER_ADMIN,ADMIN")]
 public class UsersAdminController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly ICacheService _cacheService;
+    private readonly IAdminMemberService _adminMemberService;
 
-    public UsersAdminController(ApplicationDbContext context, ICacheService cacheService)
+    public UsersAdminController(ApplicationDbContext context, IAdminMemberService adminMemberService)
     {
         _context = context;
-        _cacheService = cacheService;
+        _adminMemberService = adminMemberService;
     }
 
     [HttpGet]
+    [HasPermission("admin:users:view")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaginatedResultDto<UserListItemDto>))]
     public async Task<IActionResult> GetUsers(
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
-        [FromQuery] string? roleName = null,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1 || pageSize > 100) pageSize = 20;
+        var result = await _adminMemberService.GetMembersAsync(search, status, page, pageSize, cancellationToken);
+        
+        var items = result.Items.Select(m => new UserListItemDto(
+            m.Id,
+            m.Email,
+            m.FullName,
+            m.Status,
+            m.LastLoginAt,
+            m.Roles.Select(r => r.Name).ToList(),
+            m.SessionVersion,
+            m.JoinedAt
+        )).ToList();
 
-        var query = _context.Users
-            .Include(u => u.Roles)
-            .AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var searchLower = search.ToLower();
-            query = query.Where(u => 
-                u.Email.ToLower().Contains(searchLower) ||
-                u.FullName.ToLower().Contains(searchLower)
-            );
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            if (Enum.TryParse<UserStatus>(status, true, out var statusEnum))
-            {
-                query = query.Where(u => u.Status == statusEnum);
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(roleName))
-        {
-            query = query.Where(u => u.Roles.Any(r => r.Name == roleName.ToUpperInvariant()));
-        }
-
-        var totalCount = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(u => u.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(u => new UserListItemDto(
-                u.Id,
-                u.Email,
-                u.FullName,
-                u.Status.ToString(),
-                u.LastLoginAt,
-                u.Roles.Select(r => r.Name).ToList(),
-                u.SessionVersion,
-                u.CreatedAt
-            ))
-            .ToListAsync();
-
-        return Ok(new PaginatedResultDto<UserListItemDto>(items, totalCount, page, pageSize));
+        return Ok(new PaginatedResultDto<UserListItemDto>(items, result.TotalCount, result.Page, result.PageSize));
     }
 
     [HttpGet("{id:guid}")]
+    [HasPermission("admin:users:view")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(UserListItemDto))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetUser(Guid id)
+    public async Task<IActionResult> GetUser(Guid id, CancellationToken cancellationToken)
     {
-        var user = await _context.Users
-            .Include(u => u.Roles)
-            .FirstOrDefaultAsync(u => u.Id == id);
+        var member = await _context.AdminMembers
+            .Include(am => am.User)
+            .Include(am => am.RoleAssignments)
+                .ThenInclude(ra => ra.Role)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(am => am.Id == id, cancellationToken);
 
-        if (user == null) return NotFound(new { message = "User not found" });
+        if (member == null)
+        {
+            return NotFound(new { message = "Admin member not found" });
+        }
 
         return Ok(new UserListItemDto(
-            user.Id,
-            user.Email,
-            user.FullName,
-            user.Status.ToString(),
-            user.LastLoginAt,
-            user.Roles.Select(r => r.Name).ToList(),
-            user.SessionVersion,
-            user.CreatedAt
+            member.Id,
+            member.User.Email,
+            member.User.FullName,
+            member.Status,
+            member.User.LastLoginAt,
+            member.RoleAssignments.Select(ra => ra.Role.Name).ToList(),
+            member.SessionVersion,
+            member.JoinedAt
         ));
     }
 
     [HttpPut("{id:guid}")]
+    [HasPermission("admin:users:manage")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(UserListItemDto))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserDto dto)
+    public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserDto dto, CancellationToken cancellationToken)
     {
-        var user = await _context.Users
-            .Include(u => u.Roles)
-            .FirstOrDefaultAsync(u => u.Id == id);
-
-        if (user == null) return NotFound(new { message = "User not found" });
-
-        // Parse status transition
-        if (!Enum.TryParse<UserStatus>(dto.Status, true, out var targetStatus))
+        var actorUserIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (actorUserIdClaim == null || !Guid.TryParse(actorUserIdClaim.Value, out var actorUserId))
         {
-            return BadRequest(new { message = $"Invalid status value: {dto.Status}" });
+            return Unauthorized();
         }
 
-        var isStatusChanged = user.Status != targetStatus;
+        var roles = await _context.AdminRoles
+            .Where(r => dto.Roles.Contains(r.Name))
+            .ToListAsync(cancellationToken);
 
-        // Transition through formal domain state machine
-        if (isStatusChanged)
+        var updateDto = new UpdateAdminMemberDto(
+            dto.Status,
+            roles.Select(r => r.Id).ToList()
+        );
+
+        try
         {
-            try
-            {
-                user.TransitionTo(targetStatus);
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            await _adminMemberService.UpdateMemberAsync(actorUserId, id, updateDto, cancellationToken);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
 
-        var currentRoles = user.Roles.Select(r => r.Name).ToList();
-        var targetRoles = dto.Roles ?? new List<string>();
-        var isRolesChanged = !currentRoles.OrderBy(r => r).SequenceEqual(targetRoles.OrderBy(r => r));
+        var member = await _context.AdminMembers
+            .Include(am => am.User)
+            .Include(am => am.RoleAssignments)
+                .ThenInclude(ra => ra.Role)
+            .FirstOrDefaultAsync(am => am.Id == id, cancellationToken);
 
-        if (isRolesChanged)
+        if (member == null)
         {
-            var roles = await _context.Roles
-                .Where(r => targetRoles.Contains(r.Name))
-                .ToListAsync();
-            user.Roles = roles;
+            return NotFound(new { message = "Admin member not found" });
         }
-
-        // Trigger immediate revocation if roles changed, account is banned, or suspended
-        var shouldRevoke = isRolesChanged || isStatusChanged;
-
-        if (shouldRevoke)
-        {
-            // Revoke active sessions immediately
-            user.SessionVersion += 1;
-            user.UpdatedAt = DateTimeOffset.UtcNow;
-
-            // Invalidate Redis permissions cache
-            var permKey = $"auth:user:{user.Id}:permissions";
-            var sessKey = $"auth:user:{user.Id}:session_version";
-            await _cacheService.RemoveAsync(permKey);
-            await _cacheService.RemoveAsync(sessKey);
-        }
-
-        await _context.SaveChangesAsync();
 
         return Ok(new UserListItemDto(
-            user.Id,
-            user.Email,
-            user.FullName,
-            user.Status.ToString(),
-            user.LastLoginAt,
-            user.Roles.Select(r => r.Name).ToList(),
-            user.SessionVersion,
-            user.CreatedAt
+            member.Id,
+            member.User.Email,
+            member.User.FullName,
+            member.Status,
+            member.User.LastLoginAt,
+            member.RoleAssignments.Select(ra => ra.Role.Name).ToList(),
+            member.SessionVersion,
+            member.JoinedAt
         ));
+    }
+
+    [HttpDelete("{id:guid}")]
+    [HasPermission("admin:users:manage")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteUser(Guid id, CancellationToken cancellationToken)
+    {
+        var actorUserIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (actorUserIdClaim == null || !Guid.TryParse(actorUserIdClaim.Value, out var actorUserId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            await _adminMemberService.RemoveMemberAsync(actorUserId, id, cancellationToken);
+            return NoContent();
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("invitations")]
+    [HasPermission("admin:users:manage")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> InviteMember([FromBody] InviteAdminDto dto, CancellationToken cancellationToken)
+    {
+        var actorUserIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (actorUserIdClaim == null || !Guid.TryParse(actorUserIdClaim.Value, out var actorUserId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            await _adminMemberService.InviteMemberAsync(actorUserId, dto, cancellationToken);
+            return NoContent();
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("invitations")]
+    [HasPermission("admin:users:view")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaginatedResultDto<AdminInvitationListItemDto>))]
+    public async Task<IActionResult> GetInvitations(
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _adminMemberService.GetInvitationsAsync(search, page, pageSize, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("invitations/{id:guid}/cancel")]
+    [HasPermission("admin:users:manage")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CancelInvitation(Guid id, CancellationToken cancellationToken)
+    {
+        var actorUserIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (actorUserIdClaim == null || !Guid.TryParse(actorUserIdClaim.Value, out var actorUserId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            await _adminMemberService.CancelInvitationAsync(actorUserId, id, cancellationToken);
+            return NoContent();
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("invitations/accept")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AcceptInvitation([FromBody] AcceptInvitationDto dto, CancellationToken cancellationToken)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            await _adminMemberService.AcceptInvitationAsync(userId, dto.Token, cancellationToken);
+            return NoContent();
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

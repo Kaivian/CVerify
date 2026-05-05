@@ -105,6 +105,14 @@ public class ApplicationDbContext : DbContext
     public DbSet<OrganizationRoleAssignment> OrganizationRoleAssignments => Set<OrganizationRoleAssignment>();
     public DbSet<BusinessRoleAuditLog> BusinessRoleAuditLogs => Set<BusinessRoleAuditLog>();
 
+    public DbSet<AdminMember> AdminMembers => Set<AdminMember>();
+    public DbSet<AdminRole> AdminRoles => Set<AdminRole>();
+    public DbSet<AdminRolePermission> AdminRolePermissions => Set<AdminRolePermission>();
+    public DbSet<AdminRoleAssignment> AdminRoleAssignments => Set<AdminRoleAssignment>();
+    public DbSet<AdminInvitation> AdminInvitations => Set<AdminInvitation>();
+    public DbSet<AdminInvitationRole> AdminInvitationRoles => Set<AdminInvitationRole>();
+    public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
+
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<PendingAuthProvider> PendingAuthProviders => Set<PendingAuthProvider>();
     public DbSet<SourceCodeRepository> SourceCodeRepositories => Set<SourceCodeRepository>();
@@ -176,6 +184,13 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<BusinessPermission>().Property(bp => bp.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationRoleAssignment>().Property(ora => ora.Id).ValueGeneratedNever();
         modelBuilder.Entity<BusinessRoleAuditLog>().Property(bral => bral.Id).ValueGeneratedNever();
+
+        modelBuilder.Entity<AdminMember>().Property(am => am.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AdminRole>().Property(ar => ar.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AdminRoleAssignment>().Property(ara => ara.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AdminInvitation>().Property(ai => ai.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AdminInvitationRole>().Property(air => air.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AdminAuditLog>().Property(aal => aal.Id).ValueGeneratedNever();
         modelBuilder.Entity<RecoveryClaimDocument>().Property(rcd => rcd.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkspaceArchiveSnapshot>().Property(was => was.Id).ValueGeneratedNever();
         modelBuilder.Entity<RecoveryExecutionLock>().Property(rel => rel.Id).ValueGeneratedNever();
@@ -797,6 +812,112 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(was => was.WorkspaceId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AdminMember configurations
+        modelBuilder.Entity<AdminMember>(entity =>
+        {
+            entity.ToTable("admin_members");
+            entity.HasOne(am => am.User)
+                  .WithMany()
+                  .HasForeignKey(am => am.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(am => am.AssignedByUser)
+                  .WithMany()
+                  .HasForeignKey(am => am.AssignedByUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // AdminRole configurations
+        modelBuilder.Entity<AdminRole>(entity =>
+        {
+            entity.ToTable("admin_roles");
+            entity.HasOne(ar => ar.ParentRole)
+                  .WithMany(ar => ar.ChildRoles)
+                  .HasForeignKey(ar => ar.ParentRoleId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.Property(ar => ar.Version)
+                  .HasColumnName("xmin")
+                  .HasColumnType("xid")
+                  .ValueGeneratedOnAddOrUpdate()
+                  .IsConcurrencyToken();
+        });
+
+        // AdminRolePermission configurations
+        modelBuilder.Entity<AdminRolePermission>(entity =>
+        {
+            entity.ToTable("admin_role_permissions");
+            entity.HasKey(arp => new { arp.RoleId, arp.PermissionId });
+            entity.HasOne(arp => arp.Role)
+                  .WithMany(r => r.RolePermissions)
+                  .HasForeignKey(arp => arp.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(arp => arp.Permission)
+                  .WithMany()
+                  .HasForeignKey(arp => arp.PermissionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AdminRoleAssignment configurations
+        modelBuilder.Entity<AdminRoleAssignment>(entity =>
+        {
+            entity.ToTable("admin_role_assignments");
+            entity.HasOne(ara => ara.AdminMember)
+                  .WithMany(am => am.RoleAssignments)
+                  .HasForeignKey(ara => ara.AdminMemberId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(ara => ara.Role)
+                  .WithMany()
+                  .HasForeignKey(ara => ara.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(ara => new { ara.AdminMemberId, ara.RoleId, ara.ScopeType, ara.ScopeId })
+                  .IsUnique()
+                  .HasDatabaseName("idx_admin_role_assignments_unique");
+        });
+
+        // AdminInvitation configurations
+        modelBuilder.Entity<AdminInvitation>(entity =>
+        {
+            entity.ToTable("admin_invitations");
+            entity.HasOne(ai => ai.InvitedByUser)
+                  .WithMany()
+                  .HasForeignKey(ai => ai.InvitedByUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(ai => ai.ConsumedByUser)
+                  .WithMany()
+                  .HasForeignKey(ai => ai.ConsumedByUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(ai => ai.TokenHash)
+                  .IsUnique()
+                  .HasDatabaseName("idx_admin_invitations_token_hash");
+        });
+
+        // AdminInvitationRole configurations
+        modelBuilder.Entity<AdminInvitationRole>(entity =>
+        {
+            entity.ToTable("admin_invitation_roles");
+            entity.HasOne(air => air.Invitation)
+                  .WithMany(ai => ai.PreAssignedRoles)
+                  .HasForeignKey(air => air.InvitationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(air => air.Role)
+                  .WithMany()
+                  .HasForeignKey(air => air.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AdminAuditLog configurations
+        modelBuilder.Entity<AdminAuditLog>(entity =>
+        {
+            entity.ToTable("admin_audit_logs");
+            entity.HasOne(aal => aal.ActorUser)
+                  .WithMany()
+                  .HasForeignKey(aal => aal.ActorUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(aal => aal.TargetUser)
+                  .WithMany()
+                  .HasForeignKey(aal => aal.TargetUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         // RecoveryExecutionLock configurations

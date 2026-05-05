@@ -10,6 +10,8 @@ using Microsoft.IdentityModel.Tokens;
 using CVerify.API.Modules.Shared.Configuration;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Shared.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace CVerify.API.Modules.Auth.Services;
 
@@ -20,11 +22,13 @@ public class TokenService : ITokenService
 {
     private readonly EnvConfiguration _config;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ApplicationDbContext _dbContext;
 
-    public TokenService(EnvConfiguration config, IHttpContextAccessor httpContextAccessor)
+    public TokenService(EnvConfiguration config, IHttpContextAccessor httpContextAccessor, ApplicationDbContext dbContext)
     {
         _config = config;
         _httpContextAccessor = httpContextAccessor;
+        _dbContext = dbContext;
     }
 
     public string GenerateJwtToken(User user, IEnumerable<string> roles, IEnumerable<string> permissions, Guid? organizationId = null, string? organizationSlug = null, Guid? sessionId = null)
@@ -39,6 +43,12 @@ public class TokenService : ITokenService
             new("session_version", user.SessionVersion.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        var adminMember = _dbContext.AdminMembers.AsNoTracking().FirstOrDefault(am => am.UserId == user.Id);
+        if (adminMember != null)
+        {
+            claims.Add(new Claim("admin_session_version", adminMember.SessionVersion.ToString()));
+        }
 
         if (sessionId.HasValue)
         {

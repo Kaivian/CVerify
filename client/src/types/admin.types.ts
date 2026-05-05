@@ -21,6 +21,7 @@ export interface RoleListItem {
   description: string | null;
   isSystem: boolean;
   isActive: boolean;
+  parentRoleId?: string | null;
   permissions: string[];
   version: number;
 }
@@ -29,6 +30,7 @@ export interface CreateOrUpdateRolePayload {
   name: string;
   displayName: string;
   description: string | null;
+  parentRoleId?: string | null;
   permissions: string[];
   version?: number;
 }
