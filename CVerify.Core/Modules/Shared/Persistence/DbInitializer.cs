@@ -8,6 +8,7 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Exceptions.Catalogs;
 using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Profiles.Entities;
+using CVerify.API.Modules.Shared.Configuration;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
@@ -17,12 +18,14 @@ namespace CVerify.API.Modules.Shared.Persistence;
 /// </summary>
 public static class DbInitializer
 {
-    public static async Task InitializeAsync(ApplicationDbContext context, IUsernameService? usernameService = null)
+    public static async Task InitializeAsync(ApplicationDbContext context, IUsernameService? usernameService = null, EnvConfiguration? envConfig = null)
     {
         if (context == null)
         {
             throw new ArgumentNullException(nameof(context));
         }
+
+        var config = envConfig ?? context.GetService<EnvConfiguration>() ?? throw new InvalidOperationException("Fatal: EnvConfiguration service is not registered in the DI container.");
 
         // 1. Ensure database exists
         var databaseCreator = context.Database.GetService<IRelationalDatabaseCreator>();
@@ -43,6 +46,14 @@ public static class DbInitializer
         if (shouldReset)
         {
             const string dropSql = @"
+                DROP TABLE IF EXISTS admin_audit_logs CASCADE;
+                DROP TABLE IF EXISTS admin_invitation_roles CASCADE;
+                DROP TABLE IF EXISTS admin_invitations CASCADE;
+                DROP TABLE IF EXISTS admin_role_assignments CASCADE;
+                DROP TABLE IF EXISTS admin_members CASCADE;
+                DROP TABLE IF EXISTS admin_role_permissions CASCADE;
+                DROP TABLE IF EXISTS admin_roles CASCADE;
+
                 DROP TABLE IF EXISTS analysis_task_events CASCADE;
                 DROP TABLE IF EXISTS analysis_task_results CASCADE;
                 DROP TABLE IF EXISTS analysis_tasks CASCADE;
@@ -1960,160 +1971,98 @@ public static class DbInitializer
                 END IF;
             END $$;
 
-            -- Initial Data (Seeding)
-            -- Handled dynamically via permissions-registry.json mapping inside CVerify.Core,
-            -- but bootstrap placeholders are kept for standard seed continuity.
-            INSERT INTO roles (id, name, display_name, description, is_system)
-            VALUES 
-                ('018fc35b-1c5c-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'SUPER_ADMIN', 'System Administrator', 'Root access to all modules', TRUE),
-                ('018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'USER', 'General User', 'Basic application access', TRUE)
-            ON CONFLICT (name) DO NOTHING;
+            -- Admin Roles table
+            CREATE TABLE IF NOT EXISTS admin_roles (
+                id UUID PRIMARY KEY,
+                parent_role_id UUID REFERENCES admin_roles(id) ON DELETE RESTRICT,
+                name VARCHAR(50) NOT NULL UNIQUE,
+                display_name VARCHAR(100) NOT NULL,
+                description VARCHAR(250),
+                is_system BOOLEAN NOT NULL DEFAULT FALSE,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
 
-            INSERT INTO permissions (id, name, display_name, description, module, is_system)
-            VALUES 
-                ('018fc35b-1c5e-7b8a-9a2d-3e4f5a6b7c8d'::uuid, '*:*:*', 'Global Wildcard', 'Full access to every module and feature', 'system', TRUE)
-            ON CONFLICT (name) DO NOTHING;
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_admin_roles_timestamp') THEN
+                    CREATE TRIGGER tr_admin_roles_timestamp BEFORE UPDATE ON admin_roles 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
 
-            INSERT INTO role_permissions (role_id, permission_id)
-            SELECT r.id, p.id FROM roles r, permissions p 
-            WHERE r.name = 'SUPER_ADMIN' AND p.name = '*:*:*'
-            ON CONFLICT DO NOTHING;
+            -- Admin Role Permissions junction table
+            CREATE TABLE IF NOT EXISTS admin_role_permissions (
+                role_id UUID NOT NULL REFERENCES admin_roles(id) ON DELETE CASCADE,
+                permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (role_id, permission_id)
+            );
 
-            -- Provision the master administrator account if it doesn't exist
-            INSERT INTO users (
-                id,
-                email, 
-                password_hash, 
-                full_name, 
-                status, 
-                email_verified_at
-            )
-            SELECT 
-                '018fc35b-1c5f-7b8a-9a2d-3e4f5a6b7c8d'::uuid,
-                @adminEmail,
-                crypt(@adminPassword, gen_salt('bf', 10)),
-                'System Administrator',
-                'ACTIVE',
-                NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = @adminEmail);
+            -- Admin Members table
+            CREATE TABLE IF NOT EXISTS admin_members (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                session_version INTEGER NOT NULL DEFAULT 1,
+                joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                assigned_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL
+            );
 
-            -- Seed the master administrator role mapping if not present
-            INSERT INTO user_roles (user_id, role_id)
-            SELECT 
-                (SELECT id FROM users WHERE email = @adminEmail),
-                (SELECT id FROM roles WHERE name = 'SUPER_ADMIN')
-            ON CONFLICT DO NOTHING;
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_admin_members_timestamp') THEN
+                    CREATE TRIGGER tr_admin_members_timestamp BEFORE UPDATE ON admin_members 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
 
-            -- =========================================================
-            -- Seed Test Business Accounts (Tier 1 and Tier 2)
-            -- =========================================================
+            -- Admin Role Assignments table
+            CREATE TABLE IF NOT EXISTS admin_role_assignments (
+                id UUID PRIMARY KEY,
+                admin_member_id UUID NOT NULL REFERENCES admin_members(id) ON DELETE CASCADE,
+                role_id UUID NOT NULL REFERENCES admin_roles(id) ON DELETE CASCADE,
+                scope_type VARCHAR(30) NOT NULL DEFAULT 'SYSTEM',
+                scope_id UUID NOT NULL,
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_role_assignments_unique ON admin_role_assignments(admin_member_id, role_id, scope_type, scope_id);
 
-            -- Seed Tier 1 Organization
-            INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status, initial_admin_assigned_at)
-            SELECT '01900000-0000-0000-0000-000000000001'::uuid, 'FPT Software Tier 1 Test', '1111111111', 'tier1@testbusiness.com', 'tier1-business', TRUE, 1, 'active', NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM organizations WHERE tax_code = '1111111111');
+            -- Admin Invitations table
+            CREATE TABLE IF NOT EXISTS admin_invitations (
+                id UUID PRIMARY KEY,
+                invitee_email CITEXT NOT NULL,
+                token_hash VARCHAR(64) NOT NULL,
+                invited_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                accepted_at TIMESTAMP WITH TIME ZONE,
+                consumed_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_invitations_token_hash ON admin_invitations(token_hash);
 
-            -- Seed Tier 1 Organization Credential
-            INSERT INTO organization_credentials (organization_id, username, password_hash)
-            SELECT '01900000-0000-0000-0000-000000000001'::uuid, 'tier1-business', crypt('TestPassword123', gen_salt('bf', 10))
-            WHERE NOT EXISTS (SELECT 1 FROM organization_credentials WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid);
+            -- Admin Invitation Roles junction table
+            CREATE TABLE IF NOT EXISTS admin_invitation_roles (
+                id UUID PRIMARY KEY,
+                invitation_id UUID NOT NULL REFERENCES admin_invitations(id) ON DELETE CASCADE,
+                role_id UUID NOT NULL REFERENCES admin_roles(id) ON DELETE CASCADE
+            );
 
-            -- Seed Tier 1 Owner User (Standard User)
-            INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
-            SELECT '01900000-0000-0000-0000-000000000002'::uuid, 'owner1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Business Owner', 'ACTIVE', NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'owner1@testbusiness.com');
+            -- Admin Audit Logs table
+            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                id UUID PRIMARY KEY,
+                actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                action VARCHAR(50) NOT NULL,
+                target_role_name VARCHAR(50),
+                target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                details_json JSONB,
+                timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
 
-            -- Seed Tier 1 User-Role
-            INSERT INTO user_roles (user_id, role_id)
-            SELECT '01900000-0000-0000-0000-000000000002'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
-            WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-000000000002'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
-
-            -- Seed Tier 1 Workspace
-            INSERT INTO workspaces (id, organization_id, display_name, slug, status)
-            SELECT '01900000-0000-0000-0000-000000000004'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, 'Tier 1 Default Workspace', 'tier1-workspace', 'active'
-            WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE slug = 'tier1-workspace');
-
-            -- Seed Tier 1 Workspace Member
-            INSERT INTO workspace_members (id, workspace_id, user_id, role)
-            SELECT '01900000-0000-0000-0000-000000000005'::uuid, '01900000-0000-0000-0000-000000000004'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'workspace_admin'
-            WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000004'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
-
-            -- Seed Tier 1 Organization Membership (Owner)
-            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
-            SELECT '01900000-0000-0000-0000-000000000006'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'OWNER', 'active'
-            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
-
-            -- Seed Tier 1 HR User
-            INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
-            SELECT '01900000-0000-0000-0000-000000000007'::uuid, 'hr1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 HR Manager', 'ACTIVE', NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'hr1@testbusiness.com');
-
-            -- Seed Tier 1 HR Organization Membership
-            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
-            SELECT '01900000-0000-0000-0000-000000000008'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000007'::uuid, 'HR', 'active'
-            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000007'::uuid);
-
-            -- Seed Tier 1 Representative User
-            INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
-            SELECT '01900000-0000-0000-0000-000000000009'::uuid, 'rep1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Representative', 'ACTIVE', NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'rep1@testbusiness.com');
-
-            -- Seed Tier 1 Representative Organization Membership
-            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
-            SELECT '01900000-0000-0000-0000-00000000001a'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000009'::uuid, 'REPRESENTATIVE', 'active'
-            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000009'::uuid);
-
-            -- Seed Tier 1 Standard Member User
-            INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
-            SELECT '01900000-0000-0000-0000-00000000001b'::uuid, 'member1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Staff Member', 'ACTIVE', NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'member1@testbusiness.com');
-
-            -- Seed Tier 1 Standard Member Organization Membership
-            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
-            SELECT '01900000-0000-0000-0000-00000000001c'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-00000000001b'::uuid, 'MEMBER', 'active'
-            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-00000000001b'::uuid);
-
-            -- Seed Tier 2 Organization
-            INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status, initial_admin_assigned_at)
-            SELECT '01900000-0000-0000-0000-000000000011'::uuid, 'FPT Software Tier 2 Test', '2222222222', 'tier2@testbusiness.com', 'tier2-business', TRUE, 2, 'active', NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM organizations WHERE tax_code = '2222222222');
-
-            -- Seed Tier 2 Organization Credential
-            INSERT INTO organization_credentials (organization_id, username, password_hash)
-            SELECT '01900000-0000-0000-0000-000000000011'::uuid, 'tier2-business', crypt('TestPassword123', gen_salt('bf', 10))
-            WHERE NOT EXISTS (SELECT 1 FROM organization_credentials WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid);
-
-            -- Seed Tier 2 Owner User (Standard User)
-            INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
-            SELECT '01900000-0000-0000-0000-000000000012'::uuid, 'owner2@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 2 Business Owner', 'ACTIVE', NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'owner2@testbusiness.com');
-
-            -- Seed Tier 2 User-Role
-            INSERT INTO user_roles (user_id, role_id)
-            SELECT '01900000-0000-0000-0000-000000000012'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
-            WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-000000000012'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
-
-            -- Seed Tier 2 Workspace
-            INSERT INTO workspaces (id, organization_id, display_name, slug, status)
-            SELECT '01900000-0000-0000-0000-000000000014'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, 'Tier 2 Default Workspace', 'tier2-workspace', 'active'
-            WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE slug = 'tier2-workspace');
-
-            -- Seed Tier 2 Workspace Member
-            INSERT INTO workspace_members (id, workspace_id, user_id, role)
-            SELECT '01900000-0000-0000-0000-000000000015'::uuid, '01900000-0000-0000-0000-000000000014'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'workspace_admin'
-            WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000014'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
-
-            -- Seed Tier 2 Organization Membership (Owner)
-            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
-            SELECT '01900000-0000-0000-0000-000000000016'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'OWNER', 'active'
-            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
-
-            -- Seed Tier 2 Organization Membership for Tier 1 Owner (as MEMBER)
-            INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
-            SELECT '01900000-0000-0000-0000-00000000001d'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'MEMBER', 'active'
-            WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
-
-            -- Create business_permissions table
+            -- Business Permissions table
             CREATE TABLE IF NOT EXISTS business_permissions (
                 id UUID PRIMARY KEY,
                 name VARCHAR(100) NOT NULL UNIQUE,
@@ -2124,191 +2073,70 @@ public static class DbInitializer
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_business_permissions_name ON business_permissions(name);
 
-            -- Create organization_business_roles table
+            -- Organization Business Roles table
             CREATE TABLE IF NOT EXISTS organization_business_roles (
                 id UUID PRIMARY KEY,
-                organization_id UUID NOT NULL,
-                parent_role_id UUID,
+                organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                parent_role_id UUID REFERENCES organization_business_roles(id) ON DELETE RESTRICT,
                 name VARCHAR(50) NOT NULL,
                 display_name VARCHAR(100) NOT NULL,
                 description VARCHAR(250),
                 is_system BOOLEAN NOT NULL DEFAULT FALSE,
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_org_roles_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-                CONSTRAINT fk_org_roles_parent FOREIGN KEY (parent_role_id) REFERENCES organization_business_roles(id) ON DELETE RESTRICT
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_org_roles_name_org_id ON organization_business_roles(organization_id, name);
 
-            -- Create organization_role_permissions table
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_organization_business_roles_timestamp') THEN
+                    CREATE TRIGGER tr_organization_business_roles_timestamp BEFORE UPDATE ON organization_business_roles 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            -- Organization Role Permissions junction table
             CREATE TABLE IF NOT EXISTS organization_role_permissions (
-                role_id UUID NOT NULL,
-                permission_id UUID NOT NULL,
+                role_id UUID NOT NULL REFERENCES organization_business_roles(id) ON DELETE CASCADE,
+                permission_id UUID NOT NULL REFERENCES business_permissions(id) ON DELETE CASCADE,
                 assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                PRIMARY KEY (role_id, permission_id),
-                CONSTRAINT fk_org_role_perms_role FOREIGN KEY (role_id) REFERENCES organization_business_roles(id) ON DELETE CASCADE,
-                CONSTRAINT fk_org_role_perms_perm FOREIGN KEY (permission_id) REFERENCES business_permissions(id) ON DELETE CASCADE
+                PRIMARY KEY (role_id, permission_id)
             );
 
-            -- Create organization_role_assignments table
+            -- Organization Role Assignments table
             CREATE TABLE IF NOT EXISTS organization_role_assignments (
                 id UUID PRIMARY KEY,
-                organization_id UUID NOT NULL,
-                user_id UUID NOT NULL,
-                role_id UUID NOT NULL,
+                organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role_id UUID NOT NULL REFERENCES organization_business_roles(id) ON DELETE CASCADE,
                 scope_type VARCHAR(30) NOT NULL DEFAULT 'ORGANIZATION',
                 scope_id UUID NOT NULL,
-                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_org_role_assign_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-                CONSTRAINT fk_org_role_assign_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                CONSTRAINT fk_org_role_assign_role FOREIGN KEY (role_id) REFERENCES organization_business_roles(id) ON DELETE CASCADE
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_role_assignments_lookup ON organization_role_assignments(organization_id, user_id, scope_type, scope_id);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_role_assignments_unique_constraint ON organization_role_assignments(organization_id, user_id, role_id, scope_type, scope_id);
             CREATE INDEX IF NOT EXISTS idx_org_role_assignments_user_id ON organization_role_assignments(user_id);
 
-            -- Create business_role_audit_logs table
+            -- Business Role Audit Logs table
             CREATE TABLE IF NOT EXISTS business_role_audit_logs (
                 id UUID PRIMARY KEY,
-                organization_id UUID NOT NULL,
-                actor_user_id UUID,
+                organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
                 action VARCHAR(50) NOT NULL,
                 target_role_name VARCHAR(50) NOT NULL,
-                target_user_id UUID,
+                target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
                 scope_type VARCHAR(30),
                 scope_id UUID,
                 details_json JSONB,
-                timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_role_audit_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-                CONSTRAINT fk_role_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE CASCADE,
-                CONSTRAINT fk_role_audit_target FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL
+                timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_role_audit_logs_org_time ON business_role_audit_logs(organization_id, timestamp);
 
-            -- Create organization_invitations table
-            CREATE TABLE IF NOT EXISTS organization_invitations (
-                id UUID PRIMARY KEY,
-                organization_id UUID NOT NULL,
-                invitee_email VARCHAR(255) NOT NULL,
-                token_hash VARCHAR(64) NOT NULL,
-                invited_by_user_id UUID,
-                status VARCHAR(30) NOT NULL DEFAULT 'Pending',
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                accepted_at TIMESTAMP WITH TIME ZONE,
-                consumed_by_user_id UUID,
-                CONSTRAINT fk_org_invitations_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-                CONSTRAINT fk_org_invitations_invited_by FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT fk_org_invitations_consumed_by FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_org_invitations_email_status ON organization_invitations(invitee_email, status);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_org_invitations_token_hash ON organization_invitations(token_hash);
-
-            -- Create organization_invitation_roles table
-            CREATE TABLE IF NOT EXISTS organization_invitation_roles (
-                id UUID PRIMARY KEY,
-                invitation_id UUID NOT NULL,
-                role_id UUID NOT NULL,
-                scope_type VARCHAR(30) NOT NULL DEFAULT 'ORGANIZATION',
-                scope_id UUID NOT NULL,
-                CONSTRAINT fk_org_invite_roles_invite FOREIGN KEY (invitation_id) REFERENCES organization_invitations(id) ON DELETE CASCADE,
-                CONSTRAINT fk_org_invite_roles_role FOREIGN KEY (role_id) REFERENCES organization_business_roles(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_org_invitation_roles_invite ON organization_invitation_roles(invitation_id);
-
-            -- Create admin_members table
-            CREATE TABLE IF NOT EXISTS admin_members (
-                id UUID PRIMARY KEY,
-                user_id UUID NOT NULL UNIQUE,
-                status VARCHAR(50) NOT NULL DEFAULT 'Active',
-                session_version INTEGER NOT NULL DEFAULT 1,
-                joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                assigned_by_user_id UUID,
-                CONSTRAINT fk_admin_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                CONSTRAINT fk_admin_members_assigned_by FOREIGN KEY (assigned_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-            );
-
-            -- Create admin_roles table
-            CREATE TABLE IF NOT EXISTS admin_roles (
-                id UUID PRIMARY KEY,
-                parent_role_id UUID,
-                name VARCHAR(50) NOT NULL UNIQUE,
-                display_name VARCHAR(100) NOT NULL,
-                description VARCHAR(250),
-                is_system BOOLEAN NOT NULL DEFAULT FALSE,
-                is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_admin_roles_parent FOREIGN KEY (parent_role_id) REFERENCES admin_roles(id) ON DELETE RESTRICT
-            );
-
-            -- Create admin_role_permissions table
-            CREATE TABLE IF NOT EXISTS admin_role_permissions (
-                role_id UUID NOT NULL,
-                permission_id UUID NOT NULL,
-                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                PRIMARY KEY (role_id, permission_id),
-                CONSTRAINT fk_admin_role_perms_role FOREIGN KEY (role_id) REFERENCES admin_roles(id) ON DELETE CASCADE,
-                CONSTRAINT fk_admin_role_perms_perm FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
-            );
-
-            -- Create admin_role_assignments table
-            CREATE TABLE IF NOT EXISTS admin_role_assignments (
-                id UUID PRIMARY KEY,
-                admin_member_id UUID NOT NULL,
-                role_id UUID NOT NULL,
-                scope_type VARCHAR(30) NOT NULL DEFAULT 'SYSTEM',
-                scope_id UUID NOT NULL,
-                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_admin_assignments_member FOREIGN KEY (admin_member_id) REFERENCES admin_members(id) ON DELETE CASCADE,
-                CONSTRAINT fk_admin_assignments_role FOREIGN KEY (role_id) REFERENCES admin_roles(id) ON DELETE CASCADE
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_role_assignments_unique ON admin_role_assignments(admin_member_id, role_id, scope_type, scope_id);
-
-            -- Create admin_invitations table
-            CREATE TABLE IF NOT EXISTS admin_invitations (
-                id UUID PRIMARY KEY,
-                invitee_email CITEXT NOT NULL,
-                token_hash VARCHAR(64) NOT NULL UNIQUE,
-                invited_by_user_id UUID,
-                status VARCHAR(30) NOT NULL DEFAULT 'Pending',
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                accepted_at TIMESTAMP WITH TIME ZONE,
-                consumed_by_user_id UUID,
-                CONSTRAINT fk_admin_invitations_invited_by FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT fk_admin_invitations_consumed_by FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_invitations_active_email ON admin_invitations(invitee_email) WHERE status = 'Pending';
-
-            -- Create admin_invitation_roles table
-            CREATE TABLE IF NOT EXISTS admin_invitation_roles (
-                id UUID PRIMARY KEY,
-                invitation_id UUID NOT NULL,
-                role_id UUID NOT NULL,
-                CONSTRAINT fk_admin_invite_roles_invite FOREIGN KEY (invitation_id) REFERENCES admin_invitations(id) ON DELETE CASCADE,
-                CONSTRAINT fk_admin_invite_roles_role FOREIGN KEY (role_id) REFERENCES admin_roles(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_admin_invitation_roles_invite ON admin_invitation_roles(invitation_id);
-
-            -- Create admin_audit_logs table
-            CREATE TABLE IF NOT EXISTS admin_audit_logs (
-                id UUID PRIMARY KEY,
-                actor_user_id UUID,
-                action VARCHAR(50) NOT NULL,
-                target_role_name VARCHAR(50),
-                target_user_id UUID,
-                details_json JSONB,
-                timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_admin_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT fk_admin_audit_target FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL
-            );
+            -- DDL schema script completed
         ";
 
-        var superAdminEmail = Environment.GetEnvironmentVariable("SUPER_ADMIN_EMAIL")?.Trim().ToLowerInvariant() ?? "admin@system.com";
-        var superAdminPassword = Environment.GetEnvironmentVariable("SUPER_ADMIN_PASSWORD")?.Trim() ?? "SuperAdminPassword123";
+        await context.Database.ExecuteSqlRawAsync(sql);
 
         // Safely alter user_status enum to add DELETION_PENDING for backward compatibility
         try
@@ -2392,10 +2220,6 @@ public static class DbInitializer
             // Ignore index creation conflicts
         }
 
-        await context.Database.ExecuteSqlRawAsync(sql,
-            new Npgsql.NpgsqlParameter("@adminEmail", superAdminEmail),
-            new Npgsql.NpgsqlParameter("@adminPassword", superAdminPassword));
-
         // Clear Npgsql connection pools to force reload of system types (like citext and user_status enum) 
         // created during database initialization, preventing System.NotSupportedException.
         Npgsql.NpgsqlConnection.ClearAllPools();
@@ -2411,113 +2235,9 @@ public static class DbInitializer
             npgsqlConnection.ReloadTypes();
         }
 
-        // 3. Dynamic seed from permissions-registry.json
-        var registryPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources", "permissions-registry.json");
-        if (!File.Exists(registryPath))
-        {
-            // Fallback for dev environment directly
-            registryPath = Path.Combine(Directory.GetCurrentDirectory(), "resources", "permissions-registry.json");
-        }
-
-        if (File.Exists(registryPath))
-        {
-            try
-            {
-                var jsonString = await File.ReadAllTextAsync(registryPath);
-                using var doc = global::System.Text.Json.JsonDocument.Parse(jsonString);
-                
-                // Seed all permissions from the modules section
-                if (doc.RootElement.TryGetProperty("modules", out var modulesElement))
-                {
-                    foreach (var moduleProperty in modulesElement.EnumerateObject())
-                    {
-                        var moduleName = moduleProperty.Name;
-                        foreach (var permElement in moduleProperty.Value.EnumerateArray())
-                        {
-                            var name = permElement.GetProperty("name").GetString();
-                            var displayName = permElement.GetProperty("displayName").GetString();
-                            var description = permElement.GetProperty("description").GetString();
-                            
-                            var sqlSeedPermission = @"
-                                INSERT INTO permissions (id, name, display_name, description, module, is_system)
-                                VALUES (@id, @name, @displayName, @description, @module, TRUE)
-                                ON CONFLICT (name) DO UPDATE 
-                                SET display_name = EXCLUDED.display_name, description = EXCLUDED.description, module = EXCLUDED.module;";
-                                
-                            await context.Database.ExecuteSqlRawAsync(sqlSeedPermission, 
-                                new Npgsql.NpgsqlParameter("@id", Guid.CreateVersion7()),
-                                new Npgsql.NpgsqlParameter("@name", name),
-                                new Npgsql.NpgsqlParameter("@displayName", displayName),
-                                new Npgsql.NpgsqlParameter("@description", description ?? (object)DBNull.Value),
-                                new Npgsql.NpgsqlParameter("@module", moduleName));
-                        }
-                    }
-                }
-                
-                // Seed all roles and map their permissions
-                if (doc.RootElement.TryGetProperty("roles", out var rolesElement))
-                {
-                    foreach (var roleProperty in rolesElement.EnumerateObject())
-                    {
-                        var roleName = roleProperty.Name;
-                        var roleDisplayName = roleProperty.Value.GetProperty("displayName").GetString();
-                        var roleDescription = roleProperty.Value.GetProperty("description").GetString();
-                        
-                        var sqlSeedRole = @"
-                            INSERT INTO roles (id, name, display_name, description, is_system, is_active)
-                            VALUES (@id, @name, @displayName, @description, TRUE, TRUE)
-                            ON CONFLICT (name) DO UPDATE 
-                            SET display_name = EXCLUDED.display_name, description = EXCLUDED.description;";
-                            
-                        await context.Database.ExecuteSqlRawAsync(sqlSeedRole,
-                            new Npgsql.NpgsqlParameter("@id", Guid.CreateVersion7()),
-                            new Npgsql.NpgsqlParameter("@name", roleName),
-                            new Npgsql.NpgsqlParameter("@displayName", roleDisplayName),
-                            new Npgsql.NpgsqlParameter("@description", roleDescription ?? (object)DBNull.Value));
-
-                        var roleId = await context.Roles
-                            .Where(r => r.Name == roleName)
-                            .Select(r => r.Id)
-                            .FirstOrDefaultAsync();
-
-                        if (roleId != Guid.Empty)
-                        {
-                            // Parse permissions assigned to this role in registry
-                            var permissionsList = new List<string>();
-                            if (roleProperty.Value.TryGetProperty("permissions", out var permsElement))
-                            {
-                                foreach (var permVal in permsElement.EnumerateArray())
-                                {
-                                    permissionsList.Add(permVal.GetString()!);
-                                }
-                            }
-                            
-                            // Get all permission IDs for this role
-                            var dbPermissionIds = await context.Permissions
-                                .Where(p => permissionsList.Contains(p.Name))
-                                .Select(p => p.Id)
-                                .ToListAsync();
-                                
-                            // Clear existing role-permissions mapping for this role, then rebuild it
-                            var sqlClear = "DELETE FROM role_permissions WHERE role_id = @roleId;";
-                            await context.Database.ExecuteSqlRawAsync(sqlClear, new Npgsql.NpgsqlParameter("@roleId", roleId));
-                            
-                            foreach (var permId in dbPermissionIds)
-                            {
-                                var sqlLink = "INSERT INTO role_permissions (role_id, permission_id) VALUES (@roleId, @permId) ON CONFLICT DO NOTHING;";
-                                await context.Database.ExecuteSqlRawAsync(sqlLink, 
-                                    new Npgsql.NpgsqlParameter("@roleId", roleId),
-                                    new Npgsql.NpgsqlParameter("@permId", permId));
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[PermissionSeeding] Error dynamically seeding registry: {ex.Message}");
-            }
-        }
+        // Invoke modular seeders
+        await SuperAdminSeeder.SeedAsync(context, config.SuperAdmin);
+        await BusinessSeeder.SeedAsync(context, config.Seeding);
 
         // One-time compatibility migration for Google OAuth users created under the old normalization rules
         await MigrateLegacyGoogleEmailsAsync(context);
@@ -2528,12 +2248,6 @@ public static class DbInitializer
 
         // One-time compatibility migration to backfill repository classification & authenticity columns
         await MigrateLegacyRepositoryMetadataAsync(context);
-
-        // Seed CVerify Business Roles, Permissions and migrate existing memberships
-        await SeedBusinessRolesAndPermissionsAsync(context);
-
-        // Seed Admin Roles, Permissions and migrate existing platform administrators
-        await SeedAdminRolesAndPermissionsAsync(context);
     }
 
     private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)
@@ -2594,7 +2308,7 @@ public static class DbInitializer
                 ? usernameService.Normalize(legacyProfileUsername)
                 : usernameService.GenerateBaseUsername(user.Email);
 
-            // Generate unique username using standard sequential suffix check
+            // Generate unique username using sequential suffix check
             var uniqueUsername = await usernameService.GenerateUniqueUsernameAsync(baseCandidate);
 
             user.Username = uniqueUsername;
@@ -2702,392 +2416,6 @@ public static class DbInitializer
         {
             Console.WriteLine($"[Migration] Error running MigrateLegacyRepositoryMetadataAsync: {ex.Message}");
         }
-    }
-
-    private static async Task SeedBusinessRolesAndPermissionsAsync(ApplicationDbContext context)
-    {
-        try
-        {
-            // 1. Seed static permissions list into business_permissions
-            var permissions = new List<(string Name, string DisplayName, string Description, string Module)>
-            {
-                ("organization:profile:edit", "Edit Profile", "Modify organization public profile, logo, and banner", "Organization"),
-                ("organization:settings:edit", "Edit Settings", "Modify organization settings and metadata", "Organization"),
-                ("organization:workspace:view", "View Workspace", "Read-only access to assigned workspaces and pipelines", "Workspace"),
-                ("organization:roles:manage", "Manage Roles", "Create, edit, and delete custom business roles", "Business Roles"),
-                ("organization:roles:view", "View Roles", "Read business roles and permission mapping matrices", "Business Roles"),
-                ("organization:members:manage", "Manage Members", "Invite, suspend, and remove organization team members", "People"),
-                ("organization:members:view", "View Members", "List and search organization members", "People"),
-                ("identity:verification:initiate", "Initiate Verification", "Trigger identity KYC check for a candidate", "Identity"),
-                ("identity:verification:approve", "Approve Identity", "Confirm candidate identity verification claims", "Identity"),
-                ("identity:verification:reject", "Reject Identity", "Flag candidate identity claims as invalid or fraud", "Identity"),
-                ("evidence:graph:validate", "Validate Evidence", "Endorse candidate developer evidence graph contribution blocks", "Evidence Graph"),
-                ("evidence:graph:comment", "Comment on Evidence", "Leave peer evaluation comments on candidate contribution nodes", "Evidence Graph"),
-                ("analysis:repository:sync", "Sync Repository", "Connect or refresh git source repositories", "Repo Analysis"),
-                ("analysis:repository:run", "Run Analysis", "Trigger git code analysis and authorship scans", "Repo Analysis"),
-                ("analysis:repository:configure", "Configure Analysis", "Configure analysis rules and repository ignore filters", "Repo Analysis"),
-                ("trust:metric:view", "View Trust Metrics", "Read AI authorship ratios, risk scores, and code authenticity reports", "Trust Intel"),
-                ("trust:flag:manage", "Manage Trust Flags", "Manually mark anomalies or override warning logs", "Trust Intel"),
-                ("ai:interview:configure", "Configure AI Interviews", "Edit automated AI interview templates and parameters", "AI Interviews"),
-                ("ai:interview:conduct", "Conduct AI Interviews", "Send AI technical interview session invites to candidates", "AI Interviews"),
-                ("ai:interview:evaluate", "Evaluate AI Interviews", "Assess AI generated candidate interview transcripts", "AI Interviews"),
-                ("candidate:trust:score", "View Trust Score", "Access aggregate candidate talent trust scorecards", "Trust Scorecard"),
-                ("candidate:trust:override", "Override Trust Score", "Manually adjust candidate trust scorecards or clear fraud flags", "Trust Scorecard"),
-                ("billing:invoice:view", "View Invoices", "Access invoices, billing summary, and billing cycles", "Billing"),
-                ("billing:subscription:manage", "Manage Subscription", "Upgrade or modify organization subscription tiers", "Billing"),
-                ("organization:audit:view", "View Audit Logs", "Read organization roles and membership audit log streams", "Audit Logs")
-            };
-
-            foreach (var perm in permissions)
-            {
-                var existing = await context.BusinessPermissions.FirstOrDefaultAsync(p => p.Name == perm.Name);
-                if (existing == null)
-                {
-                    context.BusinessPermissions.Add(new BusinessPermission
-                    {
-                        Id = Guid.CreateVersion7(),
-                        Name = perm.Name,
-                        DisplayName = perm.DisplayName,
-                        Description = perm.Description,
-                        Module = perm.Module,
-                        CreatedAt = DateTimeOffset.UtcNow
-                    });
-                }
-                else
-                {
-                    existing.DisplayName = perm.DisplayName;
-                    existing.Description = perm.Description;
-                    existing.Module = perm.Module;
-                }
-            }
-            await context.SaveChangesAsync();
-
-            // 2. Fetch all organizations
-            var orgs = await context.Organizations.ToListAsync();
-            foreach (var org in orgs)
-            {
-                // Define default system roles to seed
-                var defaultRoles = new List<(string Name, string DisplayName, string Description, List<string> Perms)>
-                {
-                    ("owner", "Owner", "Full administrative control, billing, and member deletion", new List<string> { "*" }),
-                    ("administrator", "Administrator", "General admin access except billing and legal recovery", new List<string> {
-                        "organization:profile:edit", "organization:settings:edit", "organization:workspace:view", "organization:roles:manage", "organization:roles:view",
-                        "organization:members:manage", "organization:members:view", "identity:verification:initiate", "identity:verification:approve",
-                        "identity:verification:reject", "evidence:graph:validate", "evidence:graph:comment", "analysis:repository:sync",
-                        "analysis:repository:run", "analysis:repository:configure", "trust:metric:view", "trust:flag:manage",
-                        "ai:interview:configure", "ai:interview:conduct", "ai:interview:evaluate", "candidate:trust:score",
-                        "candidate:trust:override", "organization:audit:view"
-                    }),
-                    ("hr_manager", "HR Manager", "Manage recruiters, create jobs, and screen candidate profiles", new List<string> {
-                        "organization:workspace:view", "organization:roles:view", "organization:members:manage", "organization:members:view", "identity:verification:initiate",
-                        "identity:verification:approve", "identity:verification:reject", "evidence:graph:comment", "analysis:repository:sync",
-                        "analysis:repository:run", "analysis:repository:configure", "trust:metric:view", "trust:flag:manage",
-                        "ai:interview:configure", "ai:interview:conduct", "ai:interview:evaluate", "candidate:trust:score",
-                        "candidate:trust:override", "organization:audit:view"
-                    }),
-                    ("recruiter", "Recruiter", "Create and publish jobs, sync source code repos, and conduct interviews", new List<string> {
-                        "organization:workspace:view", "organization:roles:view", "organization:members:view", "identity:verification:initiate", "evidence:graph:comment",
-                        "analysis:repository:sync", "analysis:repository:run", "analysis:repository:configure", "trust:metric:view",
-                        "ai:interview:configure", "ai:interview:conduct", "ai:interview:evaluate", "candidate:trust:score"
-                    }),
-                    ("hiring_manager", "Hiring Manager", "Evaluate candidates and manage job scorecard approvals", new List<string> {
-                        "organization:workspace:view", "organization:roles:view", "organization:members:view", "evidence:graph:validate", "evidence:graph:comment",
-                        "analysis:repository:run", "trust:metric:view", "trust:flag:manage", "ai:interview:conduct",
-                        "ai:interview:evaluate", "candidate:trust:score", "candidate:trust:override"
-                    }),
-                    ("tech_interviewer", "Technical Interviewer", "Conduct technical assessments and evaluate git repository metrics", new List<string> {
-                        "organization:workspace:view", "organization:roles:view", "organization:members:view", "evidence:graph:validate", "evidence:graph:comment",
-                        "analysis:repository:run", "analysis:repository:configure", "trust:metric:view", "trust:flag:manage",
-                        "ai:interview:evaluate", "candidate:trust:score"
-                    }),
-                    ("viewer", "Viewer", "Read-only access to assigned workspaces and pipelines", new List<string> {
-                        "organization:workspace:view", "organization:roles:view", "organization:members:view", "candidate:trust:score"
-                    })
-                };
-
-                foreach (var dr in defaultRoles)
-                {
-                    var existingRole = await context.OrganizationBusinessRoles
-                        .FirstOrDefaultAsync(r => r.OrganizationId == org.Id && r.Name == dr.Name);
-
-                    Guid roleId;
-                    if (existingRole == null)
-                    {
-                        roleId = Guid.CreateVersion7();
-                        var newRole = new OrganizationBusinessRole
-                        {
-                            Id = roleId,
-                            OrganizationId = org.Id,
-                            Name = dr.Name,
-                            DisplayName = dr.DisplayName,
-                            Description = dr.Description,
-                            IsSystem = true,
-                            IsActive = true,
-                            CreatedAt = DateTimeOffset.UtcNow,
-                            UpdatedAt = DateTimeOffset.UtcNow
-                        };
-                        context.OrganizationBusinessRoles.Add(newRole);
-                        await context.SaveChangesAsync();
-                    }
-                    else
-                    {
-                        roleId = existingRole.Id;
-                    }
-
-                    // Map permissions
-                    var existingPermissions = await context.OrganizationRolePermissions
-                        .Where(rp => rp.RoleId == roleId)
-                        .ToListAsync();
-                    context.OrganizationRolePermissions.RemoveRange(existingPermissions);
-                    await context.SaveChangesAsync();
-
-                    List<Guid> permGuids;
-                    if (dr.Perms.Contains("*"))
-                    {
-                        permGuids = await context.BusinessPermissions.Select(p => p.Id).ToListAsync();
-                    }
-                    else
-                    {
-                        permGuids = await context.BusinessPermissions
-                            .Where(p => dr.Perms.Contains(p.Name))
-                            .Select(p => p.Id)
-                            .ToListAsync();
-                    }
-
-                    foreach (var pId in permGuids)
-                    {
-                        context.OrganizationRolePermissions.Add(new OrganizationRolePermission
-                        {
-                            RoleId = roleId,
-                            PermissionId = pId,
-                            AssignedAt = DateTimeOffset.UtcNow
-                        });
-                    }
-                    await context.SaveChangesAsync();
-                }
-            }
-
-            // 3. Migrate existing memberships from organization_memberships
-            var memberships = await context.OrganizationMemberships.ToListAsync();
-            foreach (var mem in memberships)
-            {
-                var roleName = mem.Role.ToLower() switch
-                {
-                    "owner" => "owner",
-                    "representative" => "administrator",
-                    "hr" => "hr_manager",
-                    _ => "viewer"
-                };
-
-                var roleId = await context.OrganizationBusinessRoles
-                    .Where(r => r.OrganizationId == mem.OrganizationId && r.Name == roleName)
-                    .Select(r => r.Id)
-                    .FirstOrDefaultAsync();
-
-                if (roleId != Guid.Empty)
-                {
-                    var exists = await context.OrganizationRoleAssignments
-                        .AnyAsync(ra => ra.OrganizationId == mem.OrganizationId && ra.UserId == mem.UserId && ra.ScopeType == "ORGANIZATION");
-
-                    if (!exists)
-                    {
-                        var assignment = new OrganizationRoleAssignment
-                        {
-                            Id = Guid.CreateVersion7(),
-                            OrganizationId = mem.OrganizationId,
-                            UserId = mem.UserId,
-                            RoleId = roleId,
-                            ScopeType = "ORGANIZATION",
-                            ScopeId = mem.OrganizationId,
-                            AssignedAt = DateTimeOffset.UtcNow
-                        };
-                        context.OrganizationRoleAssignments.Add(assignment);
-                    }
-                }
-            }
-
-            // 4. Migrate workspace members
-            var wsMembers = await context.WorkspaceMembers.Include(wm => wm.Workspace).ToListAsync();
-            foreach (var wsm in wsMembers)
-            {
-                if (wsm.Workspace == null) continue;
-
-                var roleName = wsm.Role.ToLower() switch
-                {
-                    "workspace_admin" => "administrator",
-                    "manager" => "hiring_manager",
-                    "editor" => "recruiter",
-                    _ => "viewer"
-                };
-
-                var roleId = await context.OrganizationBusinessRoles
-                    .Where(r => r.OrganizationId == wsm.Workspace.OrganizationId && r.Name == roleName)
-                    .Select(r => r.Id)
-                    .FirstOrDefaultAsync();
-
-                if (roleId != Guid.Empty)
-                {
-                    var exists = await context.OrganizationRoleAssignments
-                        .AnyAsync(ra => ra.OrganizationId == wsm.Workspace.OrganizationId && ra.UserId == wsm.UserId && ra.ScopeType == "WORKSPACE" && ra.ScopeId == wsm.WorkspaceId);
-
-                    if (!exists)
-                    {
-                        var assignment = new OrganizationRoleAssignment
-                        {
-                            Id = Guid.CreateVersion7(),
-                            OrganizationId = wsm.Workspace.OrganizationId,
-                            UserId = wsm.UserId,
-                            RoleId = roleId,
-                            ScopeType = "WORKSPACE",
-                            ScopeId = wsm.WorkspaceId,
-                            AssignedAt = DateTimeOffset.UtcNow
-                        };
-                        context.OrganizationRoleAssignments.Add(assignment);
-                    }
-                }
-            }
-
-            await context.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[SeedBusinessRolesAndPermissions] Error executing migration/seeding: {ex.Message}");
-            throw;
-        }
-    }
-
-    private static async Task SeedAdminRolesAndPermissionsAsync(ApplicationDbContext context)
-    {
-        try
-        {
-            // 1. Seed dynamic admin roles in admin_roles
-            var defaultAdminRoles = new List<(string Name, string DisplayName, string Description, List<string> Perms)>
-            {
-                ("SUPER_ADMIN", "Super Administrator", "Full root-level administration access", new List<string> { "*" }),
-                ("ADMIN", "Administrator", "General platform administration access", new List<string> {
-                    "admin:users:view", "admin:users:manage", "admin:roles:view", "admin:roles:manage",
-                    "admin:verification:view", "admin:verification:manage", "admin:ai:audit", "admin:components:read"
-                })
-            };
-
-            foreach (var dr in defaultAdminRoles)
-            {
-                var existingRole = await context.AdminRoles.FirstOrDefaultAsync(r => r.Name == dr.Name);
-                Guid roleId;
-                if (existingRole == null)
-                {
-                    roleId = Guid.CreateVersion7();
-                    var newRole = new AdminRole
-                    {
-                        Id = roleId,
-                        Name = dr.Name,
-                        DisplayName = dr.DisplayName,
-                        Description = dr.Description,
-                        IsSystem = true,
-                        IsActive = true,
-                        CreatedAt = DateTimeOffset.UtcNow,
-                        UpdatedAt = DateTimeOffset.UtcNow
-                    };
-                    context.AdminRoles.Add(newRole);
-                    await context.SaveChangesAsync();
-                }
-                else
-                {
-                    roleId = existingRole.Id;
-                }
-
-                // Map permissions
-                var existingPermissions = await context.AdminRolePermissions
-                    .Where(rp => rp.RoleId == roleId)
-                    .ToListAsync();
-                context.AdminRolePermissions.RemoveRange(existingPermissions);
-                await context.SaveChangesAsync();
-
-                List<Guid> permGuids;
-                if (dr.Perms.Contains("*"))
-                {
-                    permGuids = await context.Permissions.Select(p => p.Id).ToListAsync();
-                }
-                else
-                {
-                    permGuids = await context.Permissions
-                        .Where(p => dr.Perms.Contains(p.Name))
-                        .Select(p => p.Id)
-                        .ToListAsync();
-                }
-
-                foreach (var pId in permGuids)
-                {
-                    context.AdminRolePermissions.Add(new AdminRolePermission
-                    {
-                        RoleId = roleId,
-                        PermissionId = pId,
-                        AssignedAt = DateTimeOffset.UtcNow
-                    });
-                }
-                await context.SaveChangesAsync();
-            }
-
-            // 2. Migrate existing platform administrators from legacy user_roles
-            var legacyAdmins = await context.Database.SqlQueryRaw<LegacyUserRoleDto>(
-                @"SELECT ur.user_id as ""UserId"", r.name as ""RoleName"" 
-                  FROM user_roles ur 
-                  JOIN roles r ON ur.role_id = r.id 
-                  WHERE r.name IN ('SUPER_ADMIN', 'ADMIN')"
-            ).ToListAsync();
-
-            foreach (var la in legacyAdmins)
-            {
-                var adminMember = await context.AdminMembers.FirstOrDefaultAsync(am => am.UserId == la.UserId);
-                if (adminMember == null)
-                {
-                    adminMember = new AdminMember
-                    {
-                        Id = Guid.CreateVersion7(),
-                        UserId = la.UserId,
-                        Status = "Active",
-                        SessionVersion = 1,
-                        JoinedAt = DateTimeOffset.UtcNow,
-                        UpdatedAt = DateTimeOffset.UtcNow
-                    };
-                    context.AdminMembers.Add(adminMember);
-                    await context.SaveChangesAsync();
-                }
-
-                var targetRole = await context.AdminRoles.FirstOrDefaultAsync(r => r.Name == la.RoleName);
-                if (targetRole != null)
-                {
-                    var exists = await context.AdminRoleAssignments
-                        .AnyAsync(ra => ra.AdminMemberId == adminMember.Id && ra.RoleId == targetRole.Id);
-
-                    if (!exists)
-                    {
-                        var assignment = new AdminRoleAssignment
-                        {
-                            Id = Guid.CreateVersion7(),
-                            AdminMemberId = adminMember.Id,
-                            RoleId = targetRole.Id,
-                            ScopeType = "SYSTEM",
-                            ScopeId = Guid.Empty,
-                            AssignedAt = DateTimeOffset.UtcNow
-                        };
-                        context.AdminRoleAssignments.Add(assignment);
-                        await context.SaveChangesAsync();
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[SeedAdminRolesAndPermissions] Error executing migration/seeding: {ex.Message}");
-            throw;
-        }
-    }
-
-    private class LegacyUserRoleDto
-    {
-        public Guid UserId { get; set; }
-        public string RoleName { get; set; } = null!;
     }
 
     private class DbInitializerRateLimitPolicyService : CVerify.API.Modules.Shared.System.Services.IRateLimitPolicyService

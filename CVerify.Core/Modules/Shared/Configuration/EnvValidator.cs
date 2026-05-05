@@ -98,6 +98,32 @@ public static class EnvValidator
 
         // 7. Super Admin Settings
         config.SuperAdmin.Email = (configuration["SuperAdmin:Email"] ?? configuration["SUPER_ADMIN_EMAIL"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.SuperAdmin.Email;
+        config.SuperAdmin.Username = (configuration["SuperAdmin:Username"] ?? configuration["SUPER_ADMIN_USERNAME"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.SuperAdmin.Username;
+        config.SuperAdmin.FullName = (configuration["SuperAdmin:FullName"] ?? configuration["SUPER_ADMIN_FULL_NAME"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.SuperAdmin.FullName;
+        config.SuperAdmin.Password = (configuration["SuperAdmin:Password"] ?? configuration["SUPER_ADMIN_PASSWORD"])?.ResolveEnvironmentVariables()?.Trim('"')
+            ?? throw new InvalidOperationException("Environment variable 'SUPER_ADMIN_PASSWORD' or setting 'SuperAdmin:Password' is missing.");
+
+        if (string.IsNullOrWhiteSpace(config.SuperAdmin.Password) || config.SuperAdmin.Password.Length < 8)
+        {
+            throw new InvalidOperationException("Fatal: SUPER_ADMIN_PASSWORD is required and must be at least 8 characters long.");
+        }
+
+        // 7b. Seeding Settings
+        if (bool.TryParse(configuration["Seeding:SeedTestAccounts"] ?? configuration["SEED_TEST_ACCOUNTS"], out var seedTest))
+        {
+            config.Seeding.SeedTestAccounts = seedTest;
+        }
+
+        config.Seeding.BusinessPassword = (configuration["Seeding:BusinessPassword"] ?? configuration["SEED_BUSINESS_PASSWORD"])?.ResolveEnvironmentVariables()?.Trim('"');
+        config.Seeding.SeedDataPath = (configuration["Seeding:SeedDataPath"] ?? configuration["SEED_DATA_PATH"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.Seeding.SeedDataPath;
+
+        if (config.Seeding.SeedTestAccounts)
+        {
+            if (string.IsNullOrWhiteSpace(config.Seeding.BusinessPassword))
+            {
+                throw new InvalidOperationException("Environment variable 'SEED_BUSINESS_PASSWORD' is required when 'SEED_TEST_ACCOUNTS' is true.");
+            }
+        }
 
         // 8. Cloudflare R2 Settings
         config.R2.AccessKeyId = (configuration["R2:AccessKeyId"] ?? configuration["ACCESS_KEY_ID"])?.ResolveEnvironmentVariables()?.Trim('"')

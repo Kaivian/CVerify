@@ -75,6 +75,10 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("SENDGRID_API_KEY", "mock-sendgrid-api-key");
         Environment.SetEnvironmentVariable("Auth__DisableCsrf", "true");
         Environment.SetEnvironmentVariable("DISABLE_RATE_LIMITS", "false");
+        Environment.SetEnvironmentVariable("SUPER_ADMIN_PASSWORD", "mock-super-admin-password");
+        Environment.SetEnvironmentVariable("SUPER_ADMIN_USERNAME", "mockadmin");
+        Environment.SetEnvironmentVariable("SUPER_ADMIN_FULL_NAME", "Mock Administrator");
+        Environment.SetEnvironmentVariable("SEED_TEST_ACCOUNTS", "false");
 
         // Apply custom environment overrides if provided (e.g., stress test rate limit overrides)
         if (envOverrides != null)

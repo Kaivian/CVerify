@@ -9,6 +9,7 @@ public class EnvConfiguration
     public AuthRateLimitSettings RateLimit { get; set; } = new();
     public AiSettings Ai { get; set; } = new();
     public SuperAdminSettings SuperAdmin { get; set; } = new();
+    public SeedingSettings Seeding { get; set; } = new();
     public CloudflareR2Settings R2 { get; set; } = new();
     public SecuritySettings Security { get; set; } = new();
 }
@@ -88,6 +89,16 @@ public class AiSettings
 public class SuperAdminSettings
 {
     public string Email { get; set; } = "admin@system.com";
+    public string Username { get; set; } = "admin";
+    public string FullName { get; set; } = "System Administrator";
+    public string Password { get; set; } = null!;
+}
+
+public class SeedingSettings
+{
+    public bool SeedTestAccounts { get; set; } = false;
+    public string? BusinessPassword { get; set; }
+    public string SeedDataPath { get; set; } = "resources/seed-business-data.json";
 }
 
 public class CloudflareR2Settings
