@@ -97,6 +97,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserEmail> UserEmails => Set<UserEmail>();
     public DbSet<OrganizationCredential> OrganizationCredentials => Set<OrganizationCredential>();
     public DbSet<WorkspaceInvitation> WorkspaceInvitations => Set<WorkspaceInvitation>();
+    public DbSet<OrganizationInvitation> OrganizationInvitations => Set<OrganizationInvitation>();
+    public DbSet<OrganizationInvitationRole> OrganizationInvitationRoles => Set<OrganizationInvitationRole>();
     public DbSet<OrganizationBusinessRole> OrganizationBusinessRoles => Set<OrganizationBusinessRole>();
     public DbSet<BusinessPermission> BusinessPermissions => Set<BusinessPermission>();
     public DbSet<OrganizationRolePermission> OrganizationRolePermissions => Set<OrganizationRolePermission>();
@@ -185,6 +187,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<UserEmail>().Property(ue => ue.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationCredential>().Property(oc => oc.OrganizationId).ValueGeneratedNever();
         modelBuilder.Entity<WorkspaceInvitation>().Property(wi => wi.Id).ValueGeneratedNever();
+        modelBuilder.Entity<OrganizationInvitation>().Property(oi => oi.Id).ValueGeneratedNever();
+        modelBuilder.Entity<OrganizationInvitationRole>().Property(oir => oir.Id).ValueGeneratedNever();
         modelBuilder.Entity<AnalysisJob>().Property(j => j.Id).ValueGeneratedNever();
         modelBuilder.Entity<AnalysisJobEvent>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<AnalysisReport>().Property(r => r.Id).ValueGeneratedNever();
@@ -1133,6 +1137,49 @@ public class ApplicationDbContext : DbContext
                   .IsUnique()
                   .HasFilter("consumed_at IS NULL")
                   .HasDatabaseName("idx_workspace_invitations_unique");
+        });
+
+        // OrganizationInvitation configurations
+        modelBuilder.Entity<OrganizationInvitation>(entity =>
+        {
+            entity.ToTable("organization_invitations");
+            entity.HasKey(oi => oi.Id);
+            entity.Property(oi => oi.Id).ValueGeneratedNever();
+            entity.HasOne(oi => oi.Organization)
+                  .WithMany()
+                  .HasForeignKey(oi => oi.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(oi => oi.InvitedByUser)
+                  .WithMany()
+                  .HasForeignKey(oi => oi.InvitedByUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(oi => oi.ConsumedByUser)
+                  .WithMany()
+                  .HasForeignKey(oi => oi.ConsumedByUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(oi => new { oi.InviteeEmail, oi.Status })
+                  .HasDatabaseName("idx_org_invitations_email_status");
+            entity.HasIndex(oi => oi.TokenHash)
+                  .IsUnique()
+                  .HasDatabaseName("idx_org_invitations_token_hash");
+        });
+
+        // OrganizationInvitationRole configurations
+        modelBuilder.Entity<OrganizationInvitationRole>(entity =>
+        {
+            entity.ToTable("organization_invitation_roles");
+            entity.HasKey(oir => oir.Id);
+            entity.Property(oir => oir.Id).ValueGeneratedNever();
+            entity.HasOne(oir => oir.Invitation)
+                  .WithMany(oi => oi.PreAssignedRoles)
+                  .HasForeignKey(oir => oir.InvitationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(oir => oir.Role)
+                  .WithMany()
+                  .HasForeignKey(oir => oir.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(oir => oir.InvitationId)
+                  .HasDatabaseName("idx_org_invitation_roles_invite");
         });
     }
 }
