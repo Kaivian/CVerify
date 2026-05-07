@@ -123,6 +123,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<AnalysisTaskResult> AnalysisTaskResults => Set<AnalysisTaskResult>();
     public DbSet<AnalysisTaskEvent> AnalysisTaskEvents => Set<AnalysisTaskEvent>();
     public DbSet<AnalysisExecution> AnalysisExecutions => Set<AnalysisExecution>();
+    public DbSet<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineJob> PipelineJobs => Set<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineJob>();
+    public DbSet<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineTask> PipelineTasks => Set<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineTask>();
+    public DbSet<CVerify.API.Pipelines.Shared.AI.Entities.PromptDeployment> PromptDeployments => Set<CVerify.API.Pipelines.Shared.AI.Entities.PromptDeployment>();
+    public DbSet<CVerify.API.Pipelines.Shared.Artifacts.Entities.ArtifactRegistryEntry> ArtifactRegistryEntries => Set<CVerify.API.Pipelines.Shared.Artifacts.Entities.ArtifactRegistryEntry>();
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
     public DbSet<AiInferredPreference> AiInferredPreferences => Set<AiInferredPreference>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
@@ -210,6 +214,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<AnalysisTask>().Property(t => t.Id).ValueGeneratedNever();
         modelBuilder.Entity<AnalysisTaskResult>().Property(r => r.TaskId).ValueGeneratedNever();
         modelBuilder.Entity<AnalysisTaskEvent>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineJob>().Property(j => j.Id).ValueGeneratedNever();
+        modelBuilder.Entity<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineTask>().Property(t => t.Id).ValueGeneratedNever();
+        modelBuilder.Entity<CVerify.API.Pipelines.Shared.Artifacts.Entities.ArtifactRegistryEntry>().Property(a => a.Id).ValueGeneratedNever();
 
         // Enable PostgreSQL Extensions
         modelBuilder.HasPostgresExtension("citext");

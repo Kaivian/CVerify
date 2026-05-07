@@ -3,7 +3,7 @@ import logging
 import asyncio
 import os
 import unittest
-from app.monitoring.observability import (
+from app.core.monitoring.observability import (
     TraceContext,
     span_context,
     StructuredJsonFormatter,
@@ -12,8 +12,8 @@ from app.monitoring.observability import (
     sanitize_sensitive_data,
     UIProgressEvent
 )
-from app.monitoring.ai_cost_tracker import AiCostTracker
-from app.services.token_accounting_service import TokenAccountingService, NormalizedTokenUsage
+from app.core.monitoring.ai_cost_tracker import AiCostTracker
+from app.core.services.token_accounting_service import TokenAccountingService, NormalizedTokenUsage
 
 class TestObservabilityCore(unittest.IsolatedAsyncioTestCase):
     async def test_trace_context_propagation(self):
