@@ -30,17 +30,17 @@ public static class BusinessSeeder
         // 1. Seed static permissions list into business_permissions
         await SeedStaticPermissionsAsync(context);
 
-        // 2. Fetch all organizations and seed defaults
-        await SeedOrganizationDefaultRolesAsync(context);
-
-        // 3. Migrate existing memberships and role assignments
-        await MigrateLegacyMembershipsAsync(context);
-
-        // 4. Seeding optional test environments
+        // 2. Seeding optional test environments
         if (seeding.SeedTestAccounts)
         {
             await SeedJSONTestAccountsAsync(context, seeding);
         }
+
+        // 3. Fetch all organizations and seed defaults
+        await SeedOrganizationDefaultRolesAsync(context);
+
+        // 4. Migrate existing memberships and role assignments
+        await MigrateLegacyMembershipsAsync(context);
     }
 
     private static async Task SeedStaticPermissionsAsync(ApplicationDbContext context)
@@ -76,17 +76,19 @@ public static class BusinessSeeder
 
         foreach (var perm in permissions)
         {
-            var existing = await context.BusinessPermissions.FirstOrDefaultAsync(p => p.Name == perm.Name);
+            var existing = await context.Permissions.FirstOrDefaultAsync(p => p.Name == perm.Name);
             if (existing == null)
             {
-                context.BusinessPermissions.Add(new BusinessPermission
+                context.Permissions.Add(new Permission
                 {
                     Id = Guid.CreateVersion7(),
                     Name = perm.Name,
                     DisplayName = perm.DisplayName,
                     Description = perm.Description,
                     Module = perm.Module,
-                    CreatedAt = DateTimeOffset.UtcNow
+                    IsSystem = false,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
                 });
             }
             else
@@ -94,6 +96,7 @@ public static class BusinessSeeder
                 existing.DisplayName = perm.DisplayName;
                 existing.Description = perm.Description;
                 existing.Module = perm.Module;
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
             }
         }
         await context.SaveChangesAsync();
@@ -144,61 +147,56 @@ public static class BusinessSeeder
 
             foreach (var dr in defaultRoles)
             {
-                var existingRole = await context.OrganizationBusinessRoles
-                    .FirstOrDefaultAsync(r => r.OrganizationId == org.Id && r.Name == dr.Name);
+                var existingRole = await context.Roles
+                    .Include(r => r.Permissions)
+                    .FirstOrDefaultAsync(r => r.TenantId == org.Id && r.Name == dr.Name && r.Domain == "TENANT");
 
-                Guid roleId;
+                Role role;
                 if (existingRole == null)
                 {
-                    roleId = Guid.CreateVersion7();
-                    var newRole = new OrganizationBusinessRole
+                    role = new Role
                     {
-                        Id = roleId,
-                        OrganizationId = org.Id,
+                        Id = Guid.CreateVersion7(),
+                        TenantId = org.Id,
                         Name = dr.Name,
                         DisplayName = dr.DisplayName,
                         Description = dr.Description,
+                        Domain = "TENANT",
                         IsSystem = true,
                         IsActive = true,
                         CreatedAt = DateTimeOffset.UtcNow,
                         UpdatedAt = DateTimeOffset.UtcNow
                     };
-                    context.OrganizationBusinessRoles.Add(newRole);
+                    context.Roles.Add(role);
                     await context.SaveChangesAsync();
                 }
                 else
                 {
-                    roleId = existingRole.Id;
+                    role = existingRole;
+                    role.DisplayName = dr.DisplayName;
+                    role.Description = dr.Description;
+                    role.UpdatedAt = DateTimeOffset.UtcNow;
                 }
 
                 // Map permissions
-                var existingPermissions = await context.OrganizationRolePermissions
-                    .Where(rp => rp.RoleId == roleId)
-                    .ToListAsync();
-                context.OrganizationRolePermissions.RemoveRange(existingPermissions);
+                role.Permissions.Clear();
                 await context.SaveChangesAsync();
 
-                List<Guid> permGuids;
+                List<Permission> dbPermissions;
                 if (dr.Perms.Contains("*"))
                 {
-                    permGuids = await context.BusinessPermissions.Select(p => p.Id).ToListAsync();
+                    dbPermissions = await context.Permissions.ToListAsync();
                 }
                 else
                 {
-                    permGuids = await context.BusinessPermissions
+                    dbPermissions = await context.Permissions
                         .Where(p => dr.Perms.Contains(p.Name))
-                        .Select(p => p.Id)
                         .ToListAsync();
                 }
 
-                foreach (var pId in permGuids)
+                foreach (var p in dbPermissions)
                 {
-                    context.OrganizationRolePermissions.Add(new OrganizationRolePermission
-                    {
-                        RoleId = roleId,
-                        PermissionId = pId,
-                        AssignedAt = DateTimeOffset.UtcNow
-                    });
+                    role.Permissions.Add(p);
                 }
                 await context.SaveChangesAsync();
             }
@@ -219,29 +217,28 @@ public static class BusinessSeeder
                 _ => "viewer"
             };
 
-            var roleId = await context.OrganizationBusinessRoles
-                .Where(r => r.OrganizationId == mem.OrganizationId && r.Name == roleName)
+            var roleId = await context.Roles
+                .Where(r => r.TenantId == mem.OrganizationId && r.Name == roleName && r.Domain == "TENANT")
                 .Select(r => r.Id)
                 .FirstOrDefaultAsync();
 
             if (roleId != Guid.Empty)
             {
-                var exists = await context.OrganizationRoleAssignments
-                    .AnyAsync(ra => ra.OrganizationId == mem.OrganizationId && ra.UserId == mem.UserId && ra.ScopeType == "ORGANIZATION");
+                var exists = await context.RoleAssignments
+                    .AnyAsync(ra => ra.UserId == mem.UserId && ra.RoleId == roleId && ra.ScopeType == "ORGANIZATION" && ra.ScopeId == mem.OrganizationId);
 
                 if (!exists)
                 {
-                    var assignment = new OrganizationRoleAssignment
+                    var assignment = new RoleAssignment
                     {
                         Id = Guid.CreateVersion7(),
-                        OrganizationId = mem.OrganizationId,
                         UserId = mem.UserId,
                         RoleId = roleId,
                         ScopeType = "ORGANIZATION",
                         ScopeId = mem.OrganizationId,
                         AssignedAt = DateTimeOffset.UtcNow
                     };
-                    context.OrganizationRoleAssignments.Add(assignment);
+                    context.RoleAssignments.Add(assignment);
                 }
             }
         }
@@ -260,29 +257,28 @@ public static class BusinessSeeder
                 _ => "viewer"
             };
 
-            var roleId = await context.OrganizationBusinessRoles
-                .Where(r => r.OrganizationId == wsm.Workspace.OrganizationId && r.Name == roleName)
+            var roleId = await context.Roles
+                .Where(r => r.TenantId == wsm.Workspace.OrganizationId && r.Name == roleName && r.Domain == "TENANT")
                 .Select(r => r.Id)
                 .FirstOrDefaultAsync();
 
             if (roleId != Guid.Empty)
             {
-                var exists = await context.OrganizationRoleAssignments
-                    .AnyAsync(ra => ra.OrganizationId == wsm.Workspace.OrganizationId && ra.UserId == wsm.UserId && ra.ScopeType == "WORKSPACE" && ra.ScopeId == wsm.WorkspaceId);
+                var exists = await context.RoleAssignments
+                    .AnyAsync(ra => ra.UserId == wsm.UserId && ra.RoleId == roleId && ra.ScopeType == "WORKSPACE" && ra.ScopeId == wsm.WorkspaceId);
 
                 if (!exists)
                 {
-                    var assignment = new OrganizationRoleAssignment
+                    var assignment = new RoleAssignment
                     {
                         Id = Guid.CreateVersion7(),
-                        OrganizationId = wsm.Workspace.OrganizationId,
                         UserId = wsm.UserId,
                         RoleId = roleId,
                         ScopeType = "WORKSPACE",
                         ScopeId = wsm.WorkspaceId,
                         AssignedAt = DateTimeOffset.UtcNow
                     };
-                    context.OrganizationRoleAssignments.Add(assignment);
+                    context.RoleAssignments.Add(assignment);
                 }
             }
         }

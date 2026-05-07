@@ -69,5 +69,18 @@ public class OrganizationRecoveryClaim
     public string? IpDeviceFlags { get; set; }
     public string? HistoricalClaimFlags { get; set; }
 
-    public virtual ICollection<RecoveryClaimDocument> Documents { get; set; } = new List<RecoveryClaimDocument>();
+    public virtual List<ClaimDocument> Documents { get; set; } = new List<ClaimDocument>();
+}
+
+public class ClaimDocument
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public string StoragePath { get; set; } = null!;
+    public string FileName { get; set; } = null!;
+    public string ContentType { get; set; } = null!;
+    public string EncryptionIv { get; set; } = null!;
+    public string? OcrResultText { get; set; }
+    public string VirusScanStatus { get; set; } = "Pending";
+    public DateTimeOffset RetentionExpiryDate { get; set; } = DateTimeOffset.UtcNow.AddYears(5);
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

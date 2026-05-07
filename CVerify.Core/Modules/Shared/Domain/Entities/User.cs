@@ -28,6 +28,9 @@ public class User
 
     public string? PasswordHash { get; set; }
 
+    [Column("password_changed_at")]
+    public DateTimeOffset? PasswordChangedAt { get; set; }
+
     [Required]
     [MaxLength(255)]
     public string FullName { get; set; } = null!;
@@ -68,9 +71,9 @@ public class User
 
     public virtual ICollection<AuthProvider> AuthProviders { get; set; } = new List<AuthProvider>();
 
-    public virtual ICollection<PasswordCredential> PasswordCredentials { get; set; } = new List<PasswordCredential>();
+    public virtual List<LinkedEmail> LinkedEmails { get; set; } = new List<LinkedEmail>();
 
-    public virtual ICollection<UserEmail> LinkedEmails { get; set; } = new List<UserEmail>();
+    public virtual ICollection<RoleAssignment> RoleAssignments { get; set; } = new List<RoleAssignment>();
 
     /// <summary>
     /// Transition the user to a new status using a formal domain state machine.
@@ -119,4 +122,13 @@ public class User
         Status = newStatus;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+}
+
+public class LinkedEmail
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public string Email { get; set; } = null!;
+    public bool IsVerified { get; set; }
+    public DateTimeOffset? VerifiedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

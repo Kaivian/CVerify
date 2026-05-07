@@ -37,9 +37,9 @@ public class RolesAdminController : ControllerBase
             return "A role cannot be its own parent.";
         }
 
-        var parent = await _context.AdminRoles
+        var parent = await _context.Roles
             .Include(r => r.ParentRole)
-            .FirstOrDefaultAsync(r => r.Id == parentRoleId.Value, cancellationToken);
+            .FirstOrDefaultAsync(r => r.Id == parentRoleId.Value && r.Domain == "SYSTEM", cancellationToken);
 
         if (parent == null)
         {
@@ -60,7 +60,7 @@ public class RolesAdminController : ControllerBase
         // Rule: If currentRoleId is specified, this role must not have any child roles (otherwise changing parent would create depth 2)
         if (currentRoleId.HasValue)
         {
-            var hasChildren = await _context.AdminRoles.AnyAsync(r => r.ParentRoleId == currentRoleId.Value, cancellationToken);
+            var hasChildren = await _context.Roles.AnyAsync(r => r.ParentRoleId == currentRoleId.Value && r.Domain == "SYSTEM", cancellationToken);
             if (hasChildren)
             {
                 return "This role cannot inherit from another role because it is already a parent to child roles.";
@@ -75,9 +75,9 @@ public class RolesAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<RoleListItemDto>))]
     public async Task<IActionResult> GetRoles(CancellationToken cancellationToken)
     {
-        var roles = await _context.AdminRoles
-            .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Permission)
+        var roles = await _context.Roles
+            .Include(r => r.Permissions)
+            .Where(r => r.Domain == "SYSTEM")
             .OrderBy(r => r.Name)
             .ToListAsync(cancellationToken);
 
@@ -89,7 +89,7 @@ public class RolesAdminController : ControllerBase
             r.IsSystem,
             r.IsActive,
             r.ParentRoleId,
-            r.RolePermissions.Select(rp => rp.Permission.Name).ToList(),
+            r.Permissions.Select(p => p.Name).ToList(),
             r.Version
         ));
 
@@ -102,10 +102,9 @@ public class RolesAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetRole(Guid id, CancellationToken cancellationToken)
     {
-        var role = await _context.AdminRoles
-            .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Permission)
-            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        var role = await _context.Roles
+            .Include(r => r.Permissions)
+            .FirstOrDefaultAsync(r => r.Id == id && r.Domain == "SYSTEM", cancellationToken);
 
         if (role == null)
         {
@@ -120,7 +119,7 @@ public class RolesAdminController : ControllerBase
             role.IsSystem,
             role.IsActive,
             role.ParentRoleId,
-            role.RolePermissions.Select(rp => rp.Permission.Name).ToList(),
+            role.Permissions.Select(p => p.Name).ToList(),
             role.Version
         );
 
@@ -159,7 +158,7 @@ public class RolesAdminController : ControllerBase
             return BadRequest(new { message = "Description cannot exceed 250 characters." });
         }
 
-        if (await _context.AdminRoles.AnyAsync(r => r.Name == normalizedName, cancellationToken))
+        if (await _context.Roles.AnyAsync(r => r.Name == normalizedName && r.Domain == "SYSTEM", cancellationToken))
         {
             return BadRequest(new { message = $"Role '{normalizedName}' already exists." });
         }
@@ -174,20 +173,21 @@ public class RolesAdminController : ControllerBase
         using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            var role = new AdminRole
+            var role = new Role
             {
                 Id = Guid.CreateVersion7(),
                 Name = normalizedName,
                 DisplayName = dto.DisplayName,
                 Description = dto.Description,
                 ParentRoleId = dto.ParentRoleId,
+                Domain = "SYSTEM",
                 IsSystem = false,
                 IsActive = true,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
 
-            _context.AdminRoles.Add(role);
+            _context.Roles.Add(role);
             await _context.SaveChangesAsync(cancellationToken);
 
             if (dto.Permissions != null && dto.Permissions.Count > 0)
@@ -198,12 +198,7 @@ public class RolesAdminController : ControllerBase
 
                 foreach (var p in permissions)
                 {
-                    _context.AdminRolePermissions.Add(new AdminRolePermission
-                    {
-                        RoleId = role.Id,
-                        PermissionId = p.Id,
-                        AssignedAt = DateTimeOffset.UtcNow
-                    });
+                    role.Permissions.Add(p);
                 }
 
                 await _context.SaveChangesAsync(cancellationToken);
@@ -238,10 +233,9 @@ public class RolesAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> UpdateRole(Guid id, [FromBody] CreateOrUpdateRoleDto dto, CancellationToken cancellationToken)
     {
-        var role = await _context.AdminRoles
-            .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Permission)
-            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        var role = await _context.Roles
+            .Include(r => r.Permissions)
+            .FirstOrDefaultAsync(r => r.Id == id && r.Domain == "SYSTEM", cancellationToken);
 
         if (role == null)
         {
@@ -286,7 +280,7 @@ public class RolesAdminController : ControllerBase
             return BadRequest(new { message = inheritanceError });
         }
 
-        var oldPermissionNames = role.RolePermissions.Select(rp => rp.Permission.Name).ToList();
+        var oldPermissionNames = role.Permissions.Select(p => p.Name).ToList();
 
         role.DisplayName = dto.DisplayName;
         role.Description = dto.Description;
@@ -297,7 +291,7 @@ public class RolesAdminController : ControllerBase
         try
         {
             // Remove existing permissions
-            _context.AdminRolePermissions.RemoveRange(role.RolePermissions);
+            role.Permissions.Clear();
             await _context.SaveChangesAsync(cancellationToken);
 
             // Add new permissions
@@ -309,12 +303,7 @@ public class RolesAdminController : ControllerBase
 
                 foreach (var p in permissions)
                 {
-                    _context.AdminRolePermissions.Add(new AdminRolePermission
-                    {
-                        RoleId = role.Id,
-                        PermissionId = p.Id,
-                        AssignedAt = DateTimeOffset.UtcNow
-                    });
+                    role.Permissions.Add(p);
                 }
 
                 await _context.SaveChangesAsync(cancellationToken);
@@ -334,16 +323,20 @@ public class RolesAdminController : ControllerBase
 
         if (isPermissionsChanged)
         {
-            var affectedMembers = await _context.AdminRoleAssignments
-                .Where(ra => ra.RoleId == role.Id)
-                .Include(ra => ra.AdminMember)
+            var affectedAssignments = await _context.RoleAssignments
+                .Where(ra => ra.RoleId == role.Id && ra.ScopeType == "SYSTEM")
                 .ToListAsync(cancellationToken);
 
-            foreach (var ra in affectedMembers)
+            var affectedUserIds = affectedAssignments.Select(ra => ra.UserId).ToList();
+            var affectedMembers = await _context.AdminMembers
+                .Where(am => affectedUserIds.Contains(am.UserId))
+                .ToListAsync(cancellationToken);
+
+            foreach (var am in affectedMembers)
             {
-                await _adminAuthService.InvalidateCacheAsync(ra.AdminMember.UserId);
-                ra.AdminMember.SessionVersion += 1;
-                ra.AdminMember.UpdatedAt = DateTimeOffset.UtcNow;
+                await _adminAuthService.InvalidateCacheAsync(am.UserId);
+                am.SessionVersion += 1;
+                am.UpdatedAt = DateTimeOffset.UtcNow;
             }
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -369,7 +362,7 @@ public class RolesAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteRole(Guid id, CancellationToken cancellationToken)
     {
-        var role = await _context.AdminRoles.FindAsync(new object[] { id }, cancellationToken);
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == id && r.Domain == "SYSTEM", cancellationToken);
         if (role == null)
         {
             return NotFound(new { message = "Role not found" });
@@ -380,13 +373,13 @@ public class RolesAdminController : ControllerBase
             return BadRequest(new { message = "System critical roles cannot be deleted." });
         }
 
-        var isRoleAssigned = await _context.AdminRoleAssignments.AnyAsync(ra => ra.RoleId == id, cancellationToken);
+        var isRoleAssigned = await _context.RoleAssignments.AnyAsync(ra => ra.RoleId == id, cancellationToken);
         if (isRoleAssigned)
         {
             return BadRequest(new { message = "Cannot delete this role because it is currently assigned to users. Re-assign those users first." });
         }
 
-        _context.AdminRoles.Remove(role);
+        _context.Roles.Remove(role);
         await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(new { message = "Role successfully deleted." });

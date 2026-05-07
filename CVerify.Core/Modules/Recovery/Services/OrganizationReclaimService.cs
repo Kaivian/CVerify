@@ -144,7 +144,7 @@ public class OrganizationReclaimService : IOrganizationReclaimService
         }
 
         var uploadedObjectKeys = new List<string>();
-        var claimDocs = new List<RecoveryClaimDocument>();
+        var claimDocs = new List<ClaimDocument>();
 
         try
         {
@@ -159,10 +159,9 @@ public class OrganizationReclaimService : IOrganizationReclaimService
 
                 uploadedObjectKeys.Add(uploadResult.ObjectKey);
 
-                var claimDoc = new RecoveryClaimDocument
+                var claimDoc = new ClaimDocument
                 {
                     Id = Guid.CreateVersion7(),
-                    RecoveryClaimId = claimId,
                     StoragePath = uploadResult.ObjectKey,
                     FileName = doc.fileName,
                     ContentType = doc.contentType,
@@ -298,7 +297,6 @@ public class OrganizationReclaimService : IOrganizationReclaimService
     {
         var claims = await _context.OrganizationRecoveryClaims
             .Include(c => c.Organization)
-            .Include(c => c.Documents)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(cancellationToken);
 
@@ -334,7 +332,6 @@ public class OrganizationReclaimService : IOrganizationReclaimService
     {
         var claim = await _context.OrganizationRecoveryClaims
             .Include(c => c.Organization)
-            .Include(c => c.Documents)
             .FirstOrDefaultAsync(c => c.Id == claimId, cancellationToken);
 
         if (claim == null)
@@ -579,8 +576,11 @@ public class OrganizationReclaimService : IOrganizationReclaimService
 
     public async Task<(Stream fileStream, string fileName, string contentType)> DownloadDocumentAsync(Guid docId, string reviewerName, CancellationToken cancellationToken = default)
     {
-        var doc = await _context.RecoveryClaimDocuments
-            .FirstOrDefaultAsync(d => d.Id == docId, cancellationToken);
+        var claim = await _context.OrganizationRecoveryClaims
+            .FromSqlRaw("SELECT * FROM organization_recovery_claims WHERE documents @> {0}::jsonb", $"[{{\"id\":\"{docId}\"}}]")
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var doc = claim?.Documents?.FirstOrDefault(d => d.Id == docId);
 
         if (doc == null)
         {

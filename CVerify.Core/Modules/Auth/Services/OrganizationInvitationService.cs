@@ -106,8 +106,8 @@ public class OrganizationInvitationService : IOrganizationInvitationService
             // Pre-assign roles and scopes
             foreach (var roleDto in invitee.Roles)
             {
-                var roleExists = await _context.OrganizationBusinessRoles
-                    .AnyAsync(r => r.Id == roleDto.RoleId && r.OrganizationId == orgId && r.IsActive, cancellationToken);
+                var roleExists = await _context.Roles
+                    .AnyAsync(r => r.Id == roleDto.RoleId && r.TenantId == orgId && r.Domain == "TENANT" && r.IsActive, cancellationToken);
 
                 if (!roleExists)
                 {
@@ -128,22 +128,24 @@ public class OrganizationInvitationService : IOrganizationInvitationService
 
             // Log Audit Event
             var actor = await _context.Users.FindAsync(new object[] { actorUserId }, cancellationToken);
-            var auditLog = new BusinessRoleAuditLog
+            var auditLog = new AuditLog
             {
                 Id = Guid.CreateVersion7(),
                 OrganizationId = orgId,
                 ActorUserId = actorUserId,
-                Action = "MEMBER_INVITED",
+                UserId = actorUserId,
+                EventType = "MEMBER_INVITED",
+                Description = $"Member {normalizedEmail} invited.",
                 TargetRoleName = invitee.Roles.FirstOrDefault() != null 
-                    ? (await _context.OrganizationBusinessRoles.FindAsync(new object[] { invitee.Roles.First().RoleId }, cancellationToken))?.DisplayName ?? "Multiple"
+                    ? (await _context.Roles.FindAsync(new object[] { invitee.Roles.First().RoleId }, cancellationToken))?.DisplayName ?? "Multiple"
                     : "No Roles Assigned",
                 TargetUserId = null,
                 ScopeType = "ORGANIZATION",
                 ScopeId = orgId,
                 DetailsJson = System.Text.Json.JsonSerializer.Serialize(new { inviteeEmail = normalizedEmail, rolesCount = invitee.Roles.Count }),
-                Timestamp = utcNow
+                CreatedAt = utcNow
             };
-            _context.BusinessRoleAuditLogs.Add(auditLog);
+            _context.AuditLogs.Add(auditLog);
 
             // Send Email (Enqueue or Send directly)
             var onboardingUrl = $"https://cverify.com/invitations/accept?token={rawToken}";
@@ -341,26 +343,24 @@ public class OrganizationInvitationService : IOrganizationInvitationService
             // Create Organization Role Assignments
             foreach (var preRole in invite.PreAssignedRoles)
             {
-                var roleExists = await _context.OrganizationRoleAssignments
-                    .AnyAsync(ra => ra.OrganizationId == invite.OrganizationId &&
-                                    ra.UserId == userId &&
+                var roleExists = await _context.RoleAssignments
+                    .AnyAsync(ra => ra.UserId == userId &&
                                     ra.RoleId == preRole.RoleId &&
                                     ra.ScopeType == preRole.ScopeType &&
                                     ra.ScopeId == preRole.ScopeId, cancellationToken);
 
                 if (!roleExists)
                 {
-                    var assignment = new OrganizationRoleAssignment
+                    var assignment = new RoleAssignment
                     {
                         Id = Guid.CreateVersion7(),
-                        OrganizationId = invite.OrganizationId,
                         UserId = userId,
                         RoleId = preRole.RoleId,
                         ScopeType = preRole.ScopeType,
                         ScopeId = preRole.ScopeId,
                         AssignedAt = utcNow
                     };
-                    _context.OrganizationRoleAssignments.Add(assignment);
+                    _context.RoleAssignments.Add(assignment);
                 }
             }
 
@@ -370,20 +370,22 @@ public class OrganizationInvitationService : IOrganizationInvitationService
             invite.ConsumedByUserId = userId;
 
             // Log Audit
-            var auditLog = new BusinessRoleAuditLog
+            var auditLog = new AuditLog
             {
                 Id = Guid.CreateVersion7(),
                 OrganizationId = invite.OrganizationId,
                 ActorUserId = userId,
-                Action = "MEMBER_JOINED",
+                UserId = userId,
+                EventType = "MEMBER_JOINED",
+                Description = $"Member joined organization: {invite.InviteeEmail}.",
                 TargetRoleName = "Multiple",
                 TargetUserId = userId,
                 ScopeType = "ORGANIZATION",
                 ScopeId = invite.OrganizationId,
                 DetailsJson = System.Text.Json.JsonSerializer.Serialize(new { email = invite.InviteeEmail }),
-                Timestamp = utcNow
+                CreatedAt = utcNow
             };
-            _context.BusinessRoleAuditLogs.Add(auditLog);
+            _context.AuditLogs.Add(auditLog);
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -410,19 +412,21 @@ public class OrganizationInvitationService : IOrganizationInvitationService
         Guid? scopeId = null,
         object? details = null)
     {
-        var log = new BusinessRoleAuditLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             OrganizationId = orgId,
             ActorUserId = actorUserId,
-            Action = action,
+            UserId = actorUserId,
+            EventType = action,
+            Description = $"Business role action {action} performed.",
             TargetRoleName = targetRoleName,
             TargetUserId = targetUserId,
             ScopeType = scopeType,
             ScopeId = scopeId,
             DetailsJson = details != null ? System.Text.Json.JsonSerializer.Serialize(details) : null,
-            Timestamp = DateTimeOffset.UtcNow
+            CreatedAt = _timeProvider.GetUtcNow()
         };
-        _context.BusinessRoleAuditLogs.Add(log);
+        _context.AuditLogs.Add(log);
     }
 }

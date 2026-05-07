@@ -118,8 +118,8 @@ public class MemberController : ControllerBase
         if (roleId.HasValue)
         {
             // Filter by users holding this business role
-            var userIdsWithRole = _context.OrganizationRoleAssignments
-                .Where(ra => ra.OrganizationId == orgId && ra.RoleId == roleId.Value)
+            var userIdsWithRole = _context.RoleAssignments
+                .Where(ra => ra.RoleId == roleId.Value)
                 .Select(ra => ra.UserId);
 
             query = query.Where(om => userIdsWithRole.Contains(om.UserId));
@@ -135,8 +135,15 @@ public class MemberController : ControllerBase
 
         // Fetch roles for all fetched users in batch
         var userIds = memberships.Select(m => m.UserId).ToList();
-        var assignments = await _context.OrganizationRoleAssignments
-            .Where(ra => ra.OrganizationId == orgId && userIds.Contains(ra.UserId))
+        var orgWorkspaceIds = await _context.Workspaces
+            .Where(w => w.OrganizationId == orgId)
+            .Select(w => w.Id)
+            .ToListAsync(cancellationToken);
+
+        var assignments = await _context.RoleAssignments
+            .Where(ra => userIds.Contains(ra.UserId) &&
+                         ((ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId) ||
+                          (ra.ScopeType == "WORKSPACE" && orgWorkspaceIds.Contains(ra.ScopeId))))
             .Include(ra => ra.Role)
             .ToListAsync(cancellationToken);
 
@@ -211,19 +218,19 @@ public class MemberController : ControllerBase
         // Owner protection: cannot suspend the last active Owner
         if (newStatus == "suspended" || newStatus == "disabled")
         {
-            var isOwner = await _context.OrganizationRoleAssignments
+            var isOwner = await _context.RoleAssignments
                 .Include(ra => ra.Role)
-                .AnyAsync(ra => ra.OrganizationId == orgId && ra.UserId == memberId && ra.Role.Name == "owner", cancellationToken);
+                .AnyAsync(ra => ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId && ra.UserId == memberId && ra.Role.Name == "owner", cancellationToken);
 
             if (isOwner)
             {
-                var activeOwnerCount = await _context.OrganizationRoleAssignments
+                var activeOwnerCount = await _context.RoleAssignments
                     .Include(ra => ra.Role)
                     .Join(_context.OrganizationMemberships,
-                        ra => new { ra.OrganizationId, ra.UserId },
-                        om => new { om.OrganizationId, om.UserId },
+                        ra => ra.UserId,
+                        om => om.UserId,
                         (ra, om) => new { ra, om })
-                    .CountAsync(x => x.ra.OrganizationId == orgId && x.ra.Role.Name == "owner" && x.om.Status == "active", cancellationToken);
+                    .CountAsync(x => x.ra.ScopeType == "ORGANIZATION" && x.ra.ScopeId == orgId && x.ra.Role.Name == "owner" && x.om.OrganizationId == orgId && x.om.Status == "active", cancellationToken);
 
                 if (activeOwnerCount <= 1)
                 {
@@ -240,20 +247,22 @@ public class MemberController : ControllerBase
         await _cacheService.DeleteAsync(cacheKey);
 
         // Audit Log
-        var log = new BusinessRoleAuditLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             OrganizationId = orgId,
             ActorUserId = actorUserId,
-            Action = newStatus == "suspended" ? "MEMBER_SUSPENDED" : "MEMBER_ACTIVATED",
+            UserId = actorUserId,
+            EventType = newStatus == "suspended" ? "MEMBER_SUSPENDED" : "MEMBER_ACTIVATED",
+            Description = $"Member {memberId} {(newStatus == "suspended" ? "suspended" : "activated")}.",
             TargetRoleName = "Multiple",
             TargetUserId = memberId,
             ScopeType = "ORGANIZATION",
             ScopeId = orgId,
             DetailsJson = null,
-            Timestamp = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow
         };
-        _context.BusinessRoleAuditLogs.Add(log);
+        _context.AuditLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
 
         return NoContent();
@@ -278,15 +287,15 @@ public class MemberController : ControllerBase
         }
 
         // Owner protection: cannot remove the last Owner
-        var isOwner = await _context.OrganizationRoleAssignments
+        var isOwner = await _context.RoleAssignments
             .Include(ra => ra.Role)
-            .AnyAsync(ra => ra.OrganizationId == orgId && ra.UserId == memberId && ra.Role.Name == "owner", cancellationToken);
+            .AnyAsync(ra => ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId && ra.UserId == memberId && ra.Role.Name == "owner", cancellationToken);
 
         if (isOwner)
         {
-            var ownerCount = await _context.OrganizationRoleAssignments
+            var ownerCount = await _context.RoleAssignments
                 .Include(ra => ra.Role)
-                .CountAsync(ra => ra.OrganizationId == orgId && ra.Role.Name == "owner", cancellationToken);
+                .CountAsync(ra => ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId && ra.Role.Name == "owner", cancellationToken);
 
             if (ownerCount <= 1)
             {
@@ -298,11 +307,18 @@ public class MemberController : ControllerBase
         using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            var assignments = await _context.OrganizationRoleAssignments
-                .Where(ra => ra.OrganizationId == orgId && ra.UserId == memberId)
+            var orgWorkspaceIds = await _context.Workspaces
+                .Where(w => w.OrganizationId == orgId)
+                .Select(w => w.Id)
                 .ToListAsync(cancellationToken);
 
-            _context.OrganizationRoleAssignments.RemoveRange(assignments);
+            var assignments = await _context.RoleAssignments
+                .Where(ra => ra.UserId == memberId &&
+                             ((ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId) ||
+                              (ra.ScopeType == "WORKSPACE" && orgWorkspaceIds.Contains(ra.ScopeId))))
+                .ToListAsync(cancellationToken);
+
+            _context.RoleAssignments.RemoveRange(assignments);
             _context.OrganizationMemberships.Remove(membership);
 
             // Also remove from workspaces
@@ -313,19 +329,21 @@ public class MemberController : ControllerBase
             _context.WorkspaceMembers.RemoveRange(workspaceMemberships);
 
             // Audit Log
-            var log = new BusinessRoleAuditLog
+            var log = new AuditLog
             {
                 Id = Guid.CreateVersion7(),
                 OrganizationId = orgId,
                 ActorUserId = actorUserId,
-                Action = "MEMBER_REMOVED",
+                UserId = actorUserId,
+                EventType = "MEMBER_REMOVED",
+                Description = $"Member {memberId} removed from organization.",
                 TargetRoleName = "Multiple",
                 TargetUserId = memberId,
                 ScopeType = "ORGANIZATION",
                 ScopeId = orgId,
-                Timestamp = DateTimeOffset.UtcNow
+                CreatedAt = DateTimeOffset.UtcNow
             };
-            _context.BusinessRoleAuditLogs.Add(log);
+            _context.AuditLogs.Add(log);
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);

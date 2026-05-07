@@ -33,7 +33,7 @@ public static class SuperAdminSeeder
             VALUES 
                 ('018fc35b-1c5c-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'SUPER_ADMIN', 'System Administrator', 'Root access to all modules', TRUE),
                 ('018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'USER', 'General User', 'Basic application access', TRUE)
-            ON CONFLICT (name) DO UPDATE 
+            ON CONFLICT (name) WHERE tenant_id IS NULL DO UPDATE 
             SET display_name = EXCLUDED.display_name, description = EXCLUDED.description;
 
             -- Seed global wildcard permission
@@ -149,7 +149,7 @@ public static class SuperAdminSeeder
                     var sqlSeedRole = @"
                         INSERT INTO roles (id, name, display_name, description, is_system, is_active)
                         VALUES (@id, @name, @displayName, @description, TRUE, TRUE)
-                        ON CONFLICT (name) DO UPDATE 
+                        ON CONFLICT (name) WHERE tenant_id IS NULL DO UPDATE 
                         SET display_name = EXCLUDED.display_name, description = EXCLUDED.description;";
                         
                     await context.Database.ExecuteSqlRawAsync(sqlSeedRole,
@@ -206,75 +206,7 @@ public static class SuperAdminSeeder
     {
         try
         {
-            // 1. Seed dynamic admin roles in admin_roles
-            var defaultAdminRoles = new List<(string Name, string DisplayName, string Description, List<string> Perms)>
-            {
-                ("SUPER_ADMIN", "Super Administrator", "Full root-level administration access", new List<string> { "*" }),
-                ("ADMIN", "Administrator", "General platform administration access", new List<string> {
-                    "admin:users:view", "admin:users:manage", "admin:roles:view", "admin:roles:manage",
-                    "admin:verification:view", "admin:verification:manage", "admin:ai:audit", "admin:components:read"
-                })
-            };
-
-            foreach (var dr in defaultAdminRoles)
-            {
-                var existingRole = await context.AdminRoles.FirstOrDefaultAsync(r => r.Name == dr.Name);
-                Guid roleId;
-                if (existingRole == null)
-                {
-                    roleId = Guid.CreateVersion7();
-                    var newRole = new AdminRole
-                    {
-                        Id = roleId,
-                        Name = dr.Name,
-                        DisplayName = dr.DisplayName,
-                        Description = dr.Description,
-                        IsSystem = true,
-                        IsActive = true,
-                        CreatedAt = DateTimeOffset.UtcNow,
-                        UpdatedAt = DateTimeOffset.UtcNow
-                    };
-                    context.AdminRoles.Add(newRole);
-                    await context.SaveChangesAsync();
-                }
-                else
-                {
-                    roleId = existingRole.Id;
-                }
-
-                // Map permissions
-                var existingPermissions = await context.AdminRolePermissions
-                    .Where(rp => rp.RoleId == roleId)
-                    .ToListAsync();
-                context.AdminRolePermissions.RemoveRange(existingPermissions);
-                await context.SaveChangesAsync();
-
-                List<Guid> permGuids;
-                if (dr.Perms.Contains("*"))
-                {
-                    permGuids = await context.Permissions.Select(p => p.Id).ToListAsync();
-                }
-                else
-                {
-                    permGuids = await context.Permissions
-                        .Where(p => dr.Perms.Contains(p.Name))
-                        .Select(p => p.Id)
-                        .ToListAsync();
-                }
-
-                foreach (var pId in permGuids)
-                {
-                    context.AdminRolePermissions.Add(new AdminRolePermission
-                    {
-                        RoleId = roleId,
-                        PermissionId = pId,
-                        AssignedAt = DateTimeOffset.UtcNow
-                    });
-                }
-                await context.SaveChangesAsync();
-            }
-
-            // 2. Migrate existing platform administrators from legacy user_roles
+            // Migrate existing platform administrators from legacy user_roles
             var legacyAdmins = await context.Database.SqlQueryRaw<LegacyUserRoleDto>(
                 @"SELECT ur.user_id as ""user_id"", r.name as ""role_name"" 
                   FROM user_roles ur 
@@ -300,24 +232,24 @@ public static class SuperAdminSeeder
                     await context.SaveChangesAsync();
                 }
 
-                var targetRole = await context.AdminRoles.FirstOrDefaultAsync(r => r.Name == la.RoleName);
+                var targetRole = await context.Roles.FirstOrDefaultAsync(r => r.Name == la.RoleName && r.Domain == "SYSTEM");
                 if (targetRole != null)
                 {
-                    var exists = await context.AdminRoleAssignments
-                        .AnyAsync(ra => ra.AdminMemberId == adminMember.Id && ra.RoleId == targetRole.Id);
+                    var exists = await context.RoleAssignments
+                        .AnyAsync(ra => ra.UserId == la.UserId && ra.RoleId == targetRole.Id && ra.ScopeType == "SYSTEM");
 
                     if (!exists)
                     {
-                        var assignment = new AdminRoleAssignment
+                        var assignment = new RoleAssignment
                         {
                             Id = Guid.CreateVersion7(),
-                            AdminMemberId = adminMember.Id,
+                            UserId = la.UserId,
                             RoleId = targetRole.Id,
                             ScopeType = "SYSTEM",
                             ScopeId = Guid.Empty,
                             AssignedAt = DateTimeOffset.UtcNow
                         };
-                        context.AdminRoleAssignments.Add(assignment);
+                        context.RoleAssignments.Add(assignment);
                         await context.SaveChangesAsync();
                     }
                 }

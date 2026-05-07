@@ -63,8 +63,8 @@ public class UsersAdminController : ControllerBase
     {
         var member = await _context.AdminMembers
             .Include(am => am.User)
-            .Include(am => am.RoleAssignments)
-                .ThenInclude(ra => ra.Role)
+                .ThenInclude(u => u.RoleAssignments)
+                    .ThenInclude(ra => ra.Role)
             .AsNoTracking()
             .FirstOrDefaultAsync(am => am.Id == id, cancellationToken);
 
@@ -79,7 +79,7 @@ public class UsersAdminController : ControllerBase
             member.User.FullName,
             member.Status,
             member.User.LastLoginAt,
-            member.RoleAssignments.Select(ra => ra.Role.Name).ToList(),
+            member.User.RoleAssignments.Where(ra => ra.ScopeType == "SYSTEM").Select(ra => ra.Role.Name).ToList(),
             member.SessionVersion,
             member.JoinedAt
         ));
@@ -98,8 +98,8 @@ public class UsersAdminController : ControllerBase
             return Unauthorized();
         }
 
-        var roles = await _context.AdminRoles
-            .Where(r => dto.Roles.Contains(r.Name))
+        var roles = await _context.Roles
+            .Where(r => dto.Roles.Contains(r.Name) && r.Domain == "SYSTEM")
             .ToListAsync(cancellationToken);
 
         var updateDto = new UpdateAdminMemberDto(
@@ -118,8 +118,8 @@ public class UsersAdminController : ControllerBase
 
         var member = await _context.AdminMembers
             .Include(am => am.User)
-            .Include(am => am.RoleAssignments)
-                .ThenInclude(ra => ra.Role)
+                .ThenInclude(u => u.RoleAssignments)
+                    .ThenInclude(ra => ra.Role)
             .FirstOrDefaultAsync(am => am.Id == id, cancellationToken);
 
         if (member == null)
@@ -133,7 +133,7 @@ public class UsersAdminController : ControllerBase
             member.User.FullName,
             member.Status,
             member.User.LastLoginAt,
-            member.RoleAssignments.Select(ra => ra.Role.Name).ToList(),
+            member.User.RoleAssignments.Where(ra => ra.ScopeType == "SYSTEM").Select(ra => ra.Role.Name).ToList(),
             member.SessionVersion,
             member.JoinedAt
         ));

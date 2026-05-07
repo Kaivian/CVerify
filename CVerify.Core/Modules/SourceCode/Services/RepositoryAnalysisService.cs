@@ -343,7 +343,6 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             // 2. Fetch repo details
             repo = await _context.SourceCodeRepositories
                 .Include(r => r.AuthProvider)
-                .ThenInclude(ap => ap.OAuthCredential)
                 .FirstOrDefaultAsync(r => r.Id == job.RepositoryId, linkedCts.Token);
 
             if (repo == null)
@@ -352,14 +351,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             }
 
             // 3. Resolve OAuth access token
-            var credential = repo.AuthProvider.OAuthCredential;
-            if (credential == null)
-            {
-                credential = await _context.OAuthCredentials
-                    .FirstOrDefaultAsync(oc => oc.AuthProviderId == repo.AuthProviderId, linkedCts.Token);
-            }
-
-            if (credential == null)
+            if (string.IsNullOrEmpty(repo.AuthProvider.EncryptedAccessToken))
             {
                 throw new InvalidOperationException("OAuth connection credentials are missing.");
             }
@@ -369,7 +361,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 throw new InvalidOperationException("Token encryption key is not configured on server.");
             }
 
-            var decryptedToken = EncryptionHelper.Decrypt(credential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
+            var decryptedToken = EncryptionHelper.Decrypt(repo.AuthProvider.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
 
             // 4. Load/Sort tasks to run in dependency order
             var tasks = await _context.AnalysisTasks

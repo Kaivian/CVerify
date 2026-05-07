@@ -62,4 +62,6 @@ public class UserProfile
 
     [ConcurrencyCheck]
     public uint Version { get; set; } // Map PostgreSQL xmin system column
+
+    public List<string> SocialLinks { get; set; } = new();
 }

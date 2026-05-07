@@ -35,9 +35,7 @@ public class EmailRecipientResolver : IEmailRecipientResolver
         var targetEmail = email.Trim();
 
         // Query by primary email or linked email addresses
-        var user = await _context.Users
-            .Include(u => u.LinkedEmails)
-            .FirstOrDefaultAsync(u => u.Email == targetEmail || u.LinkedEmails.Any(le => le.Email == targetEmail), cancellationToken)
+        var user = await _context.FindUserByEmailAsync(targetEmail, cancellationToken)
             .ConfigureAwait(false);
 
         if (user == null)

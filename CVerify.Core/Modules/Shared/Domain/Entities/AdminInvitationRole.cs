@@ -21,5 +21,5 @@ public class AdminInvitationRole
     public Guid RoleId { get; set; }
 
     [ForeignKey(nameof(RoleId))]
-    public virtual AdminRole Role { get; set; } = null!;
+    public virtual Role Role { get; set; } = null!;
 }

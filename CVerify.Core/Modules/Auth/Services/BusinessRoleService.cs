@@ -26,15 +26,14 @@ public class BusinessRoleService : IBusinessRoleService
 
     public async Task<List<BusinessRoleDetailsDto>> GetRolesAsync(Guid orgId, CancellationToken cancellationToken)
     {
-        var roles = await _context.OrganizationBusinessRoles
-            .Where(r => r.OrganizationId == orgId && r.IsActive)
+        var roles = await _context.Roles
+            .Where(r => r.TenantId == orgId && r.Domain == "TENANT" && r.IsActive)
             .Include(r => r.ParentRole)
-            .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Permission)
+            .Include(r => r.Permissions)
             .ToListAsync(cancellationToken);
 
-        var assignments = await _context.OrganizationRoleAssignments
-            .Where(ra => ra.OrganizationId == orgId)
+        var assignments = await _context.RoleAssignments
+            .Where(ra => ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId)
             .GroupBy(ra => ra.RoleId)
             .Select(g => new { RoleId = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
@@ -51,7 +50,7 @@ public class BusinessRoleService : IBusinessRoleService
             r.IsSystem,
             r.IsActive,
             memberCounts.GetValueOrDefault(r.Id, 0),
-            r.RolePermissions.Select(rp => rp.Permission.Name).ToList(),
+            r.Permissions.Select(p => p.Name).ToList(),
             r.CreatedAt
         )).ToList();
     }
@@ -60,8 +59,8 @@ public class BusinessRoleService : IBusinessRoleService
     {
         var cleanName = dto.Name.Trim().ToLowerInvariant();
         
-        var nameExists = await _context.OrganizationBusinessRoles
-            .AnyAsync(r => r.OrganizationId == orgId && r.Name == cleanName, cancellationToken);
+        var nameExists = await _context.Roles
+            .AnyAsync(r => r.TenantId == orgId && r.Domain == "TENANT" && r.Name == cleanName, cancellationToken);
 
         if (nameExists)
         {
@@ -73,9 +72,10 @@ public class BusinessRoleService : IBusinessRoleService
             await ValidateNoCircularityAsync(Guid.Empty, dto.ParentRoleId, cancellationToken);
         }
 
-        var newRole = new OrganizationBusinessRole
+        var newRole = new Role
         {
-            OrganizationId = orgId,
+            TenantId = orgId,
+            Domain = "TENANT",
             Name = cleanName,
             DisplayName = dto.DisplayName.Trim(),
             Description = dto.Description?.Trim(),
@@ -84,22 +84,18 @@ public class BusinessRoleService : IBusinessRoleService
             IsActive = true
         };
 
-        _context.OrganizationBusinessRoles.Add(newRole);
+        _context.Roles.Add(newRole);
 
         // Bind permissions
         if (dto.PermissionNames.Any())
         {
-            var dbPerms = await _context.BusinessPermissions
+            var dbPerms = await _context.Permissions
                 .Where(p => dto.PermissionNames.Contains(p.Name))
                 .ToListAsync(cancellationToken);
 
             foreach (var perm in dbPerms)
             {
-                _context.OrganizationRolePermissions.Add(new OrganizationRolePermission
-                {
-                    Role = newRole,
-                    PermissionId = perm.Id
-                });
+                newRole.Permissions.Add(perm);
             }
         }
 
@@ -111,8 +107,9 @@ public class BusinessRoleService : IBusinessRoleService
 
     public async Task UpdateRoleAsync(Guid orgId, Guid? actorUserId, Guid roleId, CreateBusinessRoleDto dto, CancellationToken cancellationToken)
     {
-        var role = await _context.OrganizationBusinessRoles
-            .FirstOrDefaultAsync(r => r.Id == roleId && r.OrganizationId == orgId, cancellationToken);
+        var role = await _context.Roles
+            .Include(r => r.Permissions)
+            .FirstOrDefaultAsync(r => r.Id == roleId && r.TenantId == orgId && r.Domain == "TENANT", cancellationToken);
 
         if (role == null)
         {
@@ -135,23 +132,15 @@ public class BusinessRoleService : IBusinessRoleService
         role.UpdatedAt = DateTimeOffset.UtcNow;
 
         // Sync permissions (delete old mappings and add new ones)
-        var oldMappings = await _context.OrganizationRolePermissions
-            .Where(rp => rp.RoleId == roleId)
-            .ToListAsync(cancellationToken);
+        role.Permissions.Clear();
 
-        _context.OrganizationRolePermissions.RemoveRange(oldMappings);
-
-        var newPerms = await _context.BusinessPermissions
+        var newPerms = await _context.Permissions
             .Where(p => dto.PermissionNames.Contains(p.Name))
             .ToListAsync(cancellationToken);
 
         foreach (var perm in newPerms)
         {
-            _context.OrganizationRolePermissions.Add(new OrganizationRolePermission
-            {
-                RoleId = roleId,
-                PermissionId = perm.Id
-            });
+            role.Permissions.Add(perm);
         }
 
         await LogAuditAsync(orgId, actorUserId, "ROLE_UPDATED", role.DisplayName, details: new { permissions = dto.PermissionNames, parentId = dto.ParentRoleId });
@@ -163,8 +152,8 @@ public class BusinessRoleService : IBusinessRoleService
 
     public async Task DeleteRoleAsync(Guid orgId, Guid? actorUserId, Guid roleId, CancellationToken cancellationToken)
     {
-        var role = await _context.OrganizationBusinessRoles
-            .FirstOrDefaultAsync(r => r.Id == roleId && r.OrganizationId == orgId, cancellationToken);
+        var role = await _context.Roles
+            .FirstOrDefaultAsync(r => r.Id == roleId && r.TenantId == orgId && r.Domain == "TENANT", cancellationToken);
 
         if (role == null)
         {
@@ -177,7 +166,7 @@ public class BusinessRoleService : IBusinessRoleService
         }
 
         // Check active assignments
-        var hasAssignments = await _context.OrganizationRoleAssignments
+        var hasAssignments = await _context.RoleAssignments
             .AnyAsync(ra => ra.RoleId == roleId, cancellationToken);
 
         if (hasAssignments)
@@ -186,7 +175,7 @@ public class BusinessRoleService : IBusinessRoleService
         }
 
         // Check if role is used as a parent by other roles
-        var isParent = await _context.OrganizationBusinessRoles
+        var isParent = await _context.Roles
             .AnyAsync(r => r.ParentRoleId == roleId, cancellationToken);
 
         if (isParent)
@@ -194,7 +183,7 @@ public class BusinessRoleService : IBusinessRoleService
             throw new ValidationException("Cannot delete role because other business roles inherit from it.");
         }
 
-        _context.OrganizationBusinessRoles.Remove(role);
+        _context.Roles.Remove(role);
 
         await LogAuditAsync(orgId, actorUserId, "ROLE_DELETED", role.DisplayName);
         await _context.SaveChangesAsync(cancellationToken);
@@ -202,21 +191,27 @@ public class BusinessRoleService : IBusinessRoleService
 
     public async Task<List<RoleAssignmentDto>> GetRoleAssignmentsAsync(Guid orgId, CancellationToken cancellationToken)
     {
-        var assignments = await _context.OrganizationRoleAssignments
-            .Where(ra => ra.OrganizationId == orgId)
+        var workspaceIds = await _context.Workspaces
+            .Where(w => w.OrganizationId == orgId)
+            .Select(w => w.Id)
+            .ToListAsync(cancellationToken);
+
+        var assignments = await _context.RoleAssignments
+            .Where(ra => (ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId) ||
+                         (ra.ScopeType == "WORKSPACE" && workspaceIds.Contains(ra.ScopeId)))
             .Include(ra => ra.User)
             .Include(ra => ra.Role)
             .ToListAsync(cancellationToken);
 
         // Batch resolve scope names for workspaces
-        var workspaceIds = assignments
+        var allWorkspaceIds = assignments
             .Where(ra => ra.ScopeType == "WORKSPACE")
             .Select(ra => ra.ScopeId)
             .Distinct()
             .ToList();
 
         var workspaces = await _context.Workspaces
-            .Where(w => workspaceIds.Contains(w.Id))
+            .Where(w => allWorkspaceIds.Contains(w.Id))
             .ToDictionaryAsync(w => w.Id, w => w.DisplayName, cancellationToken);
 
         var result = new List<RoleAssignmentDto>();
@@ -249,8 +244,8 @@ public class BusinessRoleService : IBusinessRoleService
     public async Task AssignRoleAsync(Guid orgId, Guid? actorUserId, AssignScopedRoleDto dto, CancellationToken cancellationToken)
     {
         // Check if role exists in org
-        var role = await _context.OrganizationBusinessRoles
-            .FirstOrDefaultAsync(r => r.Id == dto.RoleId && r.OrganizationId == orgId, cancellationToken);
+        var role = await _context.Roles
+            .FirstOrDefaultAsync(r => r.Id == dto.RoleId && r.TenantId == orgId && r.Domain == "TENANT", cancellationToken);
 
         if (role == null)
         {
@@ -268,9 +263,8 @@ public class BusinessRoleService : IBusinessRoleService
 
         // Validate unique assignment constraint
         var scopeTypeNormalized = dto.ScopeType.Trim().ToUpperInvariant();
-        var assignmentExists = await _context.OrganizationRoleAssignments
-            .AnyAsync(ra => ra.OrganizationId == orgId &&
-                            ra.UserId == dto.UserId &&
+        var assignmentExists = await _context.RoleAssignments
+            .AnyAsync(ra => ra.UserId == dto.UserId &&
                             ra.RoleId == dto.RoleId &&
                             ra.ScopeType == scopeTypeNormalized &&
                             ra.ScopeId == dto.ScopeId, cancellationToken);
@@ -280,16 +274,15 @@ public class BusinessRoleService : IBusinessRoleService
             throw new ValidationException("This role assignment already exists.");
         }
 
-        var assignment = new OrganizationRoleAssignment
+        var assignment = new RoleAssignment
         {
-            OrganizationId = orgId,
             UserId = dto.UserId,
             RoleId = dto.RoleId,
             ScopeType = scopeTypeNormalized,
             ScopeId = dto.ScopeId
         };
 
-        _context.OrganizationRoleAssignments.Add(assignment);
+        _context.RoleAssignments.Add(assignment);
 
         await LogAuditAsync(orgId, actorUserId, "ROLE_ASSIGNED", role.DisplayName, targetUserId: dto.UserId, scopeType: scopeTypeNormalized, scopeId: dto.ScopeId);
         await _context.SaveChangesAsync(cancellationToken);
@@ -302,10 +295,9 @@ public class BusinessRoleService : IBusinessRoleService
     {
         var scopeTypeNormalized = dto.ScopeType.Trim().ToUpperInvariant();
         
-        var assignment = await _context.OrganizationRoleAssignments
+        var assignment = await _context.RoleAssignments
             .Include(ra => ra.Role)
-            .FirstOrDefaultAsync(ra => ra.OrganizationId == orgId &&
-                                       ra.UserId == dto.UserId &&
+            .FirstOrDefaultAsync(ra => ra.UserId == dto.UserId &&
                                        ra.RoleId == dto.RoleId &&
                                        ra.ScopeType == scopeTypeNormalized &&
                                        ra.ScopeId == dto.ScopeId, cancellationToken);
@@ -318,8 +310,8 @@ public class BusinessRoleService : IBusinessRoleService
         // Owner security boundary check: Cannot revoke the last Owner assignment in organization
         if (assignment.Role.Name == "owner")
         {
-            var ownerCount = await _context.OrganizationRoleAssignments
-                .CountAsync(ra => ra.OrganizationId == orgId && ra.Role.Name == "owner", cancellationToken);
+            var ownerCount = await _context.RoleAssignments
+                .CountAsync(ra => ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId && ra.Role.Name == "owner", cancellationToken);
             
             if (ownerCount <= 1)
             {
@@ -327,7 +319,7 @@ public class BusinessRoleService : IBusinessRoleService
             }
         }
 
-        _context.OrganizationRoleAssignments.Remove(assignment);
+        _context.RoleAssignments.Remove(assignment);
 
         await LogAuditAsync(orgId, actorUserId, "ROLE_REVOKED", assignment.Role.DisplayName, targetUserId: dto.UserId, scopeType: scopeTypeNormalized, scopeId: dto.ScopeId);
         await _context.SaveChangesAsync(cancellationToken);
@@ -338,7 +330,7 @@ public class BusinessRoleService : IBusinessRoleService
 
     public async Task<PaginatedAuditLogsResponseDto> GetAuditLogsAsync(Guid orgId, int page, int pageSize, CancellationToken cancellationToken)
     {
-        var query = _context.BusinessRoleAuditLogs
+        var query = _context.AuditLogs
             .Where(al => al.OrganizationId == orgId)
             .Include(al => al.ActorUser)
             .Include(al => al.TargetUser)
@@ -347,21 +339,21 @@ public class BusinessRoleService : IBusinessRoleService
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
-            .OrderByDescending(al => al.Timestamp)
+            .OrderByDescending(al => al.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(al => new RoleAuditLogDto(
                 al.Id,
                 al.ActorUserId,
                 al.ActorUser != null ? al.ActorUser.FullName : "Business System",
-                al.Action,
+                al.EventType,
                 al.TargetRoleName,
                 al.TargetUserId,
                 al.TargetUser != null ? al.TargetUser.FullName : null,
                 al.ScopeType,
                 al.ScopeId,
                 al.DetailsJson,
-                al.Timestamp
+                al.CreatedAt
             ))
             .ToListAsync(cancellationToken);
 
@@ -370,7 +362,7 @@ public class BusinessRoleService : IBusinessRoleService
 
     public async Task<List<PermissionDto>> GetAvailablePermissionsAsync(CancellationToken cancellationToken)
     {
-        var perms = await _context.BusinessPermissions
+        var perms = await _context.Permissions
             .AsNoTracking()
             .OrderBy(p => p.Module)
             .ThenBy(p => p.DisplayName)
@@ -404,7 +396,7 @@ public class BusinessRoleService : IBusinessRoleService
             }
             visited.Add(currentParentId.Value);
 
-            var parent = await _context.OrganizationBusinessRoles
+            var parent = await _context.Roles
                 .Where(r => r.Id == currentParentId.Value)
                 .Select(r => new { r.ParentRoleId })
                 .FirstOrDefaultAsync(cancellationToken);
@@ -423,19 +415,22 @@ public class BusinessRoleService : IBusinessRoleService
         Guid? scopeId = null, 
         object? details = null)
     {
-        var log = new BusinessRoleAuditLog
+        var log = new AuditLog
         {
+            Id = Guid.CreateVersion7(),
             OrganizationId = orgId,
             ActorUserId = actorUserId,
-            Action = action,
+            UserId = actorUserId,
+            EventType = action,
+            Description = $"Business role action {action} performed.",
             TargetRoleName = targetRoleName,
             TargetUserId = targetUserId,
             ScopeType = scopeType,
             ScopeId = scopeId,
             DetailsJson = details != null ? JsonSerializer.Serialize(details) : null,
-            Timestamp = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow
         };
-        _context.BusinessRoleAuditLogs.Add(log);
+        _context.AuditLogs.Add(log);
     }
 
     private async Task InvalidatePermissionsCacheAsync(Guid orgId, Guid userId)
@@ -446,8 +441,8 @@ public class BusinessRoleService : IBusinessRoleService
 
     private async Task InvalidateCacheForRoleUsersAsync(Guid orgId, Guid roleId, CancellationToken cancellationToken)
     {
-        var userIds = await _context.OrganizationRoleAssignments
-            .Where(ra => ra.RoleId == roleId && ra.OrganizationId == orgId)
+        var userIds = await _context.RoleAssignments
+            .Where(ra => ra.RoleId == roleId && ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId)
             .Select(ra => ra.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);

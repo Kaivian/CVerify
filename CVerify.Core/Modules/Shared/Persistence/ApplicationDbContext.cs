@@ -22,6 +22,7 @@ public class ApplicationDbContext : DbContext
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         EnforceImmutableAuditLogs();
+        IncrementConcurrencyVersions();
         try
         {
             return await base.SaveChangesAsync(cancellationToken);
@@ -39,6 +40,7 @@ public class ApplicationDbContext : DbContext
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         EnforceImmutableAuditLogs();
+        IncrementConcurrencyVersions();
         try
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
@@ -64,6 +66,32 @@ public class ApplicationDbContext : DbContext
         }
     }
 
+    private void IncrementConcurrencyVersions()
+    {
+        var entries = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Modified);
+        
+        foreach (var entry in entries)
+        {
+            if (entry.Entity is User u)
+            {
+                u.Version++;
+            }
+            else if (entry.Entity is UserProfile up)
+            {
+                up.Version++;
+            }
+            else if (entry.Entity is CareerPreference cp)
+            {
+                cp.Version++;
+            }
+            else if (entry.Entity is AiInferredPreference ap)
+            {
+                ap.Version++;
+            }
+        }
+    }
+
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
@@ -75,8 +103,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<AuthProvider> AuthProviders => Set<AuthProvider>();
-    public DbSet<OAuthCredential> OAuthCredentials => Set<OAuthCredential>();
-    public DbSet<PasswordCredential> PasswordCredentials => Set<PasswordCredential>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrganizationAuthority> OrganizationAuthorities => Set<OrganizationAuthority>();
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
@@ -85,7 +111,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<OrganizationVerification> OrganizationVerifications => Set<OrganizationVerification>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
-    public DbSet<RecoveryClaimDocument> RecoveryClaimDocuments => Set<RecoveryClaimDocument>();
     public DbSet<WorkspaceArchiveSnapshot> WorkspaceArchiveSnapshots => Set<WorkspaceArchiveSnapshot>();
     public DbSet<RecoveryExecutionLock> RecoveryExecutionLocks => Set<RecoveryExecutionLock>();
     public DbSet<OrganizationRecoveryClaim> OrganizationRecoveryClaims => Set<OrganizationRecoveryClaim>();
@@ -94,24 +119,15 @@ public class ApplicationDbContext : DbContext
     public DbSet<RepresentativeRotationRequest> RepresentativeRotationRequests => Set<RepresentativeRotationRequest>();
     public DbSet<RepresentativeApprovalVote> RepresentativeApprovalVotes => Set<RepresentativeApprovalVote>();
     public DbSet<RepresentativeAuthorityHistory> RepresentativeAuthorityHistories => Set<RepresentativeAuthorityHistory>();
-    public DbSet<UserEmail> UserEmails => Set<UserEmail>();
     public DbSet<OrganizationCredential> OrganizationCredentials => Set<OrganizationCredential>();
     public DbSet<WorkspaceInvitation> WorkspaceInvitations => Set<WorkspaceInvitation>();
     public DbSet<OrganizationInvitation> OrganizationInvitations => Set<OrganizationInvitation>();
     public DbSet<OrganizationInvitationRole> OrganizationInvitationRoles => Set<OrganizationInvitationRole>();
-    public DbSet<OrganizationBusinessRole> OrganizationBusinessRoles => Set<OrganizationBusinessRole>();
-    public DbSet<BusinessPermission> BusinessPermissions => Set<BusinessPermission>();
-    public DbSet<OrganizationRolePermission> OrganizationRolePermissions => Set<OrganizationRolePermission>();
-    public DbSet<OrganizationRoleAssignment> OrganizationRoleAssignments => Set<OrganizationRoleAssignment>();
-    public DbSet<BusinessRoleAuditLog> BusinessRoleAuditLogs => Set<BusinessRoleAuditLog>();
+    public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
 
     public DbSet<AdminMember> AdminMembers => Set<AdminMember>();
-    public DbSet<AdminRole> AdminRoles => Set<AdminRole>();
-    public DbSet<AdminRolePermission> AdminRolePermissions => Set<AdminRolePermission>();
-    public DbSet<AdminRoleAssignment> AdminRoleAssignments => Set<AdminRoleAssignment>();
     public DbSet<AdminInvitation> AdminInvitations => Set<AdminInvitation>();
     public DbSet<AdminInvitationRole> AdminInvitationRoles => Set<AdminInvitationRole>();
-    public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<PendingAuthProvider> PendingAuthProviders => Set<PendingAuthProvider>();
@@ -130,13 +146,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
     public DbSet<AiInferredPreference> AiInferredPreferences => Set<AiInferredPreference>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
-    public DbSet<UserPreferredLocation> UserPreferredLocations => Set<UserPreferredLocation>();
-    public DbSet<UserEmploymentPreference> UserEmploymentPreferences => Set<UserEmploymentPreference>();
-    public DbSet<SocialLink> SocialLinks => Set<SocialLink>();
     public DbSet<EducationEntry> EducationEntries => Set<EducationEntry>();
     public DbSet<AcademicAchievement> AcademicAchievements => Set<AcademicAchievement>();
     public DbSet<ProfileAttachment> ProfileAttachments => Set<ProfileAttachment>();
-    public DbSet<ProfileActivityLog> ProfileActivityLogs => Set<ProfileActivityLog>();
     public DbSet<WorkExperienceEntry> WorkExperiences => Set<WorkExperienceEntry>();
     public DbSet<WorkExperienceAchievement> WorkExperienceAchievements => Set<WorkExperienceAchievement>();
     public DbSet<WorkExperienceTechnology> WorkExperienceTechnologies => Set<WorkExperienceTechnology>();
@@ -158,13 +170,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CareerPreference>().Property(cp => cp.UserId).ValueGeneratedNever();
         modelBuilder.Entity<AiInferredPreference>().Property(ap => ap.UserId).ValueGeneratedNever();
         modelBuilder.Entity<UserSkill>().Property(us => us.Id).ValueGeneratedNever();
-        modelBuilder.Entity<UserPreferredLocation>().Property(upl => upl.Id).ValueGeneratedNever();
-        modelBuilder.Entity<UserEmploymentPreference>().Property(uep => uep.Id).ValueGeneratedNever();
-        modelBuilder.Entity<SocialLink>().Property(sl => sl.Id).ValueGeneratedNever();
         modelBuilder.Entity<EducationEntry>().Property(ee => ee.Id).ValueGeneratedNever();
         modelBuilder.Entity<AcademicAchievement>().Property(aa => aa.Id).ValueGeneratedNever();
         modelBuilder.Entity<ProfileAttachment>().Property(pa => pa.Id).ValueGeneratedNever();
-        modelBuilder.Entity<ProfileActivityLog>().Property(pal => pal.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkExperienceEntry>().Property(we => we.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkExperienceAchievement>().Property(wa => wa.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkExperienceTechnology>().Property(wt => wt.Id).ValueGeneratedNever();
@@ -175,7 +183,6 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Conversation>().Property(c => c.Id).ValueGeneratedNever();
         modelBuilder.Entity<Message>().Property(m => m.Id).ValueGeneratedNever();
         modelBuilder.Entity<AuthProvider>().Property(ap => ap.Id).ValueGeneratedNever();
-        modelBuilder.Entity<PasswordCredential>().Property(pc => pc.Id).ValueGeneratedNever();
         modelBuilder.Entity<Organization>().Property(o => o.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationAuthority>().Property(oa => oa.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationMembership>().Property(om => om.Id).ValueGeneratedNever();
@@ -184,18 +191,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<OrganizationVerification>().Property(ov => ov.Id).ValueGeneratedNever();
         modelBuilder.Entity<Workspace>().Property(w => w.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkspaceMember>().Property(wm => wm.Id).ValueGeneratedNever();
-        modelBuilder.Entity<OrganizationBusinessRole>().Property(obr => obr.Id).ValueGeneratedNever();
-        modelBuilder.Entity<BusinessPermission>().Property(bp => bp.Id).ValueGeneratedNever();
-        modelBuilder.Entity<OrganizationRoleAssignment>().Property(ora => ora.Id).ValueGeneratedNever();
-        modelBuilder.Entity<BusinessRoleAuditLog>().Property(bral => bral.Id).ValueGeneratedNever();
-
+        modelBuilder.Entity<RoleAssignment>().Property(ra => ra.Id).ValueGeneratedNever();
         modelBuilder.Entity<AdminMember>().Property(am => am.Id).ValueGeneratedNever();
-        modelBuilder.Entity<AdminRole>().Property(ar => ar.Id).ValueGeneratedNever();
-        modelBuilder.Entity<AdminRoleAssignment>().Property(ara => ara.Id).ValueGeneratedNever();
         modelBuilder.Entity<AdminInvitation>().Property(ai => ai.Id).ValueGeneratedNever();
         modelBuilder.Entity<AdminInvitationRole>().Property(air => air.Id).ValueGeneratedNever();
-        modelBuilder.Entity<AdminAuditLog>().Property(aal => aal.Id).ValueGeneratedNever();
-        modelBuilder.Entity<RecoveryClaimDocument>().Property(rcd => rcd.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkspaceArchiveSnapshot>().Property(was => was.Id).ValueGeneratedNever();
         modelBuilder.Entity<RecoveryExecutionLock>().Property(rel => rel.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationRecoveryClaim>().Property(orc => orc.Id).ValueGeneratedNever();
@@ -203,7 +202,6 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<RecoveryToken>().Property(rt => rt.Id).ValueGeneratedNever();
         modelBuilder.Entity<RepresentativeRotationRequest>().Property(r => r.Id).ValueGeneratedNever();
         modelBuilder.Entity<RepresentativeApprovalVote>().Property(v => v.Id).ValueGeneratedNever();
-        modelBuilder.Entity<UserEmail>().Property(ue => ue.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationCredential>().Property(oc => oc.OrganizationId).ValueGeneratedNever();
         modelBuilder.Entity<WorkspaceInvitation>().Property(wi => wi.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationInvitation>().Property(oi => oi.Id).ValueGeneratedNever();
@@ -279,20 +277,37 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(rt => rt.OrganizationId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Configure AuditLog -> User (Many-to-One SetNull)
+        // Configure AuditLog relations
         modelBuilder.Entity<AuditLog>()
             .HasOne(al => al.User)
             .WithMany()
             .HasForeignKey(al => al.UserId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(al => al.ActorUser)
+            .WithMany()
+            .HasForeignKey(al => al.ActorUserId)
+            .OnDelete(DeleteBehavior.SetNull);
 
-        // Optimistic Concurrency Control mapping utilizing PostgreSQL xmin system column
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(al => al.TargetUser)
+            .WithMany()
+            .HasForeignKey(al => al.TargetUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasOne(al => al.Organization)
+            .WithMany()
+            .HasForeignKey(al => al.OrganizationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+
+        // Optimistic Concurrency Control mapping utilizing standard version column
         modelBuilder.Entity<User>()
             .Property(u => u.Version)
-            .HasColumnName("xmin")
-            .HasColumnType("xid")
-            .ValueGeneratedOnAddOrUpdate()
+            .HasColumnName("version")
+            .HasDefaultValue(1u)
             .IsConcurrencyToken();
 
         modelBuilder.Entity<User>()
@@ -336,7 +351,7 @@ public class ApplicationDbContext : DbContext
         // Indexes
         modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique().HasFilter("deleted_at IS NULL OR status = 'DELETION_PENDING'");
         modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique().HasFilter("deleted_at IS NULL OR status = 'DELETION_PENDING'");
-        modelBuilder.Entity<Role>().HasIndex(r => r.Name).IsUnique();
+        modelBuilder.Entity<Role>().HasIndex(r => r.Name).IsUnique().HasFilter("tenant_id IS NULL");
         modelBuilder.Entity<Permission>().HasIndex(p => p.Name).IsUnique();
 
         // Optimized Hierarchy Index
@@ -392,6 +407,18 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<AuditLog>()
             .HasIndex(al => al.UserId)
             .HasDatabaseName("idx_audit_logs_user_id");
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(al => al.ActorUserId)
+            .HasDatabaseName("idx_audit_logs_actor_user_id");
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(al => al.TargetUserId)
+            .HasDatabaseName("idx_audit_logs_target_user_id");
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(al => al.OrganizationId)
+            .HasDatabaseName("idx_audit_logs_organization_id");
 
         // Configure RefreshToken mapping and indexes explicitly
         modelBuilder.Entity<RefreshToken>(entity =>
@@ -478,17 +505,6 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(pap => pap.User)
                   .WithMany()
                   .HasForeignKey(pap => pap.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // OAuthCredential configurations
-        modelBuilder.Entity<OAuthCredential>(entity =>
-        {
-            entity.ToTable("oauth_credentials");
-            entity.HasKey(oc => oc.AuthProviderId);
-            entity.HasOne(oc => oc.AuthProvider)
-                  .WithOne(ap => ap.OAuthCredential)
-                  .HasForeignKey<OAuthCredential>(oc => oc.AuthProviderId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -629,17 +645,6 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // PasswordCredential configurations
-        modelBuilder.Entity<PasswordCredential>(entity =>
-        {
-            entity.ToTable("password_credentials");
-            entity.HasQueryFilter(pc => pc.DeletedAt == null);
-            entity.HasOne(pc => pc.User)
-                  .WithMany(u => u.PasswordCredentials)
-                  .HasForeignKey(pc => pc.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
         // Organization configurations
         modelBuilder.Entity<Organization>(entity =>
         {
@@ -715,101 +720,42 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(wm => new { wm.WorkspaceId, wm.UserId }).IsUnique();
         });
 
-        // OrganizationBusinessRole configurations
-        modelBuilder.Entity<OrganizationBusinessRole>(entity =>
+        // Role configurations
+        modelBuilder.Entity<Role>(entity =>
         {
-            entity.ToTable("organization_business_roles");
-            entity.HasOne(r => r.Organization)
-                  .WithMany()
-                  .HasForeignKey(r => r.OrganizationId)
-                  .OnDelete(DeleteBehavior.Cascade);
+            entity.ToTable("roles");
             entity.HasOne(r => r.ParentRole)
                   .WithMany(r => r.ChildRoles)
                   .HasForeignKey(r => r.ParentRoleId)
                   .OnDelete(DeleteBehavior.Restrict);
-            entity.HasIndex(r => new { r.OrganizationId, r.Name })
+            entity.Property(r => r.Version)
+                  .HasColumnName("xmin")
+                  .HasColumnType("xid")
+                  .ValueGeneratedOnAddOrUpdate()
+                  .IsConcurrencyToken();
+            entity.HasIndex(r => new { r.TenantId, r.Name })
                   .IsUnique()
-                  .HasDatabaseName("idx_org_roles_name_org_id");
+                  .HasDatabaseName("idx_roles_tenant_id_name");
         });
 
-        // BusinessPermission configurations
-        modelBuilder.Entity<BusinessPermission>(entity =>
+        // RoleAssignment configurations
+        modelBuilder.Entity<RoleAssignment>(entity =>
         {
-            entity.ToTable("business_permissions");
-            entity.HasIndex(p => p.Name)
-                  .IsUnique()
-                  .HasDatabaseName("idx_business_permissions_name");
-        });
-
-        // OrganizationRolePermission configurations
-        modelBuilder.Entity<OrganizationRolePermission>(entity =>
-        {
-            entity.ToTable("organization_role_permissions");
-            entity.HasKey(rp => new { rp.RoleId, rp.PermissionId });
-            entity.HasOne(rp => rp.Role)
-                  .WithMany(r => r.RolePermissions)
-                  .HasForeignKey(rp => rp.RoleId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(rp => rp.Permission)
-                  .WithMany()
-                  .HasForeignKey(rp => rp.PermissionId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // OrganizationRoleAssignment configurations
-        modelBuilder.Entity<OrganizationRoleAssignment>(entity =>
-        {
-            entity.ToTable("organization_role_assignments");
-            entity.HasOne(ra => ra.Organization)
-                  .WithMany()
-                  .HasForeignKey(ra => ra.OrganizationId)
-                  .OnDelete(DeleteBehavior.Cascade);
+            entity.ToTable("role_assignments");
             entity.HasOne(ra => ra.User)
-                  .WithMany()
+                  .WithMany(u => u.RoleAssignments)
                   .HasForeignKey(ra => ra.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(ra => ra.Role)
                   .WithMany()
                   .HasForeignKey(ra => ra.RoleId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(ra => new { ra.OrganizationId, ra.UserId, ra.ScopeType, ra.ScopeId })
-                  .HasDatabaseName("idx_role_assignments_lookup");
-            entity.HasIndex(ra => new { ra.OrganizationId, ra.UserId, ra.RoleId, ra.ScopeType, ra.ScopeId })
+            entity.HasIndex(ra => new { ra.UserId, ra.RoleId, ra.ScopeType, ra.ScopeId })
                   .IsUnique()
-                  .HasDatabaseName("idx_role_assignments_unique_constraint");
-            entity.HasIndex(ra => ra.UserId)
-                  .HasDatabaseName("idx_org_role_assignments_user_id");
+                  .HasDatabaseName("idx_role_assignments_unique");
         });
 
-        // BusinessRoleAuditLog configurations
-        modelBuilder.Entity<BusinessRoleAuditLog>(entity =>
-        {
-            entity.ToTable("business_role_audit_logs");
-            entity.HasOne(al => al.Organization)
-                  .WithMany()
-                  .HasForeignKey(al => al.OrganizationId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(al => al.ActorUser)
-                  .WithMany()
-                  .HasForeignKey(al => al.ActorUserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(al => al.TargetUser)
-                  .WithMany()
-                  .HasForeignKey(al => al.TargetUserId)
-                  .OnDelete(DeleteBehavior.SetNull);
-            entity.HasIndex(al => new { al.OrganizationId, al.Timestamp })
-                  .HasDatabaseName("idx_role_audit_logs_org_time");
-        });
 
-        // RecoveryClaimDocument configurations
-        modelBuilder.Entity<RecoveryClaimDocument>(entity =>
-        {
-            entity.ToTable("recovery_claim_documents");
-            entity.HasOne<OrganizationRecoveryClaim>()
-                  .WithMany(orc => orc.Documents)
-                  .HasForeignKey(rcd => rcd.RecoveryClaimId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
 
         // WorkspaceArchiveSnapshot configurations
         modelBuilder.Entity<WorkspaceArchiveSnapshot>(entity =>
@@ -833,53 +779,6 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(am => am.AssignedByUserId)
                   .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        // AdminRole configurations
-        modelBuilder.Entity<AdminRole>(entity =>
-        {
-            entity.ToTable("admin_roles");
-            entity.HasOne(ar => ar.ParentRole)
-                  .WithMany(ar => ar.ChildRoles)
-                  .HasForeignKey(ar => ar.ParentRoleId)
-                  .OnDelete(DeleteBehavior.Restrict);
-            entity.Property(ar => ar.Version)
-                  .HasColumnName("xmin")
-                  .HasColumnType("xid")
-                  .ValueGeneratedOnAddOrUpdate()
-                  .IsConcurrencyToken();
-        });
-
-        // AdminRolePermission configurations
-        modelBuilder.Entity<AdminRolePermission>(entity =>
-        {
-            entity.ToTable("admin_role_permissions");
-            entity.HasKey(arp => new { arp.RoleId, arp.PermissionId });
-            entity.HasOne(arp => arp.Role)
-                  .WithMany(r => r.RolePermissions)
-                  .HasForeignKey(arp => arp.RoleId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(arp => arp.Permission)
-                  .WithMany()
-                  .HasForeignKey(arp => arp.PermissionId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // AdminRoleAssignment configurations
-        modelBuilder.Entity<AdminRoleAssignment>(entity =>
-        {
-            entity.ToTable("admin_role_assignments");
-            entity.HasOne(ara => ara.AdminMember)
-                  .WithMany(am => am.RoleAssignments)
-                  .HasForeignKey(ara => ara.AdminMemberId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(ara => ara.Role)
-                  .WithMany()
-                  .HasForeignKey(ara => ara.RoleId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(ara => new { ara.AdminMemberId, ara.RoleId, ara.ScopeType, ara.ScopeId })
-                  .IsUnique()
-                  .HasDatabaseName("idx_admin_role_assignments_unique");
         });
 
         // AdminInvitation configurations
@@ -913,19 +812,7 @@ public class ApplicationDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // AdminAuditLog configurations
-        modelBuilder.Entity<AdminAuditLog>(entity =>
-        {
-            entity.ToTable("admin_audit_logs");
-            entity.HasOne(aal => aal.ActorUser)
-                  .WithMany()
-                  .HasForeignKey(aal => aal.ActorUserId)
-                  .OnDelete(DeleteBehavior.SetNull);
-            entity.HasOne(aal => aal.TargetUser)
-                  .WithMany()
-                  .HasForeignKey(aal => aal.TargetUserId)
-                  .OnDelete(DeleteBehavior.SetNull);
-        });
+
 
         // RecoveryExecutionLock configurations
         modelBuilder.Entity<RecoveryExecutionLock>(entity =>
@@ -1034,9 +921,8 @@ public class ApplicationDbContext : DbContext
                   .HasFilter("deleted_at IS NULL")
                   .HasDatabaseName("idx_user_profiles_username_active");
             entity.Property(up => up.Version)
-                  .HasColumnName("xmin")
-                  .HasColumnType("xid")
-                  .ValueGeneratedOnAddOrUpdate()
+                  .HasColumnName("version")
+                  .HasDefaultValue(1u)
                   .IsConcurrencyToken();
             entity.HasOne(up => up.User)
                   .WithOne()
@@ -1050,9 +936,8 @@ public class ApplicationDbContext : DbContext
             entity.ToTable("career_preferences");
             entity.HasQueryFilter(cp => cp.DeletedAt == null);
             entity.Property(cp => cp.Version)
-                  .HasColumnName("xmin")
-                  .HasColumnType("xid")
-                  .ValueGeneratedOnAddOrUpdate()
+                  .HasColumnName("version")
+                  .HasDefaultValue(1u)
                   .IsConcurrencyToken();
             entity.HasOne(cp => cp.User)
                   .WithOne()
@@ -1068,9 +953,8 @@ public class ApplicationDbContext : DbContext
             entity.ToTable("ai_inferred_preferences");
             entity.HasQueryFilter(ap => ap.DeletedAt == null);
             entity.Property(ap => ap.Version)
-                  .HasColumnName("xmin")
-                  .HasColumnType("xid")
-                  .ValueGeneratedOnAddOrUpdate()
+                  .HasColumnName("version")
+                  .HasDefaultValue(1u)
                   .IsConcurrencyToken();
             entity.HasOne(ap => ap.User)
                   .WithOne()
@@ -1091,38 +975,18 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(us => us.Skill).HasDatabaseName("idx_user_skills_name");
         });
 
-        // UserPreferredLocation configurations
-        modelBuilder.Entity<UserPreferredLocation>(entity =>
-        {
-            entity.ToTable("user_preferred_locations");
-            entity.HasOne(upl => upl.User)
-                  .WithMany()
-                  .HasForeignKey(upl => upl.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(upl => upl.UserId).HasDatabaseName("idx_user_preferred_locations_user_id");
-        });
+        // UserProfile.SocialLinks configuration (native varchar array)
+        modelBuilder.Entity<UserProfile>()
+            .Property(up => up.SocialLinks)
+            .HasColumnType("varchar(255)[]");
 
-        // UserEmploymentPreference configurations
-        modelBuilder.Entity<UserEmploymentPreference>(entity =>
+        // CareerPreference location and employment preferences configuration (native varchar arrays)
+        modelBuilder.Entity<CareerPreference>(entity =>
         {
-            entity.ToTable("user_employment_preferences");
-            entity.HasOne(uep => uep.User)
-                  .WithMany()
-                  .HasForeignKey(uep => uep.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(uep => uep.UserId).HasDatabaseName("idx_user_employment_preferences_user_id");
-        });
-
-        // SocialLink configurations
-        modelBuilder.Entity<SocialLink>(entity =>
-        {
-            entity.ToTable("social_links");
-            entity.HasQueryFilter(sl => sl.DeletedAt == null);
-            entity.HasOne(sl => sl.User)
-                  .WithMany()
-                  .HasForeignKey(sl => sl.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(sl => sl.UserId).HasDatabaseName("idx_social_links_user_id");
+            entity.Property(cp => cp.PreferredLocations)
+                .HasColumnType("varchar(100)[]");
+            entity.Property(cp => cp.EmploymentPreferences)
+                .HasColumnType("varchar(50)[]");
         });
 
         // EducationEntry configurations
@@ -1205,26 +1069,46 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(pa => new { pa.EntityType, pa.EntityId }).HasDatabaseName("idx_profile_attachments_entity");
         });
 
-        // ProfileActivityLog configurations
-        modelBuilder.Entity<ProfileActivityLog>(entity =>
+        // User.LinkedEmails JSONB serialization converter
+        modelBuilder.Entity<User>(entity =>
         {
-            entity.ToTable("profile_activity_logs");
-            entity.HasOne(pal => pal.User)
-                  .WithMany()
-                  .HasForeignKey(pal => pal.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(pal => pal.UserId).HasDatabaseName("idx_profile_activity_logs_user_id");
+            var options = new global::System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = global::System.Text.Json.JsonNamingPolicy.SnakeCaseLower
+            };
+            var comparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<LinkedEmail>>(
+                (c1, c2) => global::System.Text.Json.JsonSerializer.Serialize(c1, options) == global::System.Text.Json.JsonSerializer.Serialize(c2, options),
+                c => c == null ? 0 : global::System.Text.Json.JsonSerializer.Serialize(c, options).GetHashCode(),
+                c => global::System.Text.Json.JsonSerializer.Deserialize<List<LinkedEmail>>(global::System.Text.Json.JsonSerializer.Serialize(c, options), options) ?? new List<LinkedEmail>()
+            );
+            entity.Property(u => u.LinkedEmails)
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    v => global::System.Text.Json.JsonSerializer.Serialize(v, options),
+                    v => global::System.Text.Json.JsonSerializer.Deserialize<List<LinkedEmail>>(v, options) ?? new List<LinkedEmail>(),
+                    comparer
+                );
         });
 
-        // UserEmail configurations
-        modelBuilder.Entity<UserEmail>(entity =>
+        // OrganizationRecoveryClaim.Documents JSONB serialization converter
+        modelBuilder.Entity<OrganizationRecoveryClaim>(entity =>
         {
-            entity.ToTable("user_emails");
-            entity.HasOne(ue => ue.User)
-                  .WithMany(u => u.LinkedEmails)
-                  .HasForeignKey(ue => ue.UserId)
-                  .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(ue => ue.Email).IsUnique();
+            var options = new global::System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = global::System.Text.Json.JsonNamingPolicy.SnakeCaseLower
+            };
+            var comparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<ClaimDocument>>(
+                (c1, c2) => global::System.Text.Json.JsonSerializer.Serialize(c1, options) == global::System.Text.Json.JsonSerializer.Serialize(c2, options),
+                c => c == null ? 0 : global::System.Text.Json.JsonSerializer.Serialize(c, options).GetHashCode(),
+                c => global::System.Text.Json.JsonSerializer.Deserialize<List<ClaimDocument>>(global::System.Text.Json.JsonSerializer.Serialize(c, options), options) ?? new List<ClaimDocument>()
+            );
+            entity.Property(orc => orc.Documents)
+                .HasColumnType("jsonb")
+                .HasConversion(
+                    v => global::System.Text.Json.JsonSerializer.Serialize(v, options),
+                    v => global::System.Text.Json.JsonSerializer.Deserialize<List<ClaimDocument>>(v, options) ?? new List<ClaimDocument>(),
+                    comparer
+                );
         });
 
         // OrganizationCredential configurations
@@ -1309,5 +1193,53 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(oir => oir.InvitationId)
                   .HasDatabaseName("idx_org_invitation_roles_invite");
         });
+    }
+
+    public async Task<User?> FindUserByEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            await Task.CompletedTask;
+            return Users
+                .AsEnumerable()
+                .FirstOrDefault(u => (u.Email != null && u.Email.ToLower() == normalized) || (u.LinkedEmails != null && u.LinkedEmails.Any(le => le.Email != null && le.Email.ToLower() == normalized)));
+        }
+        var jsonContainment = $"[{{\"email\": \"{normalized}\"}}]";
+        return await Users
+            .FromSqlRaw("SELECT * FROM users WHERE email = {0} OR (linked_emails IS NOT NULL AND linked_emails @> {1}::jsonb)", normalized, jsonContainment)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<User?> FindUserByVerifiedEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            await Task.CompletedTask;
+            return Users
+                .AsEnumerable()
+                .FirstOrDefault(u => (u.Email != null && u.Email.ToLower() == normalized) || (u.LinkedEmails != null && u.LinkedEmails.Any(le => le.Email != null && le.Email.ToLower() == normalized && le.IsVerified)));
+        }
+        var jsonContainment = $"[{{\"email\": \"{normalized}\", \"is_verified\": true}}]";
+        return await Users
+            .FromSqlRaw("SELECT * FROM users WHERE email = {0} OR (linked_emails IS NOT NULL AND linked_emails @> {1}::jsonb)", normalized, jsonContainment)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<bool> CheckEmailExistsAsync(string email, CancellationToken cancellationToken = default)
+    {
+        var normalized = email.Trim().ToLowerInvariant();
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            await Task.CompletedTask;
+            return Users
+                .AsEnumerable()
+                .Any(u => u.DeletedAt == null && ((u.Email != null && u.Email.ToLower() == normalized) || (u.LinkedEmails != null && u.LinkedEmails.Any(le => le.Email != null && le.Email.ToLower() == normalized))));
+        }
+        var jsonContainment = $"[{{\"email\": \"{normalized}\"}}]";
+        return await Users
+            .FromSqlRaw("SELECT * FROM users WHERE (email = {0} OR (linked_emails IS NOT NULL AND linked_emails @> {1}::jsonb)) AND deleted_at IS NULL", normalized, jsonContainment)
+            .AnyAsync(cancellationToken);
     }
 }

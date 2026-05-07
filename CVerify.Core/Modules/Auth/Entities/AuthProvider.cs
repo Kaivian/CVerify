@@ -61,7 +61,15 @@ public class AuthProvider
 
     public string? SyncError { get; set; }
 
-    public virtual OAuthCredential? OAuthCredential { get; set; }
+    [MaxLength(1000)]
+    public string? EncryptedAccessToken { get; set; }
+
+    [MaxLength(1000)]
+    public string? EncryptedRefreshToken { get; set; }
+
+    public DateTimeOffset? ExpiresAt { get; set; }
+
+    public DateTimeOffset? TokenUpdatedAt { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

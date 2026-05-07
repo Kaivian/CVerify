@@ -20,9 +20,9 @@ public class DecryptTokensTest
         {
             conn.Open();
             string query = @"
-                SELECT r.name, r.owner, r.default_branch, oc.auth_provider_id, oc.encrypted_access_token
+                SELECT r.name, r.owner, r.default_branch, ap.id, ap.encrypted_access_token
                 FROM source_code_repositories r
-                JOIN oauth_credentials oc ON r.auth_provider_id = oc.auth_provider_id
+                JOIN auth_providers ap ON r.auth_provider_id = ap.id
                 WHERE r.id = '019e9945-8c95-7bec-ae48-e61e783dae6b';";
                 
             using (var cmd = new NpgsqlCommand(query, conn))
