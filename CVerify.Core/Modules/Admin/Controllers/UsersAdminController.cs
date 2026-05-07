@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Admin.DTOs;
 using CVerify.API.Modules.Admin.Services;
-using CVerify.API.Modules.Auth.DTOs;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security.Authorization.Attributes;
 using CVerify.API.Modules.Shared.Exceptions;

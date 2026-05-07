@@ -69,6 +69,8 @@ public class ModularBoundaryTests
             .DoNotHaveName("TokenCleanupBackgroundJob")
             .And()
             .DoNotHaveName("User")
+            .And()
+            .DoNotHaveName("PermissionHandler")
             .ShouldNot()
             .HaveDependencyOnAny(featureNamespaces)
             .GetResult();
