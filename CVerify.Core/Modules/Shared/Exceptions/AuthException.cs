@@ -38,4 +38,5 @@ public static class AuthErrorCodes
     public const string RateLimitExceeded = "AUTH_RATE_LIMIT_EXCEEDED";
     public const string ConcurrencyConflict = "AUTH_CONCURRENCY_CONFLICT";
     public const string TooManyResends = "AUTH_TOO_MANY_RESENDS";
+    public const string ServiceUnavailable = "AUTH_SERVICE_UNAVAILABLE";
 }
