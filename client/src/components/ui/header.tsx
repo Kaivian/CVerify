@@ -3,7 +3,6 @@
 import React from "react";
 import { usePathname } from "next/navigation";
 import { Menu, PanelLeft, Compass } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { useSidebarStore } from "../../stores/use-sidebar-store";
 import { AuthAvatar } from "./auth-avatar";
 import { NotificationDropdown } from "./notification-dropdown";
@@ -12,16 +11,13 @@ import { getRouteMetadata, getDynamicSegmentLabel } from "../../config/routes";
 import { AppBreadcrumbs } from "../../components/ui/app-breadcrumbs";
 
 export const Header: React.FC = () => {
-  const { t } = useTranslation(["common", "navbar", "sidebar"]);
   const pathname = usePathname();
   const { isCollapsed, toggleCollapsed, setMobileOpen } = useSidebarStore();
 
   const metadata = getRouteMetadata(pathname || "");
   let pageTitle = "";
   if (metadata) {
-    pageTitle = t(metadata.translationKey, {
-      defaultValue: metadata.fallbackLabel,
-    });
+    pageTitle = metadata.fallbackLabel;
   } else if (pathname) {
     const segments = pathname
       .split("/")
@@ -39,7 +35,7 @@ export const Header: React.FC = () => {
         {/* Mobile: Hamburger toggle button */}
         <button
           onClick={() => setMobileOpen(true)}
-          aria-label={t("navbar:menu.userMenu", { defaultValue: "Open Menu" })}
+          aria-label="Open Menu"
           className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface-secondary text-muted hover:text-foreground cursor-pointer transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-focus"
         >
           <Menu size={20} />
@@ -53,8 +49,8 @@ export const Header: React.FC = () => {
           onClick={toggleCollapsed}
           aria-label={
             isCollapsed
-              ? t("sidebar:expand", { defaultValue: "Expand Sidebar" })
-              : t("sidebar:collapse", { defaultValue: "Collapse Sidebar" })
+              ? "Expand Sidebar"
+              : "Collapse Sidebar"
           }
         >
           <PanelLeft className="w-5 h-5" />
@@ -72,7 +68,7 @@ export const Header: React.FC = () => {
             type="body-sm"
             className="font-bold tracking-tight font-outfit text-foreground leading-none"
           >
-            {t("common:branding.title", { defaultValue: "CVerify" })}
+            CVerify
           </Typography>
         </div>
       </div>

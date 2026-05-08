@@ -2,7 +2,6 @@
 
 import React from "react";
 import { TextField, Label, InputGroup, FieldError } from "@heroui/react";
-import { useTranslation } from "react-i18next";
 
 interface PhoneNumberFieldProps {
   value: string;
@@ -35,8 +34,6 @@ export const PhoneNumberField: React.FC<PhoneNumberFieldProps> = ({
   className = "flex flex-col w-full h-full",
   onBlur,
 }) => {
-  const { t } = useTranslation(["auth"]);
-
   // Extracts displayable subscriber digits by removing country prefixes
   const getDisplayValue = (val: string) => {
     if (!val) return "";
@@ -92,10 +89,7 @@ export const PhoneNumberField: React.FC<PhoneNumberFieldProps> = ({
           value={displayValue}
           onChange={handleInputChange}
           onBlur={onBlur}
-          aria-label={t("auth:labels.phoneAriaLabel", { 
-            code: countryCode, 
-            defaultValue: `Phone number, country code ${countryCode}` 
-          })}
+          aria-label={`Phone number, country code ${countryCode}`}
         />
       </InputGroup>
       {isInvalid && errorMessage && (

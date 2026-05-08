@@ -24,4 +24,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\CVerify.API.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="obj_test\**;bin_test\**" />
+    <EmbeddedResource Remove="obj_test\**;bin_test\**" />
+    <None Remove="obj_test\**;bin_test\**" />
+  </ItemGroup>
 </Project>

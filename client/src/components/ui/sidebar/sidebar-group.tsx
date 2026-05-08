@@ -3,7 +3,6 @@
 import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useTranslation } from "react-i18next";
 import { Accordion, Tooltip, Typography } from "@heroui/react";
 import { ChevronDown } from "lucide-react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
@@ -29,16 +28,12 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
 }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { t } = useTranslation(["common"]);
   const { expandedGroups, toggleGroup, setGroupExpanded, setMobileOpen } =
     useSidebarStore();
 
   const Icon = group.icon;
 
-  // Localized label with fallback
-  const label = group.translationKey
-    ? t(group.translationKey, { defaultValue: group.label })
-    : group.label;
+  const label = group.label;
 
   // Recursively check if any descendant is active
   const isAnyChildActive = (node: NavigationNode): boolean => {
@@ -261,9 +256,7 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
                       <child.icon size={14} className="mr-2 shrink-0" />
                     )}
                     <span className="truncate">
-                      {child.translationKey
-                        ? t(child.translationKey, { defaultValue: child.label })
-                        : child.label}
+                      {child.label}
                     </span>
                   </Link>
                 );

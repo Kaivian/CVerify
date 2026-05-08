@@ -2,22 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useVerificationStages } from '../hooks/use-verification-stages';
-import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../../stores/use-theme-store';
 import { Shield } from 'lucide-react';
 
-/**
- * Premium session verification / auth bootstrap loading screen.
- *
- * Renders as a transitional auth layer (not a standalone page).
- * Designed as a reusable AuthStatusCard pattern — applicable to
- * email verification, OAuth callback, onboarding sync, workspace provisioning.
- *
- * Design tokens: fully semantic (bg-background, text-foreground, etc.)
- * Theme: adaptive logo switching with SSR hydration safeguard
- * Motion: fade-in, slide-up, indeterminate progress — all prefers-reduced-motion aware
- * Accessibility: ARIA live region for stage announcements
- */
 interface SessionVerificationScreenProps {
   isAuthenticated: boolean;
 }
@@ -25,7 +12,6 @@ interface SessionVerificationScreenProps {
 export const SessionVerificationScreen: React.FC<SessionVerificationScreenProps> = ({
   isAuthenticated,
 }) => {
-  const { t } = useTranslation(['common']);
   const { stageLabel, progressPercent, isExiting, currentStage } = useVerificationStages(isAuthenticated);
   const theme = useThemeStore((state) => state.theme);
 
@@ -98,7 +84,7 @@ export const SessionVerificationScreen: React.FC<SessionVerificationScreenProps>
             </p>
           </div>
 
-          {/* Segmented Progress Indicator — indeterminate with staged checkpoints */}
+          {/* Segmented Progress Indicator — determinate with staged checkpoints */}
           <div className="w-full space-y-3">
             {/* Progress Track */}
             <div className="relative w-full h-1 rounded-full bg-surface-secondary overflow-hidden">
@@ -154,13 +140,13 @@ export const SessionVerificationScreen: React.FC<SessionVerificationScreenProps>
           >
             <Shield size={10} className="text-success" />
             <span className="text-[10px] font-semibold text-muted tracking-wide uppercase">
-              {isMounted ? t('common:sessionVerification.securityBadge') : ''}
+              {isMounted ? "Encrypted Session" : ''}
             </span>
           </div>
 
           {/* Protocol Version */}
           <span className="text-[10px] font-mono font-medium text-surface-tertiary-foreground tracking-widest">
-            {isMounted ? t('common:sessionVerification.protocol') : ''}
+            {isMounted ? "PROTOCOL V1.0.0" : ''}
           </span>
         </div>
       </div>

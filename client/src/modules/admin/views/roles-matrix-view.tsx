@@ -6,12 +6,10 @@ import { type RoleListItem } from "@/types/admin.types";
 import { Card, Table, Chip, Typography } from "@heroui/react";
 import { Shield, Plus, RotateCw, Search, ShieldAlert, Edit, Trash2 } from "lucide-react";
 import { SkeletonLoader, EmptyState } from "@/components/ui/states";
-import { useTranslation } from "react-i18next";
 import { TableActionDropdown } from "@/components/ui/table-action-dropdown";
 import { RoleEditorModal } from "./role-editor-modal";
 
 export function RolesMatrixView() {
-  const { t } = useTranslation(["dashboard-admin", "common"]);
   const [roles, setRoles] = useState<RoleListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -71,7 +69,7 @@ export function RolesMatrixView() {
       fetchRoles();
     } catch (err: unknown) {
       const error = err as { message?: string };
-      alert(error?.message || t("dashboard-admin:roles.deleteError"));
+      alert(error?.message || "Failed to delete role.");
     }
   };
 
@@ -90,10 +88,10 @@ export function RolesMatrixView() {
         <div>
           <Typography type="h2" className="text-2xl font-extrabold tracking-tight flex items-center gap-2 font-display">
             <Shield className="text-accent" size={24} />
-            {t("dashboard-admin:roles.title")}
+            Roles & Permissions Matrix
           </Typography>
           <Typography type="body-sm" className="text-muted mt-1 font-outfit">
-            {t("dashboard-admin:roles.subtitle")}
+            View and configure roles, inheritances, and scope mapping.
           </Typography>
         </div>
         <div className="flex gap-2.5 select-none">
@@ -102,14 +100,14 @@ export function RolesMatrixView() {
             className="px-4 py-2.5 border border-border rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-surface-secondary select-none cursor-pointer transition-colors"
           >
             <RotateCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-            {t("dashboard-admin:roles.syncSchemas")}
+            Sync Schemas
           </button>
           <button
             onClick={handleOpenCreate}
             className="px-4 py-2.5 bg-foreground text-background font-bold rounded-xl text-xs flex items-center gap-2 hover:bg-foreground/90 transition-all select-none cursor-pointer"
           >
             <Plus size={14} />
-            {t("dashboard-admin:roles.createCustomRole")}
+            Create Custom Role
           </button>
         </div>
       </div>
@@ -204,8 +202,8 @@ export function RolesMatrixView() {
                           </Table.Cell>
                           <Table.Cell className="text-foreground font-semibold text-xs py-4 px-6 select-none">
                             {role.permissions.includes("*:*:*") || role.permissions.includes("*")
-                              ? t("dashboard-admin:roles.allPermissions")
-                              : t("dashboard-admin:roles.granularPermissions", { count: role.permissions.length })}
+                              ? "All (*)"
+                              : role.permissions.length === 1 ? "1 permission" : `${role.permissions.length} permissions`}
                           </Table.Cell>
                           <Table.Cell className="py-4 px-6 text-right pr-6">
                             {role.isSystem ? (
@@ -219,13 +217,13 @@ export function RolesMatrixView() {
                                   actions={[
                                     {
                                       id: "edit",
-                                      label: t("dashboard-admin:roles.editMatrix"),
+                                      label: "Edit Matrix",
                                       icon: Edit,
                                       onSelect: () => handleOpenEdit(role.id),
                                     },
                                     {
                                       id: "delete",
-                                      label: t("dashboard-admin:roles.delete"),
+                                      label: "Delete",
                                       icon: Trash2,
                                       variant: "danger",
                                       requiresConfirmation: true,

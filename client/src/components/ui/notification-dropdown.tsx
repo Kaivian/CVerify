@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
 import { useNotificationStore } from "../../stores/use-notification-store";
 import { notificationsService } from "../../services/notifications.service";
 import { type NotificationPreference } from "../../types/notifications.types";
@@ -71,82 +70,129 @@ const getNotificationIcon = (type: string) => {
 };
 
 // Vanilla JS localized time-ago formatter
-const formatTimeAgo = (dateStr: string, t: any) => {
+const formatTimeAgo = (dateStr: string) => {
   const date = new Date(dateStr);
   const now = new Date();
   const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  
+
   if (diffSeconds < 60) {
-    return t("notifications:general.time.justNow", { defaultValue: "Just now" });
+    return "Just now";
   }
-  
+
   const diffMinutes = Math.floor(diffSeconds / 60);
   if (diffMinutes < 60) {
-    return t("notifications:general.time.minutesAgo", { count: diffMinutes, defaultValue: "{{count}}m ago" });
+    return `${diffMinutes}m ago`;
   }
-  
+
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) {
-    return t("notifications:general.time.hoursAgo", { count: diffHours, defaultValue: "{{count}}h ago" });
+    return `${diffHours}h ago`;
   }
-  
+
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) {
-    return t("notifications:general.time.daysAgo", { count: diffDays, defaultValue: "{{count}}d ago" });
+    return `${diffDays}d ago`;
   }
-  
+
   return date.toLocaleDateString();
+};
+
+const NOTIFICATION_TYPES: Record<string, string> = {
+  MEMBER_INVITED: "New Member Invited",
+  MEMBER_JOINED: "Member Joined",
+  MEMBER_LEFT: "Member Left",
+  MEMBER_REMOVED: "Member Removed",
+  MEMBER_SUSPENDED: "Member Suspended",
+  MEMBER_ACTIVATED: "Member Activated",
+  ROLE_ASSIGNED: "Role Assigned",
+  ROLE_UPDATED: "Role Updated",
+  PROJECT_CREATED: "Project Created",
+  REPOSITORY_CONNECTED: "Repository Connected",
+  REPOSITORY_ANALYZED: "Repository Analysis Completed",
+  VERIFICATION_COMPLETED: "Verification Completed",
+  VERIFICATION_FAILED: "Verification Failed",
+  PASSWORD_CHANGED: "Security Alert: Password Changed",
+  IP_VERIFIED: "Security Alert: New IP Verified"
+};
+
+const getNotificationDescription = (type: string, actor: string, count: number): string => {
+  if (count > 1) {
+    switch (type) {
+      case 'MEMBER_JOINED':
+        return `${actor} and ${count - 1} others joined.`;
+      case 'MEMBER_LEFT':
+        return `${actor} and ${count - 1} others left.`;
+      default:
+        return `${actor} and ${count - 1} others performed this action.`;
+    }
+  } else {
+    switch (type) {
+      case 'MEMBER_JOINED':
+        return `${actor} joined the organization.`;
+      case 'MEMBER_LEFT':
+        return `${actor} left the organization.`;
+      case 'MEMBER_INVITED':
+        return `${actor} invited a new member.`;
+      case 'ROLE_ASSIGNED':
+        return `Role was assigned to ${actor}.`;
+      case 'VERIFICATION_COMPLETED':
+        return "Verification for organization completed successfully.";
+      case 'VERIFICATION_FAILED':
+        return "Verification for organization failed.";
+      case 'PASSWORD_CHANGED':
+        return "Your password was recently changed. If this wasn't you, please secure your account.";
+      case 'IP_VERIFIED':
+        return "A new IP address was successfully verified for your account.";
+      default:
+        return `${actor} performed this action.`;
+    }
+  }
 };
 
 // Customizable notification categories for settings page
 const PREFERENCE_CATEGORIES = [
   {
     key: "member",
-    titleKey: "notifications:general.categories.memberTitle",
     defaultTitle: "Members & Roles",
     types: [
-      { type: "MEMBER_INVITED", labelKey: "notifications:types.MEMBER_INVITED" },
-      { type: "MEMBER_JOINED", labelKey: "notifications:types.MEMBER_JOINED" },
-      { type: "MEMBER_LEFT", labelKey: "notifications:types.MEMBER_LEFT" },
-      { type: "MEMBER_REMOVED", labelKey: "notifications:types.MEMBER_REMOVED" },
-      { type: "MEMBER_SUSPENDED", labelKey: "notifications:types.MEMBER_SUSPENDED" },
-      { type: "MEMBER_ACTIVATED", labelKey: "notifications:types.MEMBER_ACTIVATED" },
-      { type: "ROLE_ASSIGNED", labelKey: "notifications:types.ROLE_ASSIGNED" },
-      { type: "ROLE_UPDATED", labelKey: "notifications:types.ROLE_UPDATED" }
+      { type: "MEMBER_INVITED" },
+      { type: "MEMBER_JOINED" },
+      { type: "MEMBER_LEFT" },
+      { type: "MEMBER_REMOVED" },
+      { type: "MEMBER_SUSPENDED" },
+      { type: "MEMBER_ACTIVATED" },
+      { type: "ROLE_ASSIGNED" },
+      { type: "ROLE_UPDATED" }
     ]
   },
   {
     key: "project",
-    titleKey: "notifications:general.categories.projectTitle",
     defaultTitle: "Projects & Repositories",
     types: [
-      { type: "PROJECT_CREATED", labelKey: "notifications:types.PROJECT_CREATED" },
-      { type: "REPOSITORY_CONNECTED", labelKey: "notifications:types.REPOSITORY_CONNECTED" },
-      { type: "REPOSITORY_ANALYZED", labelKey: "notifications:types.REPOSITORY_ANALYZED" }
+      { type: "PROJECT_CREATED" },
+      { type: "REPOSITORY_CONNECTED" },
+      { type: "REPOSITORY_ANALYZED" }
     ]
   },
   {
     key: "verification",
-    titleKey: "notifications:general.categories.verificationTitle",
     defaultTitle: "Verification & Compliance",
     types: [
-      { type: "VERIFICATION_COMPLETED", labelKey: "notifications:types.VERIFICATION_COMPLETED" },
-      { type: "VERIFICATION_FAILED", labelKey: "notifications:types.VERIFICATION_FAILED" }
+      { type: "VERIFICATION_COMPLETED" },
+      { type: "VERIFICATION_FAILED" }
     ]
   },
   {
     key: "security",
-    titleKey: "notifications:general.categories.securityTitle",
     defaultTitle: "Security Alerts",
     types: [
-      { type: "PASSWORD_CHANGED", labelKey: "notifications:types.PASSWORD_CHANGED" },
-      { type: "IP_VERIFIED", labelKey: "notifications:types.IP_VERIFIED" }
+      { type: "PASSWORD_CHANGED" },
+      { type: "IP_VERIFIED" }
     ]
   }
 ];
 
 export const NotificationDropdown: React.FC = () => {
-  const { t } = useTranslation(["notifications", "common"]);
   const {
     notifications,
     unreadCount,
@@ -195,7 +241,7 @@ export const NotificationDropdown: React.FC = () => {
         channel,
         isEnabled: nextState
       });
-      
+
       setPreferences((prev) => {
         const index = prev.findIndex(
           (p) => p.notificationType === notificationType && p.channel === channel
@@ -231,7 +277,7 @@ export const NotificationDropdown: React.FC = () => {
               <Button
                 variant="ghost"
                 isIconOnly
-                aria-label={t("notifications:general.notifications", { defaultValue: "Notifications" })}
+                aria-label="Notifications"
                 className="rounded-lg hover:bg-surface-secondary text-muted hover:text-foreground transition-colors"
               >
                 <Bell size={18} />
@@ -250,7 +296,7 @@ export const NotificationDropdown: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
               <Typography className="font-bold text-foreground font-outfit text-sm">
-                {t("notifications:general.notifications", "Notifications")}
+                Notifications
               </Typography>
               <div className="flex items-center gap-1">
                 {unreadCount > 0 && (
@@ -260,7 +306,7 @@ export const NotificationDropdown: React.FC = () => {
                     onClick={() => markAllAsRead()}
                     className="text-2xs text-primary font-bold hover:bg-primary/10 px-2 py-1 h-7 rounded-lg"
                   >
-                    {t("notifications:general.markAllAsRead", "Mark all as read")}
+                    Mark all as read
                   </Button>
                 )}
                 <Button
@@ -268,7 +314,7 @@ export const NotificationDropdown: React.FC = () => {
                   variant="ghost"
                   isIconOnly
                   onClick={handleSettingsOpen}
-                  aria-label={t("notifications:general.settings", "Settings")}
+                  aria-label="Settings"
                   className="w-7 h-7 min-w-7 rounded-lg hover:bg-surface-secondary"
                 >
                   <Settings size={15} className="text-muted hover:text-foreground" />
@@ -287,12 +333,12 @@ export const NotificationDropdown: React.FC = () => {
                 <Tabs.ListContainer>
                   <Tabs.List className="w-full justify-start gap-4" aria-label="Notification filter">
                     <Tabs.Tab id="all" className="pb-1.5 text-xs font-semibold select-none cursor-pointer">
-                      {t("notifications:general.all", "All")}
+                      All
                       <Tabs.Indicator />
                     </Tabs.Tab>
                     <Tabs.Tab id="unread" className="pb-1.5 text-xs font-semibold select-none cursor-pointer">
                       <div className="flex items-center gap-1.5">
-                        {t("notifications:general.unread", "Unread")}
+                        Unread
                         {unreadCount > 0 && (
                           <span className="px-1.5 py-0.5 text-[10px] leading-none bg-danger/10 text-danger rounded-full font-bold">
                             {unreadCount}
@@ -316,40 +362,22 @@ export const NotificationDropdown: React.FC = () => {
                 <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
                   <Inbox className="w-9 h-9 text-muted/40 mb-3" />
                   <Typography className="text-xs text-muted-secondary font-medium font-outfit">
-                    {t("notifications:general.noNotifications", "No notifications yet")}
+                    No notifications yet
                   </Typography>
                 </div>
               ) : (
                 <div className="divide-y divide-border/30">
                   {notifications.map((item) => {
-                    const title = t(`types.${item.notificationType}`, {
-                      defaultValue: item.notificationType.replace(/_/g, " ")
-                    });
+                    const title = NOTIFICATION_TYPES[item.notificationType] || item.notificationType.replace(/_/g, " ");
 
                     let description = "";
                     const actorName = item.payload?.actors?.[0]?.fullName || "";
                     const count = item.payload?.count || 1;
 
                     if (item.payload) {
-                      if (count > 1) {
-                        description = t(`messages.${item.notificationType}_multiple`, {
-                          actor: actorName,
-                          count: count - 1,
-                          defaultValue: `${actorName} and ${count - 1} others performed this action.`
-                        });
-                      } else {
-                        description = t(`messages.${item.notificationType}_single`, {
-                          actor: actorName,
-                          defaultValue: t(`messages.${item.notificationType}`, {
-                            actor: actorName,
-                            defaultValue: `${actorName} performed this action.`
-                          })
-                        });
-                      }
+                      description = getNotificationDescription(item.notificationType, actorName, count);
                     } else {
-                      description = t(`messages.${item.notificationType}`, {
-                        defaultValue: title
-                      });
+                      description = title;
                     }
 
                     return (
@@ -358,9 +386,8 @@ export const NotificationDropdown: React.FC = () => {
                         onClick={() => {
                           if (!item.isRead) markAsRead(item.id);
                         }}
-                        className={`flex gap-3 p-3.5 transition-colors cursor-pointer hover:bg-surface-secondary/40 group relative ${
-                          !item.isRead ? "bg-primary/5" : ""
-                        }`}
+                        className={`flex gap-3 p-3.5 transition-colors cursor-pointer hover:bg-surface-secondary/40 group relative ${!item.isRead ? "bg-primary/5" : ""
+                          }`}
                       >
                         {/* Unread circle badge */}
                         {!item.isRead && (
@@ -368,12 +395,12 @@ export const NotificationDropdown: React.FC = () => {
                         )}
 
                         {/* Icon */}
-                        <div className="flex-shrink-0 mt-0.5">
+                        <div className="shrink-0 mt-0.5">
                           {getNotificationIcon(item.notificationType)}
                         </div>
 
                         {/* Details */}
-                        <div className="flex-grow pr-5 text-left">
+                        <div className="grow pr-5 text-left">
                           <Typography className="font-bold text-[11px] text-foreground mb-0.5 leading-tight font-outfit">
                             {title}
                           </Typography>
@@ -381,7 +408,7 @@ export const NotificationDropdown: React.FC = () => {
                             {description}
                           </Typography>
                           <Typography className="text-[9px] text-muted/60 mt-1 font-medium">
-                            {formatTimeAgo(item.createdAt, t)}
+                            {formatTimeAgo(item.createdAt)}
                           </Typography>
                         </div>
 
@@ -397,7 +424,7 @@ export const NotificationDropdown: React.FC = () => {
                                 e.stopPropagation();
                                 markAsRead(item.id);
                               }}
-                              aria-label={t("notifications:general.markAsRead", "Mark as read")}
+                              aria-label="Mark as read"
                             >
                               <Check size={13} className="text-muted hover:text-foreground" />
                             </Button>
@@ -411,7 +438,7 @@ export const NotificationDropdown: React.FC = () => {
                               e.stopPropagation();
                               deleteNotification(item.id);
                             }}
-                            aria-label={t("notifications:general.delete", "Delete")}
+                            aria-label="Delete"
                           >
                             <Trash2 size={13} className="text-muted hover:text-danger" />
                           </Button>
@@ -430,7 +457,7 @@ export const NotificationDropdown: React.FC = () => {
       <DialogModal
         isOpen={isSettingsOpen}
         onOpenChange={setIsSettingsOpen}
-        title={t("notifications:general.preferences", "Notification Preferences")}
+        title="Notification Preferences"
         size="lg"
       >
         {prefLoading ? (
@@ -442,14 +469,14 @@ export const NotificationDropdown: React.FC = () => {
             {PREFERENCE_CATEGORIES.map((category) => (
               <div key={category.key} className="space-y-3">
                 <Typography className="text-xs font-bold uppercase tracking-wider text-primary font-outfit">
-                  {t(category.titleKey, category.defaultTitle)}
+                  {category.defaultTitle}
                 </Typography>
-                
+
                 <div className="border border-border/60 bg-surface-secondary/10 rounded-2xl divide-y divide-border/40 overflow-hidden">
                   {category.types.map((typeObj) => {
                     const inAppEnabled = getPrefState(typeObj.type, "in_app");
                     const emailEnabled = getPrefState(typeObj.type, "email");
-                    const typeLabel = t(typeObj.labelKey, typeObj.type.replace(/_/g, " "));
+                    const typeLabel = NOTIFICATION_TYPES[typeObj.type] || typeObj.type.replace(/_/g, " ");
 
                     return (
                       <div
@@ -461,11 +488,7 @@ export const NotificationDropdown: React.FC = () => {
                             {typeLabel}
                           </Typography>
                           <Typography className="text-[10px] text-muted-secondary leading-normal">
-                            {t(`notifications:messages.${typeObj.type}`, {
-                              actor: t("notifications:general.someone", "Someone"),
-                              role: "Owner",
-                              defaultValue: typeLabel
-                            })}
+                            {getNotificationDescription(typeObj.type, "Someone", 1)}
                           </Typography>
                         </div>
 
@@ -473,7 +496,7 @@ export const NotificationDropdown: React.FC = () => {
                           {/* In App Switch */}
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-semibold text-muted-secondary">
-                              {t("notifications:general.channels.in_app", "In-App")}
+                              In-App
                             </span>
                             <Switch
                               isSelected={inAppEnabled}
@@ -485,14 +508,12 @@ export const NotificationDropdown: React.FC = () => {
                             >
                               {({ isSelected }) => (
                                 <Switch.Control
-                                  className={`w-8 h-4.5 rounded-full relative flex items-center transition-colors duration-200 ${
-                                    isSelected ? "bg-success" : "bg-separator"
-                                  }`}
+                                  className={`w-8 h-4.5 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"
+                                    }`}
                                 >
                                   <Switch.Thumb
-                                    className={`w-3.5 h-3.5 bg-foreground rounded-full absolute transition-all duration-200 ${
-                                      isSelected ? "left-[14px]" : "left-0.5"
-                                    }`}
+                                    className={`w-3.5 h-3.5 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[14px]" : "left-0.5"
+                                      }`}
                                   />
                                 </Switch.Control>
                               )}
@@ -502,7 +523,7 @@ export const NotificationDropdown: React.FC = () => {
                           {/* Email Switch */}
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-semibold text-muted-secondary">
-                              {t("notifications:general.channels.email", "Email")}
+                              Email
                             </span>
                             <Switch
                               isSelected={emailEnabled}
@@ -514,14 +535,12 @@ export const NotificationDropdown: React.FC = () => {
                             >
                               {({ isSelected }) => (
                                 <Switch.Control
-                                  className={`w-8 h-4.5 rounded-full relative flex items-center transition-colors duration-200 ${
-                                    isSelected ? "bg-success" : "bg-separator"
-                                  }`}
+                                  className={`w-8 h-4.5 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"
+                                    }`}
                                 >
                                   <Switch.Thumb
-                                    className={`w-3.5 h-3.5 bg-foreground rounded-full absolute transition-all duration-200 ${
-                                      isSelected ? "left-[14px]" : "left-0.5"
-                                    }`}
+                                    className={`w-3.5 h-3.5 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[14px]" : "left-0.5"
+                                      }`}
                                   />
                                 </Switch.Control>
                               )}

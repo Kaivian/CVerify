@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { useTranslation } from "react-i18next";
 import { Separator, Typography, Tooltip } from "@heroui/react";
 import { type NavigationSectionItem } from "../../../types/navigation.types";
 import SidebarLink from "./sidebar-link";
@@ -20,12 +19,7 @@ export const SidebarSection: React.FC<SidebarSectionProps> = ({
   isMobile,
   depth = 0,
 }) => {
-  const { t } = useTranslation(["common"]);
-
-  // Localized section title with fallback
-  const label = section.translationKey
-    ? t(section.translationKey, { defaultValue: section.label })
-    : section.label;
+  const label = section.label;
 
   return (
     <div className="flex flex-col gap-1 w-full select-none">

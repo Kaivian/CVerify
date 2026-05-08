@@ -23,14 +23,12 @@ import {
   Globe,
   Headset,
 } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { setCookie } from "../../services/axios-client";
 import { useThemeStore } from "../../stores/use-theme-store";
 
 export function AuthAvatar() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const { t, i18n } = useTranslation(["navbar", "common"]);
   const { theme, setTheme } = useThemeStore();
 
   React.useEffect(() => {
@@ -79,14 +77,12 @@ export function AuthAvatar() {
         if (typeof window !== "undefined") {
           localStorage.setItem("i18nextLng", "vi");
         }
-        i18n.changeLanguage("vi");
         break;
       case "lang-en":
         setCookie("i18next", "en");
         if (typeof window !== "undefined") {
           localStorage.setItem("i18nextLng", "en");
         }
-        i18n.changeLanguage("en");
         break;
       case "theme-light":
         setTheme("light");
@@ -136,25 +132,25 @@ export function AuthAvatar() {
               <>
                 <Dropdown.Item
                   id="profile"
-                  textValue={t("navbar:menu.profile", { defaultValue: "View Profile" })}
+                  textValue="View Profile"
                   className="rounded-lg"
                 >
                   <div className="flex items-center gap-2.5 w-full">
                     <User className="size-4 shrink-0 text-muted" />
                     <Label className="cursor-pointer font-semibold text-foreground">
-                      {t("navbar:menu.profile", { defaultValue: "View Profile" })}
+                      View Profile
                     </Label>
                   </div>
                 </Dropdown.Item>
                 <Dropdown.Item
                   id="settings"
-                  textValue={t("navbar:menu.settings", { defaultValue: "Profile Settings" })}
+                  textValue="Profile Settings"
                   className="rounded-lg"
                 >
                   <div className="flex items-center gap-2.5 w-full">
                     <Settings className="size-4 shrink-0 text-muted" />
                     <Label className="cursor-pointer font-semibold text-foreground">
-                      {t("navbar:menu.settings", { defaultValue: "Profile Settings" })}
+                      Profile Settings
                     </Label>
                   </div>
                 </Dropdown.Item>
@@ -162,14 +158,14 @@ export function AuthAvatar() {
             )}
             <Dropdown.Item
               id="balance"
-              textValue={t("navbar:menu.remainCredit", { defaultValue: "Remain Credit" })}
+              textValue="Remain Credit"
               className="rounded-lg"
             >
               <div className="flex items-center justify-between w-full gap-2">
                 <div className="flex items-center gap-2.5">
                   <CreditCard className="size-4 shrink-0 text-muted" />
                   <Label className="cursor-pointer font-semibold text-foreground">
-                    {t("navbar:menu.remainCredit", { defaultValue: "Remain Credit" })}
+                    Remain Credit
                   </Label>
                 </div>
                 <Chip
@@ -188,14 +184,14 @@ export function AuthAvatar() {
             <Dropdown.SubmenuTrigger>
               <Dropdown.Item
                 id="theme-selector"
-                textValue={t("navbar:menu.themes", { defaultValue: "Themes" })}
+                textValue="Themes"
                 className="rounded-lg cursor-pointer"
               >
                 <div className="flex items-center justify-between w-full gap-2">
                   <div className="flex items-center gap-2.5">
                     <Palette className="size-4 shrink-0 text-muted" />
                     <Label className="cursor-pointer font-semibold text-foreground">
-                      {t("navbar:menu.themes", { defaultValue: "Themes" })}
+                      Themes
                     </Label>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -208,7 +204,7 @@ export function AuthAvatar() {
                           <div className="flex items-center gap-1 text-muted">
                             <LaptopMinimal className="size-3" />
                             <span className="text-[10px]">
-                              {t("navbar:menu.themes_system", { defaultValue: "System" })}
+                              System
                             </span>
                           </div>
                         );
@@ -218,7 +214,7 @@ export function AuthAvatar() {
                           <div className="flex items-center gap-1 text-muted">
                             <Moon className="size-3" />
                             <span className="text-[10px]">
-                              {t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
+                              Dark
                             </span>
                           </div>
                         );
@@ -227,7 +223,7 @@ export function AuthAvatar() {
                         <div className="flex items-center gap-1 text-muted">
                           <Sun className="size-3" />
                           <span className="text-[10px]">
-                            {t("navbar:menu.themes_light", { defaultValue: "Light" })}
+                            Light
                           </span>
                         </div>
                       );
@@ -256,37 +252,37 @@ export function AuthAvatar() {
                 >
                   <Dropdown.Item
                     id="light"
-                    textValue={t("navbar:menu.themes_light", { defaultValue: "Light" })}
+                    textValue="Light"
                     className="rounded-lg"
                   >
                     <div className="flex items-center gap-2 w-full">
                       <Sun className="size-4 shrink-0 text-muted" />
                       <Label className="cursor-pointer font-semibold text-foreground">
-                        {t("navbar:menu.themes_light", { defaultValue: "Light" })}
+                        Light
                       </Label>
                     </div>
                   </Dropdown.Item>
                   <Dropdown.Item
                     id="dark"
-                    textValue={t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
+                    textValue="Dark"
                     className="rounded-lg"
                   >
                     <div className="flex items-center gap-2 w-full">
                       <Moon className="size-4 shrink-0 text-muted" />
                       <Label className="cursor-pointer font-semibold text-foreground">
-                        {t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
+                        Dark
                       </Label>
                     </div>
                   </Dropdown.Item>
                   <Dropdown.Item
                     id="system"
-                    textValue={t("navbar:menu.themes_system", { defaultValue: "System" })}
+                    textValue="System"
                     className="rounded-lg"
                   >
                     <div className="flex items-center gap-2 w-full">
                       <LaptopMinimal className="size-4 shrink-0 text-muted" />
                       <Label className="cursor-pointer font-semibold text-foreground">
-                        {t("navbar:menu.themes_system", { defaultValue: "System" })}
+                        System
                       </Label>
                     </div>
                   </Dropdown.Item>
@@ -296,21 +292,21 @@ export function AuthAvatar() {
             <Dropdown.SubmenuTrigger>
               <Dropdown.Item
                 id="language-selector"
-                textValue={t("navbar:menu.languages", { defaultValue: "Languages" })}
+                textValue="Languages"
                 className="rounded-lg"
               >
                 <div className="flex items-center justify-between w-full gap-2">
                   <div className="flex items-center gap-2.5">
                     <Globe className="size-4 shrink-0 text-muted" />
                     <Label className="cursor-pointer font-semibold text-foreground">
-                      {t("navbar:menu.languages", { defaultValue: "Languages" })}
+                      Languages
                     </Label>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center gap-1 text-muted">
                       <Globe className="size-3" />
                       <span className="text-[10px]">
-                        {i18n.language === "vi" ? "VN" : "EN"}
+                        EN
                       </span>
                     </div>
                     <Dropdown.SubmenuIndicator />
@@ -325,7 +321,6 @@ export function AuthAvatar() {
                     if (typeof window !== "undefined") {
                       localStorage.setItem("i18nextLng", lang);
                     }
-                    i18n.changeLanguage(lang);
                   }}
                   className="outline-hidden"
                 >
@@ -356,13 +351,13 @@ export function AuthAvatar() {
             </Dropdown.SubmenuTrigger>
             <Dropdown.Item
               id="support"
-              textValue={t("navbar:menu.support", { defaultValue: "Support" })}
+              textValue="Support"
               className="rounded-lg"
             >
               <div className="flex items-center gap-2.5 w-full">
                 <Headset className="size-4 shrink-0 text-muted" />
                 <Label className="cursor-pointer font-semibold text-foreground">
-                  {t("navbar:menu.support", { defaultValue: "Support" })}
+                  Support
                 </Label>
               </div>
             </Dropdown.Item>
@@ -371,14 +366,14 @@ export function AuthAvatar() {
           <Dropdown.Section className="gap-1">
             <Dropdown.Item
               id="logout"
-              textValue={t("navbar:menu.logout", { defaultValue: "Logout" })}
+              textValue="Logout"
               className="rounded-lg hover:bg-danger-soft"
             >
               <div className="flex items-center justify-between w-full gap-2">
                 <div className="flex items-center gap-2.5">
                   <LogOut className="size-4 shrink-0 rotate-180 text-danger" />
                   <Label className="text-danger cursor-pointer font-bold">
-                    {t("navbar:menu.logout", { defaultValue: "Logout" })}
+                    Logout
                   </Label>
                 </div>
                 <Kbd slot="keyboard" variant="light">

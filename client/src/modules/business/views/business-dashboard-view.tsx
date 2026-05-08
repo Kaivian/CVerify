@@ -4,13 +4,10 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Building2, TrendingUp, HandCoins, Globe, Plus, Settings } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { Typography } from '@heroui/react';
 import { TableActionDropdown } from '@/components/ui/table-action-dropdown';
 
 export function BusinessDashboardView() {
-  const { t } = useTranslation(['dashboard-business', 'common']);
-
   return (
     <div className="space-y-6 font-outfit">
       
@@ -18,17 +15,17 @@ export function BusinessDashboardView() {
       <div className="dark flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-background border border-border text-foreground select-none">
         <div className="space-y-1">
           <Typography type="h2" className="text-xl font-bold flex items-center gap-2 text-foreground">
-            {t('dashboard-business:banner.title')}{' '}
+            Partner Console{' '}
             <Building2 size={20} className="text-accent" />
           </Typography>
           <Typography type="body-xs" className="text-muted font-light mt-0.5">
-            {t('dashboard-business:banner.subtitle')}
+            Monitor your listings, partner revenues, and bookings dynamically.
           </Typography>
         </div>
         <div className="flex gap-2.5">
           <Button variant="solid" className="w-fit self-start bg-accent hover:bg-accent/90 border-none shrink-0 cursor-pointer" size="sm">
             <Plus size={14} />
-            {t('dashboard-business:banner.addListing')}
+            Add Listing
           </Button>
         </div>
       </div>
@@ -41,7 +38,7 @@ export function BusinessDashboardView() {
           <div className="flex justify-between items-start mb-4 select-none">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold block mb-1 tracking-wider">
-                {t('dashboard-business:kpis.activeProducts')}
+                Active Listings
               </Typography>
               <Typography type="h2" className="text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
                 14
@@ -52,7 +49,7 @@ export function BusinessDashboardView() {
             </div>
           </div>
           <Typography type="body-xs" className="text-muted">
-            {t('dashboard-business:kpis.activeProductsSub')}
+            Active packages and services
           </Typography>
         </Card>
 
@@ -61,7 +58,7 @@ export function BusinessDashboardView() {
           <div className="flex justify-between items-start mb-4 select-none">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold block mb-1 tracking-wider">
-                {t('dashboard-business:kpis.totalBookings')}
+                Total Bookings
               </Typography>
               <Typography type="h2" className="text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
                 2,840
@@ -72,7 +69,7 @@ export function BusinessDashboardView() {
             </div>
           </div>
           <Typography type="body-xs" className="text-muted font-medium">
-            {t('dashboard-business:kpis.totalBookingsSub')}
+            Overall completed bookings
           </Typography>
         </Card>
 
@@ -81,7 +78,7 @@ export function BusinessDashboardView() {
           <div className="flex justify-between items-start mb-4 select-none">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold block mb-1 tracking-wider">
-                {t('dashboard-business:kpis.partnerRevenue')}
+                Estimated Revenue
               </Typography>
               <Typography type="h2" className="text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
                 $48,250
@@ -92,7 +89,7 @@ export function BusinessDashboardView() {
             </div>
           </div>
           <Typography type="body-xs" className="text-muted">
-            {t('dashboard-business:kpis.partnerRevenueSub', { days: 14 })}
+            Generated revenue (past 14 days)
           </Typography>
         </Card>
       </div>
@@ -102,15 +99,15 @@ export function BusinessDashboardView() {
         <div className="flex justify-between items-center mb-6 select-none">
           <div>
             <Typography type="h3" className="font-bold text-foreground">
-              {t('dashboard-business:offerings.title')}
+              Service Offerings
             </Typography>
             <Typography type="body-xs" className="text-muted">
-              {t('dashboard-business:offerings.subtitle')}
+              Manage active packages and pricing configurations
             </Typography>
           </div>
           <Button variant="bordered" size="sm" className="cursor-pointer">
             <Settings size={14} className="mr-1" />
-            {t('dashboard-business:offerings.manageSettings')}
+            Listing Settings
           </Button>
         </div>
 
@@ -118,25 +115,25 @@ export function BusinessDashboardView() {
           <table className="w-full text-sm text-left border-collapse">
             <thead>
               <tr className="border-b border-separator text-muted text-xs font-bold font-outfit uppercase tracking-wider">
-                <th className="py-3 px-4">{t('dashboard-business:offerings.table.title')}</th>
-                <th className="py-3 px-4">{t('dashboard-business:offerings.table.category')}</th>
-                <th className="py-3 px-4">{t('dashboard-business:offerings.table.price')}</th>
-                <th className="py-3 px-4">{t('dashboard-business:offerings.table.bookingRate')}</th>
-                <th className="py-3 px-4 text-right">{t('dashboard-business:offerings.table.action')}</th>
+                <th className="py-3 px-4">Title</th>
+                <th className="py-3 px-4">Category</th>
+                <th className="py-3 px-4">Price</th>
+                <th className="py-3 px-4">Volume</th>
+                <th className="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-separator text-foreground/90 font-medium">
               <tr>
                 <td className="py-3 px-4 font-semibold text-foreground">Indochina Beach Retreat</td>
-                <td className="py-3 px-4">{t('dashboard-business:offerings.table.hotelBundle')}</td>
+                <td className="py-3 px-4">Hotel Package</td>
                 <td className="py-3 px-4 font-mono font-medium">$240/night</td>
-                <td className="py-3 px-4">{t('dashboard-business:offerings.table.occupancy', { percent: 84 })}</td>
+                <td className="py-3 px-4">84% Occupancy</td>
                 <td className="py-3 px-4 text-right">
                   <TableActionDropdown
                     actions={[
                       {
                         id: 'edit',
-                        label: t('dashboard-business:offerings.table.edit'),
+                        label: 'Edit',
                         icon: Settings,
                         onSelect: () => console.log('Edit listing Indochina Beach Retreat'),
                       }
@@ -146,15 +143,15 @@ export function BusinessDashboardView() {
               </tr>
               <tr>
                 <td className="py-3 px-4 font-semibold text-foreground">Majestic Sapa trekking bundle</td>
-                <td className="py-3 px-4">{t('dashboard-business:offerings.table.itineraryGuide')}</td>
+                <td className="py-3 px-4">Itinerary Guide</td>
                 <td className="py-3 px-4 font-mono font-medium">$45/person</td>
-                <td className="py-3 px-4">{t('dashboard-business:offerings.table.bookings', { count: 120 })}</td>
+                <td className="py-3 px-4">120 Bookings</td>
                 <td className="py-3 px-4 text-right">
                   <TableActionDropdown
                     actions={[
                       {
                         id: 'edit',
-                        label: t('dashboard-business:offerings.table.edit'),
+                        label: 'Edit',
                         icon: Settings,
                         onSelect: () => console.log('Edit listing Majestic Sapa trekking bundle'),
                       }

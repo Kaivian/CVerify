@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { useFormContext, Controller } from 'react-hook-form';
 import { TextField, Input, Label, FieldError, Typography } from '@heroui/react';
 import { Eye, EyeOff } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 
 interface FormInputProps {
   name: string;
@@ -24,12 +23,8 @@ export const FormInput: React.FC<FormInputProps> = ({
   autoComplete,
 }) => {
   const { control, formState: { errors } } = useFormContext();
-  const { t } = useTranslation();
   const error = errors[name];
-  const errorMessage = error?.message as string | undefined;
-  const translatedMessage = errorMessage
-    ? (errorMessage.includes(':') ? (t as (key: string) => string)(errorMessage) : errorMessage)
-    : undefined;
+  const translatedMessage = error?.message as string | undefined;
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -55,7 +50,7 @@ export const FormInput: React.FC<FormInputProps> = ({
                 {label}
               </Label>
             )}
-            
+
             <div className="relative flex items-center w-full">
               <Input
                 type={currentType}
@@ -70,10 +65,10 @@ export const FormInput: React.FC<FormInputProps> = ({
                   translatedMessage
                     ? "border-danger focus:border-danger focus:ring-1 focus:ring-danger/20"
                     : "border-field-border focus:border-focus focus:ring-1 focus:ring-focus/20",
-                  disabled ? "opacity-[var(--disabled-opacity)] cursor-not-allowed bg-surface-secondary" : "",
+                  disabled ? "opacity-(--disabled-opacity) cursor-not-allowed bg-surface-secondary" : "",
                 ].join(' ')}
               />
-              
+
               {/* Password visibility toggle */}
               {isPassword && (
                 <button

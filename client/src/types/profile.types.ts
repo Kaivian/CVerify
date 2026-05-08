@@ -223,6 +223,19 @@ export interface PublicCareerPreference {
   workPreferenceNotes?: string | null;
 }
 
+export interface PublicRepository {
+  id: string;
+  name: string;
+  owner: string;
+  description: string | null;
+  htmlUrl: string | null;
+  primaryLanguage: string | null;
+  trustScore: number;
+  classification: string | null;
+  latestAnalysisStatus: string;
+  latestAnalysisCompletedAtUtc: string | null;
+}
+
 export interface PublicProfileResponse {
   userId: string;
   username: string;
@@ -234,6 +247,8 @@ export interface PublicProfileResponse {
   location: string | null;
   socialLinks: string[];
   careerPreference?: PublicCareerPreference | null;
+  trustScore?: number | null;
+  repositories?: PublicRepository[] | null;
 }
 
 export interface WorkExperienceAchievement {

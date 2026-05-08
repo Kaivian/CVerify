@@ -26,6 +26,12 @@ export const routesConfig: Record<string, RouteMetadata> = {
     fallbackLabel: 'Settings',
     icon: Settings,
   },
+  '/cv': {
+    path: '/cv',
+    translationKey: 'common:dashboard.cv',
+    fallbackLabel: 'My CV',
+    icon: FileText,
+  },
   '/user': {
     path: '/user',
     translationKey: 'common:dashboard.travelerHub',

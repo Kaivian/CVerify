@@ -87,6 +87,13 @@ public class UsernameServiceTests
         act.Should().Throw<ValidationException>().WithMessage("*reserved and cannot be used*");
     }
 
+    [Fact]
+    public void IsReserved_ShouldReturnTrue_ForCv()
+    {
+        // Act & Assert
+        _service.IsReserved("cv").Should().BeTrue();
+    }
+
     [Theory]
     [InlineData("  Username  ", "username")]
     [InlineData("USER_NAME", "user_name")]

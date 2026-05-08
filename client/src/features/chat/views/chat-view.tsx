@@ -16,9 +16,7 @@ import {
   Check
 } from 'lucide-react';
 import { Spinner, Typography } from '@heroui/react';
-import { useTranslation } from 'react-i18next';
 import { useRovingTabindex } from '@/hooks/use-roving-tabindex';
-
 import { parseAndSanitizeMarkdown } from '@/lib/markdown';
 
 export function ChatView() {
@@ -41,7 +39,6 @@ export function ChatView() {
   const [input, setInput] = useState('');
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { t } = useTranslation(['chat-verification', 'common']);
 
   const {
     listRef,
@@ -105,7 +102,7 @@ export function ChatView() {
             disabled={isStreaming}
           >
             <Plus size={16} />
-            {t('chat-verification:sidebar.newChat')}
+            New Chat
           </Button>
         </div>
 
@@ -114,11 +111,11 @@ export function ChatView() {
           {isLoadingConversations ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 select-none">
               <Spinner size="sm" color="accent" />
-              <Typography type="body-xs" className="text-muted font-semibold">{t('common:buttons.loading')}</Typography>
+              <Typography type="body-xs" className="text-muted font-semibold">Loading...</Typography>
             </div>
           ) : conversations.length === 0 ? (
             <div className="p-6 text-center text-muted text-xs select-none">
-              {t('chat-verification:sidebar.empty')}
+              No conversations yet.
             </div>
           ) : (
             <ul
@@ -143,8 +140,8 @@ export function ChatView() {
                       className={[
                         "flex-1 flex items-center gap-2.5 px-3 py-2.5 text-left rounded-xl transition-all duration-200 select-none focus-ring cursor-pointer",
                         isActive
-                          ? "bg-surface-secondary text-foreground border border-border/30"
-                          : "text-muted hover:bg-surface-secondary/40 hover:text-foreground"
+                           ? "bg-surface-secondary text-foreground border border-border/30"
+                           : "text-muted hover:bg-surface-secondary/40 hover:text-foreground"
                       ].join(' ')}
                       aria-label={`Select conversation: ${c.title}`}
                     >
@@ -187,7 +184,7 @@ export function ChatView() {
               <AlertCircle size={14} />
               {error}
             </span>
-            <button onClick={clearError} className="font-bold hover:underline cursor-pointer">{t('common:buttons.close')}</button>
+            <button onClick={clearError} className="font-bold hover:underline cursor-pointer">Close</button>
           </div>
         )}
 
@@ -196,7 +193,7 @@ export function ChatView() {
           {isLoadingMessages ? (
             <div className="flex flex-col items-center justify-center h-full gap-2">
               <Spinner size="lg" color="accent" />
-              <Typography type="body-sm" className="text-muted font-medium">{t('common:buttons.loading')}</Typography>
+              <Typography type="body-sm" className="text-muted font-medium">Loading...</Typography>
             </div>
           ) : messages.length === 0 ? (
             // EMBED EMPTY STATE SUGGESTIONS
@@ -206,10 +203,10 @@ export function ChatView() {
                   <Sparkles size={24} className="animate-pulse" />
                 </div>
                 <Typography type="h2" className="text-xl font-bold tracking-tight text-foreground font-outfit mt-2">
-                  {t('chat-verification:title')}
+                  AI Travel Planner
                 </Typography>
                 <Typography type="body-xs" className="text-muted max-w-sm leading-normal">
-                  {t('chat-verification:welcomeDesc')}
+                  Ask anything to generate custom itineraries, evaluate routes, and book trips using our advanced AI travel companion.
                 </Typography>
               </div>
 
@@ -218,42 +215,42 @@ export function ChatView() {
                 <Card 
                   as="button"
                   type="button"
-                  onClick={() => handleSuggestionClick(t('chat-verification:suggestions.kyotoPrompt'))}
+                  onClick={() => handleSuggestionClick("Recommend a 3-day cultural itinerary in Kyoto, including temples and local dining.")}
                   className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5 focus-ring"
                   glow={false}
-                  aria-label={`Suggestion: ${t('chat-verification:suggestions.kyotoTitle')}`}
+                  aria-label="Suggestion: Kyoto Culture"
                 >
-                  <span className="text-[10px] font-extrabold tracking-wider text-accent uppercase">{t('chat-verification:suggestions.kyotoTitle')}</span>
+                  <span className="text-[10px] font-extrabold tracking-wider text-accent uppercase">Kyoto Culture</span>
                   <p className="text-[11px] font-semibold text-foreground/90 leading-normal">
-                    &quot;{t('chat-verification:suggestions.kyotoDesc')}&quot;
+                    &quot;Recommend a 3-day cultural itinerary in Kyoto...&quot;
                   </p>
                 </Card>
                 
                 <Card 
                   as="button"
                   type="button"
-                  onClick={() => handleSuggestionClick(t('chat-verification:suggestions.yosemitePrompt'))}
+                  onClick={() => handleSuggestionClick("Draft a weekend hiking itinerary for Yosemite National Park with safety advice.")}
                   className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5 focus-ring"
                   glow={false}
-                  aria-label={`Suggestion: ${t('chat-verification:suggestions.yosemiteTitle')}`}
+                  aria-label="Suggestion: Yosemite Hiking"
                 >
-                  <span className="text-[10px] font-extrabold tracking-wider text-success uppercase">{t('chat-verification:suggestions.yosemiteTitle')}</span>
+                  <span className="text-[10px] font-extrabold tracking-wider text-success uppercase">Yosemite Hiking</span>
                   <p className="text-[11px] font-semibold text-foreground/90 leading-normal">
-                    &quot;{t('chat-verification:suggestions.yosemiteDesc')}&quot;
+                    &quot;Draft a weekend hiking itinerary for Yosemite...&quot;
                   </p>
                 </Card>
 
                 <Card 
                   as="button"
                   type="button"
-                  onClick={() => handleSuggestionClick(t('chat-verification:suggestions.romePrompt'))}
+                  onClick={() => handleSuggestionClick("Create a family-friendly walking tour of ancient Rome historical sites.")}
                   className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5 focus-ring"
                   glow={false}
-                  aria-label={`Suggestion: ${t('chat-verification:suggestions.romeTitle')}`}
+                  aria-label="Suggestion: Ancient Rome"
                 >
-                  <span className="text-[10px] font-extrabold tracking-wider text-warning uppercase">{t('chat-verification:suggestions.romeTitle')}</span>
+                  <span className="text-[10px] font-extrabold tracking-wider text-warning uppercase">Ancient Rome</span>
                   <p className="text-[11px] font-semibold text-foreground/90 leading-normal">
-                    &quot;{t('chat-verification:suggestions.romeDesc')}&quot;
+                    &quot;Create a family-friendly walking tour of ancient Rome...&quot;
                   </p>
                 </Card>
               </div>
@@ -290,7 +287,7 @@ export function ChatView() {
                           <button
                             onClick={() => handleCopy(m.content, m.id)}
                             className="p-1 rounded bg-surface hover:bg-surface-secondary text-muted transition-colors cursor-pointer focus-ring"
-                            title={t('chat-verification:actions.copy')}
+                            title="Copy"
                           >
                             {copiedMap[m.id] ? <Check size={13} className="text-success" /> : <Copy size={13} />}
                           </button>
@@ -299,7 +296,7 @@ export function ChatView() {
                         {m.streamingState === 'Pending' ? (
                           <div className="flex items-center gap-2.5 py-1 text-muted select-none">
                             <Spinner size="sm" color="accent" />
-                            <span className="text-xs font-semibold animate-pulse">{t('chat-verification:placeholders.streaming')}</span>
+                            <span className="text-xs font-semibold animate-pulse">AI is typing...</span>
                           </div>
                         ) : (
                           <div 
@@ -325,7 +322,7 @@ export function ChatView() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isStreaming}
-              placeholder={t('chat-verification:placeholders.input')}
+              placeholder="Ask our travel assistant..."
               className="flex-1 px-4 py-3 rounded-xl border border-border bg-surface-secondary/50 backdrop-blur-sm text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-focus transition-all select-text pr-24"
             />
             

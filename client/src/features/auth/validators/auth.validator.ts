@@ -9,7 +9,7 @@ export const passwordValidation = z.string().superRefine((val, ctx) => {
   if (!policyResult.isValid) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'auth:validation.passwordStrength',
+      message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
     });
   }
 });
@@ -19,7 +19,7 @@ export const enterprisePasswordValidation = z.string().superRefine((val, ctx) =>
   if (!policyResult.isValid) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'auth:validation.enterprisePasswordStrength',
+      message: 'Password must contain at least 12 characters, including one uppercase letter, one lowercase letter, one number, and one special character.',
     });
   }
 });
@@ -27,11 +27,11 @@ export const enterprisePasswordValidation = z.string().superRefine((val, ctx) =>
 export const loginSchema = z.object({
   email: z
     .string()
-    .min(1, { message: 'auth:validation.emailRequired' })
-    .email({ message: 'auth:validation.emailInvalid' }),
+    .min(1, { message: 'Email address is required.' })
+    .email({ message: 'Please enter a valid email address.' }),
   password: z
     .string()
-    .min(1, { message: 'auth:validation.passwordRequired' }),
+    .min(1, { message: 'Password is required.' }),
   rememberMe: z.boolean(),
 });
 
@@ -39,42 +39,42 @@ export const registerSchema = z
   .object({
     fullName: z
       .string()
-      .min(2, { message: 'auth:validation.fullNameMin' })
-      .max(100, { message: 'auth:validation.fullNameMax' })
+      .min(2, { message: 'Full name must be at least 2 characters.' })
+      .max(100, { message: 'Full name cannot exceed 100 characters.' })
       .trim()
       .regex(/^[\p{L}\p{M}\s'-]+$/u, {
-        message: 'auth:validation.fullNameInvalid',
+        message: 'Full name can only contain letters, spaces, hyphens, and apostrophes.',
       }),
     email: z
       .string()
-      .min(1, { message: 'auth:validation.emailRequired' })
-      .email({ message: 'auth:validation.emailInvalid' })
+      .min(1, { message: 'Email address is required.' })
+      .email({ message: 'Please enter a valid email address.' })
       .toLowerCase(),
     password: passwordValidation,
-    confirmPassword: z.string().min(1, { message: 'auth:validation.confirmPasswordRequired' }),
+    confirmPassword: z.string().min(1, { message: 'Confirm password is required.' }),
     agreeTerms: z.boolean().refine((val) => val === true, {
-      message: 'auth:validation.agreeTermsRequired',
+      message: 'You must agree to the Terms of Service and Privacy Policy.',
     }),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'auth:validation.passwordsMismatch',
+    message: 'Passwords do not match.',
     path: ['confirmPassword'],
   });
 
 export const forgotPasswordSchema = z.object({
   email: z
     .string()
-    .min(1, { message: 'auth:validation.emailRequired' })
-    .email({ message: 'auth:validation.emailInvalid' }),
+    .min(1, { message: 'Email address is required.' })
+    .email({ message: 'Please enter a valid email address.' }),
 });
 
 export const resetPasswordSchema = z
   .object({
     password: passwordValidation,
-    confirmPassword: z.string().min(1, { message: 'auth:validation.confirmPasswordRequired' }),
+    confirmPassword: z.string().min(1, { message: 'Confirm password is required.' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'auth:validation.passwordsMismatch',
+    message: 'Passwords do not match.',
     path: ['confirmPassword'],
   });
 
@@ -84,11 +84,11 @@ export const createPasswordSchema = z
     email: z.string().email(),
     verificationToken: z.string(),
     password: passwordValidation,
-    confirmPassword: z.string().min(1, { message: 'auth:validation.confirmPasswordRequired' }),
+    confirmPassword: z.string().min(1, { message: 'Confirm password is required.' }),
     fullName: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'auth:validation.passwordsMismatch',
+    message: 'Passwords do not match.',
     path: ['confirmPassword'],
   });
 
@@ -109,10 +109,10 @@ export const setupWorkspaceSchema = z
       message: 'Workspace name must be 3-30 characters, lowercase alphanumeric or underscore',
     }),
     password: passwordValidation,
-    confirmPassword: z.string().min(1, { message: 'auth:validation.confirmPasswordRequired' }),
+    confirmPassword: z.string().min(1, { message: 'Confirm password is required.' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'auth:validation.passwordsMismatch',
+    message: 'Passwords do not match.',
     path: ['confirmPassword'],
   });
 

@@ -244,7 +244,7 @@ export default function PublicWorkspaceLayout({
         {/* Main Header Card */}
         <Card className="p-0 overflow-hidden border border-border bg-surface shadow-lg rounded-2xl">
           {/* Banner Frame */}
-          <div className="h-44 md:h-52 w-full relative border-b border-border overflow-hidden bg-neutral-900 flex items-center justify-center">
+          <div className="h-44 md:h-52 w-full relative border-b border-border overflow-hidden bg-surface-secondary flex items-center justify-center">
             {workspaceDetails.bannerUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img

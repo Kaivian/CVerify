@@ -3,14 +3,12 @@
 import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Breadcrumbs } from "@heroui/react";
-import { useTranslation } from "react-i18next";
 import { getRouteMetadata, getDynamicSegmentLabel } from "../../config/routes";
 import { useAuth } from "../../features/auth/hooks/use-auth";
 
 export const AppBreadcrumbs: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const { t } = useTranslation(["common"]);
   const { user } = useAuth();
   const isBusiness = user?.role === "BUSINESS";
 
@@ -40,10 +38,8 @@ export const AppBreadcrumbs: React.FC = () => {
     let label = "";
 
     if (metadata) {
-      // Resolve localized label using standard translation key if present
-      label = t(metadata.translationKey, {
-        defaultValue: metadata.fallbackLabel,
-      });
+      // Use fallbackLabel directly (English text)
+      label = metadata.fallbackLabel;
     } else {
       // If no route metadata exists, dynamically format the raw segment (e.g. UUID, number, slug)
       label = getDynamicSegmentLabel(segment);
