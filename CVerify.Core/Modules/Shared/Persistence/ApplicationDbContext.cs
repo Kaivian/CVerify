@@ -125,6 +125,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<OrganizationInvitationRole> OrganizationInvitationRoles => Set<OrganizationInvitationRole>();
     public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
 
+    public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
+    public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
+    public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
+
     public DbSet<AdminMember> AdminMembers => Set<AdminMember>();
     public DbSet<AdminInvitation> AdminInvitations => Set<AdminInvitation>();
     public DbSet<AdminInvitationRole> AdminInvitationRoles => Set<AdminInvitationRole>();
@@ -1192,6 +1196,65 @@ public class ApplicationDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(oir => oir.InvitationId)
                   .HasDatabaseName("idx_org_invitation_roles_invite");
+        });
+
+        // ActivityEvent configurations
+        modelBuilder.Entity<ActivityEvent>(entity =>
+        {
+            entity.ToTable("activity_events");
+            entity.HasKey(ae => ae.Id);
+            entity.Property(ae => ae.Id).ValueGeneratedNever();
+            entity.HasOne(ae => ae.Organization)
+                  .WithMany()
+                  .HasForeignKey(ae => ae.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(ae => ae.ActorUser)
+                  .WithMany()
+                  .HasForeignKey(ae => ae.ActorUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(ae => new { ae.OrganizationId, ae.CreatedAt })
+                  .HasDatabaseName("idx_activity_events_org_created");
+            entity.HasIndex(ae => ae.CorrelationId)
+                  .HasDatabaseName("idx_activity_events_correlation");
+        });
+
+        // InAppNotification configurations
+        modelBuilder.Entity<InAppNotification>(entity =>
+        {
+            entity.ToTable("in_app_notifications");
+            entity.HasKey(ian => ian.Id);
+            entity.Property(ian => ian.Id).ValueGeneratedNever();
+            entity.HasOne(ian => ian.User)
+                  .WithMany()
+                  .HasForeignKey(ian => ian.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(ian => ian.ActivityEvent)
+                  .WithMany()
+                  .HasForeignKey(ian => ian.ActivityEventId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(ian => ian.UserId)
+                  .HasDatabaseName("idx_in_app_notifications_user_id");
+            entity.HasIndex(ian => new { ian.UserId, ian.IsRead })
+                  .HasFilter("deleted_at IS NULL")
+                  .HasDatabaseName("idx_in_app_notifications_user_unread");
+            entity.HasIndex(ian => new { ian.UserId, ian.AggregateKey })
+                  .HasFilter("is_read = FALSE AND deleted_at IS NULL")
+                  .HasDatabaseName("idx_in_app_notifications_aggregate");
+        });
+
+        // NotificationPreference configurations
+        modelBuilder.Entity<NotificationPreference>(entity =>
+        {
+            entity.ToTable("notification_preferences");
+            entity.HasKey(np => np.Id);
+            entity.Property(np => np.Id).ValueGeneratedNever();
+            entity.HasOne(np => np.User)
+                  .WithMany()
+                  .HasForeignKey(np => np.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(np => new { np.UserId, np.NotificationType, np.Channel })
+                  .IsUnique()
+                  .HasDatabaseName("idx_user_notification_prefs");
         });
     }
 

@@ -105,6 +105,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   }, [organizationSlug]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAvailableRoles();
   }, [fetchAvailableRoles]);
 
@@ -152,6 +153,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   // Initial loads and tab switching triggers
   useEffect(() => {
     if (activeTab === "directory") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchMembers();
     } else {
       fetchInvitations();

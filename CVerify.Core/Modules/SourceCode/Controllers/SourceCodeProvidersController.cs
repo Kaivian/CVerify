@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using CVerify.API.Modules.SourceCode.Services;
 using CVerify.API.Modules.SourceCode.DTOs;
-using CVerify.API.Modules.Admin.DTOs;
+using CVerify.API.Modules.Shared.System.DTOs;
 
 namespace CVerify.API.Modules.SourceCode.Controllers;
 

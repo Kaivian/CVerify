@@ -10,6 +10,7 @@ import { useSidebarStore } from "../stores/use-sidebar-store";
 import { AuthOrchestrator } from "../features/auth/components/auth-orchestrator";
 import { NotificationHub } from "../infrastructure/notifications/orchestrator";
 import { HeroUIToastRenderer } from "../infrastructure/notifications/renderers/heroui-toast-renderer";
+import { SignalRProvider } from "../providers/signalr-provider";
 
 export function Providers({
   children,
@@ -134,7 +135,9 @@ export function Providers({
     <>
       <Toast.Provider />
       <AuthOrchestrator />
-      {children}
+      <SignalRProvider>
+        {children}
+      </SignalRProvider>
     </>
   );
 }

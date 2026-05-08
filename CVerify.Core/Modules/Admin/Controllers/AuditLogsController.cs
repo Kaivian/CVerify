@@ -10,6 +10,7 @@ using CVerify.API.Modules.Admin.DTOs;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security.Authorization.Attributes;
+using CVerify.API.Modules.Shared.System.DTOs;
 
 namespace CVerify.API.Modules.Admin.Controllers;
 

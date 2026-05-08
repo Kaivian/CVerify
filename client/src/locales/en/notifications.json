@@ -3,7 +3,33 @@
     "success": "Success!",
     "error": "Error!",
     "warning": "Warning!",
-    "info": "Information"
+    "info": "Information",
+    "notifications": "Notifications",
+    "preferences": "Notification Preferences",
+    "markAllAsRead": "Mark all as read",
+    "unread": "Unread",
+    "all": "All",
+    "noNotifications": "No notifications yet",
+    "settings": "Settings",
+    "save": "Save Changes",
+    "delete": "Delete",
+    "someone": "Someone",
+    "channels": {
+      "in_app": "In-App",
+      "email": "Email"
+    },
+    "time": {
+      "justNow": "Just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    },
+    "categories": {
+      "memberTitle": "Members & Roles",
+      "projectTitle": "Projects & Repositories",
+      "verificationTitle": "Verification & Compliance",
+      "securityTitle": "Security Alerts"
+    }
   },
   "session": {
     "timeoutTitle": "Session Inactivity Warning",
@@ -20,5 +46,34 @@
   "clipboard": {
     "copySuccessTitle": "Copied to Clipboard",
     "copySuccessDesc": "The AI itinerary layout text was successfully copied."
+  },
+  "types": {
+    "MEMBER_INVITED": "New Member Invited",
+    "MEMBER_JOINED": "Member Joined",
+    "MEMBER_LEFT": "Member Left",
+    "MEMBER_REMOVED": "Member Removed",
+    "MEMBER_SUSPENDED": "Member Suspended",
+    "MEMBER_ACTIVATED": "Member Activated",
+    "ROLE_ASSIGNED": "Role Assigned",
+    "ROLE_UPDATED": "Role Updated",
+    "PROJECT_CREATED": "Project Created",
+    "REPOSITORY_CONNECTED": "Repository Connected",
+    "REPOSITORY_ANALYZED": "Repository Analysis Completed",
+    "VERIFICATION_COMPLETED": "Verification Completed",
+    "VERIFICATION_FAILED": "Verification Failed",
+    "PASSWORD_CHANGED": "Security Alert: Password Changed",
+    "IP_VERIFIED": "Security Alert: New IP Verified"
+  },
+  "messages": {
+    "MEMBER_JOINED_single": "{{actor}} joined the organization.",
+    "MEMBER_JOINED_multiple": "{{actor}} and {{count}} others joined.",
+    "MEMBER_LEFT_single": "{{actor}} left the organization.",
+    "MEMBER_LEFT_multiple": "{{actor}} and {{count}} others left.",
+    "MEMBER_INVITED": "{{actor}} invited a new member.",
+    "ROLE_ASSIGNED": "Role {{role}} was assigned to {{actor}}.",
+    "VERIFICATION_COMPLETED": "Verification for organization completed successfully.",
+    "VERIFICATION_FAILED": "Verification for organization failed.",
+    "PASSWORD_CHANGED": "Your password was recently changed. If this wasn't you, please secure your account.",
+    "IP_VERIFIED": "A new IP address was successfully verified for your account."
   }
 }

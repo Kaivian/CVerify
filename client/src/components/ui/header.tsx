@@ -2,10 +2,11 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { Menu, PanelLeft, Bell, Compass } from "lucide-react";
+import { Menu, PanelLeft, Compass } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useSidebarStore } from "../../stores/use-sidebar-store";
 import { AuthAvatar } from "./auth-avatar";
+import { NotificationDropdown } from "./notification-dropdown";
 import { Typography, Button, Separator } from "@heroui/react";
 import { getRouteMetadata, getDynamicSegmentLabel } from "../../config/routes";
 import { AppBreadcrumbs } from "../../components/ui/app-breadcrumbs";
@@ -78,15 +79,8 @@ export const Header: React.FC = () => {
       {/* Right side: Notifications, Session status, User profile avatar */}
       <div className="flex items-center gap-3">
         {/* Session protected indicator */}
-        {/* Action Button: Notifications (Placeholder for Page-level actions) */}
-        <Button
-          variant="ghost"
-          isIconOnly
-          aria-label={t("navbar:notifications.title", { defaultValue: "Notifications" })}
-          className="rounded-lg"
-        >
-          <Bell size={18} />
-        </Button>
+        {/* Action Button: Notifications */}
+        <NotificationDropdown />
         <Separator orientation="vertical" variant="tertiary" />
         {/* User profile dropdown avatar (always in Header now!) */}
         <AuthAvatar />

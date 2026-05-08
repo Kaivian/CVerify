@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using CVerify.API.Modules.SourceCode.DTOs;
-using CVerify.API.Modules.Admin.DTOs;
+using CVerify.API.Modules.Shared.System.DTOs;
 
 namespace CVerify.API.Modules.SourceCode.Services;
 
