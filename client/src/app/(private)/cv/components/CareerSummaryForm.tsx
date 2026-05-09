@@ -21,7 +21,7 @@ export const CareerSummaryForm: React.FC<CareerSummaryFormProps> = ({
 }) => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (draft.bio.length > 500) {
+    if (draft.bio.length > 160) {
       return;
     }
     await onSave();
@@ -29,7 +29,7 @@ export const CareerSummaryForm: React.FC<CareerSummaryFormProps> = ({
 
   return (
     <form onSubmit={handleSave} className="flex flex-col h-full overflow-hidden relative text-left">
-      <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-20">
         <div className="flex flex-col gap-1.5">
           <label className="text-[11px] font-bold text-foreground">
             Bio Summary
@@ -37,13 +37,13 @@ export const CareerSummaryForm: React.FC<CareerSummaryFormProps> = ({
           <TextArea
             aria-label="Bio Summary"
             value={draft.bio}
-            onChange={(e) => onChange({ bio: e.target.value.slice(0, 500) })}
+            onChange={(e) => onChange({ bio: e.target.value.slice(0, 160) })}
             placeholder="Brief description of yourself and career direction (Uses Bio)"
             rows={6}
-            maxLength={500}
+            maxLength={160}
           />
           <div className="text-[10px] text-muted-foreground flex justify-end select-none">
-            {draft.bio.length}/500 characters
+            {draft.bio.length}/160 characters
           </div>
         </div>
       </div>

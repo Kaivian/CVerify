@@ -57,7 +57,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
   const validateItem = (item: EducationDraftItem): boolean => {
     const newErrors: Record<string, string> = {};
     if (!item.schoolName.trim()) newErrors.schoolName = "This field is required";
-    if (!item.label.trim()) newErrors.label = "This field is required";
+    if (!item.degree.trim()) newErrors.degree = "This field is required";
     if (!item.startDate) newErrors.startDate = "This field is required";
 
     if (item.startDate && item.endDate && !item.isCurrentlyStudying) {
@@ -87,7 +87,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative text-left">
-      <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-20">
         {editingItem ? (
         // Inline Edit Mode
         <div className="flex flex-col gap-5 border border-border/40 p-5 rounded-2xl bg-surface-secondary/5">
@@ -121,11 +121,11 @@ export const EducationForm: React.FC<EducationFormProps> = ({
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">Degree *</label>
               <Input
-                value={editingItem.label}
-                onChange={(e) => setEditingItem({ ...editingItem, label: e.target.value })}
+                value={editingItem.degree}
+                onChange={(e) => setEditingItem({ ...editingItem, degree: e.target.value, label: e.target.value })}
                 placeholder="Bachelor of Software Engineering"
               />
-              {errors.label && <span className="text-[10px] text-danger">{errors.label}</span>}
+              {errors.degree && <span className="text-[10px] text-danger">{errors.degree}</span>}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -251,7 +251,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                       {item.schoolName}
                     </span>
                     <span className="text-[10px] text-muted-foreground font-medium">
-                      {item.label} {item.major ? `- ${item.major}` : ""} ({item.startDate} to {item.isCurrentlyStudying ? "Present" : item.endDate})
+                      {item.degree || item.label} {item.major ? `- ${item.major}` : ""} ({item.startDate} to {item.isCurrentlyStudying ? "Present" : item.endDate})
                     </span>
                   </div>
                   <div className="flex gap-2">

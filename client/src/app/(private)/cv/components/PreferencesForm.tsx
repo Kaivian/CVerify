@@ -114,7 +114,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
 
   return (
     <form onSubmit={handleSave} className="flex flex-col h-full overflow-hidden relative text-left text-xs">
-      <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-20">
         <div className="flex items-center justify-between gap-6 border-b border-border/20 pb-4 select-none">
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-sm text-foreground">Available for Hire</span>

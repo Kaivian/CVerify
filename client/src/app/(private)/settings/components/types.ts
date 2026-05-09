@@ -23,6 +23,9 @@ export const educationEntrySchema = z
     school: z
       .string()
       .min(2, "School/University name must be at least 2 characters"),
+    degree: z.string().nullable().optional(),
+    major: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
     isCurrentlyStudying: z.boolean(),
     period: z.any().nullable().optional(),
     gpa: z
