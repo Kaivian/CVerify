@@ -20,7 +20,9 @@ public class SecurityHeadersMiddleware
         "/api/auth/google",
         "/health",
         "/api/system/status",
-        "/api/ai/chat/stream"
+        "/api/ai/chat/stream",
+        "/hubs/notifications/negotiate",
+        "/hubs/admin/negotiate"
     };
 
     public SecurityHeadersMiddleware(RequestDelegate next)

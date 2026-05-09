@@ -1030,6 +1030,7 @@ export default function SourceCodeProvidersPage() {
                           <Avatar.Image
                             src={prov.providerAvatarUrl}
                             alt={prov.providerDisplayName || prov.providerUsername || ""}
+                            referrerPolicy="no-referrer"
                           />
                         )}
                         <Avatar.Fallback>

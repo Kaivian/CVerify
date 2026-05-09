@@ -395,6 +395,7 @@ export const LinkedAccountsList: React.FC = () => {
                                   conn.providerUsername ||
                                   ""
                                 }
+                                referrerPolicy="no-referrer"
                               />
                             )}
                             <Avatar.Fallback>
@@ -607,6 +608,7 @@ export const LinkedAccountsList: React.FC = () => {
                                   conn.providerUsername ||
                                   ""
                                 }
+                                referrerPolicy="no-referrer"
                               />
                             )}
                             <Avatar.Fallback>
@@ -781,6 +783,7 @@ export const LinkedAccountsList: React.FC = () => {
                             pendingDetails.providerUsername ||
                             ""
                           }
+                          referrerPolicy="no-referrer"
                         />
                       )}
                       <Avatar.Fallback>

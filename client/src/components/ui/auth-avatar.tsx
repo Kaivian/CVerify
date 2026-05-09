@@ -108,7 +108,7 @@ export function AuthAvatar() {
         <>
           <Avatar key={user.avatarUrl || "default"}>
             {user.avatarUrl && (
-              <Avatar.Image src={user.avatarUrl} alt={user.fullName} />
+              <Avatar.Image src={user.avatarUrl} alt={user.fullName} referrerPolicy="no-referrer" />
             )}
             <Avatar.Fallback className="font-bold text-xs">
               {initials}
