@@ -103,6 +103,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
               variant="secondary"
               className="rounded-xl border border-border/30 h-8 w-8"
               onPress={() => setEditingItem(null)}
+              aria-label="Close edit mode"
             >
               <X className="size-4" />
             </Button>
@@ -115,6 +116,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 value={editingItem.title}
                 onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
                 placeholder="AWS Certified Solutions Architect"
+                aria-label="Certificate or Achievement name"
               />
               {errors.title && <span className="text-[10px] text-danger">{errors.title}</span>}
             </div>
@@ -125,6 +127,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 value={editingItem.issuer}
                 onChange={(e) => setEditingItem({ ...editingItem, issuer: e.target.value })}
                 placeholder="Amazon Web Services (AWS)"
+                aria-label="Issuer"
               />
               {errors.issuer && <span className="text-[10px] text-danger">{errors.issuer}</span>}
             </div>
@@ -145,6 +148,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 value={editingItem.credentialUrl}
                 onChange={(e) => setEditingItem({ ...editingItem, credentialUrl: e.target.value })}
                 placeholder="https://aws.amazon.com/verify/..."
+                aria-label="Credential URL"
               />
               {errors.credentialUrl && <span className="text-[10px] text-danger">{errors.credentialUrl}</span>}
             </div>
@@ -157,6 +161,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
               onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
               placeholder="Provide a brief description of the achievement..."
               rows={3}
+              aria-label="Achievement description"
             />
           </div>
 
@@ -203,6 +208,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                       variant="secondary"
                       className="rounded-xl border border-border/30 h-8 w-8"
                       onPress={() => handleEdit(item)}
+                      aria-label={`Edit achievement ${item.title}`}
                     >
                       <Edit2 className="size-3.5" />
                     </Button>
@@ -212,6 +218,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                       variant="secondary"
                       className="rounded-xl border border-border/30 h-8 w-8 text-danger"
                       onPress={() => handleRemove(item.id)}
+                      aria-label={`Remove achievement ${item.title}`}
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
