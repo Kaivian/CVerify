@@ -53,6 +53,65 @@ export function isDeepEqual(val1: unknown, val2: unknown): boolean {
   return false;
 }
 
+export interface BaseUnsavedChangesBarProps {
+  /** Text message to display on the left side of the bar */
+  message: string;
+  /** Custom handler for reset action. */
+  onReset: () => void;
+  /** Custom handler for save action. If omitted, button is type="submit" and triggers form onSubmit. */
+  onSave?: () => void;
+  /** Submission state. */
+  isSubmitting?: boolean;
+  /** Indicates whether there are unsaved changes. If false, the bar is not rendered (returns null). */
+  isDirty: boolean;
+  /** Optional custom save button text (defaults to "Save changes") */
+  saveLabel?: string;
+  /** Optional custom reset button text (defaults to "Reset") */
+  resetLabel?: string;
+}
+
+export const BaseUnsavedChangesBar: React.FC<BaseUnsavedChangesBarProps> = ({
+  message,
+  onReset,
+  onSave,
+  isSubmitting = false,
+  isDirty,
+  saveLabel = "Save changes",
+  resetLabel = "Reset",
+}) => {
+  if (!isDirty) return null;
+
+  return (
+    <div className="sticky w-full bg-overlay/95 backdrop-blur-md border border-border shadow-modal rounded-2xl p-4 flex items-center justify-between gap-4 z-40 animate-fade-in select-none">
+      <Typography
+        type="body-xs"
+        className="text-foreground font-bold font-outfit select-none pl-2 text-left"
+      >
+        {message}
+      </Typography>
+      <div className="flex items-center gap-2.5 shrink-0">
+        <Button
+          variant="outline"
+          onClick={onReset}
+          isDisabled={isSubmitting}
+          className="rounded-xl font-bold h-9 px-4 text-xs select-none"
+        >
+          {resetLabel}
+        </Button>
+        <Button
+          variant="primary"
+          type={onSave ? "button" : "submit"}
+          onClick={onSave}
+          isPending={isSubmitting}
+          className="rounded-xl font-bold h-9 px-4 text-xs select-none"
+        >
+          {saveLabel}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 interface UnsavedChangesBarProps {
   /** Text message to display on the left side of the bar */
   message: string;
@@ -84,37 +143,16 @@ export const UnsavedChangesBar: React.FC<UnsavedChangesBarProps> = ({
   const isFormDirty = hasChanges || nativeIsDirty;
   const activeSubmitting = isSubmitting !== undefined ? isSubmitting : formIsSubmitting;
 
-  if (!isFormDirty) return null;
-
   return (
-    <div className="sticky bottom-4 w-full bg-overlay/95 backdrop-blur-md border border-border shadow-modal rounded-2xl p-4 flex items-center justify-between gap-4 z-40 animate-fade-in select-none">
-      <Typography
-        type="body-xs"
-        className="text-foreground font-bold font-outfit select-none pl-2 text-left"
-      >
-        {message}
-      </Typography>
-      <div className="flex items-center gap-2.5 shrink-0">
-        <Button
-          variant="outline"
-          onClick={onReset}
-          isDisabled={activeSubmitting}
-          className="rounded-xl font-bold h-9 px-4 text-xs select-none"
-        >
-          Reset
-        </Button>
-        <Button
-          variant="primary"
-          type={onSave ? "button" : "submit"}
-          onClick={onSave}
-          isPending={activeSubmitting}
-          className="rounded-xl font-bold h-9 px-4 text-xs select-none"
-        >
-          Save changes
-        </Button>
-      </div>
-    </div>
+    <BaseUnsavedChangesBar
+      message={message}
+      onReset={onReset}
+      onSave={onSave}
+      isSubmitting={activeSubmitting}
+      isDirty={isFormDirty}
+    />
   );
 };
 
 export default UnsavedChangesBar;
+
