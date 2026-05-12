@@ -3,12 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Card,
   Typography,
   Button,
   Spinner,
   toast,
 } from "@heroui/react";
+import { Card } from "@/components/ui/card";
 import {
   User,
   Briefcase,
@@ -249,7 +249,7 @@ export default function CvManagementCenter() {
   // Manage parent dashboard layout overflow on desktop
   useEffect(() => {
     if (typeof window === "undefined") return;
-    
+
     const parentMain = document.querySelector("main.flex-1.overflow-y-auto");
     if (!parentMain) return;
 
@@ -820,7 +820,7 @@ export default function CvManagementCenter() {
   const renderOverview = () => (
     <div className="flex flex-col gap-6 text-left w-full">
       {/* Layer 1: Profile Completeness */}
-      <Card className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
+      <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5">
             <Typography type="body-sm" className="font-bold text-foreground">
@@ -865,7 +865,7 @@ export default function CvManagementCenter() {
       {/* Layer 2: Profile Preview options */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
         {/* Card 1: Standard A4 Preview */}
-        <Card className="p-6 border border-border/40 bg-surface flex flex-col justify-between items-start gap-4">
+        <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col justify-between items-start gap-4">
           <div className="flex flex-col text-left gap-1">
             <div className="flex items-center gap-2 text-accent">
               <FileText className="size-5" />
@@ -886,7 +886,7 @@ export default function CvManagementCenter() {
         </Card>
 
         {/* Card 2: CVerify Digital Profile */}
-        <Card className="p-6 border border-border/40 bg-surface flex flex-col justify-between items-start gap-4">
+        <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col justify-between items-start gap-4">
           <div className="flex flex-col text-left gap-1">
             <div className="flex items-center gap-2 text-emerald-500">
               <Sparkles className="size-5" />
@@ -934,6 +934,7 @@ export default function CvManagementCenter() {
             return (
               <Card
                 key={section.id}
+                rounded="xl"
                 className="p-4 border border-border/40 hover:border-accent/40 bg-surface flex items-start gap-3.5 cursor-pointer text-left select-none relative group"
                 onClick={() => {
                   setActiveTab(section.id);
@@ -1041,7 +1042,7 @@ export default function CvManagementCenter() {
 
         {/* Center column: Form editor */}
         <div className={`lg:col-span-5 xl:col-span-6 min-h-0 h-full overflow-hidden flex flex-col ${mobileShowPreview ? "hidden lg:flex" : "flex"}`}>
-          <Card className="flex-1 min-h-0 p-4 xl:p-6 border border-border/40 bg-surface flex flex-col gap-4 xl:gap-6 text-left relative overflow-hidden h-full">
+          <Card rounded="xl" className="flex-1 min-h-0 p-4 xl:p-6 border border-border/40 bg-surface flex flex-col gap-4 xl:gap-6 text-left relative overflow-hidden h-full">
             <div className="flex flex-col gap-1.5 border-b border-border/20 pb-3 shrink-0">
               <h3 className="font-extrabold text-sm uppercase tracking-wider text-foreground">
                 Section: {activeTab === "basic-info" ? "Basic Information" :
@@ -1156,7 +1157,7 @@ export default function CvManagementCenter() {
   return (
     <div className="flex flex-col w-full h-full text-left relative overflow-hidden" style={{ "--cv-editor-offset": "185px" } as React.CSSProperties}>
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-1 select-none">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-1 select-none cv-management-header">
         <div className="flex flex-col text-left">
           <Typography.Heading level={2} className="font-extrabold">
             CV Management
@@ -1170,14 +1171,14 @@ export default function CvManagementCenter() {
       <div className="w-full h-px bg-separator my-3" />
 
       {/* Main Content Areas */}
-      <main className={`w-full flex-1 ${viewState === "editor" ? "lg:overflow-hidden" : "overflow-y-auto"}`}>
+      <main className={`w-full flex-1 cv-management-main ${viewState === "editor" ? "lg:overflow-hidden" : "overflow-y-auto"}`}>
         {viewState === "overview" ? renderOverview() : renderEditor()}
       </main>
 
       {/* Dialog standard A4 Preview overlay */}
       {isA4PreviewOpen && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-[850px] max-h-[90vh] bg-background border border-border flex flex-col overflow-hidden text-left">
+        <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 cv-preview-overlay">
+          <Card rounded="xl" className="w-full max-w-[850px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left cv-preview-card">
             {/* Header controls */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 select-none bg-surface/80 backdrop-blur-md">
               <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
@@ -1217,8 +1218,8 @@ export default function CvManagementCenter() {
             </div>
 
             {/* A4 Printable content frame */}
-            <div className="flex-1 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start">
-              <div className="shadow-md border border-border rounded-xs overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start cv-preview-content-frame">
+              <div className="shadow-md border border-border rounded-xs overflow-hidden cv-preview-box">
                 <CVPreview
                   basic={activeProfile}
                   summary={{ bio: activeProfile.bio }}

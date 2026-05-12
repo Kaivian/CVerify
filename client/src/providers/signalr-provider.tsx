@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useRef } from 'react';
-import { HubConnectionBuilder, HttpTransportType, type HubConnection } from '@microsoft/signalr';
+import { HubConnectionBuilder, HttpTransportType, LogLevel, type HubConnection } from '@microsoft/signalr';
 import { useAuthStore } from '../features/auth/store/use-auth-store';
 import { useNotificationStore } from '../stores/use-notification-store';
 import { type NotificationItem } from '../types/notifications.types';
@@ -17,6 +17,12 @@ const NOTIFICATION_TYPES: Record<string, string> = {
   MEMBER_REMOVED: "Member Removed",
   MEMBER_SUSPENDED: "Member Suspended",
   MEMBER_ACTIVATED: "Member Activated",
+  INVITATION_CREATED: "Invitation Created",
+  INVITATION_DISCOVERED: "Pending Invitation Discovered",
+  INVITATION_ACCEPTED: "Invitation Accepted",
+  INVITATION_DECLINED: "Invitation Declined",
+  REPRESENTATIVE_ASSIGNED: "Representative Assigned",
+  REPRESENTATIVE_ACTIVATED: "Representative Onboarding Completed",
   ROLE_ASSIGNED: "Role Assigned",
   ROLE_UPDATED: "Role Updated",
   PROJECT_CREATED: "Project Created",
@@ -32,20 +38,30 @@ const getNotificationDescription = (type: string, actor: string, count: number):
   if (count > 1) {
     switch (type) {
       case 'MEMBER_JOINED':
+      case 'INVITATION_ACCEPTED':
         return `${actor} and ${count - 1} others joined.`;
       case 'MEMBER_LEFT':
         return `${actor} and ${count - 1} others left.`;
+      case 'INVITATION_CREATED':
+      case 'MEMBER_INVITED':
+        return `${actor} and ${count - 1} others invited new members.`;
+      case 'INVITATION_DECLINED':
+        return `${actor} and ${count - 1} others declined invitations.`;
       default:
         return `${actor} and ${count - 1} others performed this action.`;
     }
   } else {
     switch (type) {
       case 'MEMBER_JOINED':
+      case 'INVITATION_ACCEPTED':
         return `${actor} joined the organization.`;
       case 'MEMBER_LEFT':
         return `${actor} left the organization.`;
       case 'MEMBER_INVITED':
+      case 'INVITATION_CREATED':
         return `${actor} invited a new member.`;
+      case 'INVITATION_DECLINED':
+        return `${actor} declined the invitation.`;
       case 'ROLE_ASSIGNED':
         return `Role was assigned to ${actor}.`;
       case 'VERIFICATION_COMPLETED':
@@ -56,6 +72,12 @@ const getNotificationDescription = (type: string, actor: string, count: number):
         return "Your password was recently changed. If this wasn't you, please secure your account.";
       case 'IP_VERIFIED':
         return "A new IP address was successfully verified for your account.";
+      case 'INVITATION_DISCOVERED':
+        return "A pending invitation for you was discovered.";
+      case 'REPRESENTATIVE_ASSIGNED':
+        return "You have been assigned as the representative and owner.";
+      case 'REPRESENTATIVE_ACTIVATED':
+        return "Onboarding as the company representative completed.";
       default:
         return `${actor} performed this action.`;
     }
@@ -88,12 +110,55 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
         withCredentials: true,
         transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling
       })
+      .configureLogging(LogLevel.Warning)
       .withAutomaticReconnect()
       .build();
 
+    connection.onclose((error) => {
+      console.warn('[SignalR] Connection closed:', error?.message || error);
+    });
+
+    connection.onreconnecting((error) => {
+      console.warn('[SignalR] Connection reconnecting...', error?.message || error);
+    });
+
+    connection.onreconnected((connectionId) => {
+      console.log('[SignalR] Connection reestablished. ConnectionId:', connectionId);
+      try {
+        fetchNotifications();
+      } catch (err) {
+        console.warn('[SignalR] Failed to fetch notifications after reconnect:', err);
+      }
+    });
+
     connection.on('ReceiveNotification', (messageJson: string) => {
       try {
-        const item = JSON.parse(messageJson) as NotificationItem;
+        const raw = JSON.parse(messageJson);
+        const item: NotificationItem = {
+          id: raw.id ?? raw.Id ?? "",
+          userId: raw.userId ?? raw.UserId ?? "",
+          activityEventId: raw.activityEventId ?? raw.ActivityEventId ?? null,
+          notificationType: raw.notificationType ?? raw.NotificationType ?? "",
+          resourceType: raw.resourceType ?? raw.ResourceType ?? "",
+          resourceId: raw.resourceId ?? raw.ResourceId ?? null,
+          payload: raw.payload ?? raw.Payload ?? null,
+          isRead: raw.isRead ?? raw.IsRead ?? false,
+          isAggregated: raw.isAggregated ?? raw.IsAggregated ?? false,
+          aggregateKey: raw.aggregateKey ?? raw.AggregateKey ?? null,
+          createdAt: raw.createdAt ?? raw.CreatedAt ?? new Date().toISOString(),
+        };
+
+        if (item.payload) {
+          const rawPayload = raw.payload ?? raw.Payload;
+          item.payload = {
+            count: rawPayload.count ?? rawPayload.Count ?? 1,
+            actors: (rawPayload.actors ?? rawPayload.Actors ?? []).map((a: any) => ({
+              id: a.id ?? a.Id ?? "",
+              fullName: a.fullName ?? a.FullName ?? "",
+            })),
+          };
+        }
+
         console.log('[SignalR] Received notification:', item);
         
         // Add to Zustand store
@@ -106,7 +171,9 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
         } else if (
           item.notificationType.includes('COMPLETED') ||
           item.notificationType.includes('JOINED') ||
-          item.notificationType.includes('ASSIGNED')
+          item.notificationType.includes('ACCEPTED') ||
+          item.notificationType.includes('ASSIGNED') ||
+          item.notificationType.includes('ACTIVATED')
         ) {
           category = 'success';
         } else if (
@@ -142,18 +209,23 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
     connectionRef.current = connection;
 
     let isCancelled = false;
+    let startPromise: Promise<void> | null = null;
 
     const startConnection = async () => {
       try {
-        await connection.start();
+        startPromise = connection.start();
+        await startPromise;
         if (isCancelled) {
-          connection.stop();
           return;
         }
         console.log('[SignalR] Connected successfully.');
         
         // Fetch initial notification list and unread count upon successful connection
-        fetchNotifications();
+        try {
+          fetchNotifications();
+        } catch (err) {
+          console.warn('[SignalR] Failed to fetch initial notifications:', err);
+        }
       } catch (err) {
         if (!isCancelled) {
           console.error('[SignalR] Connection establishment failed:', err);
@@ -167,8 +239,20 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
       isCancelled = true;
       if (connectionRef.current) {
         console.log('[SignalR] Cleaning up connection.');
-        connectionRef.current.stop();
+        const conn = connectionRef.current;
         connectionRef.current = null;
+        
+        if (startPromise) {
+          startPromise
+            .then(() => {
+              conn.stop();
+            })
+            .catch(() => {
+              // Ignore failure since we're disconnecting anyway
+            });
+        } else {
+          conn.stop();
+        }
       }
     };
   }, [isAuthenticated, user, addNotification, fetchNotifications]);

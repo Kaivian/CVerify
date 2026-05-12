@@ -110,7 +110,9 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
     return (
       <Tooltip delay={0}>
         <Tooltip.Trigger>
-          {linkContent}
+          <div className="w-full">
+            {linkContent}
+          </div>
         </Tooltip.Trigger>
         <Tooltip.Content
           placement="right"

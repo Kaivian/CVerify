@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useNotificationStore } from "../../stores/use-notification-store";
 import { notificationsService } from "../../services/notifications.service";
 import { type NotificationPreference } from "../../types/notifications.types";
+import { useInvitationActions } from "../../features/workspace/hooks/use-invitation-actions";
 import { DialogModal } from "./dialog-modal";
 import {
   Popover,
@@ -104,6 +105,12 @@ const NOTIFICATION_TYPES: Record<string, string> = {
   MEMBER_REMOVED: "Member Removed",
   MEMBER_SUSPENDED: "Member Suspended",
   MEMBER_ACTIVATED: "Member Activated",
+  INVITATION_CREATED: "Invitation Created",
+  INVITATION_DISCOVERED: "Pending Invitation Discovered",
+  INVITATION_ACCEPTED: "Invitation Accepted",
+  INVITATION_DECLINED: "Invitation Declined",
+  REPRESENTATIVE_ASSIGNED: "Representative Assigned",
+  REPRESENTATIVE_ACTIVATED: "Representative Onboarding Completed",
   ROLE_ASSIGNED: "Role Assigned",
   ROLE_UPDATED: "Role Updated",
   PROJECT_CREATED: "Project Created",
@@ -119,20 +126,30 @@ const getNotificationDescription = (type: string, actor: string, count: number):
   if (count > 1) {
     switch (type) {
       case 'MEMBER_JOINED':
+      case 'INVITATION_ACCEPTED':
         return `${actor} and ${count - 1} others joined.`;
       case 'MEMBER_LEFT':
         return `${actor} and ${count - 1} others left.`;
+      case 'INVITATION_CREATED':
+      case 'MEMBER_INVITED':
+        return `${actor} and ${count - 1} others invited new members.`;
+      case 'INVITATION_DECLINED':
+        return `${actor} and ${count - 1} others declined invitations.`;
       default:
         return `${actor} and ${count - 1} others performed this action.`;
     }
   } else {
     switch (type) {
       case 'MEMBER_JOINED':
+      case 'INVITATION_ACCEPTED':
         return `${actor} joined the organization.`;
       case 'MEMBER_LEFT':
         return `${actor} left the organization.`;
       case 'MEMBER_INVITED':
+      case 'INVITATION_CREATED':
         return `${actor} invited a new member.`;
+      case 'INVITATION_DECLINED':
+        return `${actor} declined the invitation.`;
       case 'ROLE_ASSIGNED':
         return `Role was assigned to ${actor}.`;
       case 'VERIFICATION_COMPLETED':
@@ -143,6 +160,12 @@ const getNotificationDescription = (type: string, actor: string, count: number):
         return "Your password was recently changed. If this wasn't you, please secure your account.";
       case 'IP_VERIFIED':
         return "A new IP address was successfully verified for your account.";
+      case 'INVITATION_DISCOVERED':
+        return "A pending invitation for you was discovered.";
+      case 'REPRESENTATIVE_ASSIGNED':
+        return "You have been assigned as the representative and owner.";
+      case 'REPRESENTATIVE_ACTIVATED':
+        return "Onboarding as the company representative completed.";
       default:
         return `${actor} performed this action.`;
     }
@@ -161,6 +184,12 @@ const PREFERENCE_CATEGORIES = [
       { type: "MEMBER_REMOVED" },
       { type: "MEMBER_SUSPENDED" },
       { type: "MEMBER_ACTIVATED" },
+      { type: "INVITATION_CREATED" },
+      { type: "INVITATION_DISCOVERED" },
+      { type: "INVITATION_ACCEPTED" },
+      { type: "INVITATION_DECLINED" },
+      { type: "REPRESENTATIVE_ASSIGNED" },
+      { type: "REPRESENTATIVE_ACTIVATED" },
       { type: "ROLE_ASSIGNED" },
       { type: "ROLE_UPDATED" }
     ]
@@ -204,6 +233,8 @@ export const NotificationDropdown: React.FC = () => {
     deleteNotification,
     setUnreadOnly
   } = useNotificationStore();
+
+  const { acceptInvitation, declineInvitation, isProcessing } = useInvitationActions();
 
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -368,7 +399,7 @@ export const NotificationDropdown: React.FC = () => {
               ) : (
                 <div className="divide-y divide-border/30">
                   {notifications.map((item) => {
-                    const title = NOTIFICATION_TYPES[item.notificationType] || item.notificationType.replace(/_/g, " ");
+                    const title = NOTIFICATION_TYPES[item.notificationType] || (item.notificationType || "").replace(/_/g, " ");
 
                     let description = "";
                     const actorName = item.payload?.actors?.[0]?.fullName || "";
@@ -400,13 +431,44 @@ export const NotificationDropdown: React.FC = () => {
                         </div>
 
                         {/* Details */}
-                        <div className="grow pr-5 text-left">
+                        <div className="grow pr-5 text-left flex flex-col">
                           <Typography className="font-bold text-[11px] text-foreground mb-0.5 leading-tight font-outfit">
                             {title}
                           </Typography>
                           <Typography className="text-[11px] text-muted-secondary leading-normal">
                             {description}
                           </Typography>
+
+                          {item.notificationType === "INVITATION_DISCOVERED" && !item.isRead && item.resourceId && (
+                            <div className="flex gap-2 mt-2 select-none" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                className="h-6 px-3 text-[10px] font-bold rounded-md cursor-pointer"
+                                isPending={isProcessing}
+                                onClick={async () => {
+                                  await acceptInvitation(item.resourceId!, () => {
+                                    markAsRead(item.id);
+                                  });
+                                }}
+                              >
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-3 text-[10px] font-bold border-border/80 text-foreground hover:bg-surface-secondary/50 rounded-md cursor-pointer"
+                                isPending={isProcessing}
+                                onClick={async () => {
+                                  await declineInvitation(item.resourceId!, () => {
+                                    markAsRead(item.id);
+                                  });
+                                }}
+                              >
+                                Decline
+                              </Button>
+                            </div>
+                          )}
+
                           <Typography className="text-[9px] text-muted/60 mt-1 font-medium">
                             {formatTimeAgo(item.createdAt)}
                           </Typography>
@@ -476,7 +538,7 @@ export const NotificationDropdown: React.FC = () => {
                   {category.types.map((typeObj) => {
                     const inAppEnabled = getPrefState(typeObj.type, "in_app");
                     const emailEnabled = getPrefState(typeObj.type, "email");
-                    const typeLabel = NOTIFICATION_TYPES[typeObj.type] || typeObj.type.replace(/_/g, " ");
+                    const typeLabel = NOTIFICATION_TYPES[typeObj.type] || (typeObj.type || "").replace(/_/g, " ");
 
                     return (
                       <div

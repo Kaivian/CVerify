@@ -124,6 +124,10 @@ public class OnboardingAndAuthRegressionTests : BaseIntegrationTest
             var org = await db.Organizations.FirstOrDefaultAsync(o => o.Email == "owner@cverify.ai");
             org.Should().NotBeNull();
             org!.InitialAdminAssignedAt.Should().BeNull();
+
+            // Verify that default roles are seeded for the new organization
+            var rolesCount = await db.Roles.CountAsync(r => r.TenantId == org.Id);
+            rolesCount.Should().Be(7);
         }
 
         // Seed OTP and complete password creation to register the user

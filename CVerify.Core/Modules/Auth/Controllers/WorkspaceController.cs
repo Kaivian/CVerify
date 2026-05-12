@@ -132,8 +132,15 @@ public class WorkspaceController : ControllerBase
                 ));
             }
 
-            var businessRole = OrganizationRole.OWNER;
-            var businessPermissions = OrganizationPermissions.GetPermissionsForRole(businessRole);
+            var businessPermissions = new List<string>
+            {
+                "organization:profile:edit", "organization:settings:edit", "organization:workspace:view", "organization:roles:manage", "organization:roles:view",
+                "organization:members:manage", "organization:members:view", "identity:verification:initiate", "identity:verification:approve",
+                "identity:verification:reject", "evidence:graph:validate", "evidence:graph:comment", "analysis:repository:sync",
+                "analysis:repository:run", "analysis:repository:configure", "trust:metric:view", "trust:flag:manage",
+                "ai:interview:configure", "ai:interview:conduct", "ai:interview:evaluate", "candidate:trust:score",
+                "candidate:trust:override", "organization:audit:view", "billing:invoice:view", "billing:subscription:manage"
+            };
 
             return Ok(new WorkspaceDetailsDto(
                 org.Id,
@@ -186,11 +193,33 @@ public class WorkspaceController : ControllerBase
             ));
         }
 
-        // Resolve permissions for the role
+        // Resolve dynamic permissions
         var permissions = new List<string>();
-        if (Enum.TryParse<OrganizationRole>(membership.Role, out var orgRole))
+        var userPerms = await _authorizationService.GetPermissionsAsync(userId, org.Id, HttpContext.RequestAborted);
+        if (userPerms.Contains("*:*:*"))
         {
-            permissions = OrganizationPermissions.GetPermissionsForRole(orgRole);
+            permissions = new List<string>
+            {
+                "organization:profile:edit", "organization:settings:edit", "organization:workspace:view", "organization:roles:manage", "organization:roles:view",
+                "organization:members:manage", "organization:members:view", "identity:verification:initiate", "identity:verification:approve",
+                "identity:verification:reject", "evidence:graph:validate", "evidence:graph:comment", "analysis:repository:sync",
+                "analysis:repository:run", "analysis:repository:configure", "trust:metric:view", "trust:flag:manage",
+                "ai:interview:configure", "ai:interview:conduct", "ai:interview:evaluate", "candidate:trust:score",
+                "candidate:trust:override", "organization:audit:view", "billing:invoice:view", "billing:subscription:manage"
+            };
+        }
+        else
+        {
+            permissions = userPerms
+                .Select(p => {
+                    var lastColon = p.LastIndexOf(':');
+                    if (lastColon == -1) return p;
+                    var secondLastColon = p.LastIndexOf(':', lastColon - 1);
+                    if (secondLastColon == -1) return p;
+                    return p.Substring(0, secondLastColon);
+                })
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         // Fetch other organizations the user belongs to for switching overview (Account Linking Overview)

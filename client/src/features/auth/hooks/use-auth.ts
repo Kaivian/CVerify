@@ -344,13 +344,26 @@ export const useAuth = () => {
         if (!bootstrapPromise && !isSilentRevalidation) return;
 
         const status = error?.response?.status || error?.status;
+        const isNetworkError =
+          !status ||
+          status === 502 ||
+          status === 503 ||
+          status === 504 ||
+          (error as any)?.message === 'Network Error' ||
+          (error as any)?.message?.includes('Failed to fetch');
+
         if (status === 401) {
           console.log('[Auth System] Session validation: No active session (unauthenticated guest).');
+          stateStore.logout(false);
+          resolve({ authenticated: false, user: null });
+        } else if (isNetworkError) {
+          console.warn('[Auth System] Session validation connection offline or backend restarting. Preserving session.', error);
+          resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
         } else {
           console.warn('[Auth System] Session validation failed. Cleaning local session.', error);
+          stateStore.logout(false);
+          resolve({ authenticated: false, user: null });
         }
-        stateStore.logout(false);
-        resolve({ authenticated: false, user: null });
       } finally {
         // Clean up the abort controller if it's the current one
         if (activeAuthAbortController?.signal === signal) {

@@ -10,6 +10,11 @@ public class RedisNotificationDispatcher : INotificationDispatcher
     private readonly IConnectionMultiplexer _redis;
     private const string RedisChannelName = "cverify:notifications";
 
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public RedisNotificationDispatcher(IConnectionMultiplexer redis)
     {
         _redis = redis;
@@ -21,9 +26,9 @@ public class RedisNotificationDispatcher : INotificationDispatcher
         var message = new RedisNotificationMessage
         {
             UserId = userId,
-            PayloadJson = JsonSerializer.Serialize(notificationDto)
+            PayloadJson = JsonSerializer.Serialize(notificationDto, _jsonOptions)
         };
-        await _redis.GetSubscriber().PublishAsync(RedisChannelName, JsonSerializer.Serialize(message));
+        await _redis.GetSubscriber().PublishAsync(RedisChannelName, JsonSerializer.Serialize(message, _jsonOptions));
     }
 }
 

@@ -53,8 +53,12 @@ export default function WorkspaceSettingsPage() {
     );
   }
 
-  const userRole = workspaceDetails.userRole;
-  const isAuthorized = userRole === "OWNER" || userRole === "REPRESENTATIVE";
+  const permissions = workspaceDetails.permissions || [];
+  const isAuthorized =
+    permissions.includes("organization:settings:edit") ||
+    permissions.includes("organization:profile:edit") ||
+    workspaceDetails.userRole === "OWNER" ||
+    workspaceDetails.userRole === "REPRESENTATIVE";
 
   if (!isAuthorized) {
     return (

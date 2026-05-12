@@ -13,6 +13,7 @@ using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Email.Services;
+using CVerify.API.Modules.Shared.Configuration;
 
 namespace CVerify.API.Modules.Admin.Services;
 
@@ -23,19 +24,22 @@ public class AdminMemberService : IAdminMemberService
     private readonly IEmailService _emailService;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<AdminMemberService> _logger;
+    private readonly EnvConfiguration _envConfig;
 
     public AdminMemberService(
         ApplicationDbContext context,
         IAdminAuthorizationService authService,
         IEmailService emailService,
         TimeProvider timeProvider,
-        ILogger<AdminMemberService> logger)
+        ILogger<AdminMemberService> logger,
+        EnvConfiguration envConfig)
     {
         _context = context;
         _authService = authService;
         _emailService = emailService;
         _timeProvider = timeProvider;
         _logger = logger;
+        _envConfig = envConfig;
     }
 
     private string NormalizeEmail(string email)
@@ -211,7 +215,7 @@ public class AdminMemberService : IAdminMemberService
             await transaction.CommitAsync(cancellationToken);
 
             // Send invitation email
-            var onboardingUrl = $"https://cverify.com/admin/invitations/accept?token={rawToken}";
+            var onboardingUrl = $"{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/admin/invitations/accept?token={rawToken}";
             var emailBody = $"Hello,\n\nYou have been invited to join the CVerify Admin portal.\n\nTo accept this invitation and set up your admin privileges, please click the link below:\n{onboardingUrl}\n\nThis invitation will expire on {expiresAt:MMMM dd, yyyy}.";
 
             await _emailService.SendSecurityAlertEmailAsync(

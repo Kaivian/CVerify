@@ -8,6 +8,17 @@ public static class ActivityEventTypes
     public const string MemberRemoved = "MEMBER_REMOVED";
     public const string MemberSuspended = "MEMBER_SUSPENDED";
     public const string MemberActivated = "MEMBER_ACTIVATED";
+    
+    public const string InvitationCreated = "INVITATION_CREATED";
+    public const string InvitationDiscovered = "INVITATION_DISCOVERED";
+    public const string InvitationAccepted = "INVITATION_ACCEPTED";
+    public const string InvitationDeclined = "INVITATION_DECLINED";
+    public const string InvitationResent = "INVITATION_RESENT";
+    public const string InvitationCancelled = "INVITATION_CANCELLED";
+    
+    public const string RepresentativeAssigned = "REPRESENTATIVE_ASSIGNED";
+    public const string RepresentativeActivated = "REPRESENTATIVE_ACTIVATED";
+    
     public const string RoleAssigned = "ROLE_ASSIGNED";
     public const string RoleUpdated = "ROLE_UPDATED";
     

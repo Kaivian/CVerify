@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Input, Button, TextArea, Spinner, Card } from "@heroui/react";
+import { Input, Button, TextArea, Spinner } from "@heroui/react";
+import { Card } from "@/components/ui/card";
 import { PlusCircle, Trash2, Edit2, X } from "lucide-react";
 import { type AchievementsDraftItem } from "./types";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
@@ -93,7 +94,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
       <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-4">
         {editingItem ? (
         // Inline Edit Mode
-        <div className="flex flex-col gap-5 border border-border/40 p-5 rounded-2xl bg-surface-secondary/5">
+        <div className="flex flex-col gap-5 border border-border/40 p-5 rounded-xl bg-surface-secondary/5">
           <div className="flex justify-between items-center border-b border-border/20 pb-3 select-none">
             <span className="font-bold text-xs text-foreground">
               {editingItem.id.startsWith("temp-") ? "Add Achievement" : "Edit Achievement"}
@@ -188,12 +189,12 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
 
           <div className="flex flex-col gap-3">
             {draft.length === 0 ? (
-              <div className="py-10 text-center border-2 border-dashed border-border/40 rounded-2xl select-none">
+              <div className="py-10 text-center border-2 border-dashed border-border/40 rounded-xl select-none">
                 <span className="text-muted-foreground text-xs">No achievements added yet.</span>
               </div>
             ) : (
               draft.map((item) => (
-                <Card key={item.id} className="p-4 border border-border/40 bg-surface flex flex-row justify-between items-center gap-4">
+                <Card key={item.id} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface flex flex-row justify-between items-center gap-4">
                   <div className="flex flex-col gap-1 min-w-0">
                     <span className="font-bold text-foreground text-xs truncate">
                       {item.title}

@@ -22,6 +22,33 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
         _cacheService = cacheService;
     }
 
+    public async Task<List<string>> GetPermissionsAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken = default)
+    {
+        var cacheKey = $"auth:org:{organizationId}:user:{userId}:scoped_perms";
+        var cachedSet = await _cacheService.GetSetAsync(cacheKey);
+        List<string> cachedPerms;
+
+        if (cachedSet == null || !cachedSet.Any())
+        {
+            cachedPerms = await FetchHierarchicalPermissionsFromDbAsync(userId, organizationId, cancellationToken);
+            
+            if (cachedPerms.Any())
+            {
+                foreach (var perm in cachedPerms)
+                {
+                    await _cacheService.AddToSetAsync(cacheKey, perm);
+                }
+                await _cacheService.SetExpireAsync(cacheKey, TimeSpan.FromHours(4));
+            }
+        }
+        else
+        {
+            cachedPerms = cachedSet.ToList();
+        }
+
+        return cachedPerms;
+    }
+
     public async Task<bool> AuthorizeAsync(
         Guid userId, 
         Guid organizationId, 
@@ -30,22 +57,7 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
         Guid? scopeId = null, 
         CancellationToken cancellationToken = default)
     {
-        // 1. Fetch from Cache
-        var cacheKey = $"auth:org:{organizationId}:user:{userId}:scoped_perms";
-        var cachedPerms = await _cacheService.GetSetAsync(cacheKey);
-
-        if (cachedPerms == null || !cachedPerms.Any())
-        {
-            // Cache Miss: Query Database using Recursive CTE
-            cachedPerms = await FetchHierarchicalPermissionsFromDbAsync(userId, organizationId, cancellationToken);
-            
-            // Re-populate Cache
-            foreach (var perm in cachedPerms)
-            {
-                await _cacheService.AddToSetAsync(cacheKey, perm);
-            }
-            await _cacheService.SetExpireAsync(cacheKey, TimeSpan.FromHours(4));
-        }
+        var cachedPerms = await GetPermissionsAsync(userId, organizationId, cancellationToken);
 
         // Check for Super Admin wildcard or direct match
         if (cachedPerms.Contains("*:*:*"))

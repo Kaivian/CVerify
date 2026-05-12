@@ -89,3 +89,24 @@ public record BulkMemberOperationDto(
 public record AcceptInvitationDto(
     [Required] string Token
 );
+
+public record DeclineInvitationDto(
+    [Required] string Token
+);
+
+public record WorkspaceAuditLogDto(
+    Guid Id,
+    string ActorEmail,
+    string EventType,
+    string Description,
+    string? TargetEmail,
+    DateTimeOffset CreatedAt
+);
+
+public record PaginatedWorkspaceAuditLogsResponseDto(
+    List<WorkspaceAuditLogDto> Items,
+    int TotalItems,
+    int Page,
+    int PageSize
+);
+
