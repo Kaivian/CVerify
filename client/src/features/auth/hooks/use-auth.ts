@@ -17,9 +17,13 @@ import { useState, useCallback } from 'react';
 import { normalizeError } from '../../../services/axios-client';
 import { normalizeRole } from '../../../lib/utils/auth-utils';
 
+// Configurable timeout constant for cold starts and slow networks
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 15000;
+
 // Shared module-level bootstrap promise to deduplicate parallel mounts during app initialization
 let bootstrapPromise: Promise<{ authenticated: boolean; user: User | null; isUnverified?: boolean; nextStep?: string }> | null = null;
 let activeAuthAbortController: AbortController | null = null;
+let bootstrapGeneration = 0;
 
 export const useAuth = () => {
   const storeUser = useAuthStore(s => s.user);
@@ -256,6 +260,10 @@ export const useAuth = () => {
       }
     }
 
+    // Increment request generation ID for concurrency sanity
+    bootstrapGeneration += 1;
+    const currentGeneration = bootstrapGeneration;
+
     // Determine if we should perform a silent background revalidation
     // Silent revalidation happens if we're forcing revalidate while already READY.
     const isSilentRevalidation = forceRevalidate && currentStore.bootstrapState === 'READY';
@@ -266,37 +274,42 @@ export const useAuth = () => {
     }
 
     // Create a new AbortController for this request
-    activeAuthAbortController = new AbortController();
-    const signal = activeAuthAbortController.signal;
+    const controller = new AbortController();
+    activeAuthAbortController = controller;
+    const signal = controller.signal;
 
-    bootstrapPromise = new Promise(async (resolve) => {
+    const currentPromise = new Promise<{ authenticated: boolean; user: User | null; isUnverified?: boolean; nextStep?: string }>(async (resolve) => {
       const stateStore = useAuthStore.getState();
       if (!isSilentRevalidation) {
         stateStore.setBootstrapState('VALIDATING');
         stateStore.setLoading(true);
       }
-      console.log(`[Auth System] Session validation started${isSilentRevalidation ? ' (silent)' : ''}.`);
+      console.log(`[Auth System] Session validation started${isSilentRevalidation ? ' (silent)' : ''}. Generation: ${currentGeneration}`);
 
-      // Timeout protection to prevent permanent deadlock
+      // Timeout protection using configurable constant
       const timeoutId = setTimeout(() => {
-        if (activeAuthAbortController) {
-          activeAuthAbortController.abort('Timeout');
+        controller.abort('Timeout');
+        console.error(`[Auth System] Session bootstrap timed out after ${AUTH_BOOTSTRAP_TIMEOUT_MS}ms. Preserving current session.`);
+        
+        // Preserve current session state on timeout instead of force logout
+        if (bootstrapGeneration === currentGeneration) {
+          stateStore.setInitialized(true);
+          stateStore.setBootstrapState('READY');
+          stateStore.setLoading(false);
+          bootstrapPromise = null;
         }
-        console.error('[Auth System] Session bootstrap timed out after 3000ms. Forcing exit.');
-        stateStore.logout(false);
-        stateStore.setInitialized(true);
-        stateStore.setBootstrapState('READY');
-        stateStore.setLoading(false);
-        bootstrapPromise = null;
-        resolve({ authenticated: false, user: null });
-      }, 3000);
+        resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
+      }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
       try {
         const response = await authApi.fetchMe(signal);
         clearTimeout(timeoutId);
         
-        // Ensure we don't proceed if the timeout already fired and cleared the promise
-        if (!bootstrapPromise && !isSilentRevalidation) return;
+        // Discard updates if a newer request has started
+        if (bootstrapGeneration !== currentGeneration) {
+          resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
+          return;
+        }
         
         if (response.status === 'EMAIL_VERIFY_PENDING' || response.nextStep === 'VERIFY_EMAIL') {
           stateStore.setPendingVerificationEmail(response.email);
@@ -330,6 +343,7 @@ export const useAuth = () => {
           name?: string;
           response?: { status?: number };
           status?: number;
+          message?: string;
         }
         const error = err as AxiosErrorLike;
         
@@ -340,8 +354,11 @@ export const useAuth = () => {
           return;
         }
 
-        // Ensure we don't proceed if the timeout already fired
-        if (!bootstrapPromise && !isSilentRevalidation) return;
+        // Discard updates if a newer request has started
+        if (bootstrapGeneration !== currentGeneration) {
+          resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
+          return;
+        }
 
         const status = error?.response?.status || error?.status;
         const isNetworkError =
@@ -349,8 +366,8 @@ export const useAuth = () => {
           status === 502 ||
           status === 503 ||
           status === 504 ||
-          (error as any)?.message === 'Network Error' ||
-          (error as any)?.message?.includes('Failed to fetch');
+          error?.message === 'Network Error' ||
+          error?.message?.includes('Failed to fetch');
 
         if (status === 401) {
           console.log('[Auth System] Session validation: No active session (unauthenticated guest).');
@@ -366,11 +383,12 @@ export const useAuth = () => {
         }
       } finally {
         // Clean up the abort controller if it's the current one
-        if (activeAuthAbortController?.signal === signal) {
+        if (activeAuthAbortController === controller) {
           activeAuthAbortController = null;
         }
 
-        if (bootstrapPromise) { // Only run this if not aborted by timeout
+        // Only transition to READY and reset bootstrapPromise if this request is still the active one
+        if (bootstrapGeneration === currentGeneration) {
           stateStore.setInitialized(true);
           stateStore.setBootstrapState('READY');
           stateStore.setLoading(false);
@@ -379,6 +397,7 @@ export const useAuth = () => {
       }
     });
 
+    bootstrapPromise = currentPromise;
     return bootstrapPromise;
   }, []);
 
