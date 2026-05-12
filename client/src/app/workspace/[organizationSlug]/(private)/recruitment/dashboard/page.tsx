@@ -77,7 +77,7 @@ export default function WorkspaceRecruitmentDashboardPage() {
           </Typography>
           <div className="flex gap-4 justify-center">
             <Button
-              onClick={() => router.push(`/workspace/${organizationSlug}`)}
+              onClick={() => router.push(`/workspace/${organizationSlug}/information`)}
               className="px-4 py-2 bg-foreground text-background font-bold rounded-xl text-xs cursor-pointer"
             >
               <ArrowLeft size={12} className="mr-1.5" />

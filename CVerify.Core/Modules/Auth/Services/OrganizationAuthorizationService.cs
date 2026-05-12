@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Shared.Security.Authorization;
 using Dapper;
 
 namespace CVerify.API.Modules.Auth.Services;
@@ -58,19 +59,7 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
         CancellationToken cancellationToken = default)
     {
         var cachedPerms = await GetPermissionsAsync(userId, organizationId, cancellationToken);
-
-        // Check for Super Admin wildcard or direct match
-        if (cachedPerms.Contains("*:*:*"))
-        {
-            return true;
-        }
-
-        // Match format "permission:ScopeType:ScopeId" or "permission:ORGANIZATION:OrgId" for global scope
-        var targetScopeId = scopeId ?? organizationId;
-        var expectedMatch = $"{requiredPermission}:{scopeType.ToUpperInvariant()}:{targetScopeId}".ToLowerInvariant();
-        var globalMatch = $"{requiredPermission}:ORGANIZATION:{organizationId}".ToLowerInvariant();
-
-        return cachedPerms.Any(p => p.ToLowerInvariant() == expectedMatch || p.ToLowerInvariant() == globalMatch);
+        return PermissionEvaluator.HasPermission(cachedPerms, requiredPermission, organizationId, scopeType, scopeId);
     }
 
     public async Task<bool> IsMemberAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken = default)

@@ -47,6 +47,19 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 }) => {
   const { user, isAuthenticated, hasPermission } = useAuth();
   const userRole = user?.role || "USER";
+
+  const backHref = useMemo(() => {
+    if (userRole === "BUSINESS") return "/business";
+    if (userRole === "ADMIN") return "/admin";
+    return "/user";
+  }, [userRole]);
+
+  const backLabel = useMemo(() => {
+    if (userRole === "BUSINESS") return "Back to Business Hub";
+    if (userRole === "ADMIN") return "Back to Admin Dashboard";
+    return "Back to Personal Hub";
+  }, [userRole]);
+
   const { activeWorkspace } = useWorkspace();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,40 +100,27 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     }
   }, [currentOrgSlug, fetchWorkspace]);
 
-  const orgUserRole = workspaceDetails?.userRole || "MEMBER";
   const permissions = useMemo(() => workspaceDetails?.permissions || [], [workspaceDetails]);
 
   const canViewRoles = useMemo(() => {
-    if (permissions.length > 0) {
-      return permissions.includes("organization:roles:view") || permissions.includes("organization:roles:manage");
-    }
-    return orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE";
-  }, [permissions, orgUserRole]);
+    return permissions.includes("organization:roles:view") || permissions.includes("organization:roles:manage");
+  }, [permissions]);
 
   const canViewBilling = useMemo(() => {
-    if (permissions.length > 0) {
-      return permissions.includes("billing:invoice:view") || permissions.includes("billing:subscription:manage");
-    }
-    return orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE";
-  }, [permissions, orgUserRole]);
+    return permissions.includes("billing:invoice:view") || permissions.includes("billing:subscription:manage");
+  }, [permissions]);
 
   const canEditSettings = useMemo(() => {
-    if (permissions.length > 0) {
-      return permissions.includes("organization:settings:edit") || permissions.includes("organization:profile:edit");
-    }
-    return orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE";
-  }, [permissions, orgUserRole]);
+    return permissions.includes("organization:settings:edit") || permissions.includes("organization:profile:edit");
+  }, [permissions]);
 
   const canViewRecruitment = useMemo(() => {
-    if (permissions.length > 0) {
-      return (
-        permissions.includes("ai:interview:configure") ||
-        permissions.includes("ai:interview:conduct") ||
-        permissions.includes("ai:interview:evaluate")
-      );
-    }
-    return orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE" || orgUserRole === "HR";
-  }, [permissions, orgUserRole]);
+    return (
+      permissions.includes("ai:interview:configure") ||
+      permissions.includes("ai:interview:conduct") ||
+      permissions.includes("ai:interview:evaluate")
+    );
+  }, [permissions]);
 
   const orgNodes = useMemo<NavigationNode[]>(() => {
     if (!currentOrgSlug) return [];
@@ -148,113 +148,117 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
           },
           ...(canViewRoles
             ? [
-                {
-                  id: "org-roles",
-                  type: "item" as const,
-                  label: "Business Roles",
-                  href: `/workspace/${currentOrgSlug}/roles`,
-                  icon: Shield,
-                },
-              ]
+              {
+                id: "org-roles",
+                type: "item" as const,
+                label: "Business Roles",
+                href: `/workspace/${currentOrgSlug}/roles`,
+                icon: Shield,
+              },
+            ]
             : []),
           ...(canViewBilling
             ? [
-                {
-                  id: "org-billing",
-                  type: "item" as const,
-                  label: "Billing",
-                  href: `/workspace/${currentOrgSlug}/billing`,
-                  icon: CreditCard,
-                },
-              ]
+              {
+                id: "org-billing",
+                type: "item" as const,
+                label: "Billing",
+                href: `/workspace/${currentOrgSlug}/billing`,
+                icon: CreditCard,
+              },
+            ]
             : []),
           ...(canEditSettings
             ? [
-                {
-                  id: "org-settings",
-                  type: "item" as const,
-                  label: "Settings",
-                  href: `/workspace/${currentOrgSlug}/settings`,
-                  icon: Settings,
-                },
-              ]
+              {
+                id: "org-settings",
+                type: "item" as const,
+                label: "Settings",
+                href: `/workspace/${currentOrgSlug}/settings`,
+                icon: Settings,
+              },
+            ]
             : []),
         ],
       },
       ...(canViewRecruitment
         ? [
-            {
-              id: "org-recruitment-group",
-              type: "group" as const,
-              label: "Recruitment",
-              icon: Briefcase,
-              children: [
-                {
-                  id: "org-recruitment-dashboard",
-                  type: "item" as const,
-                  label: "Dashboard",
-                  href: `/workspace/${currentOrgSlug}/recruitment/dashboard`,
-                  icon: LayoutDashboard,
-                },
-                {
-                  id: "org-recruitment-jd",
-                  type: "item" as const,
-                  label: "JD Management",
-                  href: `/workspace/${currentOrgSlug}/recruitment/jd`,
-                  icon: FileText,
-                },
-              ],
-            },
-          ]
+          {
+            id: "org-recruitment-group",
+            type: "group" as const,
+            label: "Recruitment",
+            icon: Briefcase,
+            children: [
+              {
+                id: "org-recruitment-dashboard",
+                type: "item" as const,
+                label: "Dashboard",
+                href: `/workspace/${currentOrgSlug}/recruitment/dashboard`,
+                icon: LayoutDashboard,
+              },
+              {
+                id: "org-recruitment-jd",
+                type: "item" as const,
+                label: "JD Management",
+                href: `/workspace/${currentOrgSlug}/recruitment/jd`,
+                icon: FileText,
+              },
+            ],
+          },
+        ]
         : []),
     ];
   }, [currentOrgSlug, canViewRoles, canViewBilling, canEditSettings, canViewRecruitment]);
 
   // Dynamically inject workspace links based on role sections
   const combinedNodes = useMemo(() => {
+    const isInsideWorkspace = pathname?.startsWith("/workspace/");
+
+    if (isInsideWorkspace && currentOrgSlug) {
+      const backNode: NavigationNode = {
+        id: "back-to-hub",
+        type: "item" as const,
+        label: backLabel,
+        href: backHref,
+        icon: ArrowLeft,
+      };
+
+      // Filter out candidate and business dashboards to focus purely on the workspace
+      const baseNodes = filteredNodes.filter(
+        (node) => node.id !== "candidate-section" && node.id !== "business-section"
+      );
+
+      return [
+        backNode,
+        ...baseNodes,
+        ...orgNodes,
+      ];
+    }
+
     if (!myOrganizations || myOrganizations.length === 0) {
       return filteredNodes;
     }
 
-    let hasBusinessSection = false;
-    const mappedNodes = filteredNodes.map((node) => {
-      if (node.id === "business-section" && (node.type === "section" || node.type === "group")) {
-        hasBusinessSection = true;
-        const existingChildren = node.children || [];
-        const filteredExisting = existingChildren.filter(
-          (child: NavigationNode) => !child.id.startsWith("org-workspace-")
-        );
+    const mappedNodes = [...filteredNodes];
 
-        return {
-          ...node,
-          children: [...filteredExisting, ...orgNodes],
-        };
-      }
-      return node;
+    mappedNodes.push({
+      id: "workspaces-section",
+      type: "section",
+      label: "Workspaces",
+      children: [
+        ...myOrganizations.map((org) => ({
+          id: `org-workspace-${org.slug}`,
+          type: "item" as const,
+          label: org.name,
+          tooltip: org.name,
+          href: `/workspace/${org.slug}/information`,
+          icon: Building2,
+        })),
+      ],
     });
 
-    if (!hasBusinessSection) {
-      const isInsideWorkspace = pathname?.startsWith("/workspace/");
-      // Append a workspaces section at the bottom for non-business/admin users
-      mappedNodes.push({
-        id: "workspaces-section",
-        type: "section",
-        label: "Workspaces",
-        children: [
-          ...(isInsideWorkspace ? orgNodes : []),
-          ...myOrganizations.map((org) => ({
-            id: `org-workspace-${org.slug}`,
-            type: "item" as const,
-            label: org.name,
-            href: `/workspace/${org.slug}`,
-            icon: Building2,
-          })),
-        ],
-      });
-    }
-
     return mappedNodes;
-  }, [filteredNodes, myOrganizations, orgNodes, pathname]);
+  }, [filteredNodes, myOrganizations, orgNodes, pathname, currentOrgSlug, backHref, backLabel]);
 
   // Dedicated specialized components workspace navigation sections
   const componentSections = useMemo(() => [
@@ -345,7 +349,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
                     ].join(" ")}
                   />
                 )}
- 
+
                 <Icon size={20} className="shrink-0" />
                 {!collapsed && <span className="truncate">{item.label}</span>}
               </Link>

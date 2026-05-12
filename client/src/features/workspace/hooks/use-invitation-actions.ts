@@ -15,7 +15,7 @@ export const useInvitationActions = () => {
       const { orgSlug } = await membersService.acceptInvitationById(invitationId);
       toast.success("Invitation accepted successfully!");
       if (onCompleted) onCompleted();
-      router.push(`/workspace/${orgSlug}`);
+      router.push(`/workspace/${orgSlug}/information`);
     } catch (err: any) {
       console.error(err);
       toast.danger(err?.response?.data?.message || "Failed to accept invitation.");
@@ -43,7 +43,7 @@ export const useInvitationActions = () => {
     try {
       const { orgSlug } = await membersService.acceptInvitation(token);
       toast.success("Invitation accepted successfully!");
-      router.push(`/workspace/${orgSlug}`);
+      router.push(`/workspace/${orgSlug}/information`);
     } catch (err: any) {
       console.error(err);
       toast.danger(err?.response?.data?.message || "Failed to accept invitation.");

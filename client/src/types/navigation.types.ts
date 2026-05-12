@@ -10,6 +10,7 @@ export interface BaseNavigationNode {
   translationKey?: string;
   requiredPermissions?: ResourceActionPermission[];
   requiredRoles?: UserRole[];
+  tooltip?: string;
 }
 
 export interface NavigationLinkItem extends BaseNavigationNode {

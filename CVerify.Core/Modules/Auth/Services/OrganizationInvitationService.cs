@@ -16,6 +16,7 @@ using CVerify.API.Modules.Shared.Domain.Services;
 using CVerify.API.Modules.Shared.Domain.Constants;
 using CVerify.API.Modules.Shared.Email.Services;
 using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Security.Authorization;
 
 namespace CVerify.API.Modules.Auth.Services;
 
@@ -78,7 +79,7 @@ public class OrganizationInvitationService : IOrganizationInvitationService
         var actorPerms = actorUserId.HasValue
             ? await _authService.GetPermissionsAsync(actorUserId.Value, orgId, cancellationToken)
             : new List<string>();
-        bool isSuperAdmin = actorPerms.Contains("*:*:*");
+        bool isSuperAdmin = PermissionEvaluator.HasPermission(actorPerms, "*", orgId);
 
         foreach (var invitee in dto.Invitees)
         {
@@ -109,10 +110,13 @@ public class OrganizationInvitationService : IOrganizationInvitationService
                 {
                     foreach (var perm in targetRole.Permissions)
                     {
-                        var expectedMatch = $"{perm.Name}:{roleDto.ScopeType}:{roleDto.ScopeId}".ToLowerInvariant();
-                        var globalMatch = $"{perm.Name}:ORGANIZATION:{orgId}".ToLowerInvariant();
+                        bool hasPermission = PermissionEvaluator.HasPermission(
+                            actorPerms, 
+                            perm.Name, 
+                            orgId, 
+                            roleDto.ScopeType, 
+                            roleDto.ScopeId);
 
-                        bool hasPermission = actorPerms.Any(p => p.ToLowerInvariant() == expectedMatch || p.ToLowerInvariant() == globalMatch);
                         if (!hasPermission)
                         {
                             throw new ValidationException($"Role escalation detected: You do not have permission '{perm.DisplayName}' in the requested scope to assign this role.");

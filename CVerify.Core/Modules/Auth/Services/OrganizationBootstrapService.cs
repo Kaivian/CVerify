@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.Modules.Auth.Services;
 
@@ -13,11 +14,13 @@ public class OrganizationBootstrapService : IOrganizationBootstrapService
 {
     private readonly ApplicationDbContext _context;
     private readonly TimeProvider _timeProvider;
+    private readonly ICacheService _cacheService;
 
-    public OrganizationBootstrapService(ApplicationDbContext context, TimeProvider timeProvider)
+    public OrganizationBootstrapService(ApplicationDbContext context, TimeProvider timeProvider, ICacheService cacheService)
     {
         _context = context;
         _timeProvider = timeProvider;
+        _cacheService = cacheService;
     }
 
     public async Task BootstrapOrganizationAsync(Guid orgId, Guid creatorUserId, CancellationToken cancellationToken = default)
@@ -48,6 +51,10 @@ public class OrganizationBootstrapService : IOrganizationBootstrapService
                 });
                 await _context.SaveChangesAsync(cancellationToken);
             }
+
+            // Invalidate Redis permissions cache for the creator user
+            var cacheKey = $"auth:org:{orgId}:user:{creatorUserId}:scoped_perms";
+            await _cacheService.DeleteAsync(cacheKey);
         }
     }
 
