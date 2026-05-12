@@ -194,36 +194,38 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
               </div>
             ) : (
               draft.map((item) => (
-                <Card key={item.id} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface flex flex-row justify-between items-center gap-4">
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <span className="font-bold text-foreground text-xs truncate">
-                      {item.title}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      {item.issuer} ({item.issueDate})
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl border border-border/30 h-8 w-8"
-                      onPress={() => handleEdit(item)}
-                      aria-label={`Edit achievement ${item.title}`}
-                    >
-                      <Edit2 className="size-3.5" />
-                    </Button>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl border border-border/30 h-8 w-8 text-danger"
-                      onPress={() => handleRemove(item.id)}
-                      aria-label={`Remove achievement ${item.title}`}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                <Card key={item.id} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface text-left">
+                  <div className="flex flex-row justify-between items-center gap-4 w-full">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="font-bold text-foreground text-xs truncate">
+                        {item.title}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium">
+                        {item.issuer} ({item.issueDate})
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-xl border border-border/30 h-8 w-8"
+                        onPress={() => handleEdit(item)}
+                        aria-label={`Edit achievement ${item.title}`}
+                      >
+                        <Edit2 className="size-3.5" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-xl border border-border/30 h-8 w-8 text-danger"
+                        onPress={() => handleRemove(item.id)}
+                        aria-label={`Remove achievement ${item.title}`}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               ))

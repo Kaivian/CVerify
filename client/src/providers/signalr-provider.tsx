@@ -6,7 +6,7 @@ import { useAuthStore } from '../features/auth/store/use-auth-store';
 import { useNotificationStore } from '../stores/use-notification-store';
 import { type NotificationItem } from '../types/notifications.types';
 import { NotificationHub as ClientToastHub } from '../infrastructure/notifications/orchestrator';
-import { API_URL } from '../infrastructure/http/axios-client';
+import { API_URL, axiosClient } from '../infrastructure/http/axios-client';
 
 const SignalRContext = createContext<HubConnection | null>(null);
 
@@ -108,9 +108,19 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
     const connection = new HubConnectionBuilder()
       .withUrl(hubUrl, {
         withCredentials: true,
-        transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling
+        transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling,
+        accessTokenFactory: async () => {
+          // Pre-connection check to ensure access token cookie is fresh.
+          // This API call automatically triggers silent token refresh via axios interceptors if the access token cookie has expired.
+          try {
+            await axiosClient.get('/auth/me');
+          } catch (err) {
+            // Silence error; if unauthenticated, the hub connection will fail with 401 anyway
+          }
+          return '';
+        }
       })
-      .configureLogging(LogLevel.Warning)
+      .configureLogging(process.env.NODE_ENV === 'development' ? LogLevel.Information : LogLevel.Warning)
       .withAutomaticReconnect()
       .build();
 

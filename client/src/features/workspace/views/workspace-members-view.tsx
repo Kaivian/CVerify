@@ -45,6 +45,8 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   const workspaceDetails = useWorkspaceStore((s) => s.workspaces[organizationSlug]);
   const isDetailsLoading = useWorkspaceStore((s) => s.loading[organizationSlug]);
   const detailsError = useWorkspaceStore((s) => s.errors[organizationSlug]);
+  const fetchMyOrganizations = useWorkspaceStore((s) => s.fetchMyOrganizations);
+  const myOrganizations = useWorkspaceStore((s) => s.myOrganizations);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"directory" | "invitations" | "logs">("directory");
@@ -113,8 +115,9 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   useEffect(() => {
     if (organizationSlug) {
       fetchWorkspace(organizationSlug);
+      fetchMyOrganizations();
     }
-  }, [organizationSlug, fetchWorkspace]);
+  }, [organizationSlug, fetchWorkspace, fetchMyOrganizations]);
 
   // Fetch available roles for filtering and assignment
   const fetchAvailableRoles = useCallback(async () => {
@@ -585,6 +588,34 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               Back to Home
             </button>
           </div>
+          {myOrganizations && myOrganizations.length > 0 && (
+            <div className="mt-6 border-t border-separator/40 pt-6 text-left w-full">
+              <span className="text-[10px] text-muted font-bold uppercase tracking-wider mb-3 block text-center">
+                Select a Workspace to Switch
+              </span>
+              <div className="grid grid-cols-1 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                {myOrganizations.map((org) => (
+                  <button
+                    key={org.slug}
+                    onClick={() => router.push(`/workspace/${org.slug}/information`)}
+                    className="flex items-center gap-3 w-full p-3.5 rounded-xl border border-border bg-surface-secondary/40 hover:bg-surface-secondary hover:border-accent/30 text-left transition-colors duration-200 group cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center group-hover:bg-accent group-hover:text-background transition-colors duration-200">
+                      <Building2 size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="block text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors duration-200">
+                        {org.name}
+                      </span>
+                      <span className="block text-[10px] text-muted font-mono truncate">
+                        @{org.slug}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     );
@@ -873,8 +904,12 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                                 </Table.Cell>
                                 <Table.Cell className="py-4 text-right pr-6">
                                   <Dropdown>
-                                    <Dropdown.Trigger className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary/80 cursor-pointer inline-flex items-center bg-transparent border-none outline-none transition-colors">
-                                      <MoreVertical size={16} />
+                                    <Dropdown.Trigger>
+                                      <span
+                                        className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary/80 cursor-pointer inline-flex items-center bg-transparent border-none outline-none transition-colors"
+                                      >
+                                        <MoreVertical size={16} />
+                                      </span>
                                     </Dropdown.Trigger>
                                     <Dropdown.Popover
                                       placement="bottom end"

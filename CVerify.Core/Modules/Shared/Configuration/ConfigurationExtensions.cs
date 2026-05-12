@@ -16,9 +16,7 @@ public static class ConfigurationExtensions
         {
             var envKey = match.Groups[1].Value;
 
-            return Environment.GetEnvironmentVariable(envKey)
-                   ?? throw new InvalidOperationException(
-                       $"Environment variable '{envKey}' is missing.");
+            return Environment.GetEnvironmentVariable(envKey) ?? "";
         });
     }
 }

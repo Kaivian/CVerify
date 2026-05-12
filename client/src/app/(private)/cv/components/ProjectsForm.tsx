@@ -9,12 +9,14 @@ export const ProjectsForm: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 text-left">
-      <Card rounded="xl" glow={false} className="p-5 border border-warning/40 bg-warning/5 flex flex-row gap-3 items-start">
-        <AlertCircle className="size-5 text-warning shrink-0 mt-0.5" />
-        <div className="flex flex-col gap-1 text-xs">
-          <span className="font-bold text-foreground">
-            Project information is automatically synchronized from your linked profiles and connected GitHub/GitLab repositories. To link more projects, please connect your credentials in Source Code Providers.
-          </span>
+      <Card rounded="xl" glow={false} className="p-5 border border-warning/40 bg-warning/5">
+        <div className="flex flex-row gap-3 items-start w-full">
+          <AlertCircle className="size-5 text-warning shrink-0 mt-0.5" />
+          <div className="flex flex-col gap-1 text-xs">
+            <span className="font-bold text-foreground">
+              Project information is automatically synchronized from your linked profiles and connected GitHub/GitLab repositories. To link more projects, please connect your credentials in Source Code Providers.
+            </span>
+          </div>
         </div>
       </Card>
 
