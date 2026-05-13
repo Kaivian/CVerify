@@ -6,12 +6,11 @@ import { useWorkspaceStore } from "@/features/workspace/store/use-workspace-stor
 import { Card } from "@/components/ui/card";
 import { Typography, Chip, toast } from "@heroui/react";
 import { Button } from "@/components/ui/button";
-import { Building2, MapPin, Briefcase, ShieldCheck, AlertTriangle, Share2, Plus, Check, Camera } from "lucide-react";
 import { SkeletonLoader } from "@/components/ui/states";
 import Link from "next/link";
 import { ImageCropperModal } from "@/components/ui/image-cropper-modal";
-import { validateImageDimensions } from "@/lib/utils/image-crop.utils";
 import { workspaceService } from "@/features/workspace/services/workspace.service";
+import { Plus, Check, Share2 } from "lucide-react";
 
 export default function PublicWorkspaceLayout({
   children,
@@ -59,19 +58,14 @@ export default function PublicWorkspaceLayout({
       return;
     }
 
-    try {
-      await validateImageDimensions(file, 1152, 208);
-      setLastSelectedFile(file);
-      setCropperType("banner");
-      const objectUrl = URL.createObjectURL(file);
-      setCropImageSrc(objectUrl);
-      setIsCropModalOpen(true);
-    } catch (err: unknown) {
-      toast.danger(typeof err === "string" ? err : "Selected image does not meet size requirements (min 1152x208px).");
-    } finally {
-      if (bannerInputRef.current) {
-        bannerInputRef.current.value = "";
-      }
+    setLastSelectedFile(file);
+    setCropperType("banner");
+    const objectUrl = URL.createObjectURL(file);
+    setCropImageSrc(objectUrl);
+    setIsCropModalOpen(true);
+
+    if (bannerInputRef.current) {
+      bannerInputRef.current.value = "";
     }
   };
 
@@ -90,19 +84,14 @@ export default function PublicWorkspaceLayout({
       return;
     }
 
-    try {
-      await validateImageDimensions(file, 256, 256);
-      setLastSelectedFile(file);
-      setCropperType("avatar");
-      const objectUrl = URL.createObjectURL(file);
-      setCropImageSrc(objectUrl);
-      setIsCropModalOpen(true);
-    } catch (err: unknown) {
-      toast.danger(typeof err === "string" ? err : "Selected image does not meet size requirements (min 256x256px).");
-    } finally {
-      if (logoInputRef.current) {
-        logoInputRef.current.value = "";
-      }
+    setLastSelectedFile(file);
+    setCropperType("avatar");
+    const objectUrl = URL.createObjectURL(file);
+    setCropImageSrc(objectUrl);
+    setIsCropModalOpen(true);
+
+    if (logoInputRef.current) {
+      logoInputRef.current.value = "";
     }
   };
 
@@ -182,19 +171,19 @@ export default function PublicWorkspaceLayout({
     return (
       <div className="max-w-xl mx-auto py-20 font-outfit text-foreground">
         <Card className="p-8 border border-border bg-surface text-center">
-          <div className="size-16 rounded-2xl bg-danger/10 flex items-center justify-center border border-danger/20 mx-auto mb-5 text-danger">
-            <AlertTriangle size={28} />
+          <div className="size-12 rounded-xl bg-danger/10 flex items-center justify-center border border-danger/20 mx-auto mb-4 text-danger text-lg font-semibold select-none">
+            !
           </div>
-          <Typography type="h4" className="font-bold text-foreground mb-2">
+          <Typography type="h4" className="font-semibold text-foreground mb-2">
             Profile Loading Error
           </Typography>
-          <Typography type="body-xs" className="text-muted leading-relaxed mb-6">
+          <Typography type="body-xs" className="text-muted leading-relaxed mb-5">
             {detailsError || "The requested organization profile could not be loaded."}
           </Typography>
           <Button
             onClick={() => router.push("/")}
             variant="outline"
-            className="font-bold text-xs cursor-pointer"
+            className="font-medium text-xs cursor-pointer"
           >
             Go Back Home
           </Button>
@@ -205,10 +194,9 @@ export default function PublicWorkspaceLayout({
 
   // Determine active tab based on route
   const getActiveTab = () => {
-    if (pathname.endsWith("/about")) return "about";
     if (pathname.endsWith("/jobs")) return "jobs";
     if (pathname.endsWith("/posts")) return "posts";
-    if (pathname.endsWith("/people")) return "people";
+    if (pathname.endsWith("/people")) return "members";
     return "home";
   };
 
@@ -226,10 +214,9 @@ export default function PublicWorkspaceLayout({
 
   const tabs = [
     { id: "home", label: "Home", href: baseRoute },
-    { id: "about", label: "About", href: `${baseRoute}/about` },
     { id: "jobs", label: "Jobs", href: `${baseRoute}/jobs` },
     { id: "posts", label: "Posts", href: `${baseRoute}/posts` },
-    { id: "people", label: "People", href: `${baseRoute}/people` },
+    { id: "members", label: "Members", href: `${baseRoute}/people` },
   ];
 
   return (
@@ -241,6 +228,21 @@ export default function PublicWorkspaceLayout({
       </div>
 
       <div className="max-w-6xl mx-auto px-4 md:px-6 pt-6 relative z-10 space-y-6">
+        {/* Link to Private Management Dashboard (Top Left) */}
+        {canManageProfile && (
+          <div className="flex justify-start select-none">
+            <Link href={`/workspace/${organizationSlug}/information`}>
+              <Button
+                variant="bordered"
+                size="sm"
+                className="font-medium text-xs h-8 px-3 rounded-xl border-border text-muted hover:text-foreground hover:bg-card/30 cursor-pointer flex items-center"
+              >
+                Back to Dashboard
+              </Button>
+            </Link>
+          </div>
+        )}
+
         {/* Main Header Card */}
         <Card className="p-0 overflow-hidden border border-border bg-surface shadow-lg rounded-2xl">
           {/* Banner Frame */}
@@ -265,10 +267,9 @@ export default function PublicWorkspaceLayout({
                 <Button
                   size="sm"
                   variant="bordered"
-                  className="bg-black/50 hover:bg-black/70 border border-white/20 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 backdrop-blur-md shadow-sm h-8 px-3 cursor-pointer"
+                  className="bg-black/50 hover:bg-black/70 border border-white/20 text-white font-medium text-xs rounded-xl flex items-center backdrop-blur-md shadow-sm h-8 px-3 cursor-pointer"
                   onClick={() => bannerInputRef.current?.click()}
                 >
-                  <Camera size={14} />
                   Change Banner
                 </Button>
               </div>
@@ -287,8 +288,8 @@ export default function PublicWorkspaceLayout({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-linear-to-br from-accent/10 to-indigo-500/10 flex items-center justify-center text-accent">
-                  <Building2 size={44} />
+                <div className="w-full h-full bg-linear-to-br from-accent/10 to-indigo-500/10 flex items-center justify-center text-accent font-semibold text-lg">
+                  {workspaceDetails.organizationName?.substring(0, 1)}
                 </div>
               )}
 
@@ -299,8 +300,7 @@ export default function PublicWorkspaceLayout({
                   className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center text-white gap-1 cursor-pointer border-none outline-none"
                   aria-label="Change Logo"
                 >
-                  <Camera size={18} />
-                  <span className="text-[10px] font-bold">Edit</span>
+                  <span className="text-[10px] font-medium">Edit Logo</span>
                 </button>
               )}
             </div>
@@ -311,21 +311,15 @@ export default function PublicWorkspaceLayout({
                 onClick={() => toggleFollowWorkspace(organizationSlug)}
                 variant={workspaceDetails.isFollowing ? "bordered" : "solid"}
                 size="sm"
-                className={`font-bold text-xs cursor-pointer h-9 px-4 rounded-xl ${workspaceDetails.isFollowing
+                className={`font-medium text-xs cursor-pointer h-9 px-4 rounded-xl flex items-center gap-1.5 ${workspaceDetails.isFollowing
                     ? "border-border text-foreground hover:bg-card/50"
                     : "bg-accent text-background hover:bg-accent/90 border-none"
                   }`}
               >
                 {workspaceDetails.isFollowing ? (
-                  <>
-                    <Check size={14} className="mr-1.5" />
-                    Following
-                  </>
+                  <><Check size={13} strokeWidth={2.5} /><span>Following</span></>
                 ) : (
-                  <>
-                    <Plus size={14} className="mr-1.5" />
-                    Follow
-                  </>
+                  <><Plus size={13} strokeWidth={2.5} /><span>Follow</span></>
                 )}
               </Button>
 
@@ -334,9 +328,10 @@ export default function PublicWorkspaceLayout({
                   onClick={handleShare}
                   variant="bordered"
                   size="sm"
-                  className="font-bold text-xs h-9 w-9 p-0 flex items-center justify-center rounded-xl border-border text-muted hover:text-foreground cursor-pointer"
+                  className="font-medium text-xs h-9 px-3 flex items-center justify-center gap-1.5 rounded-xl border-border text-muted hover:text-foreground cursor-pointer"
                 >
-                  {shareSuccess ? <Check size={14} className="text-success" /> : <Share2 size={14} />}
+                  <Share2 size={13} strokeWidth={2} />
+                  <span>{shareSuccess ? "Shared" : "Share"}</span>
                 </Button>
               </span>
 
@@ -346,7 +341,7 @@ export default function PublicWorkspaceLayout({
                   <Button
                     variant="bordered"
                     size="sm"
-                    className="font-bold text-xs h-9 px-3 rounded-xl border-accent/30 text-accent hover:bg-accent/10 cursor-pointer"
+                    className="font-medium text-xs h-9 px-3 rounded-xl border-accent/30 text-accent hover:bg-accent/10 cursor-pointer"
                   >
                     Manage Profile
                   </Button>
@@ -355,60 +350,83 @@ export default function PublicWorkspaceLayout({
             </div>
 
             {/* Core Info */}
-            <div className="mt-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <Typography type="h1" className="text-2xl font-extrabold text-foreground">
-                  {workspaceDetails.organizationName}
-                </Typography>
-                <Chip color="success" variant="soft" size="sm" className="font-semibold text-[10px] py-0.5 px-2">
-                  <ShieldCheck size={11} className="inline mr-1 -mt-0.5" />
-                  Verified Enterprise
-                </Chip>
-              </div>
-
-              <Typography type="body-xs" className="text-muted max-w-3xl leading-relaxed">
-                {workspaceDetails.description}
-              </Typography>
-
-              {/* Attributes line */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground pt-1 select-none">
-                {workspaceDetails.industry && (
-                  <span className="flex items-center gap-1.5">
-                    <Briefcase size={13} className="text-accent" />
-                    {workspaceDetails.industry}
-                  </span>
-                )}
-                {workspaceDetails.location && (
-                  <span className="flex items-center gap-1.5">
-                    <MapPin size={13} className="text-accent" />
-                    {workspaceDetails.location}
-                  </span>
-                )}
-                {workspaceDetails.companySize && (
-                  <span className="flex items-center gap-1.5">
-                    <Building2 size={13} className="text-accent" />
-                    {workspaceDetails.companySize} employees
-                  </span>
-                )}
+            <div className="mt-4 space-y-3 font-normal">
+              {/* Company name + badges row */}
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Typography type="h1" className="text-xl font-semibold text-foreground">
+                    {workspaceDetails.organizationName}
+                  </Typography>
+                  <Chip color="success" variant="soft" size="sm" className="font-medium text-[10px] py-0.5 px-2">
+                    Verified Enterprise
+                  </Chip>
+                </div>
                 {workspaceDetails.followersCount !== undefined && (
-                  <span className="font-semibold text-foreground">
+                  <span className="text-[11px] text-muted font-normal select-none">
                     {workspaceDetails.followersCount.toLocaleString()} followers
                   </span>
                 )}
               </div>
+
+              <Typography type="body-xs" className="text-muted max-w-3xl leading-relaxed font-normal">
+                {workspaceDetails.description}
+              </Typography>
+
+              {/* Recruitment Contact below description */}
+              {(workspaceDetails.contactName || workspaceDetails.contactEmail || workspaceDetails.contactPhone) && (
+                <div className="pt-4 space-y-2 select-none border-t border-border/40 mt-3">
+                  <div className="text-[11px] font-semibold text-foreground uppercase tracking-wider">
+                    Recruitment Contact
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {workspaceDetails.contactName && (
+                      <div className="p-3 bg-card/10 border border-border rounded-xl">
+                        <div className="text-[9px] text-muted uppercase tracking-wider mb-0.5 font-medium">
+                          Contact Name
+                        </div>
+                        <div className="text-xs text-foreground font-normal leading-tight">
+                          {workspaceDetails.contactName}
+                        </div>
+                      </div>
+                    )}
+                    {workspaceDetails.contactEmail && (
+                      <div className="p-3 bg-card/10 border border-border rounded-xl">
+                        <div className="text-[9px] text-muted uppercase tracking-wider mb-0.5 font-medium">
+                          Contact Email
+                        </div>
+                        <div className="text-xs text-accent font-normal hover:underline break-all leading-tight">
+                          <a href={`mailto:${workspaceDetails.contactEmail}`}>
+                            {workspaceDetails.contactEmail}
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    {workspaceDetails.contactPhone && (
+                      <div className="p-3 bg-card/10 border border-border rounded-xl">
+                        <div className="text-[9px] text-muted uppercase tracking-wider mb-0.5 font-medium">
+                          Contact Phone
+                        </div>
+                        <div className="text-xs text-foreground font-normal leading-tight">
+                          {workspaceDetails.contactPhone}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Navigation Tabs Bar */}
-          <div className="border-t border-border bg-card/30 flex px-6 select-none">
+          <div className="border-t border-border bg-card/30 flex px-6 select-none font-normal">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <Link
                   key={tab.id}
                   href={tab.href}
-                  className={`py-4 px-4 font-bold text-sm tracking-wide border-b-2 transition-colors relative cursor-pointer ${isActive
-                      ? "border-accent text-accent font-extrabold"
+                  className={`py-3 px-4 font-medium text-sm transition-colors relative cursor-pointer ${isActive
+                      ? "border-accent text-accent font-medium"
                       : "border-transparent text-muted hover:text-foreground"
                     }`}
                 >

@@ -61,6 +61,25 @@ public class Organization
     [MaxLength(2048)]
     public string? LogoUrl { get; set; }
 
+    public string? Description { get; set; }
+    public string? CompanyType { get; set; }
+    public string? CompanySize { get; set; }
+    public int BranchCount { get; set; } = 0;
+    public int FollowerCount { get; set; } = 0;
+    public List<string> IndustryTags { get; set; } = new();
+    public List<string> BenefitTags { get; set; } = new();
+    public List<string> GalleryUrls { get; set; } = new();
+    public string? ContactName { get; set; }
+    public string? ContactPhone { get; set; }
+    public string? ContactEmail { get; set; }
+    public string? City { get; set; }
+    public string? DetailAddress { get; set; }
+    public string? GoogleMapsEmbedUrl { get; set; }
+    public string? LinkedinUrl { get; set; }
+    public string? FacebookUrl { get; set; }
+    public string? TwitterUrl { get; set; }
+    public string? Website { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
