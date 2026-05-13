@@ -60,6 +60,7 @@ public class WorkExperienceService : IWorkExperienceService
             StartDate = request.StartDate,
             EndDate = request.IsCurrentlyWorking ? null : request.EndDate,
             IsCurrentlyWorking = request.IsCurrentlyWorking,
+            IsLeadership = request.IsLeadership,
             Description = request.Description.Trim(),
             DisplayOrder = maxOrder + 1,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -91,6 +92,14 @@ public class WorkExperienceService : IWorkExperienceService
         };
 
         _context.WorkExperiences.Add(entry);
+
+        var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+        if (profile != null)
+        {
+            profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return MapToResponse(entry);
@@ -123,6 +132,7 @@ public class WorkExperienceService : IWorkExperienceService
         entry.StartDate = request.StartDate;
         entry.EndDate = request.IsCurrentlyWorking ? null : request.EndDate;
         entry.IsCurrentlyWorking = request.IsCurrentlyWorking;
+        entry.IsLeadership = request.IsLeadership;
         entry.Description = request.Description.Trim();
         entry.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -159,6 +169,13 @@ public class WorkExperienceService : IWorkExperienceService
             CreatedAt = DateTimeOffset.UtcNow
         }).ToList() ?? new List<WorkExperienceLink>();
 
+        var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+        if (profile != null)
+        {
+            profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return MapToResponse(entry);
@@ -176,6 +193,14 @@ public class WorkExperienceService : IWorkExperienceService
 
         entry.DeletedAt = DateTimeOffset.UtcNow;
         entry.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+        if (profile != null)
+        {
+            profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 
@@ -203,6 +228,13 @@ public class WorkExperienceService : IWorkExperienceService
                 entry.DisplayOrder = i;
                 entry.UpdatedAt = DateTimeOffset.UtcNow;
             }
+        }
+
+        var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+        if (profile != null)
+        {
+            profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -248,7 +280,8 @@ public class WorkExperienceService : IWorkExperienceService
             entry.DisplayOrder,
             entry.Achievements.Select(a => new WorkExperienceAchievementDto(a.Title, a.Description)).ToList(),
             entry.Technologies.Select(t => t.Name).ToList(),
-            entry.Links.Select(l => new WorkExperienceLinkDto((int)l.LinkType, l.Url)).ToList()
+            entry.Links.Select(l => new WorkExperienceLinkDto((int)l.LinkType, l.Url)).ToList(),
+            entry.IsLeadership
         );
     }
 }

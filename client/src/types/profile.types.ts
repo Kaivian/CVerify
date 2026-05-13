@@ -274,6 +274,7 @@ export interface WorkExperienceRequest {
   achievements: WorkExperienceAchievement[];
   technologies: string[];
   links: WorkExperienceLink[];
+  isLeadership?: boolean;
 }
 
 export interface WorkExperienceResponse {
@@ -292,5 +293,51 @@ export interface WorkExperienceResponse {
   achievements: WorkExperienceAchievement[];
   technologies: string[];
   links: WorkExperienceLink[];
+  isLeadership: boolean;
+}
+
+
+export interface CandidateReadinessDto {
+  isReady: boolean;
+  missingFields: string[];
+  completenessScore: number;
+  requiresReassessment: boolean;
+  lastAssessmentAt: string | null;
+  lastProfileUpdateAt: string;
+  lastRepositoryAnalysisAt: string;
+}
+
+export interface CandidateAssessmentResponse {
+  id: string;
+  userId: string;
+  status: string;
+  overallScore: number;
+  careerLevel: string | null;
+  careerLevelLabel: string | null;
+  primaryTendency: string | null;
+  primaryWorkingStyle: string | null;
+  summaryHeadline: string | null;
+  summaryParagraph: string | null;
+  pipelineVersion: string;
+  assessmentSchemaVersion: string;
+  lastProfileUpdateAt: string;
+  lastRepositoryAnalysisAt: string;
+  lastAssessmentAt: string | null;
+  failedStage: string | null;
+  failureReason: string | null;
+  createdAtUtc: string;
+  completedAtUtc: string | null;
+}
+
+export interface CandidateAssessmentArtifactDto {
+  id: string;
+  artifactType: string;
+  jsonData: string;
+  createdAtUtc: string;
+}
+
+export interface CandidateAssessmentDetailResponse {
+  assessment: CandidateAssessmentResponse;
+  artifacts: CandidateAssessmentArtifactDto[];
 }
 

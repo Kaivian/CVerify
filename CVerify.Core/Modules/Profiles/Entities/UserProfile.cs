@@ -58,6 +58,8 @@ public class UserProfile
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    public DateTimeOffset LastProfileUpdateAt { get; set; } = DateTimeOffset.UtcNow;
+
     public DateTimeOffset? DeletedAt { get; set; }
 
     [ConcurrencyCheck]

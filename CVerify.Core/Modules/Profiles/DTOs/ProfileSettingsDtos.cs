@@ -354,7 +354,8 @@ public record WorkExperienceRequest(
     [Required, MaxLength(2000)] string Description,
     List<WorkExperienceAchievementDto>? Achievements,
     List<string>? Technologies,
-    List<WorkExperienceLinkDto>? Links
+    List<WorkExperienceLinkDto>? Links,
+    bool IsLeadership = false
 );
 
 public record WorkExperienceResponse(
@@ -372,7 +373,8 @@ public record WorkExperienceResponse(
     int DisplayOrder,
     List<WorkExperienceAchievementDto> Achievements,
     List<string> Technologies,
-    List<WorkExperienceLinkDto> Links
+    List<WorkExperienceLinkDto> Links,
+    bool IsLeadership
 );
 
 

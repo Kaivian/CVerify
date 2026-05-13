@@ -160,6 +160,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<WorkExperienceAchievement> WorkExperienceAchievements => Set<WorkExperienceAchievement>();
     public DbSet<WorkExperienceTechnology> WorkExperienceTechnologies => Set<WorkExperienceTechnology>();
     public DbSet<WorkExperienceLink> WorkExperienceLinks => Set<WorkExperienceLink>();
+    public DbSet<CandidateAssessment> CandidateAssessments => Set<CandidateAssessment>();
+    public DbSet<CandidateAssessmentArtifact> CandidateAssessmentArtifacts => Set<CandidateAssessmentArtifact>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -184,6 +186,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<WorkExperienceAchievement>().Property(wa => wa.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkExperienceTechnology>().Property(wt => wt.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkExperienceLink>().Property(wl => wl.Id).ValueGeneratedNever();
+        modelBuilder.Entity<CandidateAssessment>().Property(ca => ca.Id).ValueGeneratedNever();
+        modelBuilder.Entity<CandidateAssessmentArtifact>().Property(caa => caa.Id).ValueGeneratedNever();
         modelBuilder.Entity<ResetPasswordToken>().Property(rt => rt.Id).ValueGeneratedNever();
         modelBuilder.Entity<OutboxMessage>().Property(om => om.Id).ValueGeneratedNever();
         modelBuilder.Entity<AuditLog>().Property(al => al.Id).ValueGeneratedNever();
@@ -1073,6 +1077,28 @@ public class ApplicationDbContext : DbContext
                   .HasForeignKey(wl => wl.WorkExperienceId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(wl => wl.WorkExperienceId).HasDatabaseName("idx_work_experience_links_entry");
+        });
+
+        modelBuilder.Entity<CandidateAssessment>(entity =>
+        {
+            entity.ToTable("candidate_assessments");
+            entity.HasOne(ca => ca.User)
+                  .WithMany()
+                  .HasForeignKey(ca => ca.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(ca => ca.UserId).HasDatabaseName("idx_candidate_assessments_user_id");
+            entity.HasIndex(ca => new { ca.UserId, ca.Version }).IsUnique().HasDatabaseName("ux_candidate_assessments_user_version");
+        });
+
+        modelBuilder.Entity<CandidateAssessmentArtifact>(entity =>
+        {
+            entity.ToTable("candidate_assessment_artifacts");
+            entity.HasOne(caa => caa.Assessment)
+                  .WithMany(ca => ca.Artifacts)
+                  .HasForeignKey(caa => caa.AssessmentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(caa => caa.AssessmentId).HasDatabaseName("idx_candidate_assessment_artifacts_assessment_id");
+            entity.HasIndex(caa => new { caa.AssessmentId, caa.ArtifactType }).IsUnique().HasDatabaseName("ux_candidate_assessment_artifacts_type");
         });
 
 

@@ -44,6 +44,7 @@ export interface ExperienceDraftItem {
   technologies: string[];
   achievements: { title: string; description: string }[];
   links: { linkType: number; url: string }[];
+  isLeadership: boolean;
 }
 
 export interface EducationDraftItem {

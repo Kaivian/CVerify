@@ -14,6 +14,10 @@ import {
   type WorkExperienceResponse,
   type CareerPreferencesDashboardResponse,
   type AcceptAiSuggestionsRequest,
+  type CandidateReadinessDto,
+  type CandidateAssessmentResponse,
+  type CandidateAssessmentArtifactDto,
+  type CandidateAssessmentDetailResponse,
 } from '../types/profile.types';
 
 export const profileApi = {
@@ -190,5 +194,34 @@ export const profileApi = {
 
   reorderWorkExperience: async (orderedIds: string[]): Promise<void> => {
     await axiosClient.put('/v1/users/work-experience/reorder', { orderedIds });
+  },
+
+  // Candidate Assessments
+  fetchCandidateReadiness: async (): Promise<CandidateReadinessDto> => {
+    const response = await axiosClient.get<CandidateReadinessDto>('/v1/candidate-assessments/readiness');
+    return response.data;
+  },
+
+  triggerCandidateAssessment: async (): Promise<CandidateAssessmentResponse> => {
+    const response = await axiosClient.post<CandidateAssessmentResponse>('/v1/candidate-assessments');
+    return response.data;
+  },
+
+  fetchLatestCandidateAssessment: async (): Promise<CandidateAssessmentResponse | null> => {
+    const response = await axiosClient.get<CandidateAssessmentResponse | null>('/v1/candidate-assessments/latest');
+    if (response.status === 204) {
+      return null;
+    }
+    return response.data;
+  },
+
+  fetchCandidateAssessmentHistory: async (): Promise<CandidateAssessmentResponse[]> => {
+    const response = await axiosClient.get<CandidateAssessmentResponse[]>('/v1/candidate-assessments/history');
+    return response.data;
+  },
+
+  fetchCandidateAssessmentDetails: async (assessmentId: string): Promise<CandidateAssessmentDetailResponse> => {
+    const response = await axiosClient.get<CandidateAssessmentDetailResponse>(`/v1/candidate-assessments/${assessmentId}/details`);
+    return response.data;
   },
 };
