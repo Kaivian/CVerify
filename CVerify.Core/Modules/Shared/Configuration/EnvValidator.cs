@@ -127,6 +127,7 @@ public static class EnvValidator
 
         config.Seeding.BusinessPassword = (configuration["Seeding:BusinessPassword"] ?? configuration["SEED_BUSINESS_PASSWORD"])?.ResolveEnvironmentVariables()?.Trim('"');
         config.Seeding.SeedDataPath = (configuration["Seeding:SeedDataPath"] ?? configuration["SEED_DATA_PATH"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.Seeding.SeedDataPath;
+        config.Seeding.PublicDemoDataPath = (configuration["Seeding:PublicDemoDataPath"] ?? configuration["PUBLIC_DEMO_DATA_PATH"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.Seeding.PublicDemoDataPath;
 
         if (config.Seeding.SeedTestAccounts)
         {

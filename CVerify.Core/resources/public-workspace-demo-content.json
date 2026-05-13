@@ -1,0 +1,180 @@
+{
+  "schemaVersion": "1.0.0",
+  "seedType": "Demo",
+  "sourceEnvironment": "Development",
+  "organizations": [
+    {
+      "organizationSlug": "tier1-business",
+      "mission": "To deliver state-of-the-art cryptographic credentials and build global trust in software portfolios.",
+      "vision": "To become the absolute standard of trust in the developer employment space.",
+      "coreValues": "Security, Integrity, Developer-First, Innovation",
+      "founded": "2024",
+      "companyType": "Technology Enterprise",
+      "companySize": "500-1000",
+      "branchCount": 3,
+      "industryTags": ["Web3", "Cryptography", "Talent Analytics", "Fintech"],
+      "benefitTags": ["Health Insurance Premium", "MacBook Pro M3 Max", "Flexible Work Environment", "Free Snacks & Coffee"],
+      "galleryUrls": [
+        "https://images.unsplash.com/photo-1497366216548-37526070297c",
+        "https://images.unsplash.com/photo-1497215728101-856f4ea42174"
+      ],
+      "contactName": "Sarah Recruitment Manager",
+      "contactPhone": "+84912345678",
+      "contactEmail": "hr@tier1-business.com",
+      "city": "Hanoi",
+      "detailAddress": "FPT Tower, Pham Van Bach, Cau Giay",
+      "googleMapsEmbedUrl": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3724.0970346048123!2d105.78184511540237!3d21.028811493153597!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3135ab4cd0c283ab%3A0xb3634125b29bfdc8!2sFPT%20Tower!5e0!3m2!1sen!2svn!4v1625000000000!5m2!1sen!2svn",
+      "linkedinUrl": "https://linkedin.com/company/cverify-tier1",
+      "facebookUrl": "https://facebook.com/cverify.tier1",
+      "twitterUrl": "https://twitter.com/cverify_tier1",
+      "website": "https://tier1.cverify.dev",
+      "jobs": [
+        {
+          "title": "Senior React Frontend Developer",
+          "department": "Engineering",
+          "workplaceType": "Hybrid",
+          "city": "Hanoi",
+          "type": "Full-Time",
+          "salary": "$1,800 - $3,200",
+          "salaryMinMax": "$1,800 - $3,200",
+          "headcount": 2,
+          "gender": "No requirement",
+          "experience": "3+ years React / TypeScript experience",
+          "degree": "Bachelor of Software Engineering or equivalent",
+          "category": "Software Engineering, Web Development",
+          "description": [
+            "Build robust dashboard user interfaces using React, Next.js, and HeroUI.",
+            "Collaborate with security engineers to integrate cryptographic proof widgets."
+          ],
+          "requirements": [
+            "Proficiency in React, Tailwind CSS, TypeScript, and state management (Zustand/Redux).",
+            "Familiarity with atomic design patterns and web performance optimization."
+          ],
+          "benefits": [
+            "Attractive salary packages and performance-based yearly bonuses.",
+            "Private premium health insurance cover."
+          ],
+          "tags": ["React", "Frontend", "TypeScript"],
+          "skills": ["React", "TypeScript", "TailwindCSS"],
+          "coverUrl": "https://images.unsplash.com/photo-1555066931-4365d14bab8c",
+          "images": ["https://images.unsplash.com/photo-1555066931-4365d14bab8c"],
+          "isActive": true
+        },
+        {
+          "title": "Backend Tech Lead (.NET Core)",
+          "department": "Engineering",
+          "workplaceType": "On-site",
+          "city": "Hanoi",
+          "type": "Full-Time",
+          "salary": "$3,000 - $5,000",
+          "salaryMinMax": "$3,000 - $5,000",
+          "headcount": 1,
+          "gender": "No requirement",
+          "experience": "5+ years backend coding with .NET Core",
+          "degree": "Master or Bachelor of Computer Science",
+          "category": "Software Engineering, Backend Development",
+          "description": [
+            "Lead architectural design for high-throughput signed evidence ledger microservices.",
+            "Perform code reviews and mentor junior developers."
+          ],
+          "requirements": [
+            "Strong skills in C#, .NET 8 Web API, PostgreSQL, Redis, and EF Core.",
+            "Familiarity with Clean Architecture, Domain-Driven Design, and message brokers."
+          ],
+          "benefits": [
+            "13th-month salary and performance bonus.",
+            "Opportunity to lead a high-talent tech team."
+          ],
+          "tags": ["Dotnet", "CSharp", "Backend"],
+          "skills": ["C#", ".NET Core", "PostgreSQL"],
+          "coverUrl": "https://images.unsplash.com/photo-1571171637578-41bc2dd41cd2",
+          "images": ["https://images.unsplash.com/photo-1571171637578-41bc2dd41cd2"],
+          "isActive": true
+        }
+      ],
+      "posts": [
+        {
+          "category": "Announcement",
+          "content": "Welcome to our new CVerify Public Profile! We are excited to showcase our verified credentials, active job openings, and public announcements. Follow us to stay updated!",
+          "images": ["https://images.unsplash.com/photo-1451187580459-43490279c0fa"],
+          "likes": 24,
+          "sharesCount": 5
+        },
+        {
+          "category": "Engineering",
+          "content": "Our team has completed the implementation of the Extensible Seeding Registry using the plugin pattern in ASP.NET Core. This allows our developers to seamlessly add modular seeders without touching core boot coordinators!",
+          "images": ["https://images.unsplash.com/photo-1517694712202-14dd9538aa97"],
+          "likes": 18,
+          "sharesCount": 2
+        }
+      ]
+    },
+    {
+      "organizationSlug": "tier2-business",
+      "mission": "To provide high-quality enterprise outsourcing with transparent cryptographic developer tracking.",
+      "vision": "To be the most reliable and transparent software outsourcing partner globally.",
+      "coreValues": "Reliability, Customer Satisfaction, Quality, Scalability",
+      "founded": "2023",
+      "companyType": "Joint Stock Company",
+      "companySize": "100-200",
+      "branchCount": 1,
+      "industryTags": ["Software Outsourcing", "Cloud Solutions", "System Integration"],
+      "benefitTags": ["Flexible Hours", "Free Language Classes", "Quarterly Team Building"],
+      "galleryUrls": [
+        "https://images.unsplash.com/photo-1497366216548-37526070297c"
+      ],
+      "contactName": "David Recruitment Executive",
+      "contactPhone": "+84909876543",
+      "contactEmail": "hr@tier2-business.com",
+      "city": "Da Nang",
+      "detailAddress": "FPT Complex, Ngu Hanh Son",
+      "googleMapsEmbedUrl": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3835.65089304675!2d108.25994271534433!3d15.978129288937088!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x314210decff3d277%3A0xa19ec6ebf54070b4!2sFPT%20Complex!5e0!3m2!1sen!2svn!4v1625000000000!5m2!1sen!2svn",
+      "linkedinUrl": "https://linkedin.com/company/cverify-tier2",
+      "facebookUrl": "https://facebook.com/cverify.tier2",
+      "twitterUrl": "https://twitter.com/cverify_tier2",
+      "website": "https://tier2.cverify.dev",
+      "jobs": [
+        {
+          "title": "Middle DevOps Engineer",
+          "department": "Infrastructure",
+          "workplaceType": "Remote",
+          "city": "Da Nang",
+          "type": "Full-Time",
+          "salary": "$1,500 - $2,500",
+          "salaryMinMax": "$1,500 - $2,500",
+          "headcount": 1,
+          "gender": "No requirement",
+          "experience": "2+ years DevOps experience",
+          "degree": "Bachelor in Computer Science or IT related fields",
+          "category": "Cloud & DevOps",
+          "description": [
+            "Set up CI/CD pipelines and manage Kubernetes infrastructure.",
+            "Optimize cloud infrastructure cost and monitor service health."
+          ],
+          "requirements": [
+            "Familiarity with AWS, Docker, Kubernetes, Jenkins/GitHub Actions, and Terraform.",
+            "Basic Linux shell scripting and network protocols understanding."
+          ],
+          "benefits": [
+            "Work from anywhere policy.",
+            "Free AWS certification exam fees sponsor."
+          ],
+          "tags": ["DevOps", "AWS", "Kubernetes"],
+          "skills": ["DevOps", "AWS", "Kubernetes"],
+          "coverUrl": "https://images.unsplash.com/photo-1618401471353-b98aedd07871",
+          "images": ["https://images.unsplash.com/photo-1618401471353-b98aedd07871"],
+          "isActive": true
+        }
+      ],
+      "posts": [
+        {
+          "category": "Announcement",
+          "content": "Hello Da Nang! We are excited to launch our cryptographically verified talent board in Da Nang, partnering with CVerify. Contact us for remote outsourcing needs.",
+          "images": ["https://images.unsplash.com/photo-1473163928189-364b2c4e1135"],
+          "likes": 15,
+          "sharesCount": 1
+        }
+      ]
+    }
+  ]
+}

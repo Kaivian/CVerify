@@ -355,13 +355,13 @@ export default function PublicWorkspaceLayout({
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-3">
                   <Typography type="h1" className="text-xl font-semibold text-foreground">
-                    {workspaceDetails.organizationName}
+                    {workspaceDetails.organizationName || "Partner Enterprise"}
                   </Typography>
                   <Chip color="success" variant="soft" size="sm" className="font-medium text-[10px] py-0.5 px-2">
                     Verified Enterprise
                   </Chip>
                 </div>
-                {workspaceDetails.followersCount !== undefined && (
+                {workspaceDetails.followersCount !== undefined && workspaceDetails.followersCount !== null && (
                   <span className="text-[11px] text-muted font-normal select-none">
                     {workspaceDetails.followersCount.toLocaleString()} followers
                   </span>
@@ -369,7 +369,7 @@ export default function PublicWorkspaceLayout({
               </div>
 
               <Typography type="body-xs" className="text-muted max-w-3xl leading-relaxed font-normal">
-                {workspaceDetails.description}
+                {workspaceDetails.description || "No description provided."}
               </Typography>
 
               {/* Recruitment Contact below description */}

@@ -1,4 +1,7 @@
 {
+  "schemaVersion": "1.0.0",
+  "seedType": "Demo",
+  "sourceEnvironment": "Development",
   "organizations": [
     {
       "id": "01900000-0000-0000-0000-000000000001",

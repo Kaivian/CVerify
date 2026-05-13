@@ -445,4 +445,33 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         exception.Message.Should().Contain("SEED_BUSINESS_PASSWORD");
     }
+
+    [Fact]
+    public async Task Startup_ThrowsException_If_DatabaseEnvironment_Mismatch_With_Production()
+    {
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await db.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE IF NOT EXISTS system_metadata (
+                    key VARCHAR(100) PRIMARY KEY,
+                    value VARCHAR(255) NOT NULL,
+                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                );
+                INSERT INTO system_metadata (key, value)
+                VALUES ('database_environment', 'UAT')
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+            ");
+        }
+
+        var overrides = new Dictionary<string, string>
+        {
+            { "ASPNETCORE_ENVIRONMENT", "Production" }
+        };
+
+        var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
+        
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        exception.Message.Should().Contain("Accidental database promotion detected");
+    }
 }

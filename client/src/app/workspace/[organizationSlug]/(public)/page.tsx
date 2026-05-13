@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Typography, Chip } from "@heroui/react";
 import { Button } from "@/components/ui/button";
 import { getTagLabel } from "@/features/workspace/types/workspace.types";
+import { formatDate } from "@/lib/utils/format";
 
 export default function WorkspaceHomeTab() {
   const params = useParams();
@@ -14,55 +15,30 @@ export default function WorkspaceHomeTab() {
   const organizationSlug = typeof params?.organizationSlug === "string" ? params.organizationSlug : "";
   const workspaceDetails = useWorkspaceStore((s) => s.workspaces[organizationSlug]);
 
+  const allPosts = useWorkspaceStore((s) => s.posts);
+  const postsLoadingMap = useWorkspaceStore((s) => s.postsLoading);
+  const fetchPosts = useWorkspaceStore((s) => s.fetchPosts);
+
+  const allJobs = useWorkspaceStore((s) => s.jobs);
+  const jobsLoadingMap = useWorkspaceStore((s) => s.jobsLoading);
+  const fetchJobs = useWorkspaceStore((s) => s.fetchJobs);
+
+  const posts = React.useMemo(() => allPosts[organizationSlug] ?? [], [allPosts, organizationSlug]);
+  const postsLoading = postsLoadingMap[organizationSlug] ?? false;
+
+  const jobs = React.useMemo(() => allJobs[organizationSlug] ?? [], [allJobs, organizationSlug]);
+  const jobsLoading = jobsLoadingMap[organizationSlug] ?? false;
+
+  React.useEffect(() => {
+    if (organizationSlug) {
+      fetchPosts(organizationSlug);
+      fetchJobs(organizationSlug);
+    }
+  }, [organizationSlug, fetchPosts, fetchJobs]);
+
   if (!workspaceDetails) return null;
 
   const baseRoute = `/workspace/${organizationSlug}`;
-
-  // Mock job cards
-  const mockJobs = [
-    {
-      id: "job-1",
-      title: "Senior Full-Stack Developer (.NET & React)",
-      department: "Engineering",
-      location: "Hanoi, Vietnam (Hybrid)",
-      type: "Full-Time",
-      date: "3d ago",
-    },
-    {
-      id: "job-2",
-      title: "Automated Verification QA Engineer",
-      department: "Quality Assurance",
-      location: "Remote",
-      type: "Contract",
-      date: "1w ago",
-    },
-    {
-      id: "job-3",
-      title: "DevOps & Infrastructure Engineer",
-      department: "Platform",
-      location: "Da Nang, Vietnam",
-      type: "Full-Time",
-      date: "2w ago",
-    },
-  ];
-
-  // Mock post cards
-  const mockPosts = [
-    {
-      id: "post-1",
-      title: "CVerify integration successfully deployed!",
-      summary: "Our development workflows now include automated credential hashing and 100% skill verification.",
-      date: "2d ago",
-      tag: "Announcement",
-    },
-    {
-      id: "post-2",
-      title: "FPTU Summer Jamboree 2026 â€” Join us!",
-      summary: "We are sponsoring the annual summer tech event. Register now for workshops, networking, and more.",
-      date: "5d ago",
-      tag: "Event",
-    },
-  ];
 
   const hasAboutContent =
     workspaceDetails.description ||
@@ -85,10 +61,10 @@ export default function WorkspaceHomeTab() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      {/* â”€â”€ Main Column â”€â”€ */}
+      {/* -- Main Column -- */}
       <div className="lg:col-span-2 space-y-6">
 
-        {/* â”€â”€ About Us â”€â”€ */}
+        {/* -- About Us -- */}
         {hasAboutContent && (
           <Card className="p-6 bg-surface border border-border rounded-xl">
             {/* Card title */}
@@ -150,8 +126,6 @@ export default function WorkspaceHomeTab() {
                 </div>
               )}
 
-
-
               {/* Focus Areas */}
               {workspaceDetails.industryTags && workspaceDetails.industryTags.length > 0 && (
                 <div className="space-y-3">
@@ -187,7 +161,7 @@ export default function WorkspaceHomeTab() {
           </Card>
         )}
 
-        {/* â”€â”€ Job Highlights â”€â”€ */}
+        {/* -- Job Highlights -- */}
         <Card className="p-6 bg-surface border border-border rounded-xl space-y-4">
           <div className="flex items-center justify-between select-none">
             <Typography type="h3" className="font-semibold text-foreground text-base">
@@ -203,46 +177,64 @@ export default function WorkspaceHomeTab() {
             </Button>
           </div>
 
-          {/* Horizontal scroll */}
-          <div
-            className="flex gap-4 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth"
-            style={{ scrollbarWidth: "none" }}
-          >
-            {mockJobs.map((job) => (
-              <div
-                key={job.id}
-                onClick={() => router.push(`${baseRoute}/jobs`)}
-                className="snap-start shrink-0 w-56 rounded-xl border border-border bg-card/10 hover:bg-card/25 cursor-pointer overflow-hidden flex flex-col"
-              >
-                {/* Cover */}
-                <div className="h-24 w-full flex flex-col items-center justify-center gap-2 bg-linear-to-br from-indigo-500/20 to-accent/15 select-none">
-                  <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shadow-sm">
-                    <LogoMark />
-                  </div>
-                  <span className="text-[9px] text-indigo-400 uppercase tracking-wider">Open Position</span>
+          {jobsLoading ? (
+            <div className="flex gap-4 overflow-x-auto pb-1 select-none animate-pulse">
+              {[1, 2].map((n) => (
+                <div key={n} className="shrink-0 w-56 h-48 rounded-xl border border-border bg-card/10 flex flex-col p-3 gap-2">
+                  <div className="h-20 w-full bg-accent/10 rounded-lg" />
+                  <div className="h-3 bg-accent/10 rounded w-2/3" />
+                  <div className="h-3 bg-accent/10 rounded w-1/2" />
                 </div>
-                {/* Body */}
-                <div className="p-3 flex flex-col gap-1.5 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[9px] text-muted font-normal truncate">{workspaceDetails.organizationName}</span>
-                    <span className="text-[9px] text-muted-foreground shrink-0">{job.date}</span>
+              ))}
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="py-6 border border-dashed border-border/80 rounded-xl text-center select-none bg-surface/50">
+              <p className="text-xs text-muted font-normal italic">No open positions found</p>
+            </div>
+          ) : (
+            <div
+              className="flex gap-4 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth"
+              style={{ scrollbarWidth: "none" }}
+            >
+              {jobs.slice(0, 3).map((job) => (
+                <div
+                  key={job.id}
+                  onClick={() => router.push(`${baseRoute}/jobs`)}
+                  className="snap-start shrink-0 w-56 rounded-xl border border-border bg-card/10 hover:bg-card/25 cursor-pointer overflow-hidden flex flex-col"
+                >
+                  {/* Cover */}
+                  <div className="h-24 w-full flex flex-col items-center justify-center gap-2 bg-linear-to-br from-indigo-500/20 to-accent/15 select-none relative overflow-hidden">
+                    {job.coverUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={job.coverUrl} alt={job.title} className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                    )}
+                    <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shadow-sm relative z-10">
+                      <LogoMark />
+                    </div>
+                    <span className="text-[9px] text-indigo-400 uppercase tracking-wider relative z-10">Open Position</span>
                   </div>
-                  <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2">{job.title}</p>
-                  <p className="text-[10px] text-muted font-normal">
-                    {job.department} · {job.location}
-                  </p>
-                  <div className="mt-auto pt-1">
-                    <Chip size="sm" variant="soft" color="accent" className="text-[9px] font-medium h-5 px-1.5">
-                      {job.type}
-                    </Chip>
+                  {/* Body */}
+                  <div className="p-3 flex flex-col gap-1.5 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[9px] text-muted font-normal truncate">{workspaceDetails.organizationName}</span>
+                    </div>
+                    <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2">{job.title}</p>
+                    <p className="text-[10px] text-muted font-normal">
+                      {job.department} · {job.location || `${job.city} (${job.workplaceType})`}
+                    </p>
+                    <div className="mt-auto pt-1">
+                      <Chip size="sm" variant="soft" color="accent" className="text-[9px] font-medium h-5 px-1.5">
+                        {job.type}
+                      </Chip>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
 
-        {/* â”€â”€ Post Highlights â”€â”€ */}
+        {/* -- Post Highlights -- */}
         <Card className="p-6 bg-surface border border-border rounded-xl space-y-4">
           <div className="flex items-center justify-between select-none">
             <Typography type="h3" className="font-semibold text-foreground text-base">
@@ -258,45 +250,73 @@ export default function WorkspaceHomeTab() {
             </Button>
           </div>
 
-          {/* Horizontal scroll */}
-          <div
-            className="flex gap-4 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth"
-            style={{ scrollbarWidth: "none" }}
-          >
-            {mockPosts.map((post) => (
-              <div
-                key={post.id}
-                onClick={() => router.push(`${baseRoute}/posts`)}
-                className="snap-start shrink-0 w-56 rounded-xl border border-border bg-card/10 hover:bg-card/25 cursor-pointer overflow-hidden flex flex-col"
-              >
-                {/* Cover */}
-                <div className="h-24 w-full flex flex-col items-center justify-center gap-2 bg-linear-to-br from-accent/25 to-indigo-700/20 select-none">
-                  <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shadow-sm">
-                    <LogoMark />
-                  </div>
-                  <span className="text-[9px] text-accent uppercase tracking-wider">Announcement</span>
+          {postsLoading ? (
+            <div className="flex gap-4 overflow-x-auto pb-1 select-none animate-pulse">
+              {[1, 2].map((n) => (
+                <div key={n} className="shrink-0 w-56 h-48 rounded-xl border border-border bg-card/10 flex flex-col p-3 gap-2">
+                  <div className="h-20 w-full bg-accent/10 rounded-lg" />
+                  <div className="h-3 bg-accent/10 rounded w-2/3" />
+                  <div className="h-3 bg-accent/10 rounded w-1/2" />
                 </div>
-                {/* Body */}
-                <div className="p-3 flex flex-col gap-1.5 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[9px] text-muted font-normal truncate">{workspaceDetails.organizationName}</span>
-                    <span className="text-[9px] text-muted-foreground shrink-0">{post.date}</span>
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="py-6 border border-dashed border-border/80 rounded-xl text-center select-none bg-surface/50">
+              <p className="text-xs text-muted font-normal italic">No recent posts or announcements</p>
+            </div>
+          ) : (
+            <div
+              className="flex gap-4 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth"
+              style={{ scrollbarWidth: "none" }}
+            >
+              {posts.slice(0, 3).map((post) => {
+                const lines = post.content.split('\n').filter(Boolean);
+                const title = lines[0] || "Announcement";
+                const summary = lines.slice(1).join(' ') || post.content;
+                const formattedTitle = title.length > 50 ? `${title.slice(0, 50)}...` : title;
+                const formattedSummary = summary.length > 100 ? `${summary.slice(0, 100)}...` : summary;
+                const dateText = formatDate(post.createdAt, { dateStyle: "short" }) || "Just now";
+
+                return (
+                  <div
+                    key={post.id}
+                    onClick={() => router.push(`${baseRoute}/posts`)}
+                    className="snap-start shrink-0 w-56 rounded-xl border border-border bg-card/10 hover:bg-card/25 cursor-pointer overflow-hidden flex flex-col"
+                  >
+                    {/* Cover */}
+                    <div className="h-24 w-full flex flex-col items-center justify-center gap-2 bg-linear-to-br from-accent/25 to-indigo-700/20 select-none relative overflow-hidden">
+                      {post.images?.[0] && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={post.images[0]} alt="Post Attachment" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+                      )}
+                      <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden shadow-sm relative z-10">
+                        <LogoMark />
+                      </div>
+                      <span className="text-[9px] text-accent uppercase tracking-wider relative z-10">{post.category}</span>
+                    </div>
+                    {/* Body */}
+                    <div className="p-3 flex flex-col gap-1.5 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] text-muted font-normal truncate">{workspaceDetails.organizationName}</span>
+                        <span className="text-[9px] text-muted-foreground shrink-0">{dateText}</span>
+                      </div>
+                      <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2">{formattedTitle}</p>
+                      <p className="text-[10px] text-muted font-normal leading-relaxed line-clamp-2">{formattedSummary}</p>
+                      <div className="mt-auto pt-1">
+                        <Chip size="sm" variant="soft" color="default" className="text-[9px] font-medium h-5 px-1.5">
+                          {post.category}
+                        </Chip>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2">{post.title}</p>
-                  <p className="text-[10px] text-muted font-normal leading-relaxed line-clamp-2">{post.summary}</p>
-                  <div className="mt-auto pt-1">
-                    <Chip size="sm" variant="soft" color="default" className="text-[9px] font-medium h-5 px-1.5">
-                      {post.tag}
-                    </Chip>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
 
-      {/* â”€â”€ Side Widget Column â”€â”€ */}
+      {/* -- Side Widget Column -- */}
       <div className="space-y-6">
         {/* Corporate Stats */}
         <Card className="p-5 bg-surface border border-border rounded-xl space-y-4">
@@ -316,8 +336,7 @@ export default function WorkspaceHomeTab() {
               <div>
                 <span className="text-[9px] text-muted-foreground uppercase block">Company Size</span>
                 <span className="font-medium text-foreground text-xs">
-                  {workspaceDetails.companySize.toLowerCase().includes("employee") ||
-                    workspaceDetails.companySize.toLowerCase().includes("nhÃ¢n viÃªn")
+                  {workspaceDetails.companySize.toLowerCase().includes("employee")
                     ? workspaceDetails.companySize
                     : `${workspaceDetails.companySize} employees`}
                 </span>
@@ -349,8 +368,7 @@ export default function WorkspaceHomeTab() {
               <span className="text-[9px] text-muted-foreground uppercase block">Headquarters</span>
               <span className="font-medium text-foreground text-xs">
                 {workspaceDetails.city
-                  ? workspaceDetails.city.toLowerCase().includes("vietnam") ||
-                    workspaceDetails.city.toLowerCase().includes("viá»‡t nam")
+                  ? workspaceDetails.city.toLowerCase().includes("vietnam")
                     ? workspaceDetails.city
                     : `${workspaceDetails.city}, Vietnam`
                   : workspaceDetails.location || "Not specified"}
@@ -479,11 +497,11 @@ export default function WorkspaceHomeTab() {
           </Typography>
           <div className="pt-1 select-none font-normal text-xs text-muted-foreground space-y-1.5">
             <div className="flex items-center gap-1.5">
-              <span>â€¢</span>
+              <span>•</span>
               Legal Authority Verified
             </div>
             <div className="flex items-center gap-1.5">
-              <span>â€¢</span>
+              <span>•</span>
               Representative Signature Matches
             </div>
           </div>

@@ -616,24 +616,27 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                       )
                     }
                   >
-                    <Tooltip delay={0}>
-                      <Tooltip.Trigger>
-                        <div className="w-full flex items-center gap-1">
-                          <Label>Profile Visibility</Label>
-                          <Button
-                            isIconOnly
-                            variant="ghost"
-                            className="rounded-full h-5 w-5"
-                          >
-                            <Info />
-                          </Button>
-                        </div>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content showArrow>
-                        Control who can view your public profile page and
-                        verified credentials.
-                      </Tooltip.Content>
-                    </Tooltip>
+                    <Label>
+                      <div className="w-full flex items-center gap-1">
+                        <span>Profile Visibility</span>
+                        <Tooltip delay={0}>
+                          <Tooltip.Trigger>
+                            <Button
+                              isIconOnly
+                              variant="ghost"
+                              className="rounded-full h-5 w-5"
+                              type="button"
+                            >
+                              <Info className="size-3.5" />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content showArrow>
+                            Control who can view your public profile page and
+                            verified credentials.
+                          </Tooltip.Content>
+                        </Tooltip>
+                      </div>
+                    </Label>
                     <Select.Trigger>
                       <Select.Value />
                       <Select.Indicator />
@@ -664,24 +667,27 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                       )
                     }
                   >
-                    <Tooltip delay={0}>
-                      <Tooltip.Trigger>
-                        <div className="w-full flex items-center gap-1">
-                          <Label>AI Talent Discovery</Label>
-                          <Button
-                            isIconOnly
-                            variant="ghost"
-                            className="rounded-full h-5 w-5"
-                          >
-                            <Info />
-                          </Button>
-                        </div>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content showArrow>
-                        Control whether recruiter AI systems can analyze and
-                        rank your profile for talent discovery and job matching.
-                      </Tooltip.Content>
-                    </Tooltip>
+                    <Label>
+                      <div className="w-full flex items-center gap-1">
+                        <span>AI Talent Discovery</span>
+                        <Tooltip delay={0}>
+                          <Tooltip.Trigger>
+                            <Button
+                              isIconOnly
+                              variant="ghost"
+                              className="rounded-full h-5 w-5"
+                              type="button"
+                            >
+                              <Info className="size-3.5" />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content showArrow>
+                            Control whether recruiter AI systems can analyze and
+                            rank your profile for talent discovery and job matching.
+                          </Tooltip.Content>
+                        </Tooltip>
+                      </div>
+                    </Label>
                     <Select.Trigger>
                       <Select.Value />
                       <Select.Indicator />

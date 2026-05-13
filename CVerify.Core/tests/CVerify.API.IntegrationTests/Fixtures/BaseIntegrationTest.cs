@@ -27,6 +27,8 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly SharedTestcontainerFixture _containerFixture;
     
+    private readonly System.Collections.Generic.Dictionary<string, string?> _originalEnvVars = new();
+
     /// <summary>
     /// Holds the Mock/Fake Email Sender to assert sent emails.
     /// </summary>
@@ -38,6 +40,17 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
     public IntegrationTestApplicationFactory(SharedTestcontainerFixture containerFixture, Dictionary<string, string>? envOverrides = null)
     {
         _containerFixture = containerFixture;
+
+        var varsToBackup = new[] { "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD",
+                                   "GOOGLE_CLIENT_ID", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "AI_SERVICE_URL", "AI_SERVICE_SHARED_SECRET",
+                                   "AI_SERVICE_CLIENT_ID", "CLAUDE_MODEL", "EMAIL_SENDER_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME",
+                                   "SMTP_PASSWORD", "SENDGRID_API_KEY", "Auth__DisableCsrf", "DISABLE_RATE_LIMITS", "SUPER_ADMIN_PASSWORD",
+                                   "SUPER_ADMIN_USERNAME", "SUPER_ADMIN_FULL_NAME", "SEED_TEST_ACCOUNTS", "ASPNETCORE_ENVIRONMENT" };
+
+        foreach (var v in varsToBackup)
+        {
+            _originalEnvVars[v] = Environment.GetEnvironmentVariable(v);
+        }
 
         // Parse dynamic Testcontainer Postgres connection parameters
         var dbBuilder = new Npgsql.NpgsqlConnectionStringBuilder(_containerFixture.DbConnectionString);
@@ -154,6 +167,19 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
             mockFactory.Setup(_ => _.CreateClient(Moq.It.IsAny<string>())).Returns(mockClient);
             services.Replace(ServiceDescriptor.Singleton<IHttpClientFactory>(mockFactory.Object));
         });
+    }
+
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+        {
+            foreach (var kvp in _originalEnvVars)
+            {
+                Environment.SetEnvironmentVariable(kvp.Key, kvp.Value);
+            }
+        }
     }
 }
 

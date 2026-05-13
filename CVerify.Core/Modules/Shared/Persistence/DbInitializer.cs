@@ -9,6 +9,8 @@ using CVerify.API.Modules.Shared.Exceptions.Catalogs;
 using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Shared.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
@@ -18,7 +20,12 @@ namespace CVerify.API.Modules.Shared.Persistence;
 /// </summary>
 public static class DbInitializer
 {
-    public static async Task InitializeAsync(ApplicationDbContext context, IUsernameService? usernameService = null, EnvConfiguration? envConfig = null)
+    public static async Task InitializeAsync(
+        ApplicationDbContext context,
+        IServiceProvider? serviceProvider = null,
+        IUsernameService? usernameService = null,
+        EnvConfiguration? envConfig = null,
+        Microsoft.Extensions.Hosting.IHostEnvironment? hostEnvironment = null)
     {
         if (context == null)
         {
@@ -141,6 +148,8 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS organization_memberships CASCADE;
                 DROP TABLE IF EXISTS organization_followers CASCADE;
                 DROP TABLE IF EXISTS organization_members CASCADE;
+                DROP TABLE IF EXISTS workspace_posts CASCADE;
+                DROP TABLE IF EXISTS job_vacancies CASCADE;
                 DROP TABLE IF EXISTS organizations CASCADE;
                 DROP TABLE IF EXISTS pending_auth_providers CASCADE;
                 DROP TABLE IF EXISTS auth_providers CASCADE;
@@ -231,14 +240,31 @@ public static class DbInitializer
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'branch_count') THEN
                         ALTER TABLE organizations ADD COLUMN branch_count INTEGER NOT NULL DEFAULT 0;
                     END IF;
+                    -- industry_tags
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'industry_tags') THEN
-                        ALTER TABLE organizations ADD COLUMN industry_tags VARCHAR(100)[];
+                        ALTER TABLE organizations ADD COLUMN industry_tags VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    ELSE
+                        UPDATE organizations SET industry_tags = ARRAY[]::VARCHAR[] WHERE industry_tags IS NULL;
+                        ALTER TABLE organizations ALTER COLUMN industry_tags SET DEFAULT ARRAY[]::VARCHAR[];
+                        ALTER TABLE organizations ALTER COLUMN industry_tags SET NOT NULL;
                     END IF;
+
+                    -- benefit_tags
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'benefit_tags') THEN
-                        ALTER TABLE organizations ADD COLUMN benefit_tags VARCHAR(100)[];
+                        ALTER TABLE organizations ADD COLUMN benefit_tags VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    ELSE
+                        UPDATE organizations SET benefit_tags = ARRAY[]::VARCHAR[] WHERE benefit_tags IS NULL;
+                        ALTER TABLE organizations ALTER COLUMN benefit_tags SET DEFAULT ARRAY[]::VARCHAR[];
+                        ALTER TABLE organizations ALTER COLUMN benefit_tags SET NOT NULL;
                     END IF;
+
+                    -- gallery_urls
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'gallery_urls') THEN
-                        ALTER TABLE organizations ADD COLUMN gallery_urls VARCHAR(2048)[];
+                        ALTER TABLE organizations ADD COLUMN gallery_urls VARCHAR(2048)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    ELSE
+                        UPDATE organizations SET gallery_urls = ARRAY[]::VARCHAR[] WHERE gallery_urls IS NULL;
+                        ALTER TABLE organizations ALTER COLUMN gallery_urls SET DEFAULT ARRAY[]::VARCHAR[];
+                        ALTER TABLE organizations ALTER COLUMN gallery_urls SET NOT NULL;
                     END IF;
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'contact_name') THEN
                         ALTER TABLE organizations ADD COLUMN contact_name VARCHAR(255);
@@ -269,6 +295,18 @@ public static class DbInitializer
                     END IF;
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'website') THEN
                         ALTER TABLE organizations ADD COLUMN website VARCHAR(2048);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'mission') THEN
+                        ALTER TABLE organizations ADD COLUMN mission TEXT;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'vision') THEN
+                        ALTER TABLE organizations ADD COLUMN vision TEXT;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'core_values') THEN
+                        ALTER TABLE organizations ADD COLUMN core_values TEXT;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'founded') THEN
+                        ALTER TABLE organizations ADD COLUMN founded VARCHAR(50);
                     END IF;
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'follower_count') THEN
                         ALTER TABLE organizations ADD COLUMN follower_count INTEGER NOT NULL DEFAULT 0;
@@ -686,9 +724,9 @@ public static class DbInitializer
                 company_type VARCHAR(100),
                 company_size VARCHAR(100),
                 branch_count INTEGER NOT NULL DEFAULT 0,
-                industry_tags VARCHAR(100)[],
-                benefit_tags VARCHAR(100)[],
-                gallery_urls VARCHAR(2048)[],
+                industry_tags VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                benefit_tags VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                gallery_urls VARCHAR(2048)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
                 contact_name VARCHAR(255),
                 contact_phone VARCHAR(100),
                 contact_email VARCHAR(255),
@@ -699,6 +737,10 @@ public static class DbInitializer
                 facebook_url VARCHAR(2048),
                 twitter_url VARCHAR(2048),
                 website VARCHAR(2048),
+                mission TEXT NULL,
+                vision TEXT NULL,
+                core_values TEXT NULL,
+                founded VARCHAR(50) NULL,
                 follower_count INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -2410,6 +2452,61 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_in_app_notifications_aggregate ON in_app_notifications(user_id, aggregate_key) WHERE is_read = FALSE AND deleted_at IS NULL;
             CREATE INDEX IF NOT EXISTS ix_in_app_notifications_activity_event_id ON in_app_notifications(activity_event_id);
 
+            -- Stores job vacancies listed by organizations
+            CREATE TABLE IF NOT EXISTS job_vacancies (
+                id UUID PRIMARY KEY,
+                organization_id UUID NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                department VARCHAR(100) NOT NULL,
+                workplace_type VARCHAR(50) NOT NULL,
+                city VARCHAR(100) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                salary VARCHAR(100) NOT NULL,
+                salary_min_max VARCHAR(100) NOT NULL,
+                headcount INTEGER NOT NULL,
+                gender VARCHAR(50) NOT NULL,
+                experience VARCHAR(100) NOT NULL,
+                degree VARCHAR(100) NOT NULL,
+                category VARCHAR(200) NOT NULL,
+                description TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+                requirements TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+                benefits TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+                tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+                skills TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+                cover_url VARCHAR(2048) NOT NULL,
+                images TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+                is_active BOOLEAN NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT fk_job_vacancies_organizations_organization_id FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS ix_job_vacancies_organization_id ON job_vacancies(organization_id);
+
+            -- Stores workspace posts listed by organizations
+            CREATE TABLE IF NOT EXISTS workspace_posts (
+                id UUID PRIMARY KEY,
+                organization_id UUID NOT NULL,
+                created_by_user_id UUID NOT NULL,
+                category VARCHAR(100) NOT NULL,
+                content TEXT NOT NULL,
+                images TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+                likes INTEGER NOT NULL,
+                shares_count INTEGER NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT fk_workspace_posts_organizations_organization_id FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+                CONSTRAINT fk_workspace_posts_users_created_by_user_id FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS ix_workspace_posts_created_by_user_id ON workspace_posts(created_by_user_id);
+            CREATE INDEX IF NOT EXISTS ix_workspace_posts_organization_id ON workspace_posts(organization_id);
+
+            -- Table storing global system metadata and environmental markers
+            CREATE TABLE IF NOT EXISTS system_metadata (
+                key VARCHAR(100) PRIMARY KEY,
+                value VARCHAR(255) NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+
             -- DDL schema script completed
         ";
 
@@ -2493,9 +2590,65 @@ public static class DbInitializer
             npgsqlConnection.ReloadTypes();
         }
 
+        // Resolve seeding policy
+        var resolvedEnv = hostEnvironment ?? serviceProvider?.GetService<Microsoft.Extensions.Hosting.IHostEnvironment>();
+        var seedingPolicy = SeedingPolicyResolver.Resolve(resolvedEnv);
+
+        // Check system_metadata environment marker
+        try
+        {
+            var storedEnv = await context.Database.SqlQueryRaw<string>(@"
+                SELECT value AS ""Value"" FROM system_metadata WHERE key = 'database_environment'
+            ").FirstOrDefaultAsync();
+
+            var currentEnv = resolvedEnv?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+            if (!string.IsNullOrEmpty(storedEnv) && 
+                string.Equals(currentEnv, "Production", StringComparison.OrdinalIgnoreCase) && 
+                !string.Equals(storedEnv, "Production", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Fatal Safeguard Check: Accidental database promotion detected! The current hosting environment is Production, but this database is classified as '{storedEnv}' in system_metadata.");
+            }
+
+            if (string.IsNullOrEmpty(storedEnv) && !string.IsNullOrEmpty(currentEnv))
+            {
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO system_metadata (key, value) VALUES ('database_environment', @env)",
+                    new NpgsqlParameter("@env", currentEnv));
+            }
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            // Ignore other DB errors at this stage (e.g. if database is completely fresh, table might not exist yet)
+        }
+
         // Invoke modular seeders
-        await SuperAdminSeeder.SeedAsync(context, config.SuperAdmin);
-        await BusinessSeeder.SeedAsync(context, config.Seeding);
+        await SuperAdminSeeder.SeedAsync(context, config.SuperAdmin, seedingPolicy);
+        await PermissionSeeder.SeedAsync(context, seedingPolicy);
+        await RoleSeeder.SeedAsync(context, seedingPolicy);
+        await MembershipMigrationSeeder.SeedAsync(context, seedingPolicy);
+        await BusinessAccountSeeder.SeedAsync(context, config.Seeding, seedingPolicy);
+
+        global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder> moduleSeeders;
+        Microsoft.Extensions.Logging.ILoggerFactory loggerFactory;
+
+        if (serviceProvider != null)
+        {
+            moduleSeeders = serviceProvider.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>() 
+                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
+            loggerFactory = serviceProvider.GetService<Microsoft.Extensions.Logging.ILoggerFactory>() 
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+        }
+        else
+        {
+            moduleSeeders = context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>() 
+                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
+            loggerFactory = context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>() 
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+        }
+
+        var seederLogger = loggerFactory.CreateLogger("PublicWorkspaceSeeder");
+        await PublicWorkspaceSeeder.SeedAsync(context, config.Seeding, moduleSeeders, seederLogger, seedingPolicy);
 
         // One-time compatibility migration for Google OAuth users created under the old normalization rules
         await MigrateLegacyGoogleEmailsAsync(context);

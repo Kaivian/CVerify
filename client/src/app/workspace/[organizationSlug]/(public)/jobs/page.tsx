@@ -81,7 +81,7 @@ export default function WorkspaceJobsTab() {
 
   if (!workspaceDetails) return null;
 
-  const orgName = workspaceDetails.organizationName || "Partner Organization";
+  const orgName = workspaceDetails.organizationName || "Partner Enterprise";
   const orgLogo = workspaceDetails.logoUrl;
 
   // Reactive Permission helper key check
@@ -102,16 +102,16 @@ export default function WorkspaceJobsTab() {
   const handleCreateJobSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newJobTitle.trim()) {
-      toast.danger("Please enter the job title!");
+      toast.danger("Please enter a job title!");
       return;
     }
 
     if (selectedFiles.length < 1) {
-      toast.danger("Please add at least 1 image!");
+      toast.danger("Please add at least 1 recruitment image!");
       return;
     }
     if (selectedFiles.length > 5) {
-      toast.danger("You can upload up to 5 images only!");
+      toast.danger("You can upload a maximum of 5 recruitment images!");
       return;
     }
 
@@ -132,11 +132,11 @@ export default function WorkspaceJobsTab() {
         headcount: 1,
         gender: "No requirement",
         experience: "Relevant experience required",
-        degree: "Bachelor's degree",
-        category: "Software Development, Information Technology",
-        description: newJobDesc.trim() ? newJobDesc.split("\n").filter(Boolean) : ["Perform duties as assigned."],
-        requirements: newJobReq.trim() ? newJobReq.split("\n").filter(Boolean) : ["Experience in a similar position."],
-        benefits: newJobBen.trim() ? newJobBen.split("\n").filter(Boolean) : ["Full insurance and company benefits."],
+        degree: "Bachelor's Degree",
+        category: "Software Development, IT",
+        description: newJobDesc.trim() ? newJobDesc.split("\n").filter(Boolean) : ["Perform tasks according to professional requirements."],
+        requirements: newJobReq.trim() ? newJobReq.split("\n").filter(Boolean) : ["Have experience working in a similar position."],
+        benefits: newJobBen.trim() ? newJobBen.split("\n").filter(Boolean) : ["Fully enjoy insurance and company benefits."],
         tags: newJobTags.trim() ? newJobTags.split(",").map(s => s.trim()).filter(Boolean) : [newJobDept],
         skills: newJobSkills.trim() ? newJobSkills.split(",").map(s => s.trim()).filter(Boolean) : [newJobDept],
         coverUrl: uploadedUrls[0],
@@ -146,7 +146,7 @@ export default function WorkspaceJobsTab() {
       const created = await createJobAction(organizationSlug, jobPayload);
 
       if (created) {
-        toast.success("Job posting created successfully!");
+        toast.success("Job posted successfully!");
         // Reset Form
         setNewJobTitle("");
         setNewJobLoc("");
@@ -161,11 +161,11 @@ export default function WorkspaceJobsTab() {
         setSelectedFiles([]);
         setShowCreateModal(false);
       } else {
-        toast.danger("Failed to create job posting!");
+        toast.danger("Failed to post job!");
       }
     } catch (error) {
       console.error(error);
-      toast.danger("An error occurred while uploading job images!");
+      toast.danger("An error occurred while uploading recruitment images!");
     } finally {
       setIsSubmitting(false);
     }
@@ -193,7 +193,7 @@ export default function WorkspaceJobsTab() {
   const handleApply = (jobId: string) => {
     if (!appliedJobs.includes(jobId)) {
       setAppliedJobs([...appliedJobs, jobId]);
-      toast.success("Application submitted successfully!");
+      toast.success("Applied successfully!");
     }
   };
 
@@ -201,7 +201,7 @@ export default function WorkspaceJobsTab() {
     e.stopPropagation();
     if (savedJobs.includes(jobId)) {
       setSavedJobs(savedJobs.filter((id) => id !== jobId));
-      toast.success("Job unsaved.");
+      toast.success("Job removed from saved list.");
     } else {
       setSavedJobs([...savedJobs, jobId]);
       toast.success("Job saved successfully!");
@@ -220,7 +220,7 @@ export default function WorkspaceJobsTab() {
             >
               ← Back to list
             </button>
-            <span className="text-xs text-muted-foreground font-normal">Job vacancy details</span>
+            <span className="text-xs text-muted-foreground font-normal">Job Details</span>
           </div>
 
           {/* 1. Large Cover Banner Image */}
@@ -273,10 +273,10 @@ export default function WorkspaceJobsTab() {
             {/* Left Column (Job Specifications & Lists) */}
             <div className="lg:col-span-2 space-y-6">
 
-              {/* Job Information (Grid Card) */}
+              {/* -- Recruitment Information (Grid Card) -- */}
               <div className="p-4 rounded-xl border border-border bg-card/10 space-y-3 font-normal">
                 <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1.5">
-                  Job Information
+                  Recruitment Information
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[11px] text-muted-foreground">
@@ -300,7 +300,7 @@ export default function WorkspaceJobsTab() {
                     <Users className="size-3.5 text-accent shrink-0" />
                     <div>
                       <span className="block text-[9px] text-muted uppercase">Headcount</span>
-                      <span className="font-medium text-foreground">{activeJob.headcount} positions</span>
+                      <span className="font-medium text-foreground">{activeJob.headcount} people</span>
                     </div>
                   </div>
 
@@ -348,7 +348,7 @@ export default function WorkspaceJobsTab() {
                 </div>
               </div>
 
-              {/* Job Description */}
+              {/* -- Job Description -- */}
               <div className="space-y-2 font-normal text-foreground">
                 <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1">
                   Job Description
@@ -362,7 +362,7 @@ export default function WorkspaceJobsTab() {
                 </ul>
               </div>
 
-              {/* Job Requirements */}
+              {/* ── Job Requirements ── */}
               <div className="space-y-2 font-normal text-foreground">
                 <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1">
                   Job Requirements
@@ -376,10 +376,10 @@ export default function WorkspaceJobsTab() {
                 </ul>
               </div>
 
-              {/* Benefits */}
+              {/* ── Perks & Benefits ── */}
               <div className="space-y-2 font-normal text-foreground">
                 <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1">
-                  Benefits
+                  Perks & Benefits
                 </span>
                 <ul className="list-disc pl-5 space-y-1.5 text-xs text-foreground font-normal">
                   {activeJob.benefits.map((ben, idx) => (
@@ -390,11 +390,11 @@ export default function WorkspaceJobsTab() {
                 </ul>
               </div>
 
-              {/* Tags & Skills */}
+              {/* ── Recruitment Tags & Required Skills ── */}
               <div className="space-y-3 font-normal">
                 <div>
                   <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1 mb-2">
-                    Tags
+                    Recruitment Tags
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {activeJob.tags.map((t) => (
@@ -419,11 +419,11 @@ export default function WorkspaceJobsTab() {
                 </div>
               </div>
 
-              {/* Workplace & Team Gallery */}
+              {/* -- Workplace & Team Images -- */}
               {activeJob.images && activeJob.images.length > 1 && (
                 <div className="space-y-2 font-normal">
                   <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1 mb-2">
-                    Workplace & Team Gallery ({activeJob.images.length} images)
+                    Workplace & Team Images ({activeJob.images.length} images)
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {activeJob.images.map((img, idx) => (
@@ -451,11 +451,11 @@ export default function WorkspaceJobsTab() {
                   variant="solid"
                   size="sm"
                   className={`w-full font-semibold text-xs py-2 h-9 rounded-lg cursor-pointer border-none transition-colors ${appliedJobs.includes(activeJob.id)
-                      ? "bg-success/20 text-success cursor-default"
-                      : "bg-accent text-background hover:bg-accent/90"
+                    ? "bg-success/20 text-success cursor-default"
+                    : "bg-accent text-background hover:bg-accent/90"
                     }`}
                 >
-                  {appliedJobs.includes(activeJob.id) ? "Applied Successfully" : "Apply Now"}
+                  {appliedJobs.includes(activeJob.id) ? "Applied" : "Apply Now"}
                 </Button>
               </Card>
 
@@ -480,7 +480,7 @@ export default function WorkspaceJobsTab() {
                 <div className="space-y-2 text-[10px] text-muted-foreground">
                   {workspaceDetails.companySize && (
                     <div>
-                      <span className="block text-[8px] text-muted uppercase">Employee Size</span>
+                      <span className="block text-[8px] text-muted uppercase">Company Size</span>
                       <span className="font-medium text-foreground">{workspaceDetails.companySize}</span>
                     </div>
                   )}
@@ -548,7 +548,7 @@ export default function WorkspaceJobsTab() {
                 className="bg-[#8A532B] hover:bg-[#724320] text-white font-semibold text-xs px-4 py-2.5 rounded-lg cursor-pointer flex items-center gap-1.5 transition-all shadow-md active:scale-95 border-none"
               >
                 <Plus className="size-4" />
-                <span>Post a Job</span>
+                <span>Post Job</span>
               </button>
             </div>
           )}
@@ -600,7 +600,7 @@ export default function WorkspaceJobsTab() {
               </div>
 
               <div className="space-y-1">
-                <span className="text-[10px] text-muted uppercase tracking-wider block font-semibold">Job Type</span>
+                <span className="text-[10px] text-muted uppercase tracking-wider block font-semibold">Workplace Type</span>
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
@@ -637,17 +637,17 @@ export default function WorkspaceJobsTab() {
 
             {jobsError && !loadingJobs && (
               <Card className="p-6 bg-surface border border-border rounded-xl flex flex-col items-center justify-center text-muted select-none text-center">
-                <span className="text-xs font-medium italic text-danger">An error occurred while loading the job postings. Please try again later.</span>
+                <span className="text-xs font-medium italic text-danger">An error occurred while loading jobs. Please try again later.</span>
               </Card>
             )}
 
             {!loadingJobs && !jobsError && filteredJobs.length === 0 && (
               <Card className="border border-dashed border-border/80 rounded-xl p-12 text-center select-none bg-surface">
                 <Typography type="h4" className="font-semibold text-foreground mb-1">
-                  No matching job postings found
+                  No matching positions found
                 </Typography>
                 <Typography type="body-xs" className="text-muted max-w-md mx-auto font-normal">
-                  Try changing your search keywords or adjusting the department and location filters to find other opportunities.
+                  Try changing your keywords or adjusting the filters to find other opportunities.
                 </Typography>
               </Card>
             )}
@@ -690,7 +690,7 @@ export default function WorkspaceJobsTab() {
                             </Typography>
                           </div>
 
-                          {/* Company Name & Verified enterprise Checkmark */}
+                          {/* Company Name & Verified Checkmark */}
                           <div className="flex items-center gap-1 text-[11px] text-muted leading-tight font-normal">
                             <span className="truncate">{orgName}</span>
                             <span className="inline-flex items-center justify-center bg-blue-500 rounded-full p-0.5 text-white size-3 select-none">
@@ -704,12 +704,12 @@ export default function WorkspaceJobsTab() {
                               <DollarSign className="size-3" />
                               <span>{job.salary}</span>
                             </span>
-                            <span>Â·</span>
+                            <span>·</span>
                             <span className="flex items-center gap-1">
                               <MapPin className="size-3 text-muted-foreground" />
                               <span>{job.location}</span>
                             </span>
-                            <span>Â·</span>
+                            <span>·</span>
                             <span className="flex items-center gap-1">
                               <Clock className="size-3 text-muted-foreground" />
                               <span>Deadline: {job.deadline}</span>
@@ -737,8 +737,8 @@ export default function WorkspaceJobsTab() {
                               handleApply(job.id);
                             }}
                             className={`text-xs font-semibold px-6 py-2 rounded-lg cursor-pointer transition-colors border-none whitespace-nowrap min-w-[120px] md:min-w-[140px] text-center ${isApplied
-                                ? "bg-success/20 text-success cursor-default"
-                                : "bg-accent text-background hover:bg-accent/90"
+                              ? "bg-success/20 text-success cursor-default"
+                              : "bg-accent text-background hover:bg-accent/90"
                               }`}
                           >
                             {isApplied ? "Applied" : "Apply Now"}
@@ -753,7 +753,8 @@ export default function WorkspaceJobsTab() {
           </div>
         </>
       )}
-      {/* Scoped Form Drawer Modal Dialog for Job Creation */}
+
+      {/* -- Scoped Form Drawer Modal Dialog for Job Creation -- */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-surface border border-border w-full max-w-xl rounded-xl shadow-2xl overflow-hidden font-outfit select-none flex flex-col max-h-[90vh]">
@@ -776,7 +777,7 @@ export default function WorkspaceJobsTab() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g., Senior React Developer..."
+                  placeholder="e.g. Senior React Developer..."
                   value={newJobTitle}
                   onChange={(e) => setNewJobTitle(e.target.value)}
                   className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
@@ -805,7 +806,7 @@ export default function WorkspaceJobsTab() {
                   <label className="text-[10px] text-muted uppercase font-semibold">Workplace Type</label>
                   <select
                     value={newJobWorkplace}
-                    onChange={(e) => setNewJobWorkplace(e.target.value as any)}
+                    onChange={(e) => setNewJobWorkplace(e.target.value as "Hybrid" | "Remote" | "On-site")}
                     className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
                   >
                     <option value="Hybrid">Hybrid</option>
@@ -832,7 +833,7 @@ export default function WorkspaceJobsTab() {
 
                 {/* Employment Type */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Contract Type</label>
+                  <label className="text-[10px] text-muted uppercase font-semibold">Job Type</label>
                   <select
                     value={newJobType}
                     onChange={(e) => setNewJobType(e.target.value)}
@@ -852,7 +853,7 @@ export default function WorkspaceJobsTab() {
                   <label className="text-[10px] text-muted uppercase font-semibold">Salary (USD)</label>
                   <input
                     type="text"
-                    placeholder="e.g., $ 1,500 - 3,000 USD"
+                    placeholder="e.g. $1,500 - $3,000 USD"
                     value={newJobSalary}
                     onChange={(e) => setNewJobSalary(e.target.value)}
                     className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
@@ -861,10 +862,10 @@ export default function WorkspaceJobsTab() {
 
                 {/* Salary Min Max VND */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Salary (VND)</label>
+                  <label className="text-[10px] text-muted uppercase font-semibold">Salary range / details (VND/Negotiable)</label>
                   <input
                     type="text"
-                    placeholder="e.g., 38 - 75 million"
+                    placeholder="e.g. Negotiable or 30-50M VND"
                     value={newJobSalaryMinMax}
                     onChange={(e) => setNewJobSalaryMinMax(e.target.value)}
                     className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
@@ -878,17 +879,17 @@ export default function WorkspaceJobsTab() {
                   <label className="text-[10px] text-muted uppercase font-semibold">Application Deadline</label>
                   <input
                     type="text"
-                    placeholder="e.g., 30/09/2026"
+                    placeholder="e.g. 30/09/2026"
                     value={newJobDeadline}
                     onChange={(e) => setNewJobDeadline(e.target.value)}
                     className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Detailed Location</label>
+                  <label className="text-[10px] text-muted uppercase font-semibold">Detailed Address</label>
                   <input
                     type="text"
-                    placeholder="e.g., FPT Tower, Cau Giay"
+                    placeholder="e.g. FPT Tower, Cau Giay"
                     value={newJobLoc}
                     onChange={(e) => setNewJobLoc(e.target.value)}
                     className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
@@ -899,20 +900,20 @@ export default function WorkspaceJobsTab() {
               {/* Skills & Tags */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Skills (comma separated)</label>
+                  <label className="text-[10px] text-muted uppercase font-semibold">Skills (separated by commas)</label>
                   <input
                     type="text"
-                    placeholder="e.g., React, TypeScript, Tailwind"
+                    placeholder="e.g. React, TypeScript, Tailwind"
                     value={newJobSkills}
                     onChange={(e) => setNewJobSkills(e.target.value)}
                     className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Tag Keywords (comma separated)</label>
+                  <label className="text-[10px] text-muted uppercase font-semibold">Tags (separated by commas)</label>
                   <input
                     type="text"
-                    placeholder="e.g., React, Frontend, UI/UX"
+                    placeholder="e.g. React, Frontend, UI/UX"
                     value={newJobTags}
                     onChange={(e) => setNewJobTags(e.target.value)}
                     className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
@@ -925,7 +926,7 @@ export default function WorkspaceJobsTab() {
                 <label className="text-[10px] text-muted uppercase font-semibold">Job Description (One item per line)</label>
                 <textarea
                   rows={2}
-                  placeholder="e.g., Develop new frontend features&#10;Optimize application performance"
+                  placeholder="e.g. Develop new frontend features&#10;Optimize application performance"
                   value={newJobDesc}
                   onChange={(e) => setNewJobDesc(e.target.value)}
                   className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
@@ -937,30 +938,30 @@ export default function WorkspaceJobsTab() {
                 <label className="text-[10px] text-muted uppercase font-semibold">Job Requirements (One item per line)</label>
                 <textarea
                   rows={2}
-                  placeholder="e.g., Minimum 3 years of experience with React&#10;Proficient in TypeScript"
+                  placeholder="e.g. At least 3 years of experience with React&#10;Proficient in TypeScript"
                   value={newJobReq}
                   onChange={(e) => setNewJobReq(e.target.value)}
                   className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
                 />
               </div>
 
-              {/* Benefits */}
+              {/* Perks & Benefits */}
               <div className="space-y-1">
-                <label className="text-[10px] text-muted uppercase font-semibold">Benefits (One item per line)</label>
+                <label className="text-[10px] text-muted uppercase font-semibold">Perks & Benefits (One item per line)</label>
                 <textarea
                   rows={2}
-                  placeholder="e.g., Full 13th-month salary bonus&#10;Premium health insurance"
+                  placeholder="e.g. Competitive salary and 13th-month bonus&#10;Premium health insurance"
                   value={newJobBen}
                   onChange={(e) => setNewJobBen(e.target.value)}
                   className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
                 />
               </div>
 
-              {/* Job Images (Min 1, Max 5 images) */}
+              {/* Recruitment Images */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <label className="text-[10px] text-muted uppercase font-semibold">
-                    Job Images * (Min 1, Max 5 images)
+                    Recruitment Images * (Min 1, Max 5 images)
                   </label>
                   {selectedFiles.length < 5 && (
                     <button
@@ -993,7 +994,7 @@ export default function WorkspaceJobsTab() {
                   >
                     <Upload className="size-5 text-muted-foreground mb-1" />
                     <span className="text-[11px] font-semibold text-foreground">
-                      Upload Job Images
+                      Upload recruitment images
                     </span>
                     <span className="text-[9px] text-muted-foreground mt-0.5">
                       Select 1 to 5 images (JPEG, PNG, WebP, GIF)
@@ -1027,7 +1028,7 @@ export default function WorkspaceJobsTab() {
                   </div>
                 )}
                 <span className="text-[10px] text-muted-foreground block">
-                  Provide at least 1 image as the main cover photo (and up to 5 images) to build trust for the job posting.
+                  Provide at least 1 image as the main cover (and up to 5 images) to increase credibility for the job posting.
                 </span>
               </div>
 

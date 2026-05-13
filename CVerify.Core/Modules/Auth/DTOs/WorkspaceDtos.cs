@@ -62,6 +62,10 @@ public record WorkspaceDetailsDto(
     string? TwitterUrl = null,
     string? Website = null,
     string? TaxCode = null,
+    string? Mission = null,
+    string? Vision = null,
+    string? CoreValues = null,
+    string? Founded = null,
     int FollowerCount = 0,
     bool IsFollowing = false
 );
@@ -82,7 +86,11 @@ public record UpdateWorkspaceDetailsRequestDto(
     string? LinkedinUrl,
     string? FacebookUrl,
     string? TwitterUrl,
-    string? Website
+    string? Website,
+    string? Mission,
+    string? Vision,
+    string? CoreValues,
+    string? Founded
 );
 
 public record PaginatedMembersResponseDto(

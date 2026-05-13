@@ -99,6 +99,7 @@ public class SeedingSettings
     public bool SeedTestAccounts { get; set; } = false;
     public string? BusinessPassword { get; set; }
     public string SeedDataPath { get; set; } = "resources/seed-business-data.json";
+    public string PublicDemoDataPath { get; set; } = "resources/public-workspace-demo-content.json";
 }
 
 public class CloudflareR2Settings
