@@ -29,6 +29,7 @@ import {
   Target,
   ShieldAlert,
   X,
+  Compass,
 } from "lucide-react";
 
 import { useProfile } from "@/hooks/use-profile";
@@ -44,7 +45,6 @@ import {
   type CvDraftState,
   type CvSectionId,
   type BasicInfoDraft,
-  type CareerSummaryDraft,
   type SkillsDraft,
   type ExperienceDraftItem,
   type EducationDraftItem,
@@ -53,7 +53,6 @@ import {
 } from "./components/types";
 
 import { BasicInfoForm } from "./components/BasicInfoForm";
-import { CareerSummaryForm } from "./components/CareerSummaryForm";
 import { SkillsForm } from "./components/SkillsForm";
 import { ProjectsForm } from "./components/ProjectsForm";
 import { ExperienceForm } from "./components/ExperienceForm";
@@ -152,20 +151,10 @@ const SAMPLE_DATA = {
 type ViewState = "overview" | "editor" | "assessment";
 
 const ASSESSMENT_STAGES = [
-  { id: 'L2-001', label: 'Skill Taxonomy Mapper' },
-  { id: 'L2-002', label: 'Skill Proficiency Estimator' },
-  { id: 'L2-003', label: 'Strength/Weakness Analyzer' },
-  { id: 'L2-004', label: 'Career Level Mapper' },
-  { id: 'L2-005', label: 'Career Level Calibrator' },
-  { id: 'L2-006', label: 'Career Level Evidence Gate' },
-  { id: 'L2-007', label: 'Engineering Maturity Assessor' },
-  { id: 'L2-008', label: 'Problem Solving Analyzer' },
-  { id: 'L2-009', label: 'Technical Tendency Classifier' },
-  { id: 'L2-010', label: 'Working Style Classifier' },
-  { id: 'L2-011', label: 'Experience Confidence Multiplier' },
-  { id: 'L2-012', label: 'Multi-Role Recommendation Engine' },
-  { id: 'L2-013', label: 'Candidate Summary Generator' },
-  { id: 'L2-014', label: 'Candidate Profile Composer' },
+  { id: 'CloneRepository', label: 'Clone and parse source code repositories' },
+  { id: 'StaticAnalysis', label: 'Run static analysis and security auditing tools' },
+  { id: 'ComputeMetrics', label: 'Calculate codebase architecture and ownership metrics' },
+  { id: 'AIEval', label: 'AI evaluation of candidate experience and engineering depth' }
 ];
 
 // Initial draft states to prevent undefined errors before hydration
@@ -174,6 +163,7 @@ const INITIAL_DRAFT_STATE: CvDraftState = {
     fullName: "",
     username: "",
     headline: "",
+    bio: "",
     publicEmail: "",
     phoneNumber: "",
     location: "",
@@ -182,9 +172,6 @@ const INITIAL_DRAFT_STATE: CvDraftState = {
     company: "",
     birthDate: "",
     socialLinks: [],
-  },
-  "career-summary": {
-    bio: "",
   },
   "skills": {
     targetSkills: [],
@@ -222,47 +209,10 @@ export default function CvManagementCenter() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // Candidate Assessment Hook & States
-  const {
-    readiness,
-    latestAssessment,
-    assessmentDetails,
-    history,
-    isLoadingReadiness,
-    isLoadingLatest,
-    isLoadingDetails,
-    isLoadingHistory,
-    isTriggering,
-    error: assessmentError,
-    streamStatus,
-    streamProgress,
-    streamStep,
-    streamMessage,
-    triggerAssessment,
-    fetchDetails,
-    disconnectProgressStream,
-  } = useCandidateAssessment();
-
-  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
-  const [activeDetailTab, setActiveDetailTab] = useState<string>("summary");
-
-  const handleTriggerAssessment = async () => {
-    try {
-      setIsProgressModalOpen(true);
-      await triggerAssessment();
-    } catch (err: any) {
-      toast.danger(err.message || "Failed to run candidate assessment.");
-    }
-  };
-
-  const handleViewAssessmentDetails = async (id: string) => {
-    setViewState("assessment");
-    await fetchDetails(id);
-  };
-
   // Page Views State
   const [viewState, setViewState] = useState<ViewState>("overview");
   const [activeTab, setActiveTab] = useState<CvSectionId>("basic-info");
+  const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
   const [isSaving, setIsSaving] = useState(false);
   const [mobileShowPreview, setMobileShowPreview] = useState(false);
 
@@ -284,29 +234,38 @@ export default function CvManagementCenter() {
   // Fetch verified repositories
   const [repositories, setRepositories] = useState<SourceCodeRepository[]>([]);
 
-  useEffect(() => {
-    let active = true;
-    const fetchRepos = async () => {
-      try {
-        const result = await sourceCodeProviderApi.fetchRepositories({
-          page: 1,
-          pageSize: 100,
-        });
-        if (active) {
-          const verifiedRepos = result.items.filter(
-            (r) => r.isVerified || r.latestAnalysisStatus === "Completed"
-          );
-          setRepositories(verifiedRepos);
-        }
-      } catch (err) {
-        console.error("Failed to load repositories for CV page:", err);
-      }
-    };
-    fetchRepos();
-    return () => {
-      active = false;
-    };
-  }, []);
+  // Candidate Assessment Hook & States
+  const {
+    readiness,
+    latestAssessment,
+    assessmentDetails,
+    isLoadingDetails,
+    error: assessmentError,
+    triggerAssessment,
+    streamStatus,
+    streamProgress,
+    streamStep,
+    streamMessage,
+    disconnectProgressStream,
+    fetchDetails,
+  } = useCandidateAssessment();
+
+  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+  const [activeDetailTab, setActiveDetailTab] = useState<string>("summary");
+
+  const handleTriggerAssessment = async () => {
+    try {
+      setIsProgressModalOpen(true);
+      await triggerAssessment();
+    } catch (err: any) {
+      toast.danger(err.message || "Failed to run candidate assessment.");
+    }
+  };
+
+  const handleViewAssessmentDetails = async (id: string) => {
+    setViewState("assessment");
+    await fetchDetails(id);
+  };
 
   // Dynamic scale for the A4 preview modal to fit smaller screens
   const previewFrameRef = useRef<HTMLDivElement>(null);
@@ -339,6 +298,30 @@ export default function CvManagementCenter() {
     return () => observer.disconnect();
   }, [isA4PreviewOpen]);
 
+  useEffect(() => {
+    let active = true;
+    const fetchRepos = async () => {
+      try {
+        const result = await sourceCodeProviderApi.fetchRepositories({
+          page: 1,
+          pageSize: 100,
+        });
+        if (active) {
+          const verifiedRepos = result.items.filter(
+            (r) => r.isVerified || r.latestAnalysisStatus === "Completed"
+          );
+          setRepositories(verifiedRepos);
+        }
+      } catch (err) {
+        console.error("Failed to load repositories for CV page:", err);
+      }
+    };
+    fetchRepos();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Manage parent dashboard layout overflow on desktop
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -364,6 +347,7 @@ export default function CvManagementCenter() {
         fullName: profile.fullName || "",
         username: profile.username || "",
         headline: profile.headline || "",
+        bio: profile.bio || "",
         publicEmail: profile.publicEmail || "",
         phoneNumber: profile.phoneNumber || "",
         location: profile.location || "",
@@ -374,20 +358,14 @@ export default function CvManagementCenter() {
         socialLinks: profile.socialLinks || [],
       };
 
-      const summaryMapped: CareerSummaryDraft = {
-        bio: profile.bio || "",
-      };
-
       const timer = setTimeout(() => {
         setBaselines((prev) => ({
           ...prev,
           "basic-info": basicMapped,
-          "career-summary": summaryMapped,
         }));
         setDrafts((prev) => ({
           ...prev,
           "basic-info": basicMapped,
-          "career-summary": summaryMapped,
         }));
       }, 0);
       return () => clearTimeout(timer);
@@ -457,7 +435,7 @@ export default function CvManagementCenter() {
         technologies: we.technologies || [],
         achievements: we.achievements || [],
         links: we.links || [],
-        isLeadership: we.isLeadership,
+        isLeadership: we.isLeadership || false,
       }));
 
       const timer = setTimeout(() => {
@@ -518,7 +496,6 @@ export default function CvManagementCenter() {
   // Compute dirty states per section
   const dirtyFlags = {
     "basic-info": !isDeepEqual(drafts["basic-info"], baselines["basic-info"]),
-    "career-summary": !isDeepEqual(drafts["career-summary"], baselines["career-summary"]),
     "skills": !isDeepEqual(drafts["skills"], baselines["skills"]),
     "projects": false,
     "experience": !isDeepEqual(drafts["experience"], baselines["experience"]),
@@ -619,7 +596,7 @@ export default function CvManagementCenter() {
         // 2. Profile Details Save
         const response = await updateProfile({
           fullName: payload.fullName || null,
-          bio: profile?.bio || null,
+          bio: payload.bio || null,
           location: payload.location || null,
           phoneNumber: payload.phoneNumber || null,
           birthDate: payload.birthDate ? new Date(payload.birthDate).toISOString() : null,
@@ -639,6 +616,7 @@ export default function CvManagementCenter() {
           fullName: response.fullName || "",
           username: response.username || "",
           headline: response.headline || "",
+          bio: response.bio || "",
           publicEmail: response.publicEmail || "",
           phoneNumber: response.phoneNumber || "",
           location: response.location || "",
@@ -651,31 +629,6 @@ export default function CvManagementCenter() {
 
         setBaselines((prev) => ({ ...prev, "basic-info": updatedBasic }));
         setDrafts((prev) => ({ ...prev, "basic-info": updatedBasic }));
-        toast.success("Changes saved successfully!");
-        await refreshProfile();
-      } else if (activeTab === "career-summary") {
-        const payload = drafts["career-summary"];
-        const response = await updateProfile({
-          fullName: profile?.fullName || null,
-          bio: payload.bio || null,
-          location: profile?.location || null,
-          phoneNumber: profile?.phoneNumber || null,
-          birthDate: profile?.birthDate || null,
-          headline: profile?.headline || null,
-          company: profile?.company || null,
-          pronouns: profile?.pronouns || null,
-          customPronouns: profile?.customPronouns || null,
-          publicEmail: profile?.publicEmail || null,
-          profileVisibility: profile?.profileVisibility || "public",
-          recruiterVisibility: profile?.recruiterVisibility ?? true,
-          aiTalentDiscovery: profile?.aiTalentDiscovery || "disabled",
-          socialLinks: profile?.socialLinks || [],
-          version: profile?.version || 0,
-        });
-
-        const updatedSummary: CareerSummaryDraft = { bio: response.bio || "" };
-        setBaselines((prev) => ({ ...prev, "career-summary": updatedSummary }));
-        setDrafts((prev) => ({ ...prev, "career-summary": updatedSummary }));
         toast.success("Changes saved successfully!");
         await refreshProfile();
       } else if (activeTab === "skills") {
@@ -774,7 +727,6 @@ export default function CvManagementCenter() {
             achievements: item.achievements,
             technologies: item.technologies,
             links: item.links,
-            isLeadership: item.isLeadership,
           };
 
           if (item.id.startsWith("temp-")) {
@@ -879,7 +831,7 @@ export default function CvManagementCenter() {
       if (activeTab === "experience") await refreshWorkExperiences();
       if (activeTab === "education") await refreshEducation();
       if (activeTab === "achievements") await refreshAchievements();
-      if (activeTab === "basic-info" || activeTab === "career-summary") await refreshProfile();
+      if (activeTab === "basic-info") await refreshProfile();
       if (activeTab === "skills" || activeTab === "preferences") await refreshCareer();
     } finally {
       setIsSaving(false);
@@ -892,16 +844,12 @@ export default function CvManagementCenter() {
   };
 
   const activeProfile = useSampleData ? SAMPLE_DATA.profile : {
-    // Pass raw values so the modal/print preview matches the live preview exactly.
-    // CVPreview handles empty states itself (defaults name to "Untitled", hides an
-    // empty headline) — injecting placeholder text here caused preview/print drift.
-    fullName: drafts["basic-info"].fullName || "",
-    headline: drafts["basic-info"].headline || "",
-    bio: drafts["career-summary"].bio || "",
+    fullName: drafts["basic-info"].fullName || "Untitled",
+    headline: drafts["basic-info"].headline || "Headline not set",
+    bio: drafts["basic-info"].bio || "",
     location: drafts["basic-info"].location || "",
     publicEmail: drafts["basic-info"].publicEmail || "",
     phoneNumber: drafts["basic-info"].phoneNumber || "",
-    birthDate: drafts["basic-info"].birthDate || "",
     socialLinks: drafts["basic-info"].socialLinks || [],
   };
 
@@ -915,164 +863,6 @@ export default function CvManagementCenter() {
 
   const activePreferences = useSampleData ? INITIAL_DRAFT_STATE["preferences"] : drafts["preferences"];
   const activeProjects = useSampleData ? SAMPLE_DATA.projects : repositories;
-
-  const renderProgressModal = () => {
-    if (!isProgressModalOpen) return null;
-
-    return (
-      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-        <Card rounded="xl" className="w-full max-w-[500px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left p-6">
-          <div className="flex items-center justify-between border-b border-border/20 pb-3 shrink-0">
-            <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
-              <Sparkles className="size-4 text-accent animate-pulse" />
-              AI Profile Evaluation
-            </span>
-            {streamStatus !== 'connecting' && streamStatus !== 'streaming' && (
-              <Button
-                isIconOnly
-                size="sm"
-                variant="secondary"
-                className="rounded-xl border border-border/30 h-8 w-8"
-                onPress={() => {
-                  setIsProgressModalOpen(false);
-                  disconnectProgressStream();
-                }}
-                aria-label="Close modal"
-              >
-                <X className="size-4" />
-              </Button>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0">
-            <div className="flex flex-col gap-1 text-center py-2 shrink-0">
-              <span className="text-sm font-extrabold text-foreground">
-                {streamStatus === 'connecting'
-                  ? 'Connecting to Evaluation Stream...'
-                  : streamStatus === 'streaming'
-                    ? 'Analyzing Codebase & Calibrating Profile...'
-                    : streamStatus === 'completed'
-                      ? 'Evaluation Completed!'
-                      : streamStatus === 'failed'
-                        ? 'Evaluation Failed'
-                        : 'Idle'}
-              </span>
-              <span className="text-xs text-muted-foreground line-clamp-2 min-h-[32px]">
-                {streamMessage || 'Starting background evaluation...'}
-              </span>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="w-full bg-surface-secondary/50 rounded-full h-3 overflow-hidden shrink-0">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${streamStatus === 'failed' ? 'bg-danger' : streamStatus === 'completed' ? 'bg-success' : 'bg-accent'
-                  }`}
-                style={{ width: `${streamProgress}%` }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-muted-foreground shrink-0 font-bold">
-              <span>ACTIVE STAGE: {streamStep || 'FETCH_ARTIFACTS'}</span>
-              <span>{Math.round(streamProgress)}%</span>
-            </div>
-
-            {/* Visual Timeline of Stages */}
-            <div className="flex flex-col gap-2 border-t border-border/10 pt-3 overflow-y-auto">
-              <span className="text-[10px] text-muted uppercase font-bold tracking-wider select-none mb-1">
-                Evaluation Timeline
-              </span>
-              <div className="flex flex-col gap-2.5 pl-1.5">
-                {[
-                  { id: 'FetchLine1', label: 'Fetch verified repository analysis artifacts' },
-                  { id: 'ConsolidateLine1', label: 'Consolidate multi-repository metrics' },
-                  ...ASSESSMENT_STAGES
-                ].map((stage) => {
-                  let status: 'pending' | 'running' | 'completed' | 'failed' = 'pending';
-
-                  if (streamStatus === 'completed') {
-                    status = 'completed';
-                  } else if (streamStatus === 'failed') {
-                    const steps = ['FetchLine1', 'ConsolidateLine1', ...ASSESSMENT_STAGES.map(s => s.id)];
-                    const activeIndex = steps.indexOf(streamStep);
-                    const stageIndex = steps.indexOf(stage.id);
-                    if (stage.id === streamStep) {
-                      status = 'failed';
-                    } else if (stageIndex < activeIndex && activeIndex !== -1) {
-                      status = 'completed';
-                    } else {
-                      status = 'pending';
-                    }
-                  } else {
-                    const steps = ['FetchLine1', 'ConsolidateLine1', ...ASSESSMENT_STAGES.map(s => s.id)];
-                    const activeIndex = steps.indexOf(streamStep);
-                    const stageIndex = steps.indexOf(stage.id);
-                    if (stage.id === streamStep) {
-                      status = 'running';
-                    } else if (stageIndex < activeIndex && activeIndex !== -1) {
-                      status = 'completed';
-                    } else {
-                      status = 'pending';
-                    }
-                  }
-
-                  return (
-                    <div key={stage.id} className="flex items-center gap-3 text-xs">
-                      <div className="shrink-0 flex items-center justify-center">
-                        {status === 'completed' ? (
-                          <CheckCircle2 className="size-4 text-success" />
-                        ) : status === 'failed' ? (
-                          <XCircle className="size-4 text-danger" />
-                        ) : status === 'running' ? (
-                          <Spinner size="sm" color="accent" className="size-4" />
-                        ) : (
-                          <div className="size-3.5 rounded-full border border-border bg-surface-secondary/40" />
-                        )}
-                      </div>
-                      <span className={[
-                        "truncate font-medium",
-                        status === 'running' ? 'text-accent font-bold' :
-                          status === 'completed' ? 'text-foreground/80' : 'text-muted-foreground'
-                      ].join(" ")}>
-                        {stage.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-border/20 pt-4 flex gap-2 justify-end shrink-0">
-            {streamStatus === 'completed' && (
-              <Button
-                size="sm"
-                className="bg-accent text-accent-foreground font-bold rounded-xl border-none"
-                onPress={() => {
-                  setIsProgressModalOpen(false);
-                  if (latestAssessment) {
-                    handleViewAssessmentDetails(latestAssessment.id);
-                  }
-                }}
-              >
-                Open Dashboard
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="secondary"
-              className="rounded-xl font-bold border-border/30"
-              isDisabled={streamStatus === 'connecting' || streamStatus === 'streaming'}
-              onPress={() => {
-                setIsProgressModalOpen(false);
-                disconnectProgressStream();
-              }}
-            >
-              Close
-            </Button>
-          </div>
-        </Card>
-      </div>
-    );
-  };
 
   const renderAssessmentDashboard = () => {
     if (isLoadingDetails || !assessmentDetails) {
@@ -1382,449 +1172,798 @@ export default function CvManagementCenter() {
     );
   };
 
-  const renderOverview = () => (
-    <div className="flex flex-col gap-6 text-left w-full">
-      {/* Layer 1: Profile Completeness */}
-      <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex flex-col gap-0.5">
-            <Typography type="body-sm" className="font-bold text-foreground">
-              Profile Completeness
-            </Typography>
-            <Typography type="body-xs" className="text-muted">
-              Completing your profile highlights helps recruiters discover your profile.
-            </Typography>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold">{completenessPercent}%</span>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-${status.color}-soft text-${status.color}`}>
-              {String(status.label)}
+  const renderProgressModal = () => {
+    if (!isProgressModalOpen) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+        <Card rounded="xl" className="w-full max-w-[500px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left p-6">
+          <div className="flex items-center justify-between border-b border-border/20 pb-3 shrink-0">
+            <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
+              <Sparkles className="size-4 text-accent animate-pulse" />
+              AI Profile Evaluation
             </span>
-          </div>
-        </div>
-
-        <div className="w-full bg-surface-secondary/50 rounded-full h-2.5 overflow-hidden">
-          <div
-            className="bg-accent h-full rounded-full transition-all duration-300"
-            style={{ width: `${completenessPercent}%` }}
-          />
-        </div>
-
-        {suggestedActions.length > 0 && (
-          <div className="flex flex-col gap-2 border-t border-border/30 pt-3 mt-1">
-            <span className="text-[10px] text-muted uppercase font-bold tracking-wider">
-              Suggested Actions
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {suggestedActions.map((action) => (
-                <div key={action.id} className="flex gap-2 items-start text-xs text-muted-foreground">
-                  <AlertCircle className="size-3.5 text-warning shrink-0 mt-0.5" />
-                  <span>{String(action.text)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* AI Candidate Assessment Card */}
-      <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4 relative overflow-hidden">
-        {latestAssessment?.status === 'Completed' && (
-          <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
-        )}
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-accent-soft text-accent shrink-0">
-              <Sparkles className="size-5" />
-            </div>
-            <div className="flex flex-col gap-0.5 text-left">
-              <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">AI Candidate Assessment</h4>
-              <p className="text-xs text-muted leading-relaxed">
-                Analyze your full technical profile and codebase quality across all verified repositories.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 self-start sm:self-center">
-            {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued' ? (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-warning-soft text-warning animate-pulse">
-                Running ({streamProgress}%)
-              </span>
-            ) : latestAssessment?.status === 'Completed' ? (
-              readiness?.requiresReassessment ? (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-warning-soft text-warning">
-                  Outdated (Requires Reassessment)
-                </span>
-              ) : (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-success-soft text-success">
-                  Up To Date
-                </span>
-              )
-            ) : latestAssessment?.status === 'Failed' ? (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-danger-soft text-danger">
-                Failed
-              </span>
-            ) : (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-default-soft text-muted-foreground">
-                Never Assessed
-              </span>
+            {streamStatus !== 'connecting' && streamStatus !== 'streaming' && (
+              <Button
+                isIconOnly
+                size="sm"
+                variant="secondary"
+                className="rounded-xl border border-border/30 h-8 w-8"
+                onPress={() => {
+                  setIsProgressModalOpen(false);
+                  disconnectProgressStream();
+                }}
+                aria-label="Close modal"
+              >
+                <X className="size-4" />
+              </Button>
             )}
           </div>
+
+          <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0">
+            <div className="flex flex-col gap-1 text-center py-2 shrink-0">
+              <span className="text-sm font-extrabold text-foreground">
+                {streamStatus === 'connecting'
+                  ? 'Connecting to Evaluation Stream...'
+                  : streamStatus === 'streaming'
+                    ? 'Analyzing Codebase & Calibrating Profile...'
+                    : streamStatus === 'completed'
+                      ? 'Evaluation Completed!'
+                      : streamStatus === 'failed'
+                        ? 'Evaluation Failed'
+                        : 'Idle'}
+              </span>
+              <span className="text-xs text-muted-foreground line-clamp-2 min-h-[32px]">
+                {streamMessage || 'Starting background evaluation...'}
+              </span>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-surface-secondary/50 rounded-full h-3 overflow-hidden shrink-0">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${streamStatus === 'failed' ? 'bg-danger' : streamStatus === 'completed' ? 'bg-success' : 'bg-accent'
+                  }`}
+                style={{ width: `${streamProgress}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground shrink-0 font-bold">
+              <span>ACTIVE STAGE: {streamStep || 'FETCH_ARTIFACTS'}</span>
+              <span>{Math.round(streamProgress)}%</span>
+            </div>
+
+            {/* Visual Timeline of Stages */}
+            <div className="flex flex-col gap-2 border-t border-border/10 pt-3 overflow-y-auto">
+              <span className="text-[10px] text-muted uppercase font-bold tracking-wider select-none mb-1">
+                Evaluation Timeline
+              </span>
+              <div className="flex flex-col gap-2.5 pl-1.5">
+                {[
+                  { id: 'FetchLine1', label: 'Fetch verified repository analysis artifacts' },
+                  { id: 'ConsolidateLine1', label: 'Consolidate multi-repository metrics' },
+                  ...ASSESSMENT_STAGES
+                ].map((stage) => {
+                  let status: 'pending' | 'running' | 'completed' | 'failed' = 'pending';
+
+                  if (streamStatus === 'completed') {
+                    status = 'completed';
+                  } else if (streamStatus === 'failed') {
+                    const steps = ['FetchLine1', 'ConsolidateLine1', ...ASSESSMENT_STAGES.map(s => s.id)];
+                    const activeIndex = steps.indexOf(streamStep);
+                    const stageIndex = steps.indexOf(stage.id);
+                    if (stage.id === streamStep) {
+                      status = 'failed';
+                    } else if (stageIndex < activeIndex && activeIndex !== -1) {
+                      status = 'completed';
+                    } else {
+                      status = 'pending';
+                    }
+                  } else {
+                    const steps = ['FetchLine1', 'ConsolidateLine1', ...ASSESSMENT_STAGES.map(s => s.id)];
+                    const activeIndex = steps.indexOf(streamStep);
+                    const stageIndex = steps.indexOf(stage.id);
+                    if (stage.id === streamStep) {
+                      status = 'running';
+                    } else if (stageIndex < activeIndex && activeIndex !== -1) {
+                      status = 'completed';
+                    } else {
+                      status = 'pending';
+                    }
+                  }
+
+                  return (
+                    <div key={stage.id} className="flex items-center gap-3 text-xs">
+                      <div className="shrink-0 flex items-center justify-center">
+                        {status === 'completed' ? (
+                          <CheckCircle2 className="size-4 text-success" />
+                        ) : status === 'failed' ? (
+                          <XCircle className="size-4 text-danger" />
+                        ) : status === 'running' ? (
+                          <Spinner size="sm" color="accent" className="size-4" />
+                        ) : (
+                          <div className="size-3.5 rounded-full border border-border bg-surface-secondary/40" />
+                        )}
+                      </div>
+                      <span className={[
+                        "truncate font-medium",
+                        status === 'running' ? 'text-accent font-bold' :
+                          status === 'completed' ? 'text-foreground/80' : 'text-muted-foreground'
+                      ].join(" ")}>
+                        {stage.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border/20 pt-4 flex gap-2 justify-end shrink-0">
+            {streamStatus === 'completed' && (
+              <Button
+                size="sm"
+                className="bg-accent text-accent-foreground font-bold rounded-xl border-none"
+                onPress={() => {
+                  setIsProgressModalOpen(false);
+                  if (latestAssessment) {
+                    handleViewAssessmentDetails(latestAssessment.id);
+                  }
+                }}
+              >
+                Open Dashboard
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="rounded-xl font-bold border-border/30"
+              isDisabled={streamStatus === 'connecting' || streamStatus === 'streaming'}
+              onPress={() => {
+                setIsProgressModalOpen(false);
+                disconnectProgressStream();
+              }}
+            >
+              Close
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
+  const renderOverview = () => {
+    // Dynamically calculate completeness status per section
+    const isBasicInfoFilled = !!(drafts["basic-info"].fullName && drafts["basic-info"].publicEmail && drafts["basic-info"].bio);
+    const isSkillsFilled = !!(drafts["skills"].targetSkills && drafts["skills"].targetSkills.length > 0);
+    const isProjectsFilled = repositories.length > 0;
+    const isExperienceFilled = drafts["experience"] && drafts["experience"].length > 0;
+    const isEducationFilled = drafts["education"] && drafts["education"].length > 0;
+    const isAchievementsFilled = drafts["achievements"] && drafts["achievements"].length > 0;
+    const isPreferencesFilled = !!(drafts["preferences"].desiredJobPositions && drafts["preferences"].desiredJobPositions.length > 0);
+
+    // Dynamic counts/summaries for sections
+    const getSectionDetails = (id: CvSectionId) => {
+      switch (id) {
+        case "basic-info":
+          return drafts["basic-info"].fullName 
+            ? `${drafts["basic-info"].fullName}${drafts["basic-info"].location ? ` • ${drafts["basic-info"].location}` : ""}${drafts["basic-info"].bio ? ` • Bio added` : ""}`
+            : "Name, contact, and bio details not set";
+        case "skills":
+          const skillCount = drafts["skills"].targetSkills?.length || 0;
+          return skillCount > 0 ? `${skillCount} skills specified` : "No skills defined";
+        case "projects":
+          return repositories.length > 0 ? `${repositories.length} verified projects linked` : "No source code projects linked";
+        case "experience":
+          const expCount = drafts["experience"]?.length || 0;
+          return expCount > 0 ? `${expCount} work experience items` : "No work history listed";
+        case "education":
+          const eduCount = drafts["education"]?.length || 0;
+          return eduCount > 0 ? `${eduCount} education items added` : "No schools added";
+        case "achievements":
+          const achCount = drafts["achievements"]?.length || 0;
+          return achCount > 0 ? `${achCount} achievements & awards` : "No certificates uploaded";
+        case "preferences":
+          const posCount = drafts["preferences"].desiredJobPositions?.length || 0;
+          return posCount > 0 ? `${posCount} target positions` : "No job preferences set";
+        default:
+          return "";
+      }
+    };
+
+    const sectionCompleteness = {
+      "basic-info": isBasicInfoFilled,
+      "skills": isSkillsFilled,
+      "projects": isProjectsFilled,
+      "experience": isExperienceFilled,
+      "education": isEducationFilled,
+      "achievements": isAchievementsFilled,
+      "preferences": isPreferencesFilled,
+    };
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
+        {/* Left Column: CV Structure sections (8 cols) */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          {/* Identity & Summary Group */}
+          <div className="flex flex-col gap-3">
+            <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent/80 border-b border-border/30 pb-1.5 mb-1">
+              Identity & Summary
+            </Typography>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { id: "basic-info" as const, label: "Basic Information", desc: getSectionDetails("basic-info"), icon: User },
+                { id: "skills" as const, label: "Target Skills", desc: getSectionDetails("skills"), icon: Sparkles },
+              ].map((section) => {
+                const Icon = section.icon;
+                const isComplete = sectionCompleteness[section.id];
+                const hasDraftChanges = dirtyFlags[section.id];
+                return (
+                  <Card
+                    key={section.id}
+                    rounded="2xl"
+                    glow={true}
+                    className="p-4 border border-border/50 hover:border-accent/40 bg-surface flex flex-col items-start justify-between cursor-pointer text-left select-none relative group h-[135px]"
+                    onClick={() => {
+                      setActiveTab(section.id);
+                      setViewState("editor");
+                    }}
+                  >
+                    <div className="flex justify-between items-center w-full">
+                      <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors">
+                        <Icon className="size-5" />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {hasDraftChanges && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
+                        )}
+                        <span className={`w-2.5 h-2.5 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-3">
+                      <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                        {section.label}
+                      </span>
+                      <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Credentials & Background Group */}
+          <div className="flex flex-col gap-3">
+            <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent/80 border-b border-border/30 pb-1.5 mb-1">
+              Credentials & Background
+            </Typography>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { id: "experience" as const, label: "Work Experience", desc: getSectionDetails("experience"), icon: Briefcase },
+                { id: "education" as const, label: "Education", desc: getSectionDetails("education"), icon: GraduationCap },
+                { id: "achievements" as const, label: "Achievements & Certificates", desc: getSectionDetails("achievements"), icon: Award },
+              ].map((section) => {
+                const Icon = section.icon;
+                const isComplete = sectionCompleteness[section.id];
+                const hasDraftChanges = dirtyFlags[section.id];
+                return (
+                  <Card
+                    key={section.id}
+                    rounded="2xl"
+                    glow={true}
+                    className="p-4 border border-border/50 hover:border-accent/40 bg-surface flex flex-col items-start justify-between cursor-pointer text-left select-none relative group h-[135px]"
+                    onClick={() => {
+                      setActiveTab(section.id);
+                      setViewState("editor");
+                    }}
+                  >
+                    <div className="flex justify-between items-center w-full">
+                      <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors">
+                        <Icon className="size-5" />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {hasDraftChanges && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
+                        )}
+                        <span className={`w-2.5 h-2.5 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-3">
+                      <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                        {section.label}
+                      </span>
+                      <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Integrations & Preferences Group */}
+          <div className="flex flex-col gap-3">
+            <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent/80 border-b border-border/30 pb-1.5 mb-1">
+              Integrations & Preferences
+            </Typography>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { id: "projects" as const, label: "Linked Projects", desc: getSectionDetails("projects"), icon: FolderCode },
+                { id: "preferences" as const, label: "Career Preferences", desc: getSectionDetails("preferences"), icon: Compass },
+              ].map((section) => {
+                const Icon = section.icon;
+                const isComplete = sectionCompleteness[section.id];
+                const hasDraftChanges = dirtyFlags[section.id];
+                return (
+                  <Card
+                    key={section.id}
+                    rounded="2xl"
+                    glow={true}
+                    className="p-4 border border-border/50 hover:border-accent/40 bg-surface flex flex-col items-start justify-between cursor-pointer text-left select-none relative group h-[135px]"
+                    onClick={() => {
+                      setActiveTab(section.id);
+                      setViewState("editor");
+                    }}
+                  >
+                    <div className="flex justify-between items-center w-full">
+                      <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors">
+                        <Icon className="size-5" />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {hasDraftChanges && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
+                        )}
+                        <span className={`w-2.5 h-2.5 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-3">
+                      <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                        {section.label}
+                      </span>
+                      <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t border-border/20 pt-3 text-xs">
-          {readiness && !readiness.isReady ? (
-            <div className="flex gap-2 items-start text-muted">
-              <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
-              <div className="flex flex-col gap-1">
-                <span>
-                  <strong>Assessment Locked:</strong> You need to complete your profile structure first.
-                </span>
-                <span className="text-[10px] text-danger-foreground bg-danger-soft px-2 py-1 rounded-md max-w-fit font-semibold">
-                  Missing required fields: {readiness.missingFields.join(", ")}
+        {/* Right Column: Profile Completeness and Previews (4 cols) */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
+          {/* Profile Completeness card */}
+          <Card rounded="2xl" glow={true} className="p-6 border border-border/50 bg-surface flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3 w-full border-b border-border/20 pb-3">
+              <div className="flex flex-col gap-0.5">
+                <Typography type="body-sm" className="font-bold text-foreground">
+                  Completeness
+                </Typography>
+                <Typography type="body-xs" className="text-muted leading-snug">
+                  Finish these items to get discovered.
+                </Typography>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0 font-outfit">
+                <span className="text-lg font-extrabold text-foreground">{completenessPercent}%</span>
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide bg-${status.color}-soft text-${status.color}`}>
+                  {String(status.label)}
                 </span>
               </div>
             </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-muted">
-              <div className="flex flex-col gap-0.5">
-                <span>
-                  <strong>Assessment Ready:</strong> High-quality repository metrics and profile inputs detected.
+
+            <div className="w-full bg-surface-secondary rounded-full h-2.5 overflow-hidden">
+              <div
+                className="bg-accent h-full rounded-full transition-all duration-300"
+                style={{ width: `${completenessPercent}%` }}
+              />
+            </div>
+
+            {suggestedActions.length > 0 ? (
+              <div className="flex flex-col gap-2 pt-1">
+                <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider">
+                  Suggested Actions
                 </span>
-                {latestAssessment?.completedAtUtc && (
-                  <span className="text-[10px]">
-                    Last Assessed: {new Date(latestAssessment.completedAtUtc).toLocaleString()}
+                <div className="flex flex-col gap-2">
+                  {suggestedActions.map((action) => (
+                    <div key={action.id} className="flex gap-2 items-start text-[11px] text-muted-foreground leading-normal">
+                      <AlertCircle className="size-3.5 text-warning shrink-0 mt-0.5" />
+                      <span>{String(action.text)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2 items-center text-xs text-success bg-success-soft/20 p-2.5 rounded-xl mt-1">
+                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                <span className="font-bold">Your profile is fully optimized!</span>
+              </div>
+            )}
+          </Card>
+
+          {/* AI Candidate Assessment Card */}
+          <Card rounded="2xl" glow={true} className="p-6 border border-border/50 bg-surface flex flex-col gap-4 relative overflow-hidden">
+            {latestAssessment?.status === 'Completed' && (
+              <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
+            )}
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-accent-soft text-accent shrink-0">
+                  <Sparkles className="size-5" />
+                </div>
+                <div className="flex flex-col gap-0.5 text-left">
+                  <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">AI Candidate Assessment</h4>
+                  <p className="text-xs text-muted leading-relaxed">
+                    Analyze your full technical profile and codebase quality across all verified repositories.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-warning-soft text-warning animate-pulse">
+                    Running ({streamProgress}%)
+                  </span>
+                ) : latestAssessment?.status === 'Completed' ? (
+                  readiness?.requiresReassessment ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-warning-soft text-warning">
+                      Outdated (Requires Reassessment)
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-success-soft text-success">
+                      Up To Date
+                    </span>
+                  )
+                ) : latestAssessment?.status === 'Failed' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-danger-soft text-danger">
+                    Failed
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-default-soft text-muted-foreground">
+                    Never Assessed
                   </span>
                 )}
               </div>
-              <div className="flex gap-2 self-end shrink-0">
-                {latestAssessment?.status === 'Completed' && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="rounded-xl font-bold text-xs select-none border-border/30 h-9"
-                    onPress={() => handleViewAssessmentDetails(latestAssessment.id)}
-                  >
-                    View Report
-                  </Button>
-                )}
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-border/20 pt-3 text-xs">
+              {readiness && !readiness.isReady ? (
+                <div className="flex gap-2 items-start text-muted">
+                  <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
+                  <div className="flex flex-col gap-1">
+                    <span>
+                      <strong>Assessment Locked:</strong> You need to complete your profile structure first.
+                    </span>
+                    <span className="text-[10px] text-danger-foreground bg-danger-soft px-2 py-1 rounded-md max-w-fit font-semibold">
+                      Missing required fields: {readiness.missingFields.join(", ")}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-muted">
+                  <div className="flex flex-col gap-0.5">
+                    <span>
+                      <strong>Assessment Ready:</strong> High-quality repository metrics and profile inputs detected.
+                    </span>
+                    {latestAssessment?.completedAtUtc && (
+                      <span className="text-[10px]">
+                        Last Assessed: {new Date(latestAssessment.completedAtUtc).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 self-end shrink-0">
+                    {latestAssessment?.status === 'Completed' && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-xl font-bold text-xs select-none border-border/30 h-9"
+                        onPress={() => handleViewAssessmentDetails(latestAssessment.id)}
+                      >
+                        View Report
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      className={`rounded-xl font-bold text-xs select-none h-9 ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                          ? "bg-warning text-warning-foreground border-none"
+                          : "bg-accent text-accent-foreground border-none"
+                        }`}
+                      onPress={
+                        latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                          ? () => setIsProgressModalOpen(true)
+                          : handleTriggerAssessment
+                      }
+                    >
+                      {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                        ? "View Progress"
+                        : latestAssessment?.status === 'Completed'
+                          ? "Re-Run Assessment"
+                          : "Run Assessment"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Export & Previews unified card */}
+          <Card rounded="2xl" glow={true} className="p-6 border border-border/50 bg-surface flex flex-col gap-4">
+            <div className="flex flex-col gap-1 border-b border-border/20 pb-3">
+              <Typography type="body-sm" className="font-bold text-foreground">
+                Export & Sharing
+              </Typography>
+              <Typography type="body-xs" className="text-muted">
+                Publish or view your profile formats.
+              </Typography>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {/* Option 1: Standard A4 CV */}
+              <div className="flex flex-col gap-2 p-3.5 rounded-xl border border-border/30 bg-surface-secondary/20">
+                <div className="flex items-center gap-2 text-accent">
+                  <FileText className="size-4 shrink-0" />
+                  <span className="text-xs font-bold text-foreground">Standard A4 CV</span>
+                </div>
+                <p className="text-[10px] text-muted leading-normal">
+                  Traditional A4 layout ready for download or printing.
+                </p>
                 <Button
                   size="sm"
-                  className={`rounded-xl font-bold text-xs select-none h-9 ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                      ? "bg-warning text-warning-foreground border-none"
-                      : "bg-accent text-accent-foreground border-none"
-                    }`}
-                  onPress={
-                    latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                      ? () => setIsProgressModalOpen(true)
-                      : handleTriggerAssessment
-                  }
+                  variant="secondary"
+                  className="rounded-xl font-bold text-xs select-none w-full border-border/30 py-1 bg-surface-secondary hover:bg-surface-tertiary transition-colors"
+                  onPress={() => setIsA4PreviewOpen(true)}
                 >
-                  {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                    ? "View Progress"
-                    : latestAssessment?.status === 'Completed'
-                      ? "Re-Run Assessment"
-                      : "Run Assessment"}
+                  Open A4 Preview
+                </Button>
+              </div>
+
+              {/* Option 2: CVerify Digital Profile */}
+              <div className="flex flex-col gap-2 p-3.5 rounded-xl border border-border/30 bg-surface-secondary/20">
+                <div className="flex items-center gap-2 text-emerald-500">
+                  <Sparkles className="size-4 shrink-0" />
+                  <span className="text-xs font-bold text-foreground">Digital Profile</span>
+                </div>
+                <p className="text-[10px] text-muted leading-normal">
+                  Online portfolio containing your AI verification badges.
+                </p>
+                <Button
+                  size="sm"
+                  className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none py-1 hover:opacity-90 transition-opacity"
+                  onPress={() => {
+                    if (profile?.username) {
+                      router.push(`/${profile.username.toLowerCase()}`);
+                    } else {
+                      toast.danger("Please set your Username in Basic Information before viewing your public profile.");
+                    }
+                  }}
+                >
+                  Open Digital Profile
                 </Button>
               </div>
             </div>
-          )}
+          </Card>
         </div>
-      </Card>
-
-      {/* Layer 2: Profile Preview options */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-        {/* Card 1: Standard A4 Preview */}
-        <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col justify-between items-start gap-4">
-          <div className="flex flex-col text-left gap-1">
-            <div className="flex items-center gap-2 text-accent">
-              <FileText className="size-5" />
-              <h4 className="font-extrabold text-sm uppercase tracking-wide">Standard A4 CV</h4>
-            </div>
-            <p className="text-xs text-muted leading-relaxed">
-              Traditional A4 layout ready for download or printing.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="rounded-xl font-bold text-xs select-none w-full border-border/30"
-            onPress={() => setIsA4PreviewOpen(true)}
-          >
-            Open A4 Preview
-          </Button>
-        </Card>
-
-        {/* Card 2: CVerify Digital Profile */}
-        <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col justify-between items-start gap-4">
-          <div className="flex flex-col text-left gap-1">
-            <div className="flex items-center gap-2 text-emerald-500">
-              <Sparkles className="size-5" />
-              <h4 className="font-extrabold text-sm uppercase tracking-wide">CVerify Digital Profile</h4>
-            </div>
-            <p className="text-xs text-muted leading-relaxed">
-              Online portfolio containing your AI verification Trust Score badges.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none"
-            onPress={() => {
-              if (profile?.username) {
-                router.push(`/${profile.username.toLowerCase()}`);
-              } else {
-                toast.danger("Please set your Username in Basic Information before viewing your public profile.");
-              }
-            }}
-          >
-            Open Digital Profile
-          </Button>
-        </Card>
       </div>
+    );
+  };
 
-      {/* Layer 3: CV Structure Grid */}
-      <div className="flex flex-col gap-4 text-left w-full">
-        <Typography type="body-sm" className="font-bold text-foreground">
-          CV Profile Structure
-        </Typography>
+  const renderEditor = () => {
+    // Dynamically calculate completeness status per section
+    const isBasicInfoFilled = !!(drafts["basic-info"].fullName && drafts["basic-info"].publicEmail && drafts["basic-info"].bio);
+    const isSkillsFilled = !!(drafts["skills"].targetSkills && drafts["skills"].targetSkills.length > 0);
+    const isProjectsFilled = repositories.length > 0;
+    const isExperienceFilled = drafts["experience"] && drafts["experience"].length > 0;
+    const isEducationFilled = drafts["education"] && drafts["education"].length > 0;
+    const isAchievementsFilled = drafts["achievements"] && drafts["achievements"].length > 0;
+    const isPreferencesFilled = !!(drafts["preferences"].desiredJobPositions && drafts["preferences"].desiredJobPositions.length > 0);
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {[
-            { id: "basic-info" as const, label: "Basic Information", desc: "Name, avatar, headline, contact info", icon: User },
-            { id: "career-summary" as const, label: "Career Summary", desc: "Brief description of yourself and career direction (Uses Bio)", icon: FileText },
-            { id: "skills" as const, label: "Target Skills", desc: "Target skills you want to develop", icon: Sparkles },
-            { id: "projects" as const, label: "Linked Projects", desc: "Projects linked from source code repositories", icon: FolderCode },
-            { id: "experience" as const, label: "Work Experience", desc: "Work history, companies, roles, and achievements", icon: Briefcase },
-            { id: "education" as const, label: "Education", desc: "Schools, majors, degrees, and durations", icon: GraduationCap },
-            { id: "achievements" as const, label: "Achievements & Certificates", desc: "Awards, professional and academic certificates", icon: Award },
-            { id: "preferences" as const, label: "Career Preferences", desc: "Target roles, expected salary, locations", icon: Briefcase },
-          ].map((section) => {
-            const Icon = section.icon;
-            const hasDraftChanges = dirtyFlags[section.id];
-            return (
-              <Card
-                key={section.id}
-                rounded="xl"
-                className="p-4 border border-border/40 hover:border-accent/40 bg-surface cursor-pointer text-left select-none relative group"
-                onClick={() => {
-                  setActiveTab(section.id);
-                  setViewState("editor");
-                }}
-              >
-                <div className="flex items-start gap-3.5 w-full">
-                  <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors shrink-0">
-                    <Icon className="size-5" />
-                  </div>
-                  <div className="flex flex-col gap-0.5 min-w-0 pr-4">
-                    <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
-                      {section.label}
+    const sectionCompleteness = {
+      "basic-info": isBasicInfoFilled,
+      "skills": isSkillsFilled,
+      "projects": isProjectsFilled,
+      "experience": isExperienceFilled,
+      "education": isEducationFilled,
+      "achievements": isAchievementsFilled,
+      "preferences": isPreferencesFilled,
+    };
+
+    const activeTabName = activeTab === "basic-info" ? "Basic Information" :
+      activeTab === "skills" ? "Target Skills" :
+        activeTab === "projects" ? "Linked Projects" :
+          activeTab === "experience" ? "Work Experience" :
+            activeTab === "education" ? "Education" :
+              activeTab === "achievements" ? "Achievements & Certificates" :
+                "Career Preferences";
+
+    return (
+      <div className="flex flex-col gap-6 text-left w-full h-full relative">
+        {/* Editor Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-border/40 select-none">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setViewState("overview")}
+              className="text-muted hover:text-foreground border-none bg-transparent cursor-pointer p-1.5 rounded-xl hover:bg-surface-secondary flex items-center justify-center transition-colors"
+              title="Back to Overview"
+            >
+              <ArrowLeft className="size-5" />
+            </button>
+            <span className="w-px h-5 bg-border/50" />
+            <Typography.Heading level={4} className="font-extrabold text-foreground">
+              Edit: {activeTabName}
+            </Typography.Heading>
+          </div>
+        </div>
+
+        {/* Grid Layout: Sidebar and Workspace (2 columns) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full lg:overflow-hidden min-h-0 lg:h-[calc(100dvh-var(--cv-editor-offset,185px))]">
+          {/* Left column: Sidebar navigator (3 cols) */}
+          <div className="lg:col-span-3 min-h-0 h-full overflow-hidden flex flex-col border-r border-border/30 pr-4">
+            <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1 pb-10">
+              {[
+                { id: "basic-info" as const, label: "Basic Information", icon: User },
+                { id: "skills" as const, label: "Target Skills", icon: Sparkles },
+                { id: "projects" as const, label: "Linked Projects", icon: FolderCode },
+                { id: "experience" as const, label: "Work Experience", icon: Briefcase },
+                { id: "education" as const, label: "Education", icon: GraduationCap },
+                { id: "achievements" as const, label: "Achievements & Certificates", icon: Award },
+                { id: "preferences" as const, label: "Career Preferences", icon: Compass },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                const isComplete = sectionCompleteness[tab.id];
+                const hasDraftChanges = dirtyFlags[tab.id];
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                    }}
+                    className={[
+                      "flex items-center justify-between px-3.5 py-3 rounded-xl text-left border-none text-xs font-bold transition-all w-full cursor-pointer group relative",
+                      isActive
+                        ? "bg-accent/10 text-accent font-extrabold"
+                        : "text-muted hover:bg-surface-secondary/40 text-muted-foreground"
+                    ].join(" ")}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 top-1/4 bottom-1/4 w-0.75 bg-accent rounded-r-md" />
+                    )}
+                    <div className="flex items-center gap-3 truncate pr-2">
+                      <Icon className={`size-4 shrink-0 ${isActive ? "text-accent" : "text-muted group-hover:text-foreground transition-colors"}`} />
+                      <span className="truncate">{tab.label}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
                       {hasDraftChanges && (
                         <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
                       )}
-                    </span>
-                    <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
-                  </div>
-                  <ChevronRight className="size-4 text-muted absolute right-3 top-1/2 -translate-y-1/2 group-hover:text-accent transition-colors" />
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderEditor = () => (
-    <div className="flex flex-col gap-6 text-left w-full h-full relative">
-      {/* Editor Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-border/40">
-        <Button
-          size="sm"
-          variant="secondary"
-          className="rounded-xl font-bold text-xs select-none border-border/40 flex items-center gap-1.5"
-          onPress={() => setViewState("overview")}
-        >
-          <ArrowLeft className="size-3.5" />
-          <span>Back to Overview</span>
-        </Button>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="lg:hidden rounded-xl font-bold text-xs select-none border-border/40 flex items-center gap-1"
-            onPress={() => setMobileShowPreview((prev) => !prev)}
-          >
-            {mobileShowPreview ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-            <span>{mobileShowPreview ? "Hide Preview" : "Show Preview"}</span>
-          </Button>
-          <Typography.Heading level={4} className="font-bold text-accent">
-            Edit: {activeTab === "basic-info" ? "Basic Information" :
-              activeTab === "career-summary" ? "Career Summary" :
-                activeTab === "skills" ? "Target Skills" :
-                  activeTab === "projects" ? "Linked Projects" :
-                    activeTab === "experience" ? "Work Experience" :
-                      activeTab === "education" ? "Education" :
-                        activeTab === "achievements" ? "Achievements & Certificates" :
-                          "Career Preferences"}
-          </Typography.Heading>
-        </div>
-      </div>
-
-      {/* Grid Layout: Forms and Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 xl:gap-6 h-full lg:overflow-hidden min-h-0 lg:h-[calc(100dvh-var(--cv-editor-offset,185px))]">
-        {/* Left column: Sidebar navigator */}
-        <div className="lg:col-span-2 min-h-0 h-full overflow-hidden flex flex-col border-r border-border/30 pr-3">
-          <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1 pb-10">
-            {[
-              { id: "basic-info" as const, label: "Basic Information", icon: User },
-              { id: "career-summary" as const, label: "Career Summary", icon: FileText },
-              { id: "skills" as const, label: "Target Skills", icon: Sparkles },
-              { id: "projects" as const, label: "Linked Projects", icon: FolderCode },
-              { id: "experience" as const, label: "Work Experience", icon: Briefcase },
-              { id: "education" as const, label: "Education", icon: GraduationCap },
-              { id: "achievements" as const, label: "Achievements & Certificates", icon: Award },
-              { id: "preferences" as const, label: "Career Preferences", icon: Briefcase },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              const hasDraftChanges = dirtyFlags[tab.id];
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                  }}
-                  className={[
-                    "flex items-center justify-between px-3 py-2.5 rounded-xl text-left border-none text-xs font-bold transition-colors w-full cursor-pointer",
-                    isActive ? "bg-accent/10 text-accent font-extrabold" : "text-muted hover:bg-surface-secondary/40"
-                  ].join(" ")}
-                >
-                  <div className="flex items-center gap-2.5 truncate">
-                    <Icon className="size-4 shrink-0" />
-                    <span className="truncate">{tab.label}</span>
-                  </div>
-                  {hasDraftChanges && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse shrink-0 ml-1.5" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Center column: Form editor */}
-        <div className={`lg:col-span-5 xl:col-span-6 min-h-0 h-full overflow-hidden flex flex-col ${mobileShowPreview ? "hidden lg:flex" : "flex"}`}>
-          <Card rounded="xl" className="flex-1 min-h-0 p-4 xl:p-6 border border-border/40 bg-surface flex flex-col gap-4 xl:gap-6 text-left relative overflow-hidden h-full">
-            <div className="flex flex-col gap-1.5 border-b border-border/20 pb-3 shrink-0">
-              <h3 className="font-extrabold text-sm uppercase tracking-wider text-foreground">
-                Section: {activeTab === "basic-info" ? "Basic Information" :
-                  activeTab === "career-summary" ? "Career Summary" :
-                    activeTab === "skills" ? "Target Skills" :
-                      activeTab === "projects" ? "Linked Projects" :
-                        activeTab === "experience" ? "Work Experience" :
-                          activeTab === "education" ? "Education" :
-                            activeTab === "achievements" ? "Achievements & Certificates" :
-                              "Career Preferences"}
-              </h3>
-              <p className="text-[11px] text-muted">
-                Changes made here are saved directly into your CVerify CV data.
-              </p>
+                      <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-
-            {/* Sub-form render switches */}
-            {activeTab === "basic-info" && (
-              <BasicInfoForm
-                draft={drafts["basic-info"]}
-                baseline={baselines["basic-info"]}
-                onChange={(updated) => setDrafts((prev) => ({ ...prev, "basic-info": { ...prev["basic-info"], ...updated } }))}
-                onSave={handleSaveActiveSection}
-                onReset={handleResetActiveSection}
-                isSaving={isSaving}
-                isDirty={dirtyFlags["basic-info"]}
-                avatarUrl={user?.avatarUrl}
-              />
-            )}
-            {activeTab === "career-summary" && (
-              <CareerSummaryForm
-                draft={drafts["career-summary"]}
-                onChange={(updated) => setDrafts((prev) => ({ ...prev, "career-summary": { ...prev["career-summary"], ...updated } }))}
-                onSave={handleSaveActiveSection}
-                onReset={handleResetActiveSection}
-                isSaving={isSaving}
-                isDirty={dirtyFlags["career-summary"]}
-              />
-            )}
-            {activeTab === "skills" && (
-              <SkillsForm
-                draft={drafts["skills"]}
-                onChange={(updated) => setDrafts((prev) => ({ ...prev, "skills": { ...prev["skills"], ...updated } }))}
-                onSave={handleSaveActiveSection}
-                onReset={handleResetActiveSection}
-                isSaving={isSaving}
-                isDirty={dirtyFlags["skills"]}
-              />
-            )}
-            {activeTab === "projects" && <ProjectsForm />}
-            {activeTab === "experience" && (
-              <ExperienceForm
-                draft={drafts["experience"]}
-                onChange={(updated) => setDrafts((prev) => ({ ...prev, "experience": updated }))}
-                onSave={handleSaveActiveSection}
-                onReset={handleResetActiveSection}
-                isSaving={isSaving}
-                isDirty={dirtyFlags["experience"]}
-              />
-            )}
-            {activeTab === "education" && (
-              <EducationForm
-                draft={drafts["education"]}
-                onChange={(updated) => setDrafts((prev) => ({ ...prev, "education": updated }))}
-                onSave={handleSaveActiveSection}
-                onReset={handleResetActiveSection}
-                isSaving={isSaving}
-                isDirty={dirtyFlags["education"]}
-              />
-            )}
-            {activeTab === "achievements" && (
-              <AchievementsForm
-                draft={drafts["achievements"]}
-                onChange={(updated) => setDrafts((prev) => ({ ...prev, "achievements": updated }))}
-                onSave={handleSaveActiveSection}
-                onReset={handleResetActiveSection}
-                isSaving={isSaving}
-                isDirty={dirtyFlags["achievements"]}
-              />
-            )}
-            {activeTab === "preferences" && (
-              <PreferencesForm
-                draft={drafts["preferences"]}
-                onChange={(updated) => setDrafts((prev) => ({ ...prev, "preferences": { ...prev["preferences"], ...updated } }))}
-                onSave={handleSaveActiveSection}
-                onReset={handleResetActiveSection}
-                isSaving={isSaving}
-                isDirty={dirtyFlags["preferences"]}
-              />
-            )}
-          </Card>
-        </div>
-
-        {/* Right column: Live CV Preview */}
-        <div className={`lg:col-span-5 xl:col-span-4 min-h-0 h-full overflow-hidden flex flex-col gap-3 xl:gap-4 text-left border-l border-border/30 pl-3 xl:pl-4 ${mobileShowPreview ? "flex" : "hidden lg:flex"}`}>
-          <div className="flex items-center justify-between select-none shrink-0">
-            <span className="text-[10px] text-muted font-bold uppercase tracking-wider">Live Preview</span>
-            <button
-              onClick={() => setIsA4PreviewOpen(true)}
-              className="text-[10px] bg-accent-soft text-accent hover:bg-accent/20 px-2.5 py-0.5 rounded-full font-extrabold uppercase cursor-pointer border-none outline-none transition-colors select-none"
-            >
-              View Live
-            </button>
           </div>
 
-          <CvLivePreview drafts={drafts} avatarUrl={user?.avatarUrl} />
+          {/* Right column: Workspace (9 cols) */}
+          <div className="lg:col-span-9 min-h-0 h-full overflow-hidden flex flex-col">
+            <Card rounded="2xl" glow={true} className="flex-1 min-h-0 p-5 xl:p-6 border border-border/40 bg-surface flex flex-col gap-4 xl:gap-5 text-left relative overflow-hidden h-full">
+              {/* Workspace Header with mode switcher */}
+              <div className="flex border-b border-border/20 pb-3 select-none justify-between items-center shrink-0">
+                <div className="flex flex-col gap-0.5">
+                  <h3 className="font-extrabold text-sm uppercase tracking-wider text-foreground">
+                    Section: {activeTabName}
+                  </h3>
+                  <p className="text-[10px] text-muted">
+                    {editorMode === "edit"
+                      ? "Changes made here are saved directly into your CVerify CV data."
+                      : "Visual check of your current A4 CV profile details."}
+                  </p>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  {editorMode === "preview" && (
+                    <button
+                      onClick={() => setIsA4PreviewOpen(true)}
+                      className="text-[10px] bg-accent-soft text-accent hover:bg-accent/20 px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-accent/20 outline-none transition-colors select-none"
+                    >
+                      View A4
+                    </button>
+                  )}
+                  <div className="flex items-center bg-surface-secondary/60 p-0.5 rounded-xl border border-border/20">
+                    <button
+                      type="button"
+                      onClick={() => setEditorMode("edit")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${editorMode === "edit" ? "bg-surface text-accent shadow-xs font-extrabold" : "text-muted hover:text-foreground"}`}
+                    >
+                      Form Editor
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditorMode("preview")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${editorMode === "preview" ? "bg-surface text-accent shadow-xs font-extrabold" : "text-muted hover:text-foreground"}`}
+                    >
+                      Live Preview
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Workspace Content Panel */}
+              <div className="flex-1 min-h-0 overflow-y-auto relative h-full">
+                {editorMode === "edit" ? (
+                  <>
+                    {activeTab === "basic-info" && (
+                      <BasicInfoForm
+                        draft={drafts["basic-info"]}
+                        baseline={baselines["basic-info"]}
+                        onChange={(updated) => setDrafts((prev) => ({ ...prev, "basic-info": { ...prev["basic-info"], ...updated } }))}
+                        onSave={handleSaveActiveSection}
+                        onReset={handleResetActiveSection}
+                        isSaving={isSaving}
+                        isDirty={dirtyFlags["basic-info"]}
+                        avatarUrl={user?.avatarUrl}
+                      />
+                    )}
+
+                    {activeTab === "skills" && (
+                      <SkillsForm
+                        draft={drafts["skills"]}
+                        onChange={(updated) => setDrafts((prev) => ({ ...prev, "skills": { ...prev["skills"], ...updated } }))}
+                        onSave={handleSaveActiveSection}
+                        onReset={handleResetActiveSection}
+                        isSaving={isSaving}
+                        isDirty={dirtyFlags["skills"]}
+                      />
+                    )}
+                    {activeTab === "projects" && <ProjectsForm />}
+                    {activeTab === "experience" && (
+                      <ExperienceForm
+                        draft={drafts["experience"]}
+                        onChange={(updated) => setDrafts((prev) => ({ ...prev, "experience": updated }))}
+                        onSave={handleSaveActiveSection}
+                        onReset={handleResetActiveSection}
+                        isSaving={isSaving}
+                        isDirty={dirtyFlags["experience"]}
+                      />
+                    )}
+                    {activeTab === "education" && (
+                      <EducationForm
+                        draft={drafts["education"]}
+                        onChange={(updated) => setDrafts((prev) => ({ ...prev, "education": updated }))}
+                        onSave={handleSaveActiveSection}
+                        onReset={handleResetActiveSection}
+                        isSaving={isSaving}
+                        isDirty={dirtyFlags["education"]}
+                      />
+                    )}
+                    {activeTab === "achievements" && (
+                      <AchievementsForm
+                        draft={drafts["achievements"]}
+                        onChange={(updated) => setDrafts((prev) => ({ ...prev, "achievements": updated }))}
+                        onSave={handleSaveActiveSection}
+                        onReset={handleResetActiveSection}
+                        isSaving={isSaving}
+                        isDirty={dirtyFlags["achievements"]}
+                      />
+                    )}
+                    {activeTab === "preferences" && (
+                      <PreferencesForm
+                        draft={drafts["preferences"]}
+                        onChange={(updated) => setDrafts((prev) => ({ ...prev, "preferences": { ...prev["preferences"], ...updated } }))}
+                        onSave={handleSaveActiveSection}
+                        onReset={handleResetActiveSection}
+                        isSaving={isSaving}
+                        isDirty={dirtyFlags["preferences"]}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div className="flex justify-center items-start h-full py-2">
+                    <CvLivePreview drafts={drafts} avatarUrl={user?.avatarUrl} />
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex flex-col w-full h-full text-left relative overflow-hidden" style={{ "--cv-editor-offset": "185px" } as React.CSSProperties}>
@@ -1850,7 +1989,7 @@ export default function CvManagementCenter() {
       {/* Dialog standard A4 Preview overlay */}
       {isA4PreviewOpen && (
         <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 cv-preview-overlay">
-          <Card rounded="xl" className="w-full max-w-[850px] h-[90vh] border border-border flex flex-col overflow-hidden text-left cv-preview-card">
+          <Card rounded="xl" className="w-full max-w-[850px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left cv-preview-card">
             {/* Header controls */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 select-none bg-surface/80 backdrop-blur-md">
               <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
@@ -1890,39 +2029,18 @@ export default function CvManagementCenter() {
             </div>
 
             {/* A4 Printable content frame */}
-            <div ref={previewFrameRef} className="flex-1 min-h-0 overflow-y-auto p-8 bg-surface-secondary/50 cv-preview-content-frame">
-              <div
-                className="mx-auto cv-preview-scale-wrapper"
-                style={{
-                  width: `${794 * previewScale}px`,
-                  height: `${previewContentHeight * previewScale}px`,
-                  position: "relative",
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  ref={previewContentRef}
-                  className="shadow-md border border-border rounded-xs overflow-hidden cv-preview-box"
-                  style={{
-                    transform: `scale(${previewScale})`,
-                    transformOrigin: "top left",
-                    width: "794px",
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                  }}
-                >
-                  <CVPreview
-                    basic={activeProfile}
-                    summary={{ bio: activeProfile.bio }}
-                    skills={{ targetSkills: activeCareer.targetSkills }}
-                    experience={activeExp}
-                    education={activeEdu}
-                    achievements={activeAch}
-                    preferences={activePreferences}
-                    projects={activeProjects}
-                  />
-                </div>
+            <div className="flex-1 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start cv-preview-content-frame">
+              <div className="shadow-md border border-border rounded-xs overflow-hidden cv-preview-box">
+                <CVPreview
+                  basic={activeProfile}
+                  summary={{ bio: activeProfile.bio }}
+                  skills={{ targetSkills: activeCareer.targetSkills }}
+                  experience={activeExp}
+                  education={activeEdu}
+                  achievements={activeAch}
+                  preferences={activePreferences}
+                  projects={activeProjects}
+                />
               </div>
             </div>
           </Card>

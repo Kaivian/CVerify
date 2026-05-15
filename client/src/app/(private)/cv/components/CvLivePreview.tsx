@@ -54,14 +54,11 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
       const targetWidth = 794; // Standard A4 width in pixels at 96 DPI
       const targetHeight = 1123; // Standard A4 height in pixels at 96 DPI
 
-      // Calculate scale to fit both width and height of the container
+      // Calculate scale to fit the width of the container, allowing vertical scrolling
       const scaleX = parentWidth > 0 ? parentWidth / targetWidth : 1;
-      const scaleY = parentHeight > 0 ? parentHeight / targetHeight : 1;
 
-      const computedScale = Math.min(scaleX, scaleY);
-
-      // Clamp scale to reasonable limits to fit shorter/narrower viewports
-      const clampedScale = Math.max(0.2, Math.min(1.0, computedScale));
+      // Clamp scale to reasonable limits (max 1.0 to prevent upscaling blur)
+      const clampedScale = Math.max(0.2, Math.min(1.0, scaleX));
       setScale(clampedScale);
 
       // Measure raw unscaled height of the preview content
@@ -85,7 +82,7 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
   }, [drafts, repositories]);
 
   const basic = drafts["basic-info"];
-  const summary = drafts["career-summary"];
+  const summary = { bio: drafts["basic-info"].bio };
   const skills = drafts["skills"];
   const experience = drafts["experience"];
   const education = drafts["education"];

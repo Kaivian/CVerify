@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { Input, Button, TextArea, Checkbox, Spinner } from "@heroui/react";
+import { Input, Button, TextArea, Checkbox, Spinner, Tooltip } from "@heroui/react";
 import { Card } from "@/components/ui/card";
-import { PlusCircle, Trash2, Edit2, X } from "lucide-react";
+import { PlusCircle, Trash2, Edit2, X, Info } from "lucide-react";
 import { type EducationDraftItem } from "./types";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
 
@@ -118,8 +118,16 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, schoolName: e.target.value })}
                 placeholder="FPT University"
                 aria-label="School or University Name"
+                maxLength={100}
               />
-              {errors.schoolName && <span className="text-[10px] text-danger">{errors.schoolName}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.schoolName ? (
+                  <span className="text-danger">{errors.schoolName}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.schoolName || "").length}/100 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -129,8 +137,16 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, degree: e.target.value, label: e.target.value })}
                 placeholder="Bachelor of Software Engineering"
                 aria-label="Degree title"
+                maxLength={100}
               />
-              {errors.degree && <span className="text-[10px] text-danger">{errors.degree}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.degree ? (
+                  <span className="text-danger">{errors.degree}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.degree || "").length}/100 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -140,7 +156,11 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, major: e.target.value })}
                 placeholder="Software Engineering"
                 aria-label="Major or Field of Study"
+                maxLength={100}
               />
+              <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+                <span>{(editingItem.major || "").length}/100 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -164,7 +184,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 py-4 select-none">
+            <label className="flex items-center gap-2 py-4 select-none cursor-pointer">
               <Checkbox
                 isSelected={editingItem.isCurrentlyStudying}
                 onChange={(isSelected: boolean) =>
@@ -175,11 +195,20 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                   })
                 }
                 aria-label="Currently studying here"
-              />
+                className="cursor-pointer"
+              >
+                <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                  <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </Checkbox.Indicator>
+                </Checkbox.Control>
+              </Checkbox>
               <span className="text-xs font-semibold text-foreground">
                 Currently studying here
               </span>
-            </div>
+            </label>
 
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">GPA</label>
@@ -199,7 +228,17 @@ export const EducationForm: React.FC<EducationFormProps> = ({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="font-bold text-foreground">GPA Scale</label>
+              <div className="flex items-center gap-1">
+                <label className="font-bold text-foreground">GPA Scale</label>
+                <Tooltip delay={0}>
+                  <Tooltip.Trigger>
+                    <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                  </Tooltip.Trigger>
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                    The maximum GPA scale for your institution, e.g. 4.0 or 10.0
+                  </Tooltip.Content>
+                </Tooltip>
+              </div>
               <Input
                 type="number"
                 step="0.1"
@@ -224,7 +263,11 @@ export const EducationForm: React.FC<EducationFormProps> = ({
               placeholder="e.g. GPA 3.6, Học bổng toàn phần..."
               rows={3}
               aria-label="Education description"
+              maxLength={1000}
             />
+            <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+              <span>{(editingItem.description || "").length}/1000 characters</span>
+            </div>
           </div>
 
           <Button size="sm" className="bg-accent text-accent-foreground font-bold rounded-xl border-none mt-2 h-9" onPress={handleSaveItem}>
