@@ -1380,9 +1380,58 @@ export default function CvManagementCenter() {
     };
 
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
-        {/* Left Column: CV Structure sections (8 cols) */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
+      <div className="flex flex-col gap-6 w-full">
+        {/* Profile Completeness card */}
+        <Card rounded="2xl" glow={true} className="p-6 border border-border/40 bg-surface flex flex-col gap-5 relative overflow-hidden">
+          <div className="flex items-center justify-between gap-3 w-full border-b border-border/20 pb-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs uppercase font-extrabold tracking-widest text-muted-foreground">Completeness</span>
+              <Typography type="body-sm" className="font-extrabold text-foreground leading-none">
+                Profile Optimization
+              </Typography>
+            </div>
+            <div className="flex flex-col items-end gap-1.5 shrink-0 font-outfit">
+              <span className="text-3xl font-black text-foreground tracking-tight">{completenessPercent}%</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide bg-${status.color}-soft text-${status.color}`}>
+                {String(status.label)}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5 w-full">
+            <div className="w-full bg-surface-secondary rounded-full h-3 overflow-hidden p-0.5 border border-border/20">
+              <div
+                className="bg-accent h-full rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${completenessPercent}%` }}
+              />
+            </div>
+          </div>
+
+          {suggestedActions.length > 0 ? (
+            <div className="flex flex-col gap-3 pt-2">
+              <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
+                Action Checklist
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {suggestedActions.map((action) => (
+                  <div key={action.id} className="flex gap-2.5 items-start text-[11px] text-muted-foreground leading-normal bg-surface-secondary/40 p-2.5 rounded-xl border border-border/10">
+                    <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
+                    <span>{String(action.text)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-3 items-center text-xs text-success bg-success-soft/20 p-3 rounded-xl mt-1 border border-success/10">
+              <CheckCircle2 className="size-5 text-success shrink-0" />
+              <span className="font-bold">Your profile is fully optimized!</span>
+            </div>
+          )}
+        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
+          {/* Left Column: CV Structure sections (8 cols) */}
+          <div className="lg:col-span-8 flex flex-col gap-6">
           {/* Identity & Summary Group */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
@@ -1541,56 +1590,8 @@ export default function CvManagementCenter() {
           </div>
         </div>
 
-        {/* Right Column: Profile Completeness and Previews (4 cols) */}
+        {/* Right Column: Previews and Assessments (4 cols) */}
         <div className="lg:col-span-4 flex flex-col gap-6">
-          {/* Profile Completeness card */}
-          <Card rounded="2xl" glow={true} className="p-6 border border-border/40 bg-surface flex flex-col gap-5 relative overflow-hidden">
-            <div className="flex items-center justify-between gap-3 w-full border-b border-border/20 pb-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs uppercase font-extrabold tracking-widest text-muted-foreground">Completeness</span>
-                <Typography type="body-sm" className="font-extrabold text-foreground leading-none">
-                  Profile Optimization
-                </Typography>
-              </div>
-              <div className="flex flex-col items-end gap-1.5 shrink-0 font-outfit">
-                <span className="text-3xl font-black text-foreground tracking-tight">{completenessPercent}%</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide bg-${status.color}-soft text-${status.color}`}>
-                  {String(status.label)}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5 w-full">
-              <div className="w-full bg-surface-secondary rounded-full h-3 overflow-hidden p-0.5 border border-border/20">
-                <div
-                  className="bg-accent h-full rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${completenessPercent}%` }}
-                />
-              </div>
-            </div>
-
-            {suggestedActions.length > 0 ? (
-              <div className="flex flex-col gap-3 pt-2">
-                <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
-                  Action Checklist
-                </span>
-                <div className="flex flex-col gap-2.5">
-                  {suggestedActions.map((action) => (
-                    <div key={action.id} className="flex gap-2.5 items-start text-[11px] text-muted-foreground leading-normal bg-surface-secondary/40 p-2.5 rounded-xl border border-border/10">
-                      <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
-                      <span>{String(action.text)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-3 items-center text-xs text-success bg-success-soft/20 p-3 rounded-xl mt-1 border border-success/10">
-                <CheckCircle2 className="size-5 text-success shrink-0" />
-                <span className="font-bold">Your profile is fully optimized!</span>
-              </div>
-            )}
-          </Card>
-
           {/* AI Candidate Assessment Card */}
           <Card rounded="2xl" glow={true} className="p-6 border border-accent/25 bg-surface flex flex-col gap-5 relative overflow-hidden">
             {latestAssessment?.status === 'Completed' && (
@@ -1756,8 +1757,9 @@ export default function CvManagementCenter() {
           </Card>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   const renderEditor = () => {
     // Dynamically calculate completeness status per section
