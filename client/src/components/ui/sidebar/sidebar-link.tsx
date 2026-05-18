@@ -70,7 +70,7 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       }}
       className={[
         "relative flex items-center w-full rounded-xl font-semibold transition-all duration-200 group cursor-pointer",
-        isMobile ? "h-12 text-base px-3.5 gap-3" : "h-10 text-sm gap-2 pr-4",
+        isMobile ? "h-12 text-base px-3.5 gap-3" : `h-10 text-sm gap-2${collapsed ? "" : " pr-4"}`,
         active
           ? "bg-accent/10 text-accent"
           : "text-muted hover:bg-accent/10 hover:text-accent",
