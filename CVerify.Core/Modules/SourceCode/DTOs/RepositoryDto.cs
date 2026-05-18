@@ -5,6 +5,7 @@ namespace CVerify.API.Modules.SourceCode.DTOs;
 public record RepositoryDto(
     Guid Id,
     Guid AuthProviderId,
+    Guid? ExternalOrganizationId,
     string ExternalRepositoryId,
     string Name,
     string Owner,

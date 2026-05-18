@@ -138,6 +138,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<PendingAuthProvider> PendingAuthProviders => Set<PendingAuthProvider>();
+    public DbSet<ExternalOrganization> ExternalOrganizations => Set<ExternalOrganization>();
     public DbSet<SourceCodeRepository> SourceCodeRepositories => Set<SourceCodeRepository>();
     public DbSet<AnalysisJob> AnalysisJobs => Set<AnalysisJob>();
     public DbSet<AnalysisJobEvent> AnalysisJobEvents => Set<AnalysisJobEvent>();
@@ -532,6 +533,21 @@ public class ApplicationDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // ExternalOrganization configurations
+        modelBuilder.Entity<ExternalOrganization>(entity =>
+        {
+            entity.ToTable("external_organizations");
+            entity.HasKey(eo => eo.Id);
+            entity.Property(eo => eo.Id).ValueGeneratedNever();
+            entity.HasIndex(eo => new { eo.AuthProviderId, eo.ExternalId })
+                  .IsUnique()
+                  .HasDatabaseName("idx_external_organizations_provider_external_active");
+            entity.HasOne(eo => eo.AuthProvider)
+                  .WithMany()
+                  .HasForeignKey(eo => eo.AuthProviderId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         // SourceCodeRepository configurations
         modelBuilder.Entity<SourceCodeRepository>(entity =>
         {
@@ -545,6 +561,10 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(r => r.AuthProviderId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(r => r.ExternalOrganization)
+                  .WithMany()
+                  .HasForeignKey(r => r.ExternalOrganizationId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         // AnalysisJob configurations
