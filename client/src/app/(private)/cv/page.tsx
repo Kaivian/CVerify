@@ -1344,7 +1344,7 @@ export default function CvManagementCenter() {
     const getSectionDetails = (id: CvSectionId) => {
       switch (id) {
         case "basic-info":
-          return drafts["basic-info"].fullName 
+          return drafts["basic-info"].fullName
             ? `${drafts["basic-info"].fullName}${drafts["basic-info"].location ? ` • ${drafts["basic-info"].location}` : ""}${drafts["basic-info"].bio ? ` • Bio added` : ""}`
             : "Name, contact, and bio details not set";
         case "skills":
@@ -1432,340 +1432,346 @@ export default function CvManagementCenter() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
           {/* Left Column: CV Structure sections (8 cols) */}
           <div className="lg:col-span-8 flex flex-col gap-6">
-          {/* Identity & Summary Group */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
-              <span className="w-1.5 h-3.5 bg-accent rounded-full" />
-              <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
-                Identity & Summary
-              </Typography>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { id: "basic-info" as const, label: "Basic Information", desc: getSectionDetails("basic-info"), icon: User },
-                { id: "skills" as const, label: "Target Skills", desc: getSectionDetails("skills"), icon: Sparkles },
-              ].map((section) => {
-                const Icon = section.icon;
-                const isComplete = sectionCompleteness[section.id];
-                const hasDraftChanges = dirtyFlags[section.id];
-                return (
-                  <Card
-                    key={section.id}
-                    rounded="2xl"
-                    glow={true}
-                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex gap-4 cursor-pointer text-left select-none relative group h-[110px]"
-                    onClick={() => {
-                      setActiveTab(section.id);
-                      setViewState("editor");
-                    }}
-                  >
-                    <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5">
-                      <Icon className="size-4.5" />
-                    </div>
-                    <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
-                      <div className="flex flex-col gap-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 w-full">
-                          <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
-                            {section.label}
-                          </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {hasDraftChanges && (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
-                                Draft
-                              </span>
-                            )}
-                            <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Credentials & Background Group */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
-              <span className="w-1.5 h-3.5 bg-accent rounded-full" />
-              <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
-                Credentials & Background
-              </Typography>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[
-                { id: "experience" as const, label: "Work Experience", desc: getSectionDetails("experience"), icon: Briefcase },
-                { id: "education" as const, label: "Education", desc: getSectionDetails("education"), icon: GraduationCap },
-                { id: "achievements" as const, label: "Achievements & Certificates", desc: getSectionDetails("achievements"), icon: Award },
-              ].map((section) => {
-                const Icon = section.icon;
-                const isComplete = sectionCompleteness[section.id];
-                const hasDraftChanges = dirtyFlags[section.id];
-                return (
-                  <Card
-                    key={section.id}
-                    rounded="2xl"
-                    glow={true}
-                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex gap-4 cursor-pointer text-left select-none relative group h-[110px]"
-                    onClick={() => {
-                      setActiveTab(section.id);
-                      setViewState("editor");
-                    }}
-                  >
-                    <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5">
-                      <Icon className="size-4.5" />
-                    </div>
-                    <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
-                      <div className="flex flex-col gap-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 w-full">
-                          <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
-                            {section.label}
-                          </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {hasDraftChanges && (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
-                                Draft
-                              </span>
-                            )}
-                            <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Integrations & Preferences Group */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
-              <span className="w-1.5 h-3.5 bg-accent rounded-full" />
-              <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
-                Integrations & Preferences
-              </Typography>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { id: "projects" as const, label: "Linked Projects", desc: getSectionDetails("projects"), icon: FolderCode },
-                { id: "preferences" as const, label: "Career Preferences", desc: getSectionDetails("preferences"), icon: Compass },
-              ].map((section) => {
-                const Icon = section.icon;
-                const isComplete = sectionCompleteness[section.id];
-                const hasDraftChanges = dirtyFlags[section.id];
-                return (
-                  <Card
-                    key={section.id}
-                    rounded="2xl"
-                    glow={true}
-                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex gap-4 cursor-pointer text-left select-none relative group h-[110px]"
-                    onClick={() => {
-                      setActiveTab(section.id);
-                      setViewState("editor");
-                    }}
-                  >
-                    <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5">
-                      <Icon className="size-4.5" />
-                    </div>
-                    <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
-                      <div className="flex flex-col gap-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 w-full">
-                          <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
-                            {section.label}
-                          </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {hasDraftChanges && (
-                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
-                                Draft
-                              </span>
-                            )}
-                            <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Previews and Assessments (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          {/* AI Candidate Assessment Card */}
-          <Card rounded="2xl" glow={true} className="p-6 border border-accent/25 bg-surface flex flex-col gap-5 relative overflow-hidden">
-            {latestAssessment?.status === 'Completed' && (
-              <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
-            )}
-
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-accent-soft text-accent shrink-0">
-                <Sparkles className="size-5.5 animate-pulse" />
-              </div>
-              <div className="flex flex-col text-left">
-                <Typography type="body-sm" className="font-extrabold text-foreground">
-                  AI Candidate Assessment
+            {/* Identity & Summary Group */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+                <span className="w-1.5 h-3.5 bg-accent rounded-full" />
+                <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                  Identity & Summary
                 </Typography>
-                <span className="text-[10px] text-muted mt-0.5">
-                  Verified Codebase Quality & Tech Stack Calibrations
-                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { id: "basic-info" as const, label: "Basic Information", desc: getSectionDetails("basic-info"), icon: User },
+                  { id: "skills" as const, label: "Target Skills", desc: getSectionDetails("skills"), icon: Sparkles },
+                ].map((section) => {
+                  const Icon = section.icon;
+                  const isComplete = sectionCompleteness[section.id];
+                  const hasDraftChanges = dirtyFlags[section.id];
+                  return (
+                    <Card
+                      key={section.id}
+                      rounded="2xl"
+                      glow={true}
+                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface cursor-pointer text-left select-none relative group h-[110px] transition-all duration-300"
+                      onClick={() => {
+                        setActiveTab(section.id);
+                        setViewState("editor");
+                      }}
+                    >
+                      <div className="flex gap-4 items-start w-full h-full">
+                        <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-all duration-300">
+                          <Icon className="size-4.5" />
+                        </div>
+                        <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 w-full">
+                              <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                                {section.label}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {hasDraftChanges && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
+                                    Draft
+                                  </span>
+                                )}
+                                <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="w-full h-px bg-border/20" />
+            {/* Credentials & Background Group */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+                <span className="w-1.5 h-3.5 bg-accent rounded-full" />
+                <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                  Credentials & Background
+                </Typography>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { id: "experience" as const, label: "Work Experience", desc: getSectionDetails("experience"), icon: Briefcase },
+                  { id: "education" as const, label: "Education", desc: getSectionDetails("education"), icon: GraduationCap },
+                  { id: "achievements" as const, label: "Achievements & Certificates", desc: getSectionDetails("achievements"), icon: Award },
+                ].map((section) => {
+                  const Icon = section.icon;
+                  const isComplete = sectionCompleteness[section.id];
+                  const hasDraftChanges = dirtyFlags[section.id];
+                  return (
+                    <Card
+                      key={section.id}
+                      rounded="2xl"
+                      glow={true}
+                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface cursor-pointer text-left select-none relative group h-[110px] transition-all duration-300"
+                      onClick={() => {
+                        setActiveTab(section.id);
+                        setViewState("editor");
+                      }}
+                    >
+                      <div className="flex gap-4 items-start w-full h-full">
+                        <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-all duration-300">
+                          <Icon className="size-4.5" />
+                        </div>
+                        <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 w-full">
+                              <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                                {section.label}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {hasDraftChanges && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
+                                    Draft
+                                  </span>
+                                )}
+                                <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
 
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Analyze your full technical profile, system complexity, and contribution ratios across all verified repositories.
-            </p>
+            {/* Integrations & Preferences Group */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+                <span className="w-1.5 h-3.5 bg-accent rounded-full" />
+                <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                  Integrations & Preferences
+                </Typography>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { id: "projects" as const, label: "Linked Projects", desc: getSectionDetails("projects"), icon: FolderCode },
+                  { id: "preferences" as const, label: "Career Preferences", desc: getSectionDetails("preferences"), icon: Compass },
+                ].map((section) => {
+                  const Icon = section.icon;
+                  const isComplete = sectionCompleteness[section.id];
+                  const hasDraftChanges = dirtyFlags[section.id];
+                  return (
+                    <Card
+                      key={section.id}
+                      rounded="2xl"
+                      glow={true}
+                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface cursor-pointer text-left select-none relative group h-[110px] transition-all duration-300"
+                      onClick={() => {
+                        setActiveTab(section.id);
+                        setViewState("editor");
+                      }}
+                    >
+                      <div className="flex gap-4 items-start w-full h-full">
+                        <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-all duration-300">
+                          <Icon className="size-4.5" />
+                        </div>
+                        <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 w-full">
+                              <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                                {section.label}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {hasDraftChanges && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
+                                    Draft
+                                  </span>
+                                )}
+                                <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
 
-            <div className="flex flex-col gap-3.5 bg-surface-secondary/40 p-4 rounded-2xl border border-border/10">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-foreground">Status:</span>
-                {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued' ? (
-                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning-soft text-warning animate-pulse">
-                    Running ({streamProgress}%)
+          {/* Right Column: Previews and Assessments (4 cols) */}
+          <div className="lg:col-span-4 flex flex-col gap-6">
+            {/* AI Candidate Assessment Card */}
+            <Card rounded="2xl" glow={true} className="p-6 border border-accent/25 bg-surface flex flex-col gap-5 relative overflow-hidden">
+              {latestAssessment?.status === 'Completed' && (
+                <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
+              )}
+
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-accent-soft text-accent shrink-0">
+                  <Sparkles className="size-5.5 animate-pulse" />
+                </div>
+                <div className="flex flex-col text-left">
+                  <Typography type="body-sm" className="font-extrabold text-foreground">
+                    AI Candidate Assessment
+                  </Typography>
+                  <span className="text-[10px] text-muted mt-0.5">
+                    Verified Codebase Quality & Tech Stack Calibrations
                   </span>
-                ) : latestAssessment?.status === 'Completed' ? (
-                  readiness?.requiresReassessment ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning-soft text-warning">
-                      Outdated
+                </div>
+              </div>
+
+              <div className="w-full h-px bg-border/20" />
+
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Analyze your full technical profile, system complexity, and contribution ratios across all verified repositories.
+              </p>
+
+              <div className="flex flex-col gap-3.5 bg-surface-secondary/40 p-4 rounded-2xl border border-border/10">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-foreground">Status:</span>
+                  {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued' ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning-soft text-warning animate-pulse">
+                      Running ({streamProgress}%)
+                    </span>
+                  ) : latestAssessment?.status === 'Completed' ? (
+                    readiness?.requiresReassessment ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning-soft text-warning">
+                        Outdated
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-success-soft text-success">
+                        Up To Date
+                      </span>
+                    )
+                  ) : latestAssessment?.status === 'Failed' ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-danger-soft text-danger">
+                      Failed
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-success-soft text-success">
-                      Up To Date
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-default-soft text-muted-foreground">
+                      Never Assessed
                     </span>
-                  )
-                ) : latestAssessment?.status === 'Failed' ? (
-                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-danger-soft text-danger">
-                    Failed
-                  </span>
-                ) : (
-                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-default-soft text-muted-foreground">
-                    Never Assessed
-                  </span>
-                )}
-              </div>
-
-              {readiness && !readiness.isReady ? (
-                <div className="flex gap-2.5 items-start text-muted text-xs">
-                  <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
-                  <div className="flex flex-col gap-1">
-                    <span className="font-bold text-foreground">Required Fields Missing</span>
-                    <span className="text-[10px] text-danger-foreground bg-danger-soft px-2.5 py-1 rounded-lg font-semibold leading-relaxed">
-                      Missing: {readiness.missingFields.join(", ")}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {latestAssessment?.completedAtUtc && (
-                    <div className="flex justify-between text-[10px] text-muted">
-                      <span>Last Assessed</span>
-                      <span>{new Date(latestAssessment.completedAtUtc).toLocaleString()}</span>
-                    </div>
                   )}
-                  <div className="flex gap-2 w-full mt-1">
-                    {latestAssessment?.status === 'Completed' && (
+                </div>
+
+                {readiness && !readiness.isReady ? (
+                  <div className="flex gap-2.5 items-start text-muted text-xs">
+                    <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
+                    <div className="flex flex-col gap-1">
+                      <span className="font-bold text-foreground">Required Fields Missing</span>
+                      <span className="text-[10px] text-danger-foreground bg-danger-soft px-2.5 py-1 rounded-lg font-semibold leading-relaxed">
+                        Missing: {readiness.missingFields.join(", ")}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {latestAssessment?.completedAtUtc && (
+                      <div className="flex justify-between text-[10px] text-muted">
+                        <span>Last Assessed</span>
+                        <span>{new Date(latestAssessment.completedAtUtc).toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex gap-2 w-full mt-1">
+                      {latestAssessment?.status === 'Completed' && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="rounded-xl font-bold text-xs select-none border-border/30 h-10 flex-1"
+                          onPress={() => handleViewAssessmentDetails(latestAssessment.id)}
+                        >
+                          View Report
+                        </Button>
+                      )}
                       <Button
                         size="sm"
-                        variant="secondary"
-                        className="rounded-xl font-bold text-xs select-none border-border/30 h-10 flex-1"
-                        onPress={() => handleViewAssessmentDetails(latestAssessment.id)}
-                      >
-                        View Report
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      className={`rounded-xl font-bold text-xs select-none h-10 flex-1 border-none ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                        className={`rounded-xl font-bold text-xs select-none h-10 flex-1 border-none ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
                           ? "bg-warning text-warning-foreground"
                           : "bg-accent text-accent-foreground"
-                        }`}
-                      onPress={
-                        latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                          ? () => setIsProgressModalOpen(true)
-                          : handleTriggerAssessment
-                      }
-                    >
-                      {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                        ? "Progress"
-                        : latestAssessment?.status === 'Completed'
-                          ? "Re-Run"
-                          : "Run Assessment"}
-                    </Button>
+                          }`}
+                        onPress={
+                          latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                            ? () => setIsProgressModalOpen(true)
+                            : handleTriggerAssessment
+                        }
+                      >
+                        {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                          ? "Progress"
+                          : latestAssessment?.status === 'Completed'
+                            ? "Re-Run"
+                            : "Run Assessment"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </Card>
+                )}
+              </div>
+            </Card>
 
-          {/* Export & Previews unified card */}
-          <Card rounded="2xl" glow={true} className="p-6 border border-border/40 bg-surface flex flex-col gap-5">
-            <div className="flex flex-col gap-1 border-b border-border/20 pb-3 text-left">
-              <Typography type="body-sm" className="font-extrabold text-foreground">
-                Export & Sharing
-              </Typography>
-              <span className="text-[10px] text-muted">
-                Publish or view your profile formats.
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {/* Option 1: Standard A4 CV */}
-              <div className="flex flex-col gap-2.5 p-4 rounded-2xl border border-border/30 bg-surface-secondary/20 hover:border-accent/30 transition-all group/item">
-                <div className="flex items-center gap-2 text-accent">
-                  <FileText className="size-4 shrink-0" />
-                  <span className="text-xs font-bold text-foreground">Standard A4 CV</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground leading-normal text-left">
-                  Traditional A4 layout ready for download or printing.
-                </p>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-xl font-bold text-xs select-none w-full border-border/30 py-1.5 bg-surface-secondary hover:bg-surface-tertiary transition-colors"
-                  onPress={() => setIsA4PreviewOpen(true)}
-                >
-                  Open A4 Preview
-                </Button>
+            {/* Export & Previews unified card */}
+            <Card rounded="2xl" glow={true} className="p-6 border border-border/40 bg-surface flex flex-col gap-5">
+              <div className="flex flex-col gap-1 border-b border-border/20 pb-3 text-left">
+                <Typography type="body-sm" className="font-extrabold text-foreground">
+                  Export & Sharing
+                </Typography>
+                <span className="text-[10px] text-muted">
+                  Publish or view your profile formats.
+                </span>
               </div>
 
-              {/* Option 2: CVerify Digital Profile */}
-              <div className="flex flex-col gap-2.5 p-4 rounded-2xl border border-border/30 bg-surface-secondary/20 hover:border-emerald-500/30 transition-all group/item">
-                <div className="flex items-center gap-2 text-emerald-500">
-                  <Sparkles className="size-4 shrink-0" />
-                  <span className="text-xs font-bold text-foreground">Digital Profile</span>
+              <div className="flex flex-col gap-3">
+                {/* Option 1: Standard A4 CV */}
+                <div className="flex flex-col gap-2.5 p-4 rounded-2xl border border-border/30 bg-surface-secondary/20 hover:border-accent/30 transition-all group/item">
+                  <div className="flex items-center gap-2 text-accent">
+                    <FileText className="size-4 shrink-0" />
+                    <span className="text-xs font-bold text-foreground">Standard A4 CV</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-normal text-left">
+                    Traditional A4 layout ready for download or printing.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="rounded-xl font-bold text-xs select-none w-full border-border/30 py-1.5 bg-surface-secondary hover:bg-surface-tertiary transition-colors"
+                    onPress={() => setIsA4PreviewOpen(true)}
+                  >
+                    Open A4 Preview
+                  </Button>
                 </div>
-                <p className="text-[10px] text-muted-foreground leading-normal text-left">
-                  Online portfolio containing your AI verification badges.
-                </p>
-                <Button
-                  size="sm"
-                  className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none py-1.5 hover:opacity-90 transition-opacity"
-                  onPress={() => {
-                    if (profile?.username) {
-                      router.push(`/${profile.username.toLowerCase()}`);
-                    } else {
-                      toast.danger("Please set your Username in Basic Information before viewing your public profile.");
-                    }
-                  }}
-                >
-                  Open Digital Profile
-                </Button>
+
+                {/* Option 2: CVerify Digital Profile */}
+                <div className="flex flex-col gap-2.5 p-4 rounded-2xl border border-border/30 bg-surface-secondary/20 hover:border-emerald-500/30 transition-all group/item">
+                  <div className="flex items-center gap-2 text-emerald-500">
+                    <Sparkles className="size-4 shrink-0" />
+                    <span className="text-xs font-bold text-foreground">Digital Profile</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-normal text-left">
+                    Online portfolio containing your AI verification badges.
+                  </p>
+                  <Button
+                    size="sm"
+                    className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none py-1.5 hover:opacity-90 transition-opacity"
+                    onPress={() => {
+                      if (profile?.username) {
+                        router.push(`/${profile.username.toLowerCase()}`);
+                      } else {
+                        toast.danger("Please set your Username in Basic Information before viewing your public profile.");
+                      }
+                    }}
+                  >
+                    Open Digital Profile
+                  </Button>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   const renderEditor = () => {
     // Dynamically calculate completeness status per section
@@ -1879,7 +1885,7 @@ export default function CvManagementCenter() {
                       : "Visual check of your current A4 CV profile details."}
                   </p>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   {editorMode === "preview" && (
                     <button
