@@ -29,6 +29,7 @@ public class ProfileService : IProfileService
     private readonly IUsernameService _usernameService;
     private readonly TimeProvider _timeProvider;
     private readonly IAppLogger _logger;
+    private readonly IProjectService _projectService;
 
     public ProfileService(
         ApplicationDbContext context,
@@ -36,7 +37,8 @@ public class ProfileService : IProfileService
         IStorageService storageService,
         IUsernameService usernameService,
         TimeProvider timeProvider,
-        IAppLogger logger)
+        IAppLogger logger,
+        IProjectService projectService)
     {
         _context = context;
         _cacheService = cacheService;
@@ -44,6 +46,7 @@ public class ProfileService : IProfileService
         _usernameService = usernameService;
         _timeProvider = timeProvider;
         _logger = logger;
+        _projectService = projectService;
     }
 
     public async Task<ProfileResponse> GetProfileByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -339,6 +342,41 @@ public class ProfileService : IProfileService
             r.LatestAnalysisCompletedAtUtc
         )).ToList();
 
+        await _projectService.UpgradeRepositoryLinkedProjectsAsync(profile.UserId, cancellationToken);
+
+        var projects = await _context.ProjectEntries
+            .Include(p => p.RepositoryLinks)
+                .ThenInclude(l => l.SourceCodeRepository)
+            .Include(p => p.Technologies)
+            .Include(p => p.Contributions)
+            .Where(p => p.UserId == profile.UserId)
+            .OrderBy(p => p.DisplayOrder)
+            .ToListAsync(cancellationToken);
+
+        var publicProjectDtos = projects.Select(p => new PublicProjectDto(
+            p.Id,
+            p.Name,
+            p.Role,
+            p.Description,
+            p.StartDate,
+            p.EndDate,
+            p.IsCurrentlyWorking,
+            p.VerificationLevel,
+            p.VerificationStatus,
+            p.VerifiedAt,
+            p.VerificationMetadataJson,
+            p.DisplayOrder,
+            p.RepositoryLinks.Select(l => new PublicProjectRepositoryLinkDto(
+                l.Id,
+                l.SourceCodeRepositoryId,
+                l.SourceCodeRepository?.Name ?? string.Empty,
+                l.SourceCodeRepository?.Owner ?? string.Empty,
+                l.SourceCodeRepository?.HtmlUrl
+            )).ToList(),
+            p.Technologies.Select(t => t.Name).ToList(),
+            p.Contributions.Select(c => c.Content).ToList()
+        )).ToList();
+
         return new PublicProfileResponse(
             profile.UserId,
             profile.Username ?? profile.User?.Username ?? string.Empty,
@@ -351,7 +389,8 @@ public class ProfileService : IProfileService
             socialLinks,
             publicCareerPreference,
             avgTrustScore,
-            publicRepoDtos
+            publicRepoDtos,
+            publicProjectDtos
         );
     }
 

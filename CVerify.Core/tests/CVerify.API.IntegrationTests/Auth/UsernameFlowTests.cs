@@ -135,7 +135,8 @@ public class UsernameFlowTests : BaseIntegrationTest
 
         // 2. Query public profile endpoint anonymously
         var publicResponse = await Client.GetAsync($"/api/v1/users/profile/public/{username}");
-        publicResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await publicResponse.Content.ReadAsStringAsync();
+        publicResponse.StatusCode.Should().Be(HttpStatusCode.OK, because: $"Response body: {body}");
         var publicProfile = await publicResponse.Content.ReadFromJsonAsync<PublicProfileResponse>();
         publicProfile.Should().NotBeNull();
         publicProfile!.Username.Should().Be(username);

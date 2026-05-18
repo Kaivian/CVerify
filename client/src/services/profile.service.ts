@@ -18,6 +18,8 @@ import {
   type CandidateAssessmentResponse,
   type CandidateAssessmentArtifactDto,
   type CandidateAssessmentDetailResponse,
+  type ProjectEntryRequest,
+  type ProjectEntryResponse,
 } from '../types/profile.types';
 
 export const profileApi = {
@@ -222,6 +224,39 @@ export const profileApi = {
 
   fetchCandidateAssessmentDetails: async (assessmentId: string): Promise<CandidateAssessmentDetailResponse> => {
     const response = await axiosClient.get<CandidateAssessmentDetailResponse>(`/v1/candidate-assessments/${assessmentId}/details`);
+    return response.data;
+  },
+
+  // Projects Portfolio CRUD
+  fetchProjects: async (): Promise<ProjectEntryResponse[]> => {
+    const response = await axiosClient.get<ProjectEntryResponse[]>('/v1/users/projects');
+    return response.data;
+  },
+
+  addProject: async (data: ProjectEntryRequest): Promise<ProjectEntryResponse> => {
+    const response = await axiosClient.post<ProjectEntryResponse>('/v1/users/projects', data);
+    return response.data;
+  },
+
+  updateProject: async (id: string, data: ProjectEntryRequest): Promise<ProjectEntryResponse> => {
+    const response = await axiosClient.put<ProjectEntryResponse>(`/v1/users/projects/${id}`, data);
+    return response.data;
+  },
+
+  deleteProject: async (id: string): Promise<void> => {
+    await axiosClient.delete(`/v1/users/projects/${id}`);
+  },
+
+  reorderProjects: async (orderedIds: string[]): Promise<void> => {
+    await axiosClient.put('/v1/users/projects/reorder', { orderedIds });
+  },
+
+  // Public Candidate Assessment
+  fetchPublicCandidateAssessment: async (username: string): Promise<CandidateAssessmentDetailResponse | null> => {
+    const response = await axiosClient.get<CandidateAssessmentDetailResponse | null>(`/v1/candidate-assessments/public/${username}`);
+    if (response.status === 204) {
+      return null;
+    }
     return response.data;
   },
 };

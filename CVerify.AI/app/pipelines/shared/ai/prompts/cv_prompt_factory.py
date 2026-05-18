@@ -6,14 +6,15 @@ class CvPromptFactory(IPromptFactory):
     def get_system_prompt(self) -> str:
         return (
             "You are CVerify, a professional career profile analyst and expert technical resume editor.\n"
-            "Your task is to act as a transformation layer that converts structured repository context "
-            "and candidate contribution data into a career-oriented, short-form CV narrative summary.\n\n"
-            "CRITICAL RULES FOR THE SUMMARY FIELD:\n"
-            "1. CV Bullet Style: The summary must be a compact, professional narrative suitable for direct copy-pasting into a resume.\n"
-            "2. Length: The summary MUST be between 250 and 450 characters in total length (inclusive of spaces). Be extremely concise.\n"
-            "3. Focus: Describe: (a) what the repository is, and (b) what the user contributed or implemented based on the contribution facts. Do NOT include technical deep dives, architectural details, or quality metrics.\n"
-            "4. Grounding: Rely strictly on the provided input facts (Classification Domain, developer skills, ownership profile, and contribution details). Do not invent new skills, facts, or filenames.\n"
-            "5. Output Format: Return ONLY the raw JSON string conforming to the schema. Do NOT wrap in markdown code fences.\n"
+            "Your task is to convert structured repository context and candidate contribution data "
+            "into a career-oriented, short-form CV narrative summary.\n\n"
+            "CRITICAL FORMATTING RULES:\n"
+            "1. Project Summary: The summary MUST be maximum 1 short, concise sentence (30 to 150 characters) summarizing the repository's purpose. Do NOT mention developer contributions or names here.\n"
+            "2. Key Contributions Highlights: Provide exactly 2 to 4 bullet points. Each bullet point MUST be 1 concise sentence that fits naturally within a resume layout.\n"
+            "3. Action Verbs: Every contribution bullet point MUST start with a strong action verb (e.g., 'Built', 'Developed', 'Implemented', 'Optimized', 'Designed', 'Refactored').\n"
+            "4. CV Style: Write in a professional resume style. Focus exclusively on what the developer built, implemented, optimized, or delivered.\n"
+            "5. STRICT PROHIBITIONS: Do NOT include repository evaluations, strengths/weaknesses analysis, maintainability commentary, warning labels, quality assessments, score-oriented language, or technical auditing/grading terminology (e.g., do NOT say 'This repository has good code quality' or 'maintainability is medium').\n"
+            "6. Output Format: Return ONLY the raw JSON string conforming to the schema. Do NOT wrap in markdown code fences.\n"
         )
 
     def get_user_prompt(self, input_data: Any) -> str:
@@ -31,11 +32,11 @@ class CvPromptFactory(IPromptFactory):
 {
     "title": "string (e.g. 'SaaS Platform Developer')",
     "skills": ["string (copied exactly from the input skills list)"],
-    "summary": "string (refined, career-oriented short-form CV narrative summary. STRICT LIMIT: 250 to 450 characters, single paragraph/bullet style)",
+    "summary": "string (maximum 1 short sentence summarizing the repository's purpose. STRICT LIMIT: 30 to 150 characters)",
     "highlights": [
         {
-            "signal": "string (refined description of the finding)",
-            "impact": "string (copied exactly from findings impact: positive | warning | critical)"
+            "signal": "string (a concise contribution bullet point, 1 sentence, starting with an action verb, e.g. 'Implemented JWT authentication flows.')",
+            "impact": "string (MUST be set to empty string: '')"
         }
     ],
     "ownershipProfile": "string (copied exactly from input ownershipProfile)"
@@ -57,10 +58,12 @@ Please generate the CV object. You must strictly match the following JSON Schema
 {schema}
 
 Remember:
-1. The 'summary' field MUST be optimized for a CV, describing only the repository's purpose and the developer's contributions.
-2. The 'summary' field length MUST be between 250 and 450 characters.
-3. Return ONLY the raw JSON string. Do not include markdown code block syntax.
-4. The 'title', 'skills', and 'ownershipProfile' fields MUST be copied exactly from the input facts.
-5. The 'highlights' array must contain the findings mapped and refined professionally (1 sentence each), retaining their exact impact value.
-6. Do not invent any facts or skills not explicitly listed above.
+1. The 'summary' field MUST describe only the repository's core purpose in a single, short sentence (30 to 150 characters).
+2. The 'highlights' array must contain 2 to 4 key contribution bullet points (1 sentence each), describing actual developer contributions/achievements. Set the 'impact' field of each highlight to an empty string ('').
+3. EVERY bullet point in the 'highlights' array MUST start with a strong action verb (e.g., 'Built', 'Developed', 'Implemented', 'Optimized', 'Designed', 'Refactored').
+4. Do NOT include repository evaluations, strengths/weaknesses analysis, maintainability commentary, warning labels, quality assessments, score-oriented language, or technical auditing/grading terminology.
+5. Return ONLY the raw JSON string. Do not include markdown code block syntax.
+6. The 'title', 'skills', and 'ownershipProfile' fields MUST be copied exactly from the input facts.
+7. Do not invent any facts or skills not explicitly listed above.
 """
+

@@ -4,6 +4,9 @@ import {
   type AcademicAchievementResponse,
   type WorkExperienceResponse,
   type DeclaredCareerPreference,
+  ProjectVerificationLevel,
+  ProjectVerificationStatus,
+  type ProjectRepositoryLinkResponse,
 } from "@/types/profile.types";
 
 export interface BasicInfoDraft {
@@ -25,7 +28,24 @@ export interface SkillsDraft {
   targetSkills: string[];
 }
 
-export type ProjectsDraft = Record<string, never>;
+export interface ProjectDraftItem {
+  id: string; // temp-id or DB uuid
+  name: string;
+  role: string | null;
+  description: string;
+  startDate: string | null;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  verificationLevel: ProjectVerificationLevel;
+  verificationStatus: ProjectVerificationStatus;
+  verifiedAt: string | null;
+  verificationMetadataJson: string | null;
+  repositoryLinks: ProjectRepositoryLinkResponse[];
+  technologies: string[];
+  contributions: string[];
+}
+
+export type ProjectsDraft = ProjectDraftItem[];
 
 export interface ExperienceDraftItem {
   id: string; // temp-id or DB uuid

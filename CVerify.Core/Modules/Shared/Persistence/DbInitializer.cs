@@ -402,6 +402,19 @@ public static class DbInitializer
                         ALTER TABLE pending_organization_ownerships ADD COLUMN discovery_notified_at TIMESTAMP WITH TIME ZONE;
                     END IF;
                 END IF;
+
+                -- Ensure candidate_assessments has cv_id, model_version, and prompt_version
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'candidate_assessments') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'cv_id') THEN
+                        ALTER TABLE candidate_assessments ADD COLUMN cv_id UUID;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'model_version') THEN
+                        ALTER TABLE candidate_assessments ADD COLUMN model_version VARCHAR(100);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'prompt_version') THEN
+                        ALTER TABLE candidate_assessments ADD COLUMN prompt_version VARCHAR(50);
+                    END IF;
+                END IF;
             END $$;
 
             -- Migrate and clean up legacy database tables and columns
@@ -2583,6 +2596,7 @@ public static class DbInitializer
             CREATE TABLE IF NOT EXISTS candidate_assessments (
                 id UUID PRIMARY KEY,
                 user_id UUID NOT NULL,
+                cv_id UUID,
                 status VARCHAR(50) NOT NULL,
                 overall_score DOUBLE PRECISION NOT NULL,
                 career_level VARCHAR(20),
@@ -2593,6 +2607,8 @@ public static class DbInitializer
                 summary_paragraph VARCHAR(2000),
                 pipeline_version VARCHAR(20) NOT NULL,
                 assessment_schema_version VARCHAR(20) NOT NULL,
+                prompt_version VARCHAR(50),
+                model_version VARCHAR(100),
                 last_profile_update_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 last_repository_analysis_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 last_assessment_at TIMESTAMP WITH TIME ZONE,
@@ -2617,6 +2633,83 @@ public static class DbInitializer
             );
             CREATE INDEX IF NOT EXISTS idx_candidate_assessment_artifacts_assessment_id ON candidate_assessment_artifacts(assessment_id);
             CREATE UNIQUE INDEX IF NOT EXISTS ux_candidate_assessment_artifacts_type ON candidate_assessment_artifacts(assessment_id, artifact_type);
+
+            -- Stores repository assessment records
+            CREATE TABLE IF NOT EXISTS repository_assessments (
+                id UUID PRIMARY KEY,
+                repository_id UUID NOT NULL,
+                analysis_job_id UUID NOT NULL,
+                status VARCHAR(30) NOT NULL,
+                commit_sha VARCHAR(100) NOT NULL,
+                overall_score DOUBLE PRECISION NOT NULL,
+                tech_stack JSONB,
+                patterns JSONB,
+                quality_metrics JSONB,
+                json_data JSONB,
+                model_version VARCHAR(100),
+                prompt_version VARCHAR(50),
+                assessment_schema_version VARCHAR(20),
+                pipeline_version VARCHAR(20),
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
+                completed_at_utc TIMESTAMP WITH TIME ZONE
+            );
+            CREATE INDEX IF NOT EXISTS idx_repository_assessments_job_id ON repository_assessments(analysis_job_id);
+            CREATE INDEX IF NOT EXISTS idx_repository_assessments_repo_id ON repository_assessments(repository_id);
+            CREATE INDEX IF NOT EXISTS ux_repository_assessments_repo_sha ON repository_assessments(repository_id, commit_sha);
+
+            -- Stores manual/AI-analyzed project entries linked to a CV
+            CREATE TABLE IF NOT EXISTS project_entries (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                role VARCHAR(255),
+                description VARCHAR(2000) NOT NULL,
+                start_date TIMESTAMP WITH TIME ZONE,
+                end_date TIMESTAMP WITH TIME ZONE,
+                is_currently_working BOOLEAN NOT NULL,
+                verification_level INTEGER NOT NULL,
+                verification_status INTEGER NOT NULL,
+                verified_at TIMESTAMP WITH TIME ZONE,
+                verification_metadata_json JSONB,
+                display_order INTEGER NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_project_entries_users_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_project_entries_user_id ON project_entries(user_id);
+
+            -- Stores key contributions/findings for project entries
+            CREATE TABLE IF NOT EXISTS project_contributions (
+                id UUID PRIMARY KEY,
+                project_entry_id UUID NOT NULL,
+                content VARCHAR(1000) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT fk_project_contributions_project_entries_project_entry_id FOREIGN KEY (project_entry_id) REFERENCES project_entries(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_project_contributions_project_id ON project_contributions(project_entry_id);
+
+            -- Links project entries to specific repository analysis profiles
+            CREATE TABLE IF NOT EXISTS project_repository_links (
+                id UUID PRIMARY KEY,
+                project_entry_id UUID NOT NULL,
+                source_code_repository_id UUID NOT NULL,
+                linked_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT fk_project_repository_links_project_entries_project_entry_id FOREIGN KEY (project_entry_id) REFERENCES project_entries(id) ON DELETE CASCADE,
+                CONSTRAINT fk_project_repository_links_source_code_repositories_source_co FOREIGN KEY (source_code_repository_id) REFERENCES source_code_repositories(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_project_repo_links_unique ON project_repository_links(project_entry_id, source_code_repository_id);
+            CREATE INDEX IF NOT EXISTS ix_project_repository_links_source_code_repository_id ON project_repository_links(source_code_repository_id);
+
+            -- Stores technologies mapped to project entries
+            CREATE TABLE IF NOT EXISTS project_technologies (
+                id UUID PRIMARY KEY,
+                project_entry_id UUID NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT fk_project_technologies_project_entries_project_entry_id FOREIGN KEY (project_entry_id) REFERENCES project_entries(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_project_technologies_project_id ON project_technologies(project_entry_id);
 
             -- Table storing global system metadata and environmental markers
             CREATE TABLE IF NOT EXISTS system_metadata (

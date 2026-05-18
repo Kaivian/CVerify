@@ -172,15 +172,90 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
     );
   };
 
+  // Helper to render verification badge
+  const renderVerificationBadge = (level: any, status: any) => {
+    const numLevel = typeof level === 'string'
+      ? (level === 'AiAnalyzed' ? 1 : level === 'RepositoryLinked' ? 2 : 3)
+      : level;
+    const numStatus = typeof status === 'string'
+      ? (status === 'Verified' ? 1 : status === 'Outdated' ? 2 : status === 'Disconnected' ? 3 : 4)
+      : status;
+
+    if (numLevel === 1) { // AI Analyzed
+      if (status === 2) {
+        return (
+          <span className="text-[8px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+            AI Audited • Outdated
+          </span>
+        );
+      }
+      if (status === 3) {
+        return (
+          <span className="text-[8px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+            AI Audited • Disconnected
+          </span>
+        );
+      }
+      return (
+        <span className="text-[8px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+          AI Audited
+        </span>
+      );
+    }
+    if (level === 2) { // Repo Linked
+      if (status === 3) {
+        return (
+          <span className="text-[8px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+            Repo Linked • Disconnected
+          </span>
+        );
+      }
+      return (
+        <span className="text-[8px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+          Repo Linked
+        </span>
+      );
+    }
+    // Independent
+    return (
+      <span className="text-[8px] font-extrabold text-neutral-600 bg-neutral-50 px-1.5 py-0.5 rounded border border-neutral-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+        Self Declared
+      </span>
+    );
+  };
+
   // Normalize project inputs (real repos vs sample data)
   const normalizedProjects = projects.map((p: any) => {
-    const isRealRepo = p.createdAtUtc !== undefined;
+    // If it's a new unified project portfolio item:
+    if (p.verificationLevel !== undefined) {
+      const start = formatMonthYear(p.startDate);
+      const end = p.isCurrentlyWorking ? "Present" : formatMonthYear(p.endDate);
+      const numLevel = typeof p.verificationLevel === 'string'
+        ? (p.verificationLevel === 'AiAnalyzed' ? 1 : p.verificationLevel === 'RepositoryLinked' ? 2 : 3)
+        : p.verificationLevel;
+      const numStatus = typeof p.verificationStatus === 'string'
+        ? (p.verificationStatus === 'Verified' ? 1 : p.verificationStatus === 'Outdated' ? 2 : p.verificationStatus === 'Disconnected' ? 3 : 4)
+        : p.verificationStatus;
+      return {
+        id: p.id || p.name,
+        name: p.name,
+        dateRange: start && end ? `${start} - ${end}` : (start || end || "N/A"),
+        description: p.description || "",
+        technologies: p.technologies || [],
+        role: p.role || "",
+        contributions: p.contributions || [],
+        verificationLevel: numLevel,
+        verificationStatus: numStatus,
+      };
+    }
 
+    // Fallback for old/legacy model or sample data:
+    const isRealRepo = p.createdAtUtc !== undefined;
     if (isRealRepo) {
       const start = formatMonthYear(p.createdAtUtc);
       const end = p.lastCommitAt ? formatMonthYear(p.lastCommitAt) : "Present";
       const techList = p.primaryLanguage ? [p.primaryLanguage] : (p.cvSynthesis?.skills || []);
-      const highlightsList = p.cvSynthesis?.highlights?.map((h: any) => `${h.signal}: ${h.impact}`) || [];
+      const highlightsList = p.cvSynthesis?.highlights?.map((h: any) => h.impact ? `${h.signal}: ${h.impact}` : h.signal) || [];
 
       return {
         id: p.id,
@@ -190,8 +265,8 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
         technologies: techList,
         role: p.cvSynthesis?.ownershipProfile || "Contributor",
         contributions: highlightsList,
-        trustScore: p.trustScore,
-        latestAnalysisStatus: p.latestAnalysisStatus,
+        verificationLevel: 1, // AI Analyzed
+        verificationStatus: 1, // Verified
       };
     } else {
       const start = formatMonthYear(p.startDate);
@@ -204,8 +279,8 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
         technologies: p.technologies || [],
         role: p.role || "Developer",
         contributions: p.contributions || [],
-        trustScore: null,
-        latestAnalysisStatus: null,
+        verificationLevel: 3, // Independent
+        verificationStatus: 4, // Unverified
       };
     }
   });
@@ -577,13 +652,9 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
               {normalizedProjects.map((proj) => (
                 <div key={proj.id} className="flex flex-col gap-0.5 cv-item-avoid-break">
                   <div className="flex items-start justify-between font-bold text-neutral-900 text-[11px]">
-                    <div className="flex flex-col">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span>{proj.name}</span>
-                      {proj.latestAnalysisStatus === "Completed" && proj.trustScore !== null && proj.trustScore !== undefined && (
-                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5 inline-block w-max select-none">
-                          AI Audited • Trust Score: {formatScore(proj.trustScore)}
-                        </span>
-                      )}
+                      {renderVerificationBadge(proj.verificationLevel, proj.verificationStatus)}
                     </div>
                     <span className="text-[10px] text-neutral-600 font-normal shrink-0 pl-4">
                       {proj.dateRange}

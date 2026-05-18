@@ -11,6 +11,10 @@ import {
   type WorkExperienceRequest,
   type WorkExperienceResponse,
   type CareerPreferencesDashboardResponse,
+  type ProjectEntryRequest,
+  type ProjectEntryResponse,
+  ProjectVerificationLevel,
+  ProjectVerificationStatus,
 } from '@/types/profile.types';
 
 interface AxiosErrorLike {
@@ -24,6 +28,19 @@ interface AxiosErrorLike {
 const getErrorMessage = (err: unknown, defaultMessage: string): string => {
   const axiosError = err as AxiosErrorLike;
   return axiosError.response?.data?.message || defaultMessage;
+};
+
+const mapVerificationLevel = (level: any): ProjectVerificationLevel => {
+  if (level === 1 || level === 'AiAnalyzed') return ProjectVerificationLevel.AiAnalyzed;
+  if (level === 2 || level === 'RepositoryLinked') return ProjectVerificationLevel.RepositoryLinked;
+  return ProjectVerificationLevel.Independent;
+};
+
+const mapVerificationStatus = (status: any): ProjectVerificationStatus => {
+  if (status === 1 || status === 'Verified') return ProjectVerificationStatus.Verified;
+  if (status === 2 || status === 'Outdated') return ProjectVerificationStatus.Outdated;
+  if (status === 3 || status === 'Disconnected') return ProjectVerificationStatus.Disconnected;
+  return ProjectVerificationStatus.Unverified;
 };
 
 interface ProfileState {
@@ -58,6 +75,13 @@ interface ProfileState {
   deleteWorkExperience: (id: string) => Promise<void>;
   reorderWorkExperiences: (ids: string[]) => Promise<void>;
 
+  projects: ProjectEntryResponse[];
+  fetchProjects: () => Promise<void>;
+  addProject: (data: ProjectEntryRequest) => Promise<ProjectEntryResponse>;
+  updateProject: (id: string, data: ProjectEntryRequest) => Promise<ProjectEntryResponse>;
+  deleteProject: (id: string) => Promise<void>;
+  reorderProjects: (ids: string[]) => Promise<void>;
+
   fetchCareer: () => Promise<void>;
   updateCareer: (data: UpdateCareerPreferenceRequest) => Promise<CareerPreferencesDashboardResponse>;
   acceptAiSuggestions: (acceptRoles: boolean, acceptSkills: boolean) => Promise<CareerPreferencesDashboardResponse>;
@@ -69,6 +93,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   education: [],
   achievements: [],
   workExperiences: [],
+  projects: [],
   career: null,
   loading: {},
   fetched: {},
@@ -373,6 +398,103 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }
   },
 
+  fetchProjects: async () => {
+    console.log('[Zustand Store] fetchProjects triggered');
+    set((state) => ({ loading: { ...state.loading, projects: true }, error: null }));
+    try {
+      const projects = await profileApi.fetchProjects();
+      const normalized = projects.map(p => ({
+        ...p,
+        verificationLevel: mapVerificationLevel(p.verificationLevel),
+        verificationStatus: mapVerificationStatus(p.verificationStatus),
+      }));
+      set((state) => ({ projects: normalized, fetched: { ...state.fetched, projects: true } }));
+    } catch (err: unknown) {
+      set((state) => ({ 
+        error: getErrorMessage(err, 'Failed to load projects portfolio.'),
+        fetched: { ...state.fetched, projects: true }
+      }));
+    } finally {
+      set((state) => ({ loading: { ...state.loading, projects: false } }));
+    }
+  },
+
+  addProject: async (data) => {
+    set((state) => ({ loading: { ...state.loading, addProject: true }, error: null }));
+    try {
+      const newEntry = await profileApi.addProject(data);
+      const normalized = {
+        ...newEntry,
+        verificationLevel: mapVerificationLevel(newEntry.verificationLevel),
+        verificationStatus: mapVerificationStatus(newEntry.verificationStatus),
+      };
+      set((state) => ({ projects: [...state.projects, normalized].sort((a, b) => a.displayOrder - b.displayOrder) }));
+      return normalized;
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to add project entry.');
+      set({ error: errMsg });
+      throw err;
+    } finally {
+      set((state) => ({ loading: { ...state.loading, addProject: false } }));
+    }
+  },
+
+  updateProject: async (id, data) => {
+    set((state) => ({ loading: { ...state.loading, updateProject: true }, error: null }));
+    try {
+      const updated = await profileApi.updateProject(id, data);
+      const normalized = {
+        ...updated,
+        verificationLevel: mapVerificationLevel(updated.verificationLevel),
+        verificationStatus: mapVerificationStatus(updated.verificationStatus),
+      };
+      set((state) => ({
+        projects: state.projects.map((p) => (p.id === id ? normalized : p)).sort((a, b) => a.displayOrder - b.displayOrder),
+      }));
+      return normalized;
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to update project entry.');
+      set({ error: errMsg });
+      throw err;
+    } finally {
+      set((state) => ({ loading: { ...state.loading, updateProject: false } }));
+    }
+  },
+
+  deleteProject: async (id) => {
+    set((state) => ({ loading: { ...state.loading, deleteProject: true }, error: null }));
+    try {
+      await profileApi.deleteProject(id);
+      set((state) => ({ projects: state.projects.filter((p) => p.id !== id) }));
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to delete project entry.');
+      set({ error: errMsg });
+      throw err;
+    } finally {
+      set((state) => ({ loading: { ...state.loading, deleteProject: false } }));
+    }
+  },
+
+  reorderProjects: async (ids) => {
+    // Optimistic local update
+    const currentList = [...get().projects];
+    const reorderedList = ids
+      .map((id, index) => {
+        const item = currentList.find((x) => x.id === id);
+        return item ? { ...item, displayOrder: index } : null;
+      })
+      .filter((x): x is ProjectEntryResponse => x !== null);
+
+    set({ projects: reorderedList });
+
+    try {
+      await profileApi.reorderProjects(ids);
+    } catch (err: unknown) {
+      // Revert on error
+      set({ projects: currentList, error: getErrorMessage(err, 'Failed to save new projects order.') });
+      throw err;
+    }
+  },
 
   fetchCareer: async () => {
     set((state) => ({ loading: { ...state.loading, career: true }, error: null }));

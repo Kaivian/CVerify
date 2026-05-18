@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260615152001_AddProjectEntriesAndLinks")]
+    partial class AddProjectEntriesAndLinks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -863,10 +866,6 @@ namespace CVerify.API.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
 
-                    b.Property<Guid?>("CvId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("cv_id");
-
                     b.Property<string>("FailedStage")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -888,11 +887,6 @@ namespace CVerify.API.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_repository_analysis_at");
 
-                    b.Property<string>("ModelVersion")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("model_version");
-
                     b.Property<double>("OverallScore")
                         .HasColumnType("double precision")
                         .HasColumnName("overall_score");
@@ -912,11 +906,6 @@ namespace CVerify.API.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("primary_working_style");
-
-                    b.Property<string>("PromptVersion")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("prompt_version");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1462,95 +1451,6 @@ namespace CVerify.API.Migrations
                         .HasDatabaseName("idx_project_technologies_project_id");
 
                     b.ToTable("project_technologies", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.RepositoryAssessment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("AnalysisJobId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("analysis_job_id");
-
-                    b.Property<string>("AssessmentSchemaVersion")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("assessment_schema_version");
-
-                    b.Property<string>("CommitSha")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("commit_sha");
-
-                    b.Property<DateTimeOffset?>("CompletedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at_utc");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at_utc");
-
-                    b.Property<string>("JsonData")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("json_data");
-
-                    b.Property<string>("ModelVersion")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("model_version");
-
-                    b.Property<double>("OverallScore")
-                        .HasColumnType("double precision")
-                        .HasColumnName("overall_score");
-
-                    b.Property<string>("Patterns")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("patterns");
-
-                    b.Property<string>("PipelineVersion")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("pipeline_version");
-
-                    b.Property<string>("PromptVersion")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("prompt_version");
-
-                    b.Property<string>("QualityMetrics")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("quality_metrics");
-
-                    b.Property<Guid>("RepositoryId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("repository_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("status");
-
-                    b.Property<string>("TechStack")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("tech_stack");
-
-                    b.HasKey("Id")
-                        .HasName("pk_repository_assessments");
-
-                    b.HasIndex("AnalysisJobId")
-                        .HasDatabaseName("idx_repository_assessments_job_id");
-
-                    b.HasIndex("RepositoryId")
-                        .HasDatabaseName("idx_repository_assessments_repo_id");
-
-                    b.HasIndex("RepositoryId", "CommitSha")
-                        .HasDatabaseName("ux_repository_assessments_repo_sha");
-
-                    b.ToTable("repository_assessments", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.UserProfile", b =>

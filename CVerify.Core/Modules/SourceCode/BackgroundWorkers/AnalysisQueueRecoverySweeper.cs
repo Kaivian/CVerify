@@ -65,12 +65,53 @@ public class AnalysisQueueRecoverySweeper : BackgroundService
                     context.AnalysisJobEvents.Add(ev);
                 }
 
+                // Update the repositories associated with stuck jobs to Failed status
+                var repoIds = stuckJobs.Select(j => j.RepositoryId).Distinct().ToList();
+                var repos = await context.SourceCodeRepositories
+                    .Where(r => repoIds.Contains(r.Id))
+                    .ToListAsync(stoppingToken);
+
+                foreach (var repo in repos)
+                {
+                    repo.LatestAnalysisStatus = "Failed";
+                    repo.LastUpdatedUtc = _timeProvider.GetUtcNow();
+                }
+
                 await context.SaveChangesAsync(stoppingToken);
-                _logger.LogInformation("Successfully swept and updated stuck analysis jobs.");
+                _logger.LogInformation("Successfully swept and updated stuck analysis jobs and repositories.");
             }
             else
             {
                 _logger.LogInformation("No stuck repository analysis jobs found.");
+            }
+
+            // Sweep and recover any orphaned repositories that are stuck in "Pending" status but have no active job
+            var pendingRepos = await context.SourceCodeRepositories
+                .Where(r => r.LatestAnalysisStatus == "Pending")
+                .ToListAsync(stoppingToken);
+
+            if (pendingRepos.Any())
+            {
+                bool modified = false;
+                foreach (var repo in pendingRepos)
+                {
+                    var hasActiveJob = await context.AnalysisJobs
+                        .AnyAsync(j => j.RepositoryId == repo.Id && activeStates.Contains(j.Status), stoppingToken);
+
+                    if (!hasActiveJob)
+                    {
+                        _logger.LogInformation("Found orphaned pending repository {RepoName} ({RepoId}). Resetting status to Failed.", repo.Name, repo.Id);
+                        repo.LatestAnalysisStatus = "Failed";
+                        repo.LastUpdatedUtc = _timeProvider.GetUtcNow();
+                        modified = true;
+                    }
+                }
+
+                if (modified)
+                {
+                    await context.SaveChangesAsync(stoppingToken);
+                    _logger.LogInformation("Successfully swept and fixed orphaned pending repositories.");
+                }
             }
         }
         catch (Exception ex)

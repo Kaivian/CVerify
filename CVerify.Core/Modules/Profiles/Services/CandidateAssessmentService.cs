@@ -155,9 +155,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
+            CvId = userId, // Default to UserId representing the candidate's active CV
             Status = "Queued",
-            PipelineVersion = "2.0.0",
-            AssessmentSchemaVersion = "1.0.0",
+            PipelineVersion = "2.1.0",
+            AssessmentSchemaVersion = "1.1.0",
+            PromptVersion = "v2.1.0",
+            ModelVersion = "gemini-1.5-flash",
             LastProfileUpdateAt = profile.LastProfileUpdateAt,
             LastRepositoryAnalysisAt = lastRepoAnalysisAt,
             CreatedAtUtc = DateTimeOffset.UtcNow
@@ -211,6 +214,35 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         return new CandidateAssessmentDetailResponse(response, artifacts);
     }
 
+    public async Task<CandidateAssessmentDetailResponse?> GetLatestPublicAssessmentAsync(string username, CancellationToken cancellationToken = default)
+    {
+        var profile = await _context.UserProfiles
+            .FirstOrDefaultAsync(up => up.Username == username && up.DeletedAt == null && up.ProfileVisibility == "public", cancellationToken);
+
+        if (profile == null) return null;
+
+        var assessment = await _context.CandidateAssessments
+            .Include(ca => ca.Artifacts)
+            .Where(ca => ca.UserId == profile.UserId && ca.Status == "Completed")
+            .OrderByDescending(ca => ca.CompletedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (assessment == null) return null;
+
+        var response = MapToResponse(assessment);
+        var publicArtifactTypes = new[] { "CandidateProfile", "SkillsList", "Maturity", "Recommendations", "StrengthsGaps" };
+        var artifacts = assessment.Artifacts
+            .Where(a => publicArtifactTypes.Contains(a.ArtifactType))
+            .Select(a => new CandidateAssessmentArtifactDto(
+                a.Id,
+                a.ArtifactType,
+                a.JsonData,
+                a.CreatedAtUtc
+            )).ToList();
+
+        return new CandidateAssessmentDetailResponse(response, artifacts);
+    }
+
     public async Task ProcessAssessmentJobAsync(Guid assessmentId, CancellationToken cancellationToken = default)
     {
         var assessment = await _context.CandidateAssessments
@@ -256,6 +288,136 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 throw new BusinessRuleException("NO_ANALYZED_REPOS", "No completed repository analysis jobs found for this candidate.");
             }
 
+            // Limit to top 5 repos
+            var selectedJobIds = jobIds.Take(5).ToList();
+
+            // Run parallel Repository Assessments
+            var repoAssessmentTasks = selectedJobIds.Select(async jid =>
+            {
+                var aJob = await _context.AnalysisJobs
+                    .Include(j => j.Repository)
+                    .FirstOrDefaultAsync(j => j.Id == Guid.Parse(jid), cancellationToken);
+                
+                if (aJob == null) return null;
+
+                var existingAssess = await _context.RepositoryAssessments
+                    .FirstOrDefaultAsync(ra => ra.AnalysisJobId == aJob.Id && ra.Status == "Completed", cancellationToken);
+
+                if (existingAssess != null)
+                {
+                    return new
+                    {
+                        repositoryId = existingAssess.RepositoryId,
+                        repositoryName = aJob.Repository.Name,
+                        verifiedCommitSha = existingAssess.CommitSha,
+                        overallScore = existingAssess.OverallScore,
+                        techStack = string.IsNullOrEmpty(existingAssess.TechStack) ? null : JsonSerializer.Deserialize<object>(existingAssess.TechStack),
+                        patterns = string.IsNullOrEmpty(existingAssess.Patterns) ? null : JsonSerializer.Deserialize<object>(existingAssess.Patterns),
+                        qualityMetrics = string.IsNullOrEmpty(existingAssess.QualityMetrics) ? null : JsonSerializer.Deserialize<object>(existingAssess.QualityMetrics),
+                        jsonData = string.IsNullOrEmpty(existingAssess.JsonData) ? null : JsonSerializer.Deserialize<object>(existingAssess.JsonData)
+                    };
+                }
+
+                var newAssess = new RepositoryAssessment
+                {
+                    Id = Guid.CreateVersion7(),
+                    RepositoryId = aJob.RepositoryId,
+                    AnalysisJobId = aJob.Id,
+                    CommitSha = aJob.CommitSha ?? "unknown",
+                    Status = "Running",
+                    ModelVersion = "gemini-1.5-flash",
+                    PromptVersion = "v2.1.0",
+                    AssessmentSchemaVersion = "1.1.0",
+                    PipelineVersion = "2.1.0",
+                    CreatedAtUtc = DateTimeOffset.UtcNow
+                };
+
+                _context.RepositoryAssessments.Add(newAssess);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                try
+                {
+                    var repoPayload = new
+                    {
+                        jobId = aJob.Id.ToString(),
+                        repositoryId = aJob.RepositoryId.ToString()
+                    };
+
+                    var repoPayloadJson = JsonSerializer.Serialize(repoPayload);
+                    var repoPath = "/api/v1/repository/assess";
+
+                    var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
+                    var requestMessage = new HttpRequestMessage(HttpMethod.Post, repoPath)
+                    {
+                        Content = new StringContent(repoPayloadJson, Encoding.UTF8, "application/json")
+                    };
+
+                    var (sig, ts, non) = _hmacService.CreateSignatureHeaders("POST", repoPath, repoPayloadJson);
+                    requestMessage.Headers.Add("X-Client-Id", "cverify-core");
+                    requestMessage.Headers.Add("X-Timestamp", ts);
+                    requestMessage.Headers.Add("X-Nonce", non);
+                    requestMessage.Headers.Add("X-Correlation-Id", assessment.Id.ToString());
+                    requestMessage.Headers.Add("X-Signature", sig);
+
+                    var response = await httpClient.SendAsync(requestMessage, cancellationToken);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var errStr = await response.Content.ReadAsStringAsync(cancellationToken);
+                        throw new Exception($"AI repo assess returned {response.StatusCode}: {errStr}");
+                    }
+
+                    var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+                    using var doc = JsonDocument.Parse(responseJson);
+                    var root = doc.RootElement;
+
+                    newAssess.Status = "Completed";
+                    newAssess.CompletedAtUtc = DateTimeOffset.UtcNow;
+                    newAssess.OverallScore = root.TryGetProperty("complexityScore", out var scoreProp) ? scoreProp.GetDouble() : 0.0;
+                    
+                    if (root.TryGetProperty("primaryLanguages", out var langProp))
+                        newAssess.TechStack = JsonSerializer.Serialize(langProp);
+                    if (root.TryGetProperty("verifiedPatterns", out var patProp))
+                        newAssess.Patterns = JsonSerializer.Serialize(patProp);
+                    if (root.TryGetProperty("qualityScore", out var qualProp))
+                        newAssess.QualityMetrics = JsonSerializer.Serialize(new { qualityScore = qualProp.GetDouble(), cloneRiskClassification = root.TryGetProperty("cloneRiskClassification", out var crProp) ? crProp.GetString() : "clean" });
+
+                    newAssess.JsonData = responseJson;
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    return new
+                    {
+                        repositoryId = newAssess.RepositoryId,
+                        repositoryName = aJob.Repository.Name,
+                        verifiedCommitSha = newAssess.CommitSha,
+                        overallScore = newAssess.OverallScore,
+                        techStack = string.IsNullOrEmpty(newAssess.TechStack) ? null : JsonSerializer.Deserialize<object>(newAssess.TechStack),
+                        patterns = string.IsNullOrEmpty(newAssess.Patterns) ? null : JsonSerializer.Deserialize<object>(newAssess.Patterns),
+                        qualityMetrics = string.IsNullOrEmpty(newAssess.QualityMetrics) ? null : JsonSerializer.Deserialize<object>(newAssess.QualityMetrics),
+                        jsonData = JsonSerializer.Deserialize<object>(responseJson)
+                    };
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error assessing repository {RepoName} for job {JobId}", aJob.Repository.Name, aJob.Id);
+                    newAssess.Status = "Failed";
+                    await _context.SaveChangesAsync(cancellationToken);
+                    return null;
+                }
+            });
+
+            var repoAssessResults = await Task.WhenAll(repoAssessmentTasks);
+            var activeRepoAssessments = repoAssessResults.Where(r => r != null).ToList();
+
+            // Load UserProfile detail
+            var userProfile = await _context.UserProfiles
+                .Include(up => up.User)
+                .FirstOrDefaultAsync(up => up.UserId == assessment.UserId, cancellationToken);
+
+            if (userProfile == null)
+            {
+                throw new Exception("Candidate user profile not found.");
+            }
+
             // Resolve CV skills
             var cvSkills = await _context.UserSkills
                 .Where(us => us.UserId == assessment.UserId)
@@ -269,9 +431,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 cvSkills = cvSkills.Concat(careerPref.TargetSkills).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             }
 
-            // Resolve Working Experience
+            // Resolve Working Experience (Rich)
             var experiences = await _context.WorkExperiences
-                .Where(we => we.UserId == assessment.UserId)
+                .Include(we => we.Achievements)
+                .Include(we => we.Technologies)
+                .Include(we => we.Links)
+                .Where(we => we.UserId == assessment.UserId && we.DeletedAt == null)
                 .OrderByDescending(we => we.StartDate)
                 .ToListAsync(cancellationToken);
 
@@ -285,15 +450,95 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     jobTitle = exp.JobTitle,
                     company = exp.Company,
                     isLeadership = exp.IsLeadership,
-                    durationMonths = Math.Max(months, 1)
+                    startDate = exp.StartDate.ToString("yyyy-MM-dd"),
+                    endDate = exp.EndDate?.ToString("yyyy-MM-dd"),
+                    isCurrentlyWorking = exp.IsCurrentlyWorking,
+                    description = exp.Description,
+                    durationMonths = Math.Max(months, 1),
+                    technologies = exp.Technologies.Select(t => t.Name).ToList(),
+                    achievements = exp.Achievements.Select(a => a.Description).ToList(),
+                    links = exp.Links.Select(l => l.Url).ToList()
                 });
             }
 
+            // Resolve Education
+            var educations = await _context.EducationEntries
+                .Where(e => e.UserId == assessment.UserId && e.DeletedAt == null)
+                .OrderBy(e => e.DisplayOrder)
+                .ToListAsync(cancellationToken);
+
+            var educationList = educations.Select(e => new
+            {
+                schoolName = e.SchoolName,
+                degree = e.Degree,
+                major = e.Major,
+                gpa = e.GPA,
+                gpaScale = e.GPAScale,
+                startDate = e.StartDate?.ToString("yyyy-MM-dd"),
+                endDate = e.EndDate?.ToString("yyyy-MM-dd"),
+                isCurrentlyStudying = e.IsCurrentlyStudying,
+                description = e.Description
+            }).ToList();
+
+            // Resolve Certifications / Academic Achievements
+            var achievements = await _context.AcademicAchievements
+                .Where(a => a.UserId == assessment.UserId && a.DeletedAt == null)
+                .OrderBy(a => a.DisplayOrder)
+                .ToListAsync(cancellationToken);
+
+            var achievementsList = achievements.Select(a => new
+            {
+                title = a.Title,
+                issuer = a.Issuer,
+                issueDate = a.IssueDate.ToString("yyyy-MM-dd"),
+                description = a.Description,
+                credentialUrl = a.CredentialUrl
+            }).ToList();
+
+            // Resolve Project entries (manual CV projects)
+            var projects = await _context.ProjectEntries
+                .Include(p => p.Technologies)
+                .Include(p => p.Contributions)
+                .Include(p => p.RepositoryLinks).ThenInclude(l => l.SourceCodeRepository)
+                .Where(p => p.UserId == assessment.UserId && p.DeletedAt == null)
+                .OrderBy(p => p.DisplayOrder)
+                .ToListAsync(cancellationToken);
+
+            var projectList = projects.Select(proj => new
+            {
+                name = proj.Name,
+                role = proj.Role,
+                description = proj.Description,
+                startDate = proj.StartDate?.ToString("yyyy-MM-dd"),
+                endDate = proj.EndDate?.ToString("yyyy-MM-dd"),
+                verificationLevel = proj.VerificationLevel.ToString(),
+                verificationStatus = proj.VerificationStatus.ToString(),
+                technologies = proj.Technologies.Select(t => t.Name).ToList(),
+                contributions = proj.Contributions.Select(c => c.Content).ToList(),
+                repositoryLinks = proj.RepositoryLinks.Select(l => new { name = l.SourceCodeRepository.Name, owner = l.SourceCodeRepository.Owner, htmlUrl = l.SourceCodeRepository.HtmlUrl }).ToList()
+            }).ToList();
+
             var payload = new
             {
-                jobIds = jobIds,
-                cvSkills = cvSkills,
-                workingExperience = experienceList
+                cv = new
+                {
+                    cvId = assessment.CvId ?? assessment.UserId,
+                    profile = new
+                    {
+                        fullName = userProfile.User.FullName,
+                        headline = userProfile.Headline,
+                        bio = userProfile.Bio,
+                        company = userProfile.Company,
+                        location = userProfile.Location,
+                        socialLinks = userProfile.SocialLinks
+                    },
+                    skills = cvSkills,
+                    experiences = experienceList,
+                    educations = educationList,
+                    certifications = achievementsList,
+                    projects = projectList
+                },
+                repositoryAssessments = activeRepoAssessments
             };
 
             var payloadJson = JsonSerializer.Serialize(payload);
@@ -386,7 +631,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             assessment.LastAssessmentAt = DateTimeOffset.UtcNow;
 
             // Touch UserProfile.LastAssessmentAt / Update
-            var userProfile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == assessment.UserId, cancellationToken);
+            userProfile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == assessment.UserId, cancellationToken);
             if (userProfile != null)
             {
                 userProfile.UpdatedAt = DateTimeOffset.UtcNow;
@@ -474,6 +719,9 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             entity.SummaryParagraph,
             entity.PipelineVersion,
             entity.AssessmentSchemaVersion,
+            entity.CvId,
+            entity.PromptVersion,
+            entity.ModelVersion,
             entity.LastProfileUpdateAt,
             entity.LastRepositoryAnalysisAt,
             entity.LastAssessmentAt,

@@ -62,8 +62,8 @@ class CvSynthesisContract(BaseModel):
     @classmethod
     def validate_summary_length(cls, v: str) -> str:
         # Hard validation bounds to reject extreme outliers, keeping the orchestrator retry loop safe.
-        if len(v) < 100:
-            raise ValueError("CV summary is too short (must be at least 100 characters).")
+        if len(v) < 25:
+            raise ValueError("CV summary is too short (must be at least 25 characters).")
         if len(v) > 550:
             raise ValueError("CV summary is too long (must be under 550 characters).")
         return v
@@ -108,6 +108,114 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         self.cv_prompt_factory = CvPromptFactory()
         self.claude_service = ClaudeService()
         self.redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+
+    def _prioritize_skills(self, skills: List[str]) -> List[str]:
+        # Set of common tools, platforms, databases, and infra to deprioritize
+        deprioritized_keywords = {
+            "docker", "kubernetes", "k8s", "git", "github", "gitlab", "ci/cd", "cicd", 
+            "nginx", "eslint", "prettier", "webpack", "vite", "babel", "jest", "cypress", 
+            "npm", "yarn", "pnpm", "cmake", "make", "gradle", "maven", "jenkins", 
+            "github actions", "actions", "terraform", "ansible", "bash", "shell", 
+            "powershell", "sonar", "sonarqube", "husky", "jira", "confluence", "slack"
+        }
+        
+        high_priority = []
+        low_priority = []
+        
+        for skill in skills:
+            if not skill:
+                continue
+            skill_clean = skill.strip()
+            skill_lower = skill_clean.lower()
+            is_low = False
+            for dep in deprioritized_keywords:
+                if dep == skill_lower or f" {dep} " in f" {skill_lower} " or skill_lower.endswith(f" {dep}") or skill_lower.startswith(f"{dep} "):
+                    is_low = True
+                    break
+            
+            if is_low:
+                low_priority.append(skill_clean)
+            else:
+                high_priority.append(skill_clean)
+                
+        # Remove duplicates case-insensitively while preserving order
+        seen = set()
+        ordered = []
+        for s in (high_priority + low_priority):
+            s_lower = s.lower()
+            if s_lower not in seen:
+                seen.add(s_lower)
+                ordered.append(s)
+                
+        return ordered[:8]
+
+    def _normalize_cv_synthesis(self, parsed_data: dict, skills: List[str]) -> dict:
+        # 1. Project summary normalization
+        summary = parsed_data.get("summary", "").strip()
+        if summary:
+            # Keep only the first sentence
+            import re
+            sentences = re.split(r'(?<=[.!?])\s+', summary)
+            if sentences:
+                summary = sentences[0]
+            # Truncate summary if still too long (max 150 characters)
+            if len(summary) > 150:
+                truncated = summary[:147]
+                last_space = truncated.rfind(' ')
+                if last_space > 0:
+                    summary = truncated[:last_space] + "..."
+                else:
+                    summary = truncated + "..."
+            parsed_data["summary"] = summary
+
+        # 2. Highlight/Contribution bullets normalization
+        raw_highlights = parsed_data.get("highlights", [])
+        
+        # Generic/low-value phrases to filter out if we have better ones
+        low_value_patterns = [
+            "updated documentation", "fixed bugs", "configured tooling", "cleaned code",
+            "code cleanup", "minor fixes", "adjusted spacing", "configured eslint",
+            "prettier configuration", "readme update", "maintenance", "refactored imports",
+            "fixed lint", "version bump", "dependency update", "maintain code quality"
+        ]
+        
+        high_value_bullets = []
+        low_value_bullets = []
+        
+        for h in raw_highlights:
+            if not isinstance(h, dict):
+                continue
+            sig = h.get("signal", "").strip()
+            if not sig:
+                continue
+                
+            # Keep only the first sentence
+            import re
+            sentences = re.split(r'(?<=[.!?])\s+', sig)
+            if sentences:
+                sig = sentences[0]
+                
+            sig_lower = sig.lower()
+            is_low_value = any(pat in sig_lower for pat in low_value_patterns)
+            
+            if is_low_value:
+                low_value_bullets.append({"signal": sig, "impact": ""})
+            else:
+                high_value_bullets.append({"signal": sig, "impact": ""})
+                
+        # Combine bullets, prioritizing high value
+        selected_bullets = high_value_bullets + low_value_bullets
+        
+        # Cap at 4 bullet points
+        selected_bullets = selected_bullets[:4]
+        
+        # Fallback if empty
+        if not selected_bullets:
+            selected_bullets = [{"signal": "Contributed to codebase features and implementation.", "impact": ""}]
+            
+        parsed_data["highlights"] = selected_bullets
+        parsed_data["skills"] = skills
+        return parsed_data
 
     async def publish_task_event(self, job_id: str, task_type: str, message: str, level: str = "Info"):
         logger_func = logger.info if level.lower() == "info" else logger.warning if level.lower() == "warning" else logger.error
@@ -1232,6 +1340,9 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         if not skills:
             skills = meta.get("technologies", [])
 
+        # Prioritize core technologies and cap at 8
+        skills = self._prioritize_skills(skills)
+
         # Read CommitIntelligence result
         commits_file = os.path.join(job_dir, "CommitIntelligence_result.json")
         if os.path.exists(commits_file):
@@ -1274,9 +1385,9 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         # Safe default values builder function (no LLM fallback path)
         def compile_deterministic_fallback() -> dict:
             fallback_title = f"{classification} Developer" if classification != "Unknown" else "Software Developer"
-            fallback_highlights = [{"signal": f.get("finding", ""), "impact": f.get("impact", "positive")} for f in findings]
+            fallback_highlights = [{"signal": f.get("finding", ""), "impact": ""} for f in findings[:4]]
             if not fallback_highlights:
-                fallback_highlights = [{"signal": "Contributed to repository codebase.", "impact": "positive"}]
+                fallback_highlights = [{"signal": "Contributed to repository codebase.", "impact": ""}]
             return {
                 "schemaVersion": "v2",
                 "title": fallback_title,
@@ -1325,7 +1436,10 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 telemetry = attempt_telemetry
                 parsed = self._extract_json(raw_text, correlation_id)
                 
-                # Validation check using Pydantic model (enforces hard validation boundaries: [100, 550])
+                # Apply deterministic formatting safeguards and normalization
+                parsed = self._normalize_cv_synthesis(parsed, skills)
+                
+                # Validation check using Pydantic model
                 CvSynthesisContract.model_validate(parsed)
                 cv_summary = parsed.get("summary", "")
 
@@ -1333,14 +1447,14 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 import difflib
                 similarity = difflib.SequenceMatcher(None, general_repo_summary.lower(), cv_summary.lower()).ratio()
 
-                # Soft warning range: Target is [250, 450] characters.
-                is_invalid_length = not (250 <= len(cv_summary) <= 450)
+                # Soft warning range: Target is [30, 200] characters.
+                is_invalid_length = not (30 <= len(cv_summary) <= 200)
                 is_too_similar = similarity > 0.6
 
                 if (is_invalid_length or is_too_similar) and attempt < max_attempts:
                     reasons = []
                     if is_invalid_length:
-                        reasons.append(f"length of {len(cv_summary)} characters is outside target range [250, 450]")
+                        reasons.append(f"length of {len(cv_summary)} characters is outside target range [30, 200]")
                     if is_too_similar:
                         reasons.append(f"similarity ratio of {similarity:.2f} is too high (> 0.6)")
                     
@@ -1352,7 +1466,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 if is_invalid_length or is_too_similar:
                     reasons = []
                     if is_invalid_length:
-                        reasons.append(f"length {len(cv_summary)} is outside [250, 450]")
+                        reasons.append(f"length {len(cv_summary)} is outside [30, 200]")
                     if is_too_similar:
                         reasons.append(f"similarity {similarity:.2f} is high")
                     logger.warning(
@@ -1366,7 +1480,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 if attempt < max_attempts:
                     # Append error details to user prompt for self-correction retry
                     user_prompt += f"\n\nYOUR PREVIOUS RESPONSE FAILED VALIDATION: {str(e)}\n"
-                    user_prompt += "Please fix the structure, adjust length to 250-450 characters, and ensure CV summary uses completely different phrasing than any general summary. Return ONLY valid JSON."
+                    user_prompt += "Please fix the structure, adjust length to 30-200 characters, and ensure CV summary uses completely different phrasing than any general summary. Return ONLY valid JSON."
                 else:
                     await self.publish_task_event(job_id, "CvSynthesis", "Validation failed twice. Falling back to deterministic builder.", "Warning")
 

@@ -86,10 +86,10 @@ export function calculateGraphLayout(
   const evidenceNodes = filteredNodes.filter((n) => n.type === "evidence");
 
   // Determine heights and coordinates to prevent vertical overlaps
-  const VERTICAL_GAP = 90;
+  const VERTICAL_GAP = 120;
   const COL_0_X = 40;     // Left column (Developer & Evidence)
-  const COL_1_X = 320;    // Center column (Repository)
-  const COL_2_X = 600;    // Right column (Skills)
+  const COL_1_X = 420;    // Center column (Repository)
+  const COL_2_X = 800;    // Right column (Skills)
 
   // Calculate Column 0 (Left) layouts
   // Developer is at the top, evidence nodes are stacked below
@@ -101,7 +101,7 @@ export function calculateGraphLayout(
       ...node,
       position: { x: COL_0_X, y: currentY0 },
     });
-    currentY0 += 120; // Extra separation between Developer and Evidence
+    currentY0 += 140; // Extra separation between Developer and Evidence
   });
 
   evidenceNodes.forEach((node) => {

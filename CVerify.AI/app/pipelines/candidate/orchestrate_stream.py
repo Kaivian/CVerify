@@ -27,6 +27,150 @@ STAGES = [
 ]
 
 
+def get_profile_dict(ra: Any) -> dict:
+    if not isinstance(ra, dict):
+        return {}
+    js = ra.get("jsonData")
+    if isinstance(js, str) and js:
+        try:
+            return json.loads(js)
+        except Exception:
+            pass
+    if isinstance(js, dict):
+        return js
+    return ra
+
+
+def build_simulated_repo_report(repository_assessments: list) -> dict:
+    complexities = []
+    qualities = []
+    ownerships = []
+    clone_risks = []
+    all_patterns = []
+    all_langs = {}
+    all_fws = []
+    
+    for ra in repository_assessments:
+        profile = get_profile_dict(ra)
+        if not profile:
+            continue
+        # overallScore or complexityScore
+        complexities.append(float(profile.get("complexityScore", profile.get("overallScore", 0.0))))
+        qualities.append(float(profile.get("qualityScore", 0.0)))
+        ownerships.append(float(profile.get("ownershipScore", 0.0)))
+        clone_risks.append(profile.get("cloneRiskClassification", "clean"))
+        
+        for pat in profile.get("verifiedPatterns", []):
+            if pat and pat not in all_patterns:
+                all_patterns.append(pat)
+        for fw in profile.get("detectedFrameworks", []):
+            if fw and fw not in all_fws:
+                all_fws.append(fw)
+                
+        langs = profile.get("primaryLanguages", {})
+        if isinstance(langs, dict):
+            for lang, pct in langs.items():
+                try:
+                    all_langs[lang] = max(all_langs.get(lang, 0.0), float(pct))
+                except Exception:
+                    pass
+
+    max_ownership = max(ownerships) if ownerships else 0.0
+    max_complexity = max(complexities) if complexities else 0.0
+    max_quality = max(qualities) if qualities else 0.0
+    
+    if "high_risk" in clone_risks:
+        final_clone = "high_risk"
+    elif "medium_risk" in clone_risks:
+        final_clone = "medium_risk"
+    elif "low_risk" in clone_risks:
+        final_clone = "low_risk"
+    else:
+        final_clone = "clean"
+
+    primary_lang = ""
+    if all_langs:
+        try:
+            primary_lang = max(all_langs, key=all_langs.get)
+        except Exception:
+            pass
+
+    return {
+        "ownership": {
+            "ownership_score": max_ownership,
+        },
+        "meta": {
+            "complexity_score": max_complexity,
+            "quality_score": max_quality,
+        },
+        "fraud_signals": {
+            "clone_classification": final_clone,
+        },
+        "patterns": [{"patternName": p} for p in all_patterns],
+        "techStack": {
+            "primaryLanguage": primary_lang,
+            "languages": all_langs,
+            "frameworks": all_fws
+        }
+    }
+
+
+def build_simulated_skill_graph(repository_assessments: list) -> dict:
+    nodes = []
+    seen = set()
+    for ra in repository_assessments:
+        profile = get_profile_dict(ra)
+        if not profile:
+            continue
+        
+        langs = profile.get("primaryLanguages", {})
+        if isinstance(langs, dict):
+            for lang in langs.keys():
+                if lang and lang.lower() not in seen:
+                    seen.add(lang.lower())
+                    nodes.append({"id": lang, "data": {"name": lang}})
+                    
+        fws = profile.get("detectedFrameworks", [])
+        if isinstance(fws, list):
+            for fw in fws:
+                if fw and fw.lower() not in seen:
+                    seen.add(fw.lower())
+                    nodes.append({"id": fw, "data": {"name": fw}})
+    return {"nodes": nodes, "edges": [], "skill_count": len(nodes)}
+
+
+def build_simulated_maturity_inputs(repository_assessments: list) -> dict:
+    strengths = []
+    gaps = []
+    for ra in repository_assessments:
+        profile = get_profile_dict(ra)
+        if not profile:
+            continue
+        strengths.extend(profile.get("keyStrengths", []))
+        gaps.extend(profile.get("identifiedGaps", []))
+    
+    return {
+        "commits": [{"message": s, "type": "feat"} for s in strengths if s],
+        "codeQualityData": {
+            "keyStrengths": strengths,
+            "identifiedGaps": gaps
+        }
+    }
+
+
+def build_simulated_problem_solving_inputs(repository_assessments: list) -> dict:
+    gaps = []
+    for ra in repository_assessments:
+        profile = get_profile_dict(ra)
+        if not profile:
+            continue
+        gaps.extend(profile.get("identifiedGaps", []))
+    return {
+        "commits": [{"message": f"Fix gap: {g}", "type": "fix"} for g in gaps if g],
+        "commitMessages": [f"Fix gap: {g}" for g in gaps if g]
+    }
+
+
 class CandidateAssessmentStreamOrchestrator:
     def __init__(self, repo_client: RepoIntelligenceClient = None) -> None:
         self.repo_client = repo_client or RepoIntelligenceClient()
@@ -34,61 +178,44 @@ class CandidateAssessmentStreamOrchestrator:
 
     async def orchestrate_async(
         self,
-        job_ids: List[str],
-        cv_skills: List[str],
-        working_experience: List[Dict[str, Any]],
+        cv: dict,
+        repository_assessments: List[dict],
         correlation_id: str = "system"
     ) -> AsyncGenerator[Dict[str, Any], None]:
         extra = {"correlation_id": correlation_id}
-        logger.info(f"Starting Candidate Assessment Orchestrator for jobs: {job_ids}", extra=extra)
+        cv_id = cv.get("cvId", "unknown")
+        logger.info(f"Starting Candidate Assessment Orchestrator for CV: {cv_id}", extra=extra)
 
-        # 1. Fetch Line 1 Artifacts
+        # 1. Fetch Line 1 Artifacts (Mock step for backward compatibility indicator)
         yield {
             "status": "Running",
             "step": "FetchLine1",
-            "message": "Fetching Line 1 analysis artifacts for all candidate repositories...",
+            "message": "Mapping pre-computed repository capability profiles...",
             "percentage": 5.0
         }
 
-        fetched_jobs = []
-        for jid in job_ids:
-            try:
-                artifacts = await self.repo_client.fetch_line1_artifacts(jid)
-                if artifacts and artifacts.get("repoIntelligenceReport"):
-                    fetched_jobs.append({
-                        "jobId": jid,
-                        **artifacts
-                    })
-            except Exception as e:
-                logger.warning(f"Failed to fetch artifacts for job {jid}: {e}", extra=extra)
-
-        # 2. Filter Eligible Repositories (S-001 gate)
-        eligible_jobs = []
-        for job in fetched_jobs:
-            report = job["repoIntelligenceReport"]
-            ownership_score = report.get("ownership", {}).get("ownership_score", 0.0)
-            total_commits = report.get("meta", {}).get("total_commits", 0)
+        # 2. Filter Eligible Repositories (Mock gate check)
+        eligible_repos = []
+        for ra in repository_assessments:
+            profile = get_profile_dict(ra)
+            if not profile:
+                continue
+            ownership_score = profile.get("ownershipScore", 0.0)
+            clone_classification = profile.get("cloneRiskClassification", "clean")
             
-            # Support both fraud_signals and flat properties for clone classification
-            fraud = report.get("fraud_signals", {})
-            clone_classification = fraud.get("clone_classification") or report.get("clone_classification", "clean")
-
-            is_eligible = (
-                ownership_score >= 0.30 and
-                total_commits >= 5 and
-                clone_classification != "high_risk"
-            )
-
-            if is_eligible:
-                eligible_jobs.append(job)
+            # Since repository assessment is manually triggered only for eligible repos,
+            # we just log or keep the ones passing minimal quality metrics
+            if ownership_score >= 0.30 and clone_classification != "high_risk":
+                eligible_repos.append(ra)
             else:
                 logger.info(
-                    f"Job {job['jobId']} excluded via S-001 quality check (Ownership: {ownership_score}, Commits: {total_commits}, Clone classification: {clone_classification})",
+                    f"Repo excluded via aggregator quality check (Ownership: {ownership_score}, Clone classification: {clone_classification})",
                     extra=extra
                 )
 
-        if not eligible_jobs:
-            err_msg = "No verified repositories pass the S-001 readiness gates (minimum 30% ownership, 5 commits, and low clone risk)."
+        if not eligible_repos and repository_assessments:
+            # If some repos were passed but none were eligible, throw error
+            err_msg = "No verified repositories pass the readiness gates (minimum 30% ownership and low clone risk)."
             logger.error(err_msg, extra=extra)
             yield {
                 "status": "Failed",
@@ -98,109 +225,39 @@ class CandidateAssessmentStreamOrchestrator:
             }
             return
 
-        # 3. Consolidate Artifacts (S-002 and S-003)
+        # 3. Consolidate Artifacts
         yield {
             "status": "Running",
             "step": "ConsolidateLine1",
-            "message": f"Consolidating analysis inputs from {len(eligible_jobs)} eligible repositories...",
+            "message": "Consolidating capability metrics and scores...",
             "percentage": 10.0
         }
 
-        consolidated_report = {
-            "ownership": {
-                "ownership_score": max(j["repoIntelligenceReport"].get("ownership", {}).get("ownership_score", 0.0) for j in eligible_jobs),
-                "commits_by_author": sum(j["repoIntelligenceReport"].get("ownership", {}).get("commits_by_author", 0) for j in eligible_jobs),
-            },
-            "meta": {
-                "total_commits": sum(j["repoIntelligenceReport"].get("meta", {}).get("total_commits", 0) for j in eligible_jobs),
-            },
-            "fraud_signals": {
-                "clone_classification": "clean",
-                "clone_risk_score": min(j["repoIntelligenceReport"].get("fraud_signals", {}).get("clone_risk_score", 0.0) for j in eligible_jobs),
-                "ai_code_risk_score": min(j["repoIntelligenceReport"].get("fraud_signals", {}).get("ai_code_risk_score", 0.0) for j in eligible_jobs),
-            },
-            "patterns": [],
-            "techStack": {
-                "primaryLanguage": eligible_jobs[0]["repoIntelligenceReport"].get("techStack", {}).get("primaryLanguage", ""),
-                "languages": {},
-                "frameworks": []
-            }
-        }
+        cv_skills = cv.get("skills", [])
+        working_experience = cv.get("experiences", [])
 
-        # Merge patterns
-        seen_patterns = set()
-        for j in eligible_jobs:
-            for pattern in j["repoIntelligenceReport"].get("patterns", []):
-                pname = pattern.get("patternName", pattern.get("pattern", ""))
-                if pname and pname not in seen_patterns:
-                    seen_patterns.add(pname)
-                    consolidated_report["patterns"].append(pattern)
+        consolidated_report = build_simulated_repo_report(eligible_repos)
+        consolidated_graph = build_simulated_skill_graph(eligible_repos)
+        maturity_inputs = build_simulated_maturity_inputs(eligible_repos)
+        problems_inputs = build_simulated_problem_solving_inputs(eligible_repos)
 
-        # Merge techStack languages and frameworks
-        for j in eligible_jobs:
-            ts = j["repoIntelligenceReport"].get("techStack", {})
-            if not ts:
-                continue
-            # Languages percentages (keep max)
-            for lang, pct in ts.get("languages", {}).items():
-                consolidated_report["techStack"]["languages"][lang] = max(
-                    consolidated_report["techStack"]["languages"].get(lang, 0), pct
-                )
-            # Frameworks list
-            for fw in ts.get("frameworks", []):
-                if fw not in consolidated_report["techStack"]["frameworks"]:
-                    consolidated_report["techStack"]["frameworks"].append(fw)
-
-        # Merge skillEvidenceGraph
-        consolidated_graph = {"nodes": [], "edges": [], "skill_count": 0, "skills_summary": {}}
-        seen_nodes = {}
-        seen_edges = set()
-        for j in eligible_jobs:
-            g = j.get("skillEvidenceGraph") or {}
-            for node in g.get("nodes", []):
-                nid = node.get("id")
-                if not nid:
-                    continue
-                if nid not in seen_nodes:
-                    seen_nodes[nid] = node
-                    consolidated_graph["nodes"].append(node)
-            for edge in g.get("edges", []):
-                eid = edge.get("id") or f"{edge.get('source')}-{edge.get('target')}"
-                if eid not in seen_edges:
-                    seen_edges.add(eid)
-                    consolidated_graph["edges"].append(edge)
-        consolidated_graph["skill_count"] = len(seen_nodes)
-
-        # Merge commitTimelineData
-        consolidated_timeline = {"commits": []}
-        for j in eligible_jobs:
-            t = j.get("commitTimelineData") or {}
-            consolidated_timeline["commits"].extend(t.get("commits", []))
-        try:
-            consolidated_timeline["commits"].sort(key=lambda c: c.get("date", c.get("timestamp", "")))
-        except Exception:
-            pass
-
-        # Merge commitIntentData
-        consolidated_intent = {"commitMessages": [], "commits": []}
-        for j in eligible_jobs:
-            intent = j.get("commitIntentData") or {}
-            consolidated_intent["commitMessages"].extend(intent.get("commitMessages", []))
-            consolidated_intent["commits"].extend(intent.get("commits", []))
-
-        # Setup orchestrator inputs
         inputs = {
             "repoIntelligenceReport": consolidated_report,
             "skillEvidenceGraph": consolidated_graph,
-            "commitTimelineData": consolidated_timeline,
-            "commitIntentData": consolidated_intent,
+            "commitTimelineData": {"commits": maturity_inputs["commits"]},
+            "commitIntentData": {
+                "commitMessages": problems_inputs["commitMessages"],
+                "commits": problems_inputs["commits"]
+            },
+            "codeQualityData": maturity_inputs["codeQualityData"],
             "cvSkills": cv_skills,
             "workingExperience": working_experience,
-            "jobIds": job_ids
+            "cv": cv,
+            "repositoryAssessments": repository_assessments
         }
 
         # Synthetic job ID for L2 calls
-        synthetic_job_id = f"candidate-assess-{job_ids[0]}"
+        synthetic_job_id = f"candidate-assess-{cv_id}"
 
         # 4. Sequentially execute Pipeline 2 tasks L2-001 -> L2-014
         for idx, (task_alias, task_name, artifact_type) in enumerate(STAGES):
@@ -262,3 +319,4 @@ class CandidateAssessmentStreamOrchestrator:
             "message": "Candidate Assessment completed successfully.",
             "percentage": 100.0
         }
+

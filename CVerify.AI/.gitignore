@@ -155,3 +155,7 @@ temp_clones/
 # Keep the .env.example template but never commit the real .env
 .env
 !.env.example
+
+# Candidate and Repository Assessment traces
+traces/
+
