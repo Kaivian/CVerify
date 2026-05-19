@@ -321,6 +321,9 @@ export interface CandidateAssessmentResponse {
   summaryParagraph: string | null;
   pipelineVersion: string;
   assessmentSchemaVersion: string;
+  cvId: string | null;
+  promptVersion: string | null;
+  modelVersion: string | null;
   lastProfileUpdateAt: string;
   lastRepositoryAnalysisAt: string;
   lastAssessmentAt: string | null;

@@ -30,7 +30,7 @@ interface TabItem {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("profile");
+  const [activeTab, setActiveTabInternal] = useState<TabId>("profile");
   const [isFormDirty, setIsFormDirty] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<Record<TabId, boolean>>({
     profile: true,
@@ -39,12 +39,14 @@ export default function SettingsPage() {
     account: false,
   });
 
-  useEffect(() => {
+  const setActiveTab = (tabId: TabId) => {
+    setActiveTabInternal(tabId);
     setVisitedTabs((prev) => ({
       ...prev,
-      [activeTab]: true,
+      [tabId]: true,
     }));
-  }, [activeTab]);
+  };
+
 
   // Tab switching confirm dialog state
   const [pendingTab, setPendingTab] = useState<TabId | null>(null);
