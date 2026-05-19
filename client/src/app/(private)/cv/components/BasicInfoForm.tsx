@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
-import { Input, Button, Select, ListBox, Spinner, toast, TextArea, Tooltip, Dropdown } from "@heroui/react";
+import { Input, Button, Select, ListBox, Spinner, toast, TextArea, Tooltip, Dropdown, DatePicker, DateField, Calendar } from "@heroui/react";
+import { parseDate } from "@internationalized/date";
 import { PlusCircle, Trash2, Camera, Info, Sparkles } from "lucide-react";
 import { type BasicInfoDraft } from "./types";
 import { profileApi } from "@/services/profile.service";
@@ -32,6 +33,16 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const birthDateString = draft.birthDate || "";
+  let birthDateValue = null;
+  if (birthDateString) {
+    try {
+      birthDateValue = parseDate(birthDateString);
+    } catch (e) {
+      console.error("Failed to parse birthDate:", e);
+    }
+  }
 
   // Pronoun select options
   const pronounsOptions = [
@@ -384,12 +395,48 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
         {/* Date of Birth */}
         <div className="flex flex-col gap-1.5">
           <label className="text-[11px] font-bold text-foreground">Date of Birth</label>
-          <input
-            type="date"
-            className="flex h-10 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent transition-colors"
-            value={draft.birthDate}
-            onChange={(e) => onChange({ birthDate: e.target.value })}
-          />
+          <DatePicker
+            value={birthDateValue}
+            onChange={(val) => onChange({ birthDate: val ? val.toString() : "" })}
+            className="flex flex-col gap-1 w-full"
+            aria-label="Date of Birth"
+          >
+            <DateField.Group fullWidth>
+              <DateField.Input>
+                {(segment) => <DateField.Segment segment={segment} />}
+              </DateField.Input>
+              <DateField.Suffix>
+                <DatePicker.Trigger>
+                  <DatePicker.TriggerIndicator />
+                </DatePicker.Trigger>
+              </DateField.Suffix>
+            </DateField.Group>
+            <DatePicker.Popover>
+              <Calendar aria-label="Birth date">
+                <Calendar.Header>
+                  <Calendar.YearPickerTrigger>
+                    <Calendar.YearPickerTriggerHeading />
+                    <Calendar.YearPickerTriggerIndicator />
+                  </Calendar.YearPickerTrigger>
+                  <Calendar.NavButton slot="previous" />
+                  <Calendar.NavButton slot="next" />
+                </Calendar.Header>
+                <Calendar.Grid>
+                  <Calendar.GridHeader>
+                    {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                  </Calendar.GridHeader>
+                  <Calendar.GridBody>
+                    {(date) => <Calendar.Cell date={date} />}
+                  </Calendar.GridBody>
+                </Calendar.Grid>
+                <Calendar.YearPickerGrid>
+                  <Calendar.YearPickerGridBody>
+                    {({ year }) => <Calendar.YearPickerCell year={year} />}
+                  </Calendar.YearPickerGridBody>
+                </Calendar.YearPickerGrid>
+              </Calendar>
+            </DatePicker.Popover>
+          </DatePicker>
         </div>
 
         {/* Current Company */}
