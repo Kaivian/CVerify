@@ -9,7 +9,7 @@ DROP TABLE IF EXISTS analysis_reports CASCADE;
 DROP TABLE IF EXISTS analysis_job_events CASCADE;
 DROP TABLE IF EXISTS analysis_jobs CASCADE;
 DROP TABLE IF EXISTS prompt_deployments CASCADE;
-DROP TABLE IF EXISTS artifact_registry CASCADE;
+DROP TABLE IF EXISTS artifact_registry_entries CASCADE;
 DROP TABLE IF EXISTS pipeline_tasks CASCADE;
 DROP TABLE IF EXISTS pipeline_jobs CASCADE;
 
@@ -59,15 +59,15 @@ CREATE TABLE prompt_deployments (
 );
 
 -- 4. Artifact Registry
-CREATE TABLE artifact_registry (
+CREATE TABLE artifact_registry_entries (
     id UUID PRIMARY KEY,
-    job_id UUID NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
+    job_id UUID NOT NULL,
     artifact_id VARCHAR(50) NOT NULL,
     name VARCHAR(100) NOT NULL,
     checksum VARCHAR(64) NOT NULL,
     storage_path VARCHAR(500) NOT NULL,
     metadata_json TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX idx_job_artifact ON artifact_registry(job_id, artifact_id);
+CREATE UNIQUE INDEX idx_job_artifact ON artifact_registry_entries(job_id, artifact_id);

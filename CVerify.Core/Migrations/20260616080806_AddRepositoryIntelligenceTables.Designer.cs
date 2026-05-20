@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260616080806_AddRepositoryIntelligenceTables")]
+    partial class AddRepositoryIntelligenceTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -867,10 +870,6 @@ namespace CVerify.API.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("cv_id");
 
-                    b.Property<double>("ExecutionStrength")
-                        .HasColumnType("double precision")
-                        .HasColumnName("execution_strength");
-
                     b.Property<string>("FailedStage")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -891,10 +890,6 @@ namespace CVerify.API.Migrations
                     b.Property<DateTimeOffset>("LastRepositoryAnalysisAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_repository_analysis_at");
-
-                    b.Property<double>("LeadershipPotential")
-                        .HasColumnType("double precision")
-                        .HasColumnName("leadership_potential");
 
                     b.Property<string>("ModelVersion")
                         .HasMaxLength(100)
@@ -941,18 +936,6 @@ namespace CVerify.API.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("summary_paragraph");
-
-                    b.Property<double>("TechnicalBreadth")
-                        .HasColumnType("double precision")
-                        .HasColumnName("technical_breadth");
-
-                    b.Property<double>("TechnicalDepth")
-                        .HasColumnType("double precision")
-                        .HasColumnName("technical_depth");
-
-                    b.Property<double>("TrustLevel")
-                        .HasColumnType("double precision")
-                        .HasColumnName("trust_level");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -1011,239 +994,6 @@ namespace CVerify.API.Migrations
                         .HasDatabaseName("ux_candidate_assessment_artifacts_type");
 
                     b.ToTable("candidate_assessment_artifacts", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateBestFitRole", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("CandidateAssessmentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("candidate_assessment_id");
-
-                    b.Property<double>("Confidence")
-                        .HasColumnType("double precision")
-                        .HasColumnName("confidence");
-
-                    b.Property<string>("EngineMetadata")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("engine_metadata");
-
-                    b.Property<string>("Evidence")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("evidence");
-
-                    b.Property<double>("MatchScore")
-                        .HasColumnType("double precision")
-                        .HasColumnName("match_score");
-
-                    b.Property<string>("MatchingEngineVersion")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("matching_engine_version");
-
-                    b.Property<int>("Rank")
-                        .HasColumnType("integer")
-                        .HasColumnName("rank");
-
-                    b.Property<string>("RoleTitle")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("role_title");
-
-                    b.HasKey("Id")
-                        .HasName("pk_candidate_best_fit_roles");
-
-                    b.HasIndex("CandidateAssessmentId")
-                        .HasDatabaseName("ix_candidate_best_fit_roles_candidate_assessment_id");
-
-                    b.ToTable("candidate_best_fit_roles", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateDomainProfile", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("CandidateAssessmentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("candidate_assessment_id");
-
-                    b.Property<double>("Confidence")
-                        .HasColumnType("double precision")
-                        .HasColumnName("confidence");
-
-                    b.Property<string>("DomainName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("domain_name");
-
-                    b.Property<double>("Score")
-                        .HasColumnType("double precision")
-                        .HasColumnName("score");
-
-                    b.Property<string>("Seniority")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("seniority");
-
-                    b.Property<string>("SupportingEvidence")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("supporting_evidence");
-
-                    b.HasKey("Id")
-                        .HasName("pk_candidate_domain_profiles");
-
-                    b.HasIndex("CandidateAssessmentId")
-                        .HasDatabaseName("ix_candidate_domain_profiles_candidate_assessment_id");
-
-                    b.ToTable("candidate_domain_profiles", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateIntelligenceSignal", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("CandidateAssessmentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("candidate_assessment_id");
-
-                    b.Property<double>("ComplexitySignal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("complexity_signal");
-
-                    b.Property<double>("ConsistencySignal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("consistency_signal");
-
-                    b.Property<double>("DeliverySignal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("delivery_signal");
-
-                    b.Property<double>("EngineeringMaturitySignal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("engineering_maturity_signal");
-
-                    b.Property<DateTimeOffset>("LastUpdatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_updated_utc");
-
-                    b.Property<double>("LeadershipSignal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("leadership_signal");
-
-                    b.Property<double>("OwnershipSignal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("ownership_signal");
-
-                    b.Property<double>("ProblemSolvingSignal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("problem_solving_signal");
-
-                    b.Property<double>("ScopeSignal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("scope_signal");
-
-                    b.HasKey("Id")
-                        .HasName("pk_candidate_intelligence_signals");
-
-                    b.HasIndex("CandidateAssessmentId")
-                        .HasDatabaseName("ix_candidate_intelligence_signals_candidate_assessment_id");
-
-                    b.ToTable("candidate_intelligence_signals", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateSkill", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("CandidateAssessmentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("candidate_assessment_id");
-
-                    b.Property<double>("Confidence")
-                        .HasColumnType("double precision")
-                        .HasColumnName("confidence");
-
-                    b.Property<string>("EvidenceSources")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("evidence_sources");
-
-                    b.Property<string>("Level")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("level");
-
-                    b.Property<double>("Score")
-                        .HasColumnType("double precision")
-                        .HasColumnName("score");
-
-                    b.Property<string>("SkillName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("skill_name");
-
-                    b.HasKey("Id")
-                        .HasName("pk_candidate_skills");
-
-                    b.HasIndex("CandidateAssessmentId")
-                        .HasDatabaseName("ix_candidate_skills_candidate_assessment_id");
-
-                    b.ToTable("candidate_skills", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateStrengthWeakness", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("CandidateAssessmentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("candidate_assessment_id");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("description");
-
-                    b.Property<string>("Evidence")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("evidence");
-
-                    b.Property<string>("FindingType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("finding_type");
-
-                    b.Property<string>("Topic")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)")
-                        .HasColumnName("topic");
-
-                    b.HasKey("Id")
-                        .HasName("pk_candidate_strengths_weaknesses");
-
-                    b.HasIndex("CandidateAssessmentId")
-                        .HasDatabaseName("ix_candidate_strengths_weaknesses_candidate_assessment_id");
-
-                    b.ToTable("candidate_strengths_weaknesses", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CareerPreference", b =>
@@ -5566,66 +5316,6 @@ namespace CVerify.API.Migrations
                     b.Navigation("Assessment");
                 });
 
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateBestFitRole", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
-                        .WithMany("BestFitRoles")
-                        .HasForeignKey("CandidateAssessmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_candidate_best_fit_roles_candidate_assessments_candidate_as");
-
-                    b.Navigation("Assessment");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateDomainProfile", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
-                        .WithMany("DomainProfiles")
-                        .HasForeignKey("CandidateAssessmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_candidate_domain_profiles_candidate_assessments_candidate_a");
-
-                    b.Navigation("Assessment");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateIntelligenceSignal", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
-                        .WithMany("IntelligenceSignals")
-                        .HasForeignKey("CandidateAssessmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_candidate_intelligence_signals_candidate_assessments_candid");
-
-                    b.Navigation("Assessment");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateSkill", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
-                        .WithMany("Skills")
-                        .HasForeignKey("CandidateAssessmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_candidate_skills_candidate_assessments_candidate_assessment");
-
-                    b.Navigation("Assessment");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateStrengthWeakness", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
-                        .WithMany("StrengthsWeaknesses")
-                        .HasForeignKey("CandidateAssessmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_candidate_strengths_weaknesses_candidate_assessments_candid");
-
-                    b.Navigation("Assessment");
-                });
-
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CareerPreference", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
@@ -6484,16 +6174,6 @@ namespace CVerify.API.Migrations
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", b =>
                 {
                     b.Navigation("Artifacts");
-
-                    b.Navigation("BestFitRoles");
-
-                    b.Navigation("DomainProfiles");
-
-                    b.Navigation("IntelligenceSignals");
-
-                    b.Navigation("Skills");
-
-                    b.Navigation("StrengthsWeaknesses");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectEntry", b =>

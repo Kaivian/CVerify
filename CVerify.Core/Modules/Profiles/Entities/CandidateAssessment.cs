@@ -78,5 +78,17 @@ public class CandidateAssessment
 
     public DateTimeOffset? CompletedAtUtc { get; set; }
 
+    // Indexing Ranking Metadata
+    public double TechnicalDepth { get; set; } = 0.0;
+    public double TechnicalBreadth { get; set; } = 0.0;
+    public double LeadershipPotential { get; set; } = 0.0;
+    public double ExecutionStrength { get; set; } = 0.0;
+    public double TrustLevel { get; set; } = 0.0;
+
     public virtual ICollection<CandidateAssessmentArtifact> Artifacts { get; set; } = new List<CandidateAssessmentArtifact>();
+    public virtual ICollection<CandidateSkill> Skills { get; set; } = new List<CandidateSkill>();
+    public virtual ICollection<CandidateDomainProfile> DomainProfiles { get; set; } = new List<CandidateDomainProfile>();
+    public virtual ICollection<CandidateIntelligenceSignal> IntelligenceSignals { get; set; } = new List<CandidateIntelligenceSignal>();
+    public virtual ICollection<CandidateBestFitRole> BestFitRoles { get; set; } = new List<CandidateBestFitRole>();
+    public virtual ICollection<CandidateStrengthWeakness> StrengthsWeaknesses { get; set; } = new List<CandidateStrengthWeakness>();
 }

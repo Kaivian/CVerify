@@ -454,6 +454,8 @@ builder.Services.AddHostedService<BackgroundRepositorySyncProcessor>();
 builder.Services.AddHostedService<AnalysisQueueRecoverySweeper>();
 builder.Services.AddHostedService<BackgroundRepositoryAnalysisProcessor>();
 builder.Services.AddHostedService<BackgroundCandidateAssessmentProcessor>();
+builder.Services.AddHostedService<BackgroundCandidateAssessmentBackfillProcessor>();
+
 
 builder.Services.AddHostedService<RedisNotificationSubscriberWorker>();
 builder.Services.AddHostedService<ActivityEventProjectionWorker>();

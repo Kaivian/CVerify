@@ -17,6 +17,10 @@ DROP TABLE IF EXISTS permissions CASCADE;
 DROP TABLE IF EXISTS user_roles CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS artifact_registry_entries CASCADE;
+DROP TABLE IF EXISTS pipeline_tasks CASCADE;
+DROP TABLE IF EXISTS pipeline_jobs CASCADE;
+DROP TABLE IF EXISTS prompt_deployments CASCADE;
 DROP TYPE IF EXISTS user_status CASCADE;
 */
 
@@ -86,34 +90,32 @@ CREATE UNIQUE INDEX idx_roles_name_system ON roles(name) WHERE tenant_id IS NULL
 -- Core table storing user credentials, profile data, and security logs
 CREATE TABLE users (
     id UUID PRIMARY KEY,
-    
-    -- Identity & Credentials
-    email CITEXT NOT NULL UNIQUE,              -- Case-insensitive unique email
-    password_hash TEXT,                        -- Hashed password (nullable to support OAuth/SSO)
+    email CITEXT NOT NULL,
+    username CITEXT,
+    last_username_change_at TIMESTAMP WITH TIME ZONE,
+    password_hash TEXT,
+    password_changed_at TIMESTAMP WITH TIME ZONE,
     full_name VARCHAR(255) NOT NULL,
     avatar_url TEXT,
+    avatar_source INTEGER NOT NULL DEFAULT 0,
     status user_status NOT NULL DEFAULT 'EMAIL_VERIFY_PENDING',
-
-    -- Verification tracking
     email_verified_at TIMESTAMP WITH TIME ZONE,
-    
-    -- Security & Brute-force protection tracking
     last_login_at TIMESTAMP WITH TIME ZONE,
-    last_login_ip INET,                        -- Stores IPv4/IPv6 addresses
-    failed_attempts INT DEFAULT 0,             -- Counter for consecutive failed logins
-    last_failed_at TIMESTAMP WITH TIME ZONE,   -- Timestamp of the last failed attempt
-    lock_until TIMESTAMP WITH TIME ZONE,       -- Account lockout expiration time
-    password_changed_at TIMESTAMP WITH TIME ZONE,
+    last_login_ip INET,
+    failed_attempts INT DEFAULT 0,
+    last_failed_at TIMESTAMP WITH TIME ZONE,
+    lock_until TIMESTAMP WITH TIME ZONE,
     session_version INTEGER NOT NULL DEFAULT 1,
     is_legal_hold BOOLEAN NOT NULL DEFAULT FALSE,
-    linked_emails JSONB,
+    linked_emails JSONB NOT NULL DEFAULT '[]'::jsonb,
     version INTEGER NOT NULL DEFAULT 1,
-
-    -- Audit trails
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_active ON users(email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_active ON users(username) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');
+
 
 -- =========================================================
 -- 6. USER_ROLES JUNCTION TABLE
@@ -181,6 +183,30 @@ CREATE TABLE IF NOT EXISTS organizations (
     recovery_authority VARCHAR(255),
     representative_identity VARCHAR(255),
     initial_admin_assigned_at TIMESTAMP WITH TIME ZONE,
+    banner_url VARCHAR(2048),
+    logo_url VARCHAR(2048),
+    description TEXT,
+    company_type VARCHAR(100),
+    company_size VARCHAR(100),
+    branch_count INTEGER NOT NULL DEFAULT 0,
+    follower_count INTEGER NOT NULL DEFAULT 0,
+    industry_tags VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    benefit_tags VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    gallery_urls VARCHAR(2048)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    contact_name VARCHAR(255),
+    contact_phone VARCHAR(100),
+    contact_email VARCHAR(255),
+    city VARCHAR(255),
+    detail_address VARCHAR(500),
+    google_maps_embed_url VARCHAR(2048),
+    linkedin_url VARCHAR(2048),
+    facebook_url VARCHAR(2048),
+    twitter_url VARCHAR(2048),
+    website VARCHAR(2048),
+    mission TEXT,
+    vision TEXT,
+    core_values TEXT,
+    founded VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE
@@ -407,7 +433,7 @@ VALUES (
     'ACTIVE',
     NOW()
 )
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING') DO NOTHING;
 
 -- Bind user to role in user_roles
 INSERT INTO user_roles (user_id, role_id)
@@ -416,6 +442,64 @@ VALUES (
     '018fc35b-1c5c-7b8a-9a2d-3e4f5a6b7c8d'::uuid
 )
 ON CONFLICT DO NOTHING;
+
+-- =========================================================
+-- 19. PIPELINE AND AI SUBSYSTEM TABLES
+-- =========================================================
+CREATE TABLE pipeline_jobs (
+    id UUID PRIMARY KEY,
+    pipeline_type VARCHAR(50) NOT NULL,
+    reference_id UUID NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'Queued',
+    progress NUMERIC NOT NULL DEFAULT 0.00,
+    started_at TIMESTAMP WITH TIME ZONE NULL,
+    completed_at TIMESTAMP WITH TIME ZONE NULL,
+    error_message VARCHAR(2000) NULL,
+    retry_count INT NOT NULL DEFAULT 0,
+    max_budget_usd NUMERIC NOT NULL DEFAULT 5.00,
+    cumulative_cost_usd NUMERIC NOT NULL DEFAULT 0.00,
+    created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    last_updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE pipeline_tasks (
+    id UUID PRIMARY KEY,
+    job_id UUID NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
+    task_identifier VARCHAR(50) NOT NULL,
+    task_name VARCHAR(100) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+    started_at TIMESTAMP WITH TIME ZONE NULL,
+    completed_at TIMESTAMP WITH TIME ZONE NULL,
+    retry_count INT NOT NULL DEFAULT 0,
+    lease_expires_at TIMESTAMP WITH TIME ZONE NULL,
+    worker_id VARCHAR(100) NULL,
+    error_details TEXT NULL,
+    cost_usd NUMERIC NOT NULL DEFAULT 0.000000,
+    created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    last_updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_job_task_identifier ON pipeline_tasks(job_id, task_identifier);
+CREATE INDEX ix_pipeline_tasks_job_id ON pipeline_tasks(job_id);
+
+CREATE TABLE prompt_deployments (
+    prompt_id VARCHAR(50) PRIMARY KEY,
+    active_version VARCHAR(30) NOT NULL,
+    sha256hash VARCHAR(64) NOT NULL,
+    updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE artifact_registry_entries (
+    id UUID PRIMARY KEY,
+    job_id UUID NOT NULL,
+    artifact_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    checksum TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_job_artifact ON artifact_registry_entries(job_id, artifact_id);
+CREATE INDEX ix_artifact_registry_entries_job_id ON artifact_registry_entries(job_id);
 
 -- =========================================================
 -- ADDITIONAL DDL FOR TEST BUSINESS RELATION TABLES

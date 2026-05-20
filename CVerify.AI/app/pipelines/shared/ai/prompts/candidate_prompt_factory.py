@@ -263,6 +263,8 @@ class CandidatePromptFactory:
         final_level_label = inputs.get("finalLevelLabel", "Middle")
         strongest_domains = inputs.get("strongestDomains", [])
         working_style = inputs.get("primaryWorkingStyle", "")
+        bg_repos = inputs.get("backgroundRepositories", [])
+        bg_repos_str = json.dumps([{"repositoryName": r.get("repositoryName"), "techStack": r.get("techStack"), "overallScore": r.get("overallScore")} for r in bg_repos], indent=2)
         return (
             f"Generate role recommendations based on technical tendency, career level, and working style.\n\n"
             f"CANDIDATE PROFILE:\n"
@@ -271,16 +273,20 @@ class CandidatePromptFactory:
             f"- Working Style: {working_style}\n"
             f"- Tendency Ranking: {json.dumps(tendency_ranking)}\n"
             f"- Strongest Domains: {json.dumps(strongest_domains)}\n\n"
+            f"BACKGROUND REPOSITORIES (Not attached to CV, do NOT use for scoring or core profile):\n"
+            f"{bg_repos_str}\n\n"
             f"TASK:\n"
             f"1. Recommend Top 1 best-fit role with specific job titles.\n"
             f"2. Suggest 5-10 additional matching positions with confidence scores.\n"
-            f"3. Generate suggested CV role titles the candidate should use.\n\n"
+            f"3. Generate suggested CV role titles the candidate should use.\n"
+            f"4. If any background repositories have strong relevant tech stacks that are not attached to CV projects, generate suggestions advising the candidate to link them to show proof of those skills.\n\n"
             f"Return JSON:\n"
             f'{{"topMatch": {{"roleTitle": "Senior Backend Engineer", "confidence": 0.91, '
             f'"rationale": "string"}}, '
             f'"suggestedRoles": [{{"roleTitle": "string", "confidence": 0.75, '
             f'"domain": "string", "levelFit": "exact|stretch|underqualified"}}], '
-            f'"suggestedCvTitles": ["Senior Python Developer", "Backend Engineer | FastAPI | PostgreSQL"]}}'
+            f'"suggestedCvTitles": ["Senior Python Developer", "Backend Engineer | FastAPI | PostgreSQL"], '
+            f'"cvImprovementSuggestions": [{{"suggestion": "Link repository Kaivian/CVerify to prove C# expertise.", "repositoryName": "Kaivian/CVerify", "reason": "Contains advanced C# patterns matching your target role."}}]}}'
         )
 
     # ── L2-013 Candidate Summary Generator ───────────────────────────────────

@@ -569,7 +569,8 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                                       rel="noopener noreferrer"
                                       className="text-foreground font-semibold hover:underline text-xs flex items-center gap-1"
                                     >
-                                      <span>{link.name}</span> &rarr;
+                                      <span>{link.name}</span>
+                                      <span>→</span>
                                     </a>
                                   ))}
                                 </div>
@@ -646,7 +647,8 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                                     rel="noopener noreferrer"
                                     className="text-foreground font-semibold hover:underline text-xs flex items-center gap-1"
                                   >
-                                    <span>{link.url.replace(/^(https?:\/\/)?(www\.)?/, "")}</span> &rarr;
+                                    <span>{link.url.replace(/^(https?:\/\/)?(www\.)?/, "")}</span>
+                                    <span>→</span>
                                   </a>
                                 ))}
                               </div>
@@ -737,7 +739,8 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                                     rel="noopener noreferrer"
                                     className="text-foreground font-semibold hover:underline text-xs flex items-center gap-1"
                                   >
-                                    <span>Credential URL</span> &rarr;
+                                    <span>Credential URL</span>
+                                    <span>→</span>
                                   </a>
                                 )}
                                 {ach.attachment && (
@@ -748,7 +751,8 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                                     rel="noopener noreferrer"
                                     className="text-foreground font-semibold hover:underline text-xs flex items-center gap-1"
                                   >
-                                    <span>Download Attachment ({ach.attachment.fileName})</span> &darr;
+                                    <span>Download Attachment ({ach.attachment.fileName})</span>
+                                    <span>↓</span>
                                   </a>
                                 )}
                               </div>

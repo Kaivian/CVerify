@@ -53,6 +53,33 @@ public class CandidateAssessmentController : ControllerBase
         return Ok(readiness);
     }
 
+    [HttpGet("v1/candidate-assessments/stages")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public IActionResult GetStages()
+    {
+        var stages = new[]
+        {
+            new { Id = "FetchLine1", Name = "Retrieve Repository Artifacts", Description = "Fetches verified static analysis, provenance, and git telemetry artifacts for the candidate's active repositories." },
+            new { Id = "ConsolidateLine1", Name = "Consolidate Repository Signals", Description = "Merges multidimensional capability signals, code quality scores, and commit telemetry across all repositories." },
+            new { Id = "L2-001", Name = "Skill Taxonomy Mapping", Description = "Normalizes raw project-level skills against the global CVerify technical skill taxonomy." },
+            new { Id = "L2-002", Name = "Skill Proficiency Estimation", Description = "Estimates the depth, scope, and capability bands for each extracted skill using commit frequency and syntax patterns." },
+            new { Id = "L2-003", Name = "Capabilities & Gaps Diagnostics", Description = "Pinpoints key architectural strengths and potential engineering development areas from the codebase history." },
+            new { Id = "L2-004", Name = "Career Level Assessment", Description = "Maps codebase scope, ownership ratio, and engineering complexity to career-level thresholds." },
+            new { Id = "L2-005", Name = "Career Level Calibration", Description = "Calibrates career level alignment across multiple repositories using weighted developer experience metrics." },
+            new { Id = "L2-006", Name = "Career Level Evaluation Gate", Description = "Applies validation constraints and overrides to finalize candidate level classifications." },
+            new { Id = "L2-007", Name = "Engineering Maturity Evaluation", Description = "Evaluates project hygiene, logging practices, test coverage, and structural organization." },
+            new { Id = "L2-008", Name = "Problem Solving Complexity Analyzer", Description = "Analyzes diagnostic intent, recovery patterns, and bug-fix cycles in git commit messages." },
+            new { Id = "L2-009", Name = "Technical Tendency Classification", Description = "Classifies developer affinity towards backend, frontend, devops, or fullstack development." },
+            new { Id = "L2-010", Name = "Working Style Classification", Description = "Infers collaboration density, velocity consistency, and code review compliance from git metadata." },
+            new { Id = "L2-011", Name = "Experience Confidence Calibration", Description = "Adjusts assessment confidence scores based on codebase age, volume, and contributor density." },
+            new { Id = "L2-012", Name = "Role Recommendation Engine", Description = "Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect)." },
+            new { Id = "L2-013", Name = "Executive Summary Generation", Description = "Generates a comprehensive recruiter-friendly assessment narrative and executive summary." },
+            new { Id = "L2-014", Name = "AI Profile Composition", Description = "Assembles and serializes the final verified candidate profile and calibrated score index." }
+        };
+        return Ok(stages);
+    }
+
     [HttpPost("v1/candidate-assessments")]
     [ProducesResponseType(typeof(CandidateAssessmentResponse), StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -173,7 +200,8 @@ public class CandidateAssessmentController : ControllerBase
                 await Response.Body.FlushAsync(HttpContext.RequestAborted);
 
                 using var doc = JsonDocument.Parse(message);
-                if (doc.RootElement.TryGetProperty("status", out var statusProp))
+                var statusPropExists = doc.RootElement.TryGetProperty("status", out var statusProp) || doc.RootElement.TryGetProperty("Status", out statusProp);
+                if (statusPropExists)
                 {
                     var status = statusProp.GetString();
                     if (status != null && terminalStates.Contains(status))

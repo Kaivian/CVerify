@@ -2,12 +2,13 @@ import json
 import logging
 import time
 import asyncio
-from typing import Any, Dict, List, AsyncGenerator
+from typing import Any, Dict, List, AsyncGenerator, Optional
 
 from app.core.clients.repo_intelligence_client import RepoIntelligenceClient
 from app.pipelines.candidate.orchestrator import CandidateEvaluationOrchestrator
 
 logger = logging.getLogger("candidate_assessment_stream_orchestrator")
+
 
 STAGES = [
     ("L2-001", "SkillTaxonomyMapper", "SkillTaxonomyMap"),
@@ -27,21 +28,7 @@ STAGES = [
 ]
 
 
-def get_profile_dict(ra: Any) -> dict:
-    if not isinstance(ra, dict):
-        return {}
-    js = ra.get("jsonData")
-    if isinstance(js, str) and js:
-        try:
-            return json.loads(js)
-        except Exception:
-            pass
-    if isinstance(js, dict):
-        return js
-    return ra
-
-
-def build_simulated_repo_report(repository_assessments: list) -> dict:
+def build_real_repo_report(repository_assessments: list) -> dict:
     complexities = []
     qualities = []
     ownerships = []
@@ -51,29 +38,42 @@ def build_simulated_repo_report(repository_assessments: list) -> dict:
     all_fws = []
     
     for ra in repository_assessments:
-        profile = get_profile_dict(ra)
-        if not profile:
-            continue
-        # overallScore or complexityScore
-        complexities.append(float(profile.get("complexityScore", profile.get("overallScore", 0.0))))
-        qualities.append(float(profile.get("qualityScore", 0.0)))
-        ownerships.append(float(profile.get("ownershipScore", 0.0)))
-        clone_risks.append(profile.get("cloneRiskClassification", "clean"))
+        overall_score = float(ra.get("overallScore", 0.0))
+        complexities.append(overall_score)
         
-        for pat in profile.get("verifiedPatterns", []):
-            if pat and pat not in all_patterns:
-                all_patterns.append(pat)
-        for fw in profile.get("detectedFrameworks", []):
-            if fw and fw not in all_fws:
-                all_fws.append(fw)
-                
-        langs = profile.get("primaryLanguages", {})
-        if isinstance(langs, dict):
-            for lang, pct in langs.items():
-                try:
-                    all_langs[lang] = max(all_langs.get(lang, 0.0), float(pct))
-                except Exception:
-                    pass
+        quality_metrics = ra.get("qualityMetrics") or {}
+        if isinstance(quality_metrics, dict):
+            qualities.append(float(quality_metrics.get("qualityScore", 0.0)))
+            clone_risks.append(quality_metrics.get("cloneRiskClassification", "clean"))
+            
+        signal = ra.get("intelligenceSignal") or {}
+        if isinstance(signal, dict):
+            ownerships.append(float(signal.get("ownershipSignal", 0.0)))
+
+        patterns = ra.get("patterns")
+        if isinstance(patterns, list):
+            for pat in patterns:
+                if pat and pat not in all_patterns:
+                    all_patterns.append(pat)
+        elif isinstance(patterns, dict):
+            for p in patterns.keys():
+                if p not in all_patterns:
+                    all_patterns.append(p)
+
+        tech_stack = ra.get("techStack") or {}
+        if isinstance(tech_stack, dict):
+            langs = tech_stack.get("languages", tech_stack)
+            if isinstance(langs, dict):
+                for lang, pct in langs.items():
+                    try:
+                        all_langs[lang] = max(all_langs.get(lang, 0.0), float(pct))
+                    except:
+                        pass
+            fws = tech_stack.get("frameworks", [])
+            if isinstance(fws, list):
+                for fw in fws:
+                    if fw and fw not in all_fws:
+                        all_fws.append(fw)
 
     max_ownership = max(ownerships) if ownerships else 0.0
     max_complexity = max(complexities) if complexities else 0.0
@@ -92,7 +92,7 @@ def build_simulated_repo_report(repository_assessments: list) -> dict:
     if all_langs:
         try:
             primary_lang = max(all_langs, key=all_langs.get)
-        except Exception:
+        except:
             pass
 
     return {
@@ -115,40 +115,72 @@ def build_simulated_repo_report(repository_assessments: list) -> dict:
     }
 
 
-def build_simulated_skill_graph(repository_assessments: list) -> dict:
+def build_real_skill_graph(repository_assessments: list) -> dict:
     nodes = []
-    seen = set()
+    edges = []
+    seen_skills = set()
+    
     for ra in repository_assessments:
-        profile = get_profile_dict(ra)
-        if not profile:
-            continue
+        repo_name = ra.get("repositoryName", "unknown")
         
-        langs = profile.get("primaryLanguages", {})
-        if isinstance(langs, dict):
-            for lang in langs.keys():
-                if lang and lang.lower() not in seen:
-                    seen.add(lang.lower())
-                    nodes.append({"id": lang, "data": {"name": lang}})
-                    
-        fws = profile.get("detectedFrameworks", [])
-        if isinstance(fws, list):
-            for fw in fws:
-                if fw and fw.lower() not in seen:
-                    seen.add(fw.lower())
-                    nodes.append({"id": fw, "data": {"name": fw}})
-    return {"nodes": nodes, "edges": [], "skill_count": len(nodes)}
+        for attr in ra.get("skillAttributions", []):
+            skill = attr.get("skillName")
+            if not skill:
+                continue
+            skill_id = f"skill:{skill.lower()}"
+            if skill_id not in seen_skills:
+                seen_skills.add(skill_id)
+                nodes.append({
+                    "id": skill_id,
+                    "type": "skill",
+                    "data": {
+                        "name": skill,
+                        "confidence": attr.get("confidence", 0.0),
+                        "verificationLevel": attr.get("verificationLevel", "AiAnalyzed")
+                    }
+                })
+                
+            for cap in ra.get("capabilities", []):
+                cap_name = cap.get("name")
+                if not cap_name:
+                    continue
+                cap_id = f"capability:{cap_name.lower()}"
+                if not any(n["id"] == cap_id for n in nodes):
+                    nodes.append({
+                        "id": cap_id,
+                        "type": "capability",
+                        "data": {
+                            "name": cap_name,
+                            "category": cap.get("category", "other"),
+                            "maturity": cap.get("maturity", "Basic"),
+                            "difficultyScore": cap.get("difficultyScore", 1.0)
+                        }
+                    })
+                
+                edge_id = f"edge:{skill_id}->{cap_id}"
+                if not any(e["id"] == edge_id for e in edges):
+                    edges.append({
+                        "id": edge_id,
+                        "source": skill_id,
+                        "target": cap_id,
+                        "data": {
+                            "repo": repo_name,
+                            "weight": attr.get("contributionWeight", 0.0)
+                        }
+                    })
+    return {"nodes": nodes, "edges": edges, "skill_count": len(seen_skills)}
 
 
-def build_simulated_maturity_inputs(repository_assessments: list) -> dict:
+def build_real_maturity_inputs(repository_assessments: list) -> dict:
     strengths = []
     gaps = []
-    for ra in repository_assessments:
-        profile = get_profile_dict(ra)
-        if not profile:
-            continue
-        strengths.extend(profile.get("keyStrengths", []))
-        gaps.extend(profile.get("identifiedGaps", []))
     
+    for ra in repository_assessments:
+        json_data = ra.get("jsonData") or {}
+        if isinstance(json_data, dict):
+            strengths.extend(json_data.get("keyStrengths", []))
+            gaps.extend(json_data.get("identifiedGaps", []))
+            
     return {
         "commits": [{"message": s, "type": "feat"} for s in strengths if s],
         "codeQualityData": {
@@ -158,13 +190,12 @@ def build_simulated_maturity_inputs(repository_assessments: list) -> dict:
     }
 
 
-def build_simulated_problem_solving_inputs(repository_assessments: list) -> dict:
+def build_real_problem_solving_inputs(repository_assessments: list) -> dict:
     gaps = []
     for ra in repository_assessments:
-        profile = get_profile_dict(ra)
-        if not profile:
-            continue
-        gaps.extend(profile.get("identifiedGaps", []))
+        json_data = ra.get("jsonData") or {}
+        if isinstance(json_data, dict):
+            gaps.extend(json_data.get("identifiedGaps", []))
     return {
         "commits": [{"message": f"Fix gap: {g}", "type": "fix"} for g in gaps if g],
         "commitMessages": [f"Fix gap: {g}" for g in gaps if g]
@@ -180,6 +211,7 @@ class CandidateAssessmentStreamOrchestrator:
         self,
         cv: dict,
         repository_assessments: List[dict],
+        background_repositories: Optional[List[dict]] = None,
         correlation_id: str = "system"
     ) -> AsyncGenerator[Dict[str, Any], None]:
         extra = {"correlation_id": correlation_id}
@@ -194,17 +226,24 @@ class CandidateAssessmentStreamOrchestrator:
             "percentage": 5.0
         }
 
-        # 2. Filter Eligible Repositories (Mock gate check)
+        # 2. Filter Eligible Repositories (real gate check)
         eligible_repos = []
         for ra in repository_assessments:
-            profile = get_profile_dict(ra)
-            if not profile:
-                continue
-            ownership_score = profile.get("ownershipScore", 0.0)
-            clone_classification = profile.get("cloneRiskClassification", "clean")
+            signal = ra.get("intelligenceSignal") or {}
+            ownership_score = float(signal.get("ownershipSignal", 0.0))
+            # Normalize to 0-1 if on 0-100 scale
+            if ownership_score > 1.0:
+                ownership_score = ownership_score / 100.0
+                
+            if ownership_score == 0.0:
+                # Fallback to general overallScore / 100 or assume 1.0
+                ownership_score = float(ra.get("overallScore", 100.0))
+                if ownership_score > 1.0:
+                    ownership_score = ownership_score / 100.0
+
+            quality_metrics = ra.get("qualityMetrics") or {}
+            clone_classification = quality_metrics.get("cloneRiskClassification", "clean")
             
-            # Since repository assessment is manually triggered only for eligible repos,
-            # we just log or keep the ones passing minimal quality metrics
             if ownership_score >= 0.30 and clone_classification != "high_risk":
                 eligible_repos.append(ra)
             else:
@@ -214,7 +253,6 @@ class CandidateAssessmentStreamOrchestrator:
                 )
 
         if not eligible_repos and repository_assessments:
-            # If some repos were passed but none were eligible, throw error
             err_msg = "No verified repositories pass the readiness gates (minimum 30% ownership and low clone risk)."
             logger.error(err_msg, extra=extra)
             yield {
@@ -236,10 +274,10 @@ class CandidateAssessmentStreamOrchestrator:
         cv_skills = cv.get("skills", [])
         working_experience = cv.get("experiences", [])
 
-        consolidated_report = build_simulated_repo_report(eligible_repos)
-        consolidated_graph = build_simulated_skill_graph(eligible_repos)
-        maturity_inputs = build_simulated_maturity_inputs(eligible_repos)
-        problems_inputs = build_simulated_problem_solving_inputs(eligible_repos)
+        consolidated_report = build_real_repo_report(eligible_repos)
+        consolidated_graph = build_real_skill_graph(eligible_repos)
+        maturity_inputs = build_real_maturity_inputs(eligible_repos)
+        problems_inputs = build_real_problem_solving_inputs(eligible_repos)
 
         inputs = {
             "repoIntelligenceReport": consolidated_report,
@@ -253,7 +291,8 @@ class CandidateAssessmentStreamOrchestrator:
             "cvSkills": cv_skills,
             "workingExperience": working_experience,
             "cv": cv,
-            "repositoryAssessments": repository_assessments
+            "repositoryAssessments": repository_assessments,
+            "backgroundRepositories": background_repositories or []
         }
 
         # Synthetic job ID for L2 calls
@@ -270,12 +309,26 @@ class CandidateAssessmentStreamOrchestrator:
             }
 
             try:
-                # Resolve orchestrator private methods dynamically
-                method_name = f"_{task_name.lower()}"
-                if method_name == "_multirolerecommendationengine":
-                    method_name = "_multi_role_recommendation"
-                elif method_name == "_experienceconfidencemultiplier":
-                    method_name = "_experience_confidence_multiplier"
+                # Resolve orchestrator private methods using explicit task mapping
+                task_method_mapping = {
+                    "SkillTaxonomyMapper": "_skill_taxonomy_mapper",
+                    "SkillProficiencyEstimator": "_skill_proficiency_estimator",
+                    "StrengthWeaknessAnalyzer": "_strength_weakness_analyzer",
+                    "CareerLevelMapper": "_career_level_mapper",
+                    "CareerLevelCalibrator": "_career_level_calibrator",
+                    "CareerLevelGate": "_career_level_gate",
+                    "EngineeringMaturityAssessor": "_engineering_maturity_assessor",
+                    "ProblemSolvingAnalyzer": "_problem_solving_analyzer",
+                    "TechnicalTendencyClassifier": "_technical_tendency_classifier",
+                    "WorkingStyleClassifier": "_working_style_classifier",
+                    "ExperienceConfidenceMultiplier": "_experience_confidence_multiplier",
+                    "MultiRoleRecommendationEngine": "_multi_role_recommendation",
+                    "CandidateSummaryGenerator": "_candidate_summary_generator",
+                    "CandidateProfileComposer": "_candidate_profile_composer",
+                }
+                method_name = task_method_mapping.get(task_name)
+                if not method_name:
+                    raise ValueError(f"Task method mapping not found for: {task_name}")
 
                 orchestrator_method = getattr(self.orchestrator, method_name, None)
                 if not orchestrator_method:

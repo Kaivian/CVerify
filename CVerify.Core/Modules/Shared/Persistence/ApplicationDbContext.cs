@@ -164,6 +164,16 @@ public class ApplicationDbContext : DbContext
     public DbSet<CandidateAssessment> CandidateAssessments => Set<CandidateAssessment>();
     public DbSet<CandidateAssessmentArtifact> CandidateAssessmentArtifacts => Set<CandidateAssessmentArtifact>();
     public DbSet<RepositoryAssessment> RepositoryAssessments => Set<RepositoryAssessment>();
+    public DbSet<RepositoryCapability> RepositoryCapabilities => Set<RepositoryCapability>();
+    public DbSet<RepositorySkillAttribution> RepositorySkillAttributions => Set<RepositorySkillAttribution>();
+    public DbSet<RepositoryDomain> RepositoryDomains => Set<RepositoryDomain>();
+    public DbSet<RepositoryIntelligenceSignal> RepositoryIntelligenceSignals => Set<RepositoryIntelligenceSignal>();
+    public DbSet<CandidateSkill> CandidateSkills => Set<CandidateSkill>();
+    public DbSet<CandidateDomainProfile> CandidateDomainProfiles => Set<CandidateDomainProfile>();
+    public DbSet<CandidateIntelligenceSignal> CandidateIntelligenceSignals => Set<CandidateIntelligenceSignal>();
+    public DbSet<CandidateBestFitRole> CandidateBestFitRoles => Set<CandidateBestFitRole>();
+    public DbSet<CandidateStrengthWeakness> CandidateStrengthsWeaknesses => Set<CandidateStrengthWeakness>();
+
 
     public DbSet<ProjectEntry> ProjectEntries => Set<ProjectEntry>();
     public DbSet<ProjectRepositoryLink> ProjectRepositoryLinks => Set<ProjectRepositoryLink>();
@@ -247,6 +257,11 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineJob>().Property(j => j.Id).ValueGeneratedNever();
         modelBuilder.Entity<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineTask>().Property(t => t.Id).ValueGeneratedNever();
         modelBuilder.Entity<CVerify.API.Pipelines.Shared.Artifacts.Entities.ArtifactRegistryEntry>().Property(a => a.Id).ValueGeneratedNever();
+        modelBuilder.Entity<RepositoryCapability>().Property(x => x.Id).ValueGeneratedNever();
+        modelBuilder.Entity<RepositorySkillAttribution>().Property(x => x.Id).ValueGeneratedNever();
+        modelBuilder.Entity<RepositoryDomain>().Property(x => x.Id).ValueGeneratedNever();
+        modelBuilder.Entity<RepositoryIntelligenceSignal>().Property(x => x.Id).ValueGeneratedNever();
+
 
         // Enable PostgreSQL Extensions
         modelBuilder.HasPostgresExtension("citext");
@@ -1135,6 +1150,34 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(ra => ra.AnalysisJobId).HasDatabaseName("idx_repository_assessments_job_id");
             entity.HasIndex(ra => new { ra.RepositoryId, ra.CommitSha }).HasDatabaseName("ux_repository_assessments_repo_sha");
         });
+
+        modelBuilder.Entity<RepositoryCapability>(entity =>
+        {
+            entity.ToTable("repository_capabilities");
+            entity.HasIndex(x => x.RepositoryAssessmentId).HasDatabaseName("idx_repository_capabilities_assessment_id");
+            entity.HasIndex(x => new { x.RepositoryAssessmentId, x.Name }).IsUnique().HasDatabaseName("ux_repository_capabilities_assessment_id_name");
+        });
+
+        modelBuilder.Entity<RepositorySkillAttribution>(entity =>
+        {
+            entity.ToTable("repository_skill_attributions");
+            entity.HasIndex(x => x.RepositoryAssessmentId).HasDatabaseName("idx_repository_skill_attributions_assessment_id");
+            entity.HasIndex(x => new { x.RepositoryAssessmentId, x.SkillName }).IsUnique().HasDatabaseName("ux_repository_skill_attributions_assessment_id_skill");
+        });
+
+        modelBuilder.Entity<RepositoryDomain>(entity =>
+        {
+            entity.ToTable("repository_domains");
+            entity.HasIndex(x => x.RepositoryAssessmentId).HasDatabaseName("idx_repository_domains_assessment_id");
+            entity.HasIndex(x => new { x.RepositoryAssessmentId, x.DomainName }).IsUnique().HasDatabaseName("ux_repository_domains_assessment_id_domain");
+        });
+
+        modelBuilder.Entity<RepositoryIntelligenceSignal>(entity =>
+        {
+            entity.ToTable("repository_intelligence_signals");
+            entity.HasIndex(x => x.RepositoryAssessmentId).IsUnique().HasDatabaseName("ux_repository_intelligence_signals_assessment_id");
+        });
+
 
 
         // ProfileAttachment configurations
