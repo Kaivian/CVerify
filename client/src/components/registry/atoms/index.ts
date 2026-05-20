@@ -16,7 +16,7 @@ export const atomComponents: ComponentNode[] = [
     themeable: true,
     a11yCompliant: true,
     usageCount: 42,
-    pagesUsed: ["/login", "/register", "/admin/users", "/user/dashboard", "/business"],
+    pagesUsed: ["/login", "/admin/users", "/user/dashboard", "/business"],
     lastUpdated: "2026-05-18",
     composedOf: [],
     usedIn: ["otp-input", "dialog-modal", "pagination-wrapper", "table-action-dropdown", "unsaved-changes-bar", "header", "session-timeout-modal"],
