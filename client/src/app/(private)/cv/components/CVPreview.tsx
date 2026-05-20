@@ -612,20 +612,23 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
             <div className="border-b border-neutral-300 w-full my-0.5" />
             <div className="flex flex-col gap-3 mt-1">
               {education.map((edu) => {
-                const start = formatMonthYear(edu.startDate);
-                const end = edu.isCurrentlyStudying ? "Present" : formatMonthYear(edu.endDate);
+                const schoolName = edu.schoolName || edu.school || "";
+                const startDate = edu.startDate || edu.period?.start?.toString() || "";
+                const endDate = edu.endDate || edu.period?.end?.toString() || "";
+                const start = formatMonthYear(startDate);
+                const end = edu.isCurrentlyStudying ? "Present" : formatMonthYear(endDate);
 
                 return (
                   <div key={edu.id} className="flex flex-col gap-0.5 cv-item-avoid-break">
                     <div className="flex items-start justify-between font-bold text-neutral-900 text-[11px]">
-                      <span>{edu.schoolName}</span>
+                      <span>{schoolName}{edu.label ? ` - ${edu.label}` : ""}</span>
                       <span className="text-[10px] text-neutral-600 font-normal shrink-0 pl-4">
-                        {start} to {end}
+                        {start && end ? `${start} to ${end}` : (start || end || "")}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-neutral-700 text-[10.5px]">
                       <span>
-                        {edu.label} {edu.degree ? `(${edu.degree})` : ""}{edu.major ? ` - ${edu.major}` : ""}
+                        {edu.degree || ""}{edu.major ? `${edu.degree ? " - " : ""}${edu.major}` : ""}
                       </span>
                       {edu.gpa && (
                         <span className="font-bold shrink-0 pl-4">

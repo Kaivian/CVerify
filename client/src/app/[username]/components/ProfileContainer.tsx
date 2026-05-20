@@ -1,15 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Compass, Briefcase, MapPin, Link as LinkIcon, ShieldCheck } from 'lucide-react';
+import { Compass, Briefcase, MapPin, Link as LinkIcon, ShieldCheck, GraduationCap, Award } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Typography, Card, Button, Tabs, Separator } from '@heroui/react';
+import { Button, Tabs } from '@heroui/react';
 import { type PublicProfileResponse, type CandidateAssessmentDetailResponse } from '@/types/profile.types';
 import {
   normalizeScore,
-  hasAiAudit,
-  isSkillsVerified,
   getVerifiedSkills,
   isGitHubConnected,
   isLinkedInConnected,
@@ -25,7 +23,7 @@ interface ProfileContainerProps {
 
 type TabId = 'overview' | 'assessment';
 
-export function ProfileContainer({ profile, assessment, username }: ProfileContainerProps) {
+export function ProfileContainer({ profile, assessment, username: _username }: ProfileContainerProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
   const cp = profile.careerPreference;
@@ -79,11 +77,11 @@ export function ProfileContainer({ profile, assessment, username }: ProfileConta
     (notes && notes.trim().length > 0)
   );
 
-  const isEvaluated = isTrustScoreEvaluated(profile.trustScore);
-  const hasAudited = hasAiAudit(profile.repositories);
+  const hasCompletedAssessment = profile.hasCompletedAssessment;
+  const isEvaluated = hasCompletedAssessment && isTrustScoreEvaluated(profile.trustScore);
+  const hasAudited = hasCompletedAssessment;
   const githubConnected = isGitHubConnected(profile.socialLinks) || (profile.repositories && profile.repositories.length > 0);
   const linkedinConnected = isLinkedInConnected(profile.socialLinks);
-  const skillsVerified = isSkillsVerified(profile.repositories);
   const verifiedSkills = getVerifiedSkills(profile.repositories);
 
   const completedRepos = (profile.repositories || []).filter(r => r.latestAnalysisStatus === 'Completed');
@@ -291,11 +289,6 @@ export function ProfileContainer({ profile, assessment, username }: ProfileConta
                   AI Audited
                 </span>
               )}
-              {hasAudited && (
-                <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase rounded-full bg-success/10 text-success border border-success/20">
-                  Repository Analyzed
-                </span>
-              )}
               {githubConnected && (
                 <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase rounded-full bg-accent/10 text-accent border border-accent/20">
                   GitHub Connected
@@ -304,16 +297,6 @@ export function ProfileContainer({ profile, assessment, username }: ProfileConta
               {linkedinConnected && (
                 <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase rounded-full bg-accent/10 text-accent border border-accent/20">
                   LinkedIn Connected
-                </span>
-              )}
-              {skillsVerified && (
-                <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase rounded-full bg-success/10 text-success border border-success/20">
-                  Skills Verified
-                </span>
-              )}
-              {isEvaluated && (
-                <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase rounded-full bg-accent/10 text-accent border border-accent/20">
-                  Trust Score Evaluated
                 </span>
               )}
             </div>
@@ -468,12 +451,12 @@ export function ProfileContainer({ profile, assessment, username }: ProfileConta
                         )}
                       </div>
                       <h3 className="text-base font-bold text-foreground mt-1">
-                        {isEvaluated ? "Repository-based Trust Score" : "Trust Score Status"}
+                        {isEvaluated ? "Repository-based Trust Score" : "Not Yet Analyzed"}
                       </h3>
                       <p className="text-xs text-muted leading-relaxed max-w-md">
                         {isEvaluated
                           ? "This score represents a repository-analysis-based trust score, indicating the level of verification of the candidate's public source code contributions and technical configurations."
-                          : "No repository analysis available yet. Analyze a repository to generate AI-based trust and skill evidence."}
+                          : "This profile has not yet undergone a completed AI CV Analysis. AI-based trust scores and insights will be generated once the candidate initiates a talent assessment."}
                       </p>
                     </div>
 
@@ -488,7 +471,7 @@ export function ProfileContainer({ profile, assessment, username }: ProfileConta
                       </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center p-3 border border-dashed border-border rounded-xl bg-default/50 shrink-0 select-none text-center max-w-[200px]">
-                        <span className="text-[10px] font-semibold text-muted">AI-based score will appear after repository analysis</span>
+                        <span className="text-[10px] font-semibold text-muted">Awaiting AI CV Analysis</span>
                       </div>
                     )}
                   </div>
@@ -598,6 +581,184 @@ export function ProfileContainer({ profile, assessment, username }: ProfileConta
                     </div>
                   )}
 
+                  {/* Work Experience */}
+                  {profile.experiences && profile.experiences.length > 0 && (
+                    <div className="flex flex-col gap-4 border-t border-separator pt-6">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-1 flex items-center gap-2">
+                        <Briefcase className="size-4 text-muted/80 shrink-0" />
+                        Work Experience
+                      </h3>
+                      <div className="flex flex-col gap-4">
+                        {profile.experiences.map((exp) => (
+                          <div key={exp.id} className="p-5 border border-border rounded-xl bg-surface shadow-xs flex flex-col gap-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <h4 className="text-base font-bold text-foreground truncate">
+                                  {exp.jobTitle}
+                                </h4>
+                                <p className="text-xs text-muted font-semibold">
+                                  {exp.company}{exp.location ? ` • ${exp.location}` : ""}
+                                </p>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 shrink-0 select-none">
+                                <span className="text-[10px] text-muted font-medium mt-0.5">
+                                  {formatMonthYear(exp.startDate)} - {exp.isCurrentlyWorking ? "Present" : formatMonthYear(exp.endDate)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {exp.description && (
+                              <p className="text-xs text-muted leading-relaxed whitespace-pre-line">
+                                {exp.description}
+                              </p>
+                            )}
+
+                            {exp.achievements && exp.achievements.length > 0 && (
+                              <div className="flex flex-col gap-1.5 mt-1">
+                                <span className="text-[10px] text-foreground font-bold uppercase tracking-wider select-none">Key Accomplishments</span>
+                                <ul className="list-disc pl-4 space-y-1 text-xs text-muted-foreground">
+                                  {exp.achievements.map((ach: any, idx: number) => (
+                                    <li key={idx} className="leading-relaxed">
+                                      <span className="font-semibold text-foreground/85">{ach.title}:</span> {ach.description}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {exp.technologies && exp.technologies.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                {exp.technologies.map((tech: string) => (
+                                  <span key={tech} className="text-muted font-semibold bg-default px-2 py-0.5 rounded text-[10px]">
+                                    {tech}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {exp.links && exp.links.length > 0 && (
+                              <div className="flex flex-wrap gap-2.5 mt-2 pt-2 border-t border-separator text-xs">
+                                {exp.links.map((link: any, idx: number) => (
+                                  <a
+                                    key={idx}
+                                    href={link.url.startsWith("http") ? link.url : `https://${link.url}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-foreground font-semibold hover:underline text-xs flex items-center gap-1"
+                                  >
+                                    <span>{link.url.replace(/^(https?:\/\/)?(www\.)?/, "")}</span> &rarr;
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Education */}
+                  {profile.educations && profile.educations.length > 0 && (
+                    <div className="flex flex-col gap-4 border-t border-separator pt-6">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-1 flex items-center gap-2">
+                        <GraduationCap className="size-4 text-muted/80 shrink-0" />
+                        Education
+                      </h3>
+                      <div className="flex flex-col gap-4">
+                        {profile.educations.map((edu) => (
+                          <div key={edu.id} className="p-5 border border-border rounded-xl bg-surface shadow-xs flex flex-col gap-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <h4 className="text-base font-bold text-foreground truncate">
+                                  {edu.schoolName}
+                                </h4>
+                                <p className="text-xs text-muted font-semibold">
+                                  {edu.degree || ""}{edu.major ? `${edu.degree ? " in " : ""}${edu.major}` : ""}
+                                  {edu.gpa && ` • GPA: ${edu.gpa}/${edu.gpaScale || 4.0}`}
+                                </p>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 shrink-0 select-none">
+                                <span className="text-[10px] text-muted font-medium mt-0.5">
+                                  {formatMonthYear(edu.startDate)} - {edu.isCurrentlyStudying ? "Present" : formatMonthYear(edu.endDate)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {edu.description && (
+                              <p className="text-xs text-muted leading-relaxed whitespace-pre-line">
+                                {edu.description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Achievements & Certificates */}
+                  {profile.achievements && profile.achievements.length > 0 && (
+                    <div className="flex flex-col gap-4 border-t border-separator pt-6">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-1 flex items-center gap-2">
+                        <Award className="size-4 text-muted/80 shrink-0" />
+                        Achievements & Certificates
+                      </h3>
+                      <div className="flex flex-col gap-4">
+                        {profile.achievements.map((ach) => (
+                          <div key={ach.id} className="p-5 border border-border rounded-xl bg-surface shadow-xs flex flex-col gap-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <h4 className="text-base font-bold text-foreground truncate">
+                                  {ach.title}
+                                </h4>
+                                <p className="text-xs text-muted font-semibold">
+                                  Issued by: {ach.issuer}
+                                </p>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 shrink-0 select-none">
+                                <span className="text-[10px] text-muted font-medium mt-0.5">
+                                  {formatMonthYear(ach.issueDate)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {ach.description && (
+                              <p className="text-xs text-muted leading-relaxed whitespace-pre-line">
+                                {ach.description}
+                              </p>
+                            )}
+
+                            {(ach.credentialUrl || ach.attachment) && (
+                              <div className="flex flex-wrap gap-3 mt-2 pt-2 border-t border-separator text-xs">
+                                {ach.credentialUrl && (
+                                  <a
+                                    key="cred"
+                                    href={ach.credentialUrl.startsWith("http") ? ach.credentialUrl : `https://${ach.credentialUrl}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-foreground font-semibold hover:underline text-xs flex items-center gap-1"
+                                  >
+                                    <span>Credential URL</span> &rarr;
+                                  </a>
+                                )}
+                                {ach.attachment && (
+                                  <a
+                                    key="attach"
+                                    href={ach.attachment.fileUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-foreground font-semibold hover:underline text-xs flex items-center gap-1"
+                                  >
+                                    <span>Download Attachment ({ach.attachment.fileName})</span> &darr;
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Career Preferences Section */}
                   {hasPreferences && (
                     <div className="flex flex-col gap-4 border-t border-separator pt-6">
@@ -692,12 +853,12 @@ export function ProfileContainer({ profile, assessment, username }: ProfileConta
 
             {/* Tab 2: AI Verified Assessment Panel */}
             <Tabs.Panel id="assessment" className="pt-6">
-              {assessment ? (
+              {profile.hasCompletedAssessment && assessment ? (
                 <AiAssessmentTab assessmentDetail={assessment} fullName={profile.fullName || ""} />
               ) : (
                 <div className="flex flex-col items-center justify-center p-12 border border-dashed border-border rounded-xl text-center max-w-lg mx-auto gap-4 mt-6 select-none">
                   <ShieldCheck className="size-12 text-muted/40" />
-                  <h3 className="text-base font-bold text-foreground">AI Assessment Pending</h3>
+                  <h3 className="text-base font-bold text-foreground">Not Yet Analyzed</h3>
                   <p className="text-xs text-muted leading-relaxed">
                     This candidate has not generated their public AI Verified Assessment yet. AI Assessments require manually linking GitHub repositories and initiating verification.
                   </p>

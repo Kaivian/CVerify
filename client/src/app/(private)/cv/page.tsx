@@ -41,6 +41,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useCandidateAssessment } from "@/hooks/use-candidate-assessment";
 import { isDeepEqual } from "@/components/ui/unsaved-changes-bar";
+import { parseDate } from "@internationalized/date";
 
 import {
   type CvDraftState,
@@ -454,15 +455,17 @@ export default function CvManagementCenter() {
       const eduMapped: EducationDraftItem[] = education.map((edu) => ({
         id: edu.id,
         label: edu.label,
-        schoolName: edu.schoolName,
+        school: edu.schoolName,
         degree: edu.degree || "",
         major: edu.major || "",
         gpa: edu.gpa,
         gpaScale: edu.gpaScale,
         description: edu.description || "",
-        startDate: edu.startDate ? edu.startDate.split("T")[0] : "",
-        endDate: edu.endDate ? edu.endDate.split("T")[0] : null,
         isCurrentlyStudying: edu.isCurrentlyStudying,
+        period: {
+          start: edu.startDate ? parseDate(edu.startDate.split("T")[0]) : null,
+          end: edu.endDate ? parseDate(edu.endDate.split("T")[0]) : null,
+        },
       }));
 
       const timer = setTimeout(() => {
@@ -790,14 +793,14 @@ export default function CvManagementCenter() {
         for (const item of formItems) {
           const payload = {
             label: item.label,
-            schoolName: item.schoolName,
+            schoolName: item.school,
             degree: item.degree || null,
             major: item.major || null,
             gpa: item.gpa,
             gpaScale: item.gpaScale,
             description: item.description || null,
-            startDate: new Date(item.startDate).toISOString(),
-            endDate: item.endDate ? new Date(item.endDate).toISOString() : null,
+            startDate: item.period?.start ? new Date(item.period.start.toString()).toISOString() : null,
+            endDate: item.isCurrentlyStudying ? null : (item.period?.end ? new Date(item.period.end.toString()).toISOString() : null),
             isCurrentlyStudying: item.isCurrentlyStudying,
           };
 
