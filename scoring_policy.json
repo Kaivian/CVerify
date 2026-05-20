@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0",
+  "dimensions": {
+    "skillDepth": {
+      "weight": 0.35,
+      "scale_A": 22.0,
+      "scale_B": 0.05
+    },
+    "ownership": {
+      "weight": 0.25,
+      "scale_A": 22.0,
+      "scale_B": 0.2
+    },
+    "architecture": {
+      "weight": 0.20,
+      "scale_A": 22.0,
+      "scale_B": 0.05
+    },
+    "problemSolving": {
+      "weight": 0.12,
+      "scale_A": 22.0,
+      "scale_B": 0.1
+    },
+    "impact": {
+      "weight": 0.08,
+      "scale_A": 20.0,
+      "scale_B": 1.0
+    }
+  }
+}

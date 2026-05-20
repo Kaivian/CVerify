@@ -21,7 +21,7 @@ public class CandidateRepositoryProvider : ICandidateRepositoryProvider
     public async Task<DateTimeOffset> GetLastRepositoryAnalysisAtAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var lastRepoAnalysisAt = await _context.SourceCodeRepositories
-            .Where(r => r.AuthProvider.UserId == userId && r.IsEnabled && r.LatestAnalysisStatus == "Completed")
+            .Where(r => r.AuthProvider.UserId == userId && r.IsEnabled && r.LatestAnalysisStatus == "Completed" && r.IsAccessible)
             .MaxAsync(r => (DateTimeOffset?)r.LatestAnalysisCompletedAtUtc, cancellationToken);
 
         return lastRepoAnalysisAt ?? DateTimeOffset.MinValue;
@@ -30,13 +30,13 @@ public class CandidateRepositoryProvider : ICandidateRepositoryProvider
     public async Task<bool> HasCompletedRepositoriesAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.SourceCodeRepositories
-            .AnyAsync(r => r.AuthProvider.UserId == userId && r.IsEnabled && r.LatestAnalysisStatus == "Completed", cancellationToken);
+            .AnyAsync(r => r.AuthProvider.UserId == userId && r.IsEnabled && r.LatestAnalysisStatus == "Completed" && r.IsAccessible, cancellationToken);
     }
 
     public async Task<List<string>> GetCompletedAnalysisJobIdsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var repos = await _context.SourceCodeRepositories
-            .Where(r => r.AuthProvider.UserId == userId && r.IsEnabled && r.LatestAnalysisStatus == "Completed")
+            .Where(r => r.AuthProvider.UserId == userId && r.IsEnabled && r.LatestAnalysisStatus == "Completed" && r.IsAccessible)
             .ToListAsync(cancellationToken);
 
         var jobIds = new List<string>();

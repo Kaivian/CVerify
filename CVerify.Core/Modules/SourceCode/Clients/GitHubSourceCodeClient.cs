@@ -139,151 +139,55 @@ public class GitHubSourceCodeClient : ISourceCodeClient
         return new ExternalUserProfile(id, username, displayName, email, avatarUrl, profileUrl);
     }
 
-    public async Task<SyncResult> SyncRepositoriesAsync(string accessToken, CancellationToken cancellationToken)
+    public async Task<SyncResult> SyncRepositoriesAsync(string accessToken, List<string> referencedRepoPaths, CancellationToken cancellationToken)
     {
         var httpClient = _httpClientFactory.CreateClient();
         var orgsList = new List<ExternalOrganizationDto>();
         var reposList = new List<SourceCodeRepository>();
 
+        if (referencedRepoPaths == null || referencedRepoPaths.Count == 0)
+        {
+            return new SyncResult(orgsList, reposList, null);
+        }
+
         try
         {
-            // 1. Fetch User Organizations
-            int orgPage = 1;
-            bool hasMoreOrgs = true;
-            while (hasMoreOrgs)
+            foreach (var repoPath in referencedRepoPaths)
             {
                 await CheckRateLimitAsync(httpClient, accessToken, cancellationToken);
 
-                var orgRequest = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/user/orgs?per_page=100&page={orgPage}");
-                orgRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-                orgRequest.Headers.UserAgent.ParseAdd("CVerify-Core");
-
-                var orgResponse = await httpClient.SendAsync(orgRequest, cancellationToken);
-                if (!orgResponse.IsSuccessStatusCode)
-                {
-                    var errContent = await orgResponse.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogWarning("GitHub orgs fetch failed with status {StatusCode}: {Error}", orgResponse.StatusCode, errContent);
-                    break;
-                }
-
-                var orgResponseJson = await orgResponse.Content.ReadAsStringAsync(cancellationToken);
-                using var doc = JsonDocument.Parse(orgResponseJson);
-
-                if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-                {
-                    hasMoreOrgs = false;
-                    break;
-                }
-
-                foreach (var orgElement in doc.RootElement.EnumerateArray())
-                {
-                    var extId = orgElement.GetProperty("id").GetInt64().ToString();
-                    var login = orgElement.GetProperty("login").GetString() ?? "";
-                    var name = orgElement.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : login;
-                    var avatarUrl = orgElement.TryGetProperty("avatar_url", out var avatarProp) ? avatarProp.GetString() : null;
-                    var htmlUrl = $"https://github.com/{login}";
-                    var description = orgElement.TryGetProperty("description", out var descProp) ? descProp.GetString() : null;
-
-                    orgsList.Add(new ExternalOrganizationDto(extId, name ?? login, login, avatarUrl, htmlUrl, description));
-                }
-
-                if (doc.RootElement.GetArrayLength() < 100)
-                {
-                    hasMoreOrgs = false;
-                }
-                else
-                {
-                    orgPage++;
-                }
-            }
-
-            // 2. Fetch User Personal & Collaborator Repositories
-            int userRepoPage = 1;
-            bool hasMoreUserRepos = true;
-            while (hasMoreUserRepos)
-            {
-                await CheckRateLimitAsync(httpClient, accessToken, cancellationToken);
-
-                // Querying with affiliation=owner,collaborator to avoid fetching organization repos twice (handled below)
-                var repoRequest = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/user/repos?affiliation=owner,collaborator&per_page=100&page={userRepoPage}");
+                var repoRequest = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{repoPath}");
                 repoRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
                 repoRequest.Headers.UserAgent.ParseAdd("CVerify-Core");
 
                 var repoResponse = await httpClient.SendAsync(repoRequest, cancellationToken);
                 if (!repoResponse.IsSuccessStatusCode)
                 {
-                    var errContent = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
-                    throw new HttpRequestException($"GitHub user/repos returned status {repoResponse.StatusCode}: {errContent}");
+                    _logger.LogWarning("GitHub fetch for repo {RepoPath} failed with status {StatusCode}", repoPath, repoResponse.StatusCode);
+                    continue;
                 }
 
                 var repoResponseJson = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
                 using var doc = JsonDocument.Parse(repoResponseJson);
+                var repoElement = doc.RootElement;
 
-                if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+                var parsedRepo = ParseGitHubRepository(repoElement);
+                reposList.Add(parsedRepo);
+
+                // Check and add organization if owner type is organization
+                var ownerObj = repoElement.GetProperty("owner");
+                var ownerType = ownerObj.GetProperty("type").GetString();
+                if (string.Equals(ownerType, "organization", StringComparison.OrdinalIgnoreCase))
                 {
-                    hasMoreUserRepos = false;
-                    break;
-                }
+                    var extId = ownerObj.GetProperty("id").GetInt64().ToString();
+                    var login = ownerObj.GetProperty("login").GetString() ?? "";
+                    var name = ownerObj.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : login;
+                    var avatarUrl = ownerObj.TryGetProperty("avatar_url", out var avatarProp) ? avatarProp.GetString() : null;
+                    var htmlUrl = $"https://github.com/{login}";
 
-                foreach (var repoElement in doc.RootElement.EnumerateArray())
-                {
-                    reposList.Add(ParseGitHubRepository(repoElement));
-                }
-
-                if (doc.RootElement.GetArrayLength() < 100)
-                {
-                    hasMoreUserRepos = false;
-                }
-                else
-                {
-                    userRepoPage++;
-                }
-            }
-
-            // 3. Fetch Organization-Specific Repositories
-            foreach (var org in orgsList)
-            {
-                int orgRepoPage = 1;
-                bool hasMoreOrgRepos = true;
-
-                while (hasMoreOrgRepos)
-                {
-                    await CheckRateLimitAsync(httpClient, accessToken, cancellationToken);
-
-                    var orgRepoRequest = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/orgs/{org.Login}/repos?per_page=100&page={orgRepoPage}");
-                    orgRepoRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-                    orgRepoRequest.Headers.UserAgent.ParseAdd("CVerify-Core");
-
-                    var orgRepoResponse = await httpClient.SendAsync(orgRepoRequest, cancellationToken);
-                    if (!orgRepoResponse.IsSuccessStatusCode)
+                    if (!orgsList.Any(o => string.Equals(o.ExternalId, extId, StringComparison.OrdinalIgnoreCase)))
                     {
-                        var errContent = await orgRepoResponse.Content.ReadAsStringAsync(cancellationToken);
-                        _logger.LogWarning("Failed to fetch repositories for organization {OrgLogin}. Status: {StatusCode}, Error: {Error}", 
-                            org.Login, orgRepoResponse.StatusCode, errContent);
-                        break;
-                    }
-
-                    var orgRepoResponseJson = await orgRepoResponse.Content.ReadAsStringAsync(cancellationToken);
-                    using var doc = JsonDocument.Parse(orgRepoResponseJson);
-
-                    if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-                    {
-                        hasMoreOrgRepos = false;
-                        break;
-                    }
-
-                    foreach (var repoElement in doc.RootElement.EnumerateArray())
-                    {
-                        reposList.Add(ParseGitHubRepository(repoElement));
-                    }
-
-                    if (doc.RootElement.GetArrayLength() < 100)
-                    {
-                        hasMoreOrgRepos = false;
-                    }
-                    else
-                    {
-                        orgRepoPage++;
+                        orgsList.Add(new ExternalOrganizationDto(extId, name ?? login, login, avatarUrl, htmlUrl, null));
                     }
                 }
             }
@@ -292,7 +196,7 @@ public class GitHubSourceCodeClient : ISourceCodeClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred during GitHub synchronization.");
+            _logger.LogError(ex, "Error occurred during GitHub targeted synchronization.");
             return new SyncResult(orgsList, reposList, ex.Message);
         }
     }

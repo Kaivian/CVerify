@@ -418,79 +418,177 @@ class TestCandidateProfileComposer(unittest.IsolatedAsyncioTestCase):
         orch = CandidateEvaluationOrchestrator.__new__(CandidateEvaluationOrchestrator)
         return await orch._candidate_profile_composer("job-1", inputs, "test")
 
-    async def test_score_formula_correct_weights(self):
-        """Score = Skill×35% + Ownership×25% + Architecture×20% + ProblemSolving×12% + Impact×8%"""
-        inputs = {
-            "skillDepthScore": 80.0,
-            "ownershipScore": 70.0,
-            "architectureScore": 60.0,
-            "problemSolvingScore": 50.0,
-            "impactScore": 40.0,
+    def _build_mock_inputs(self, skills=None, repos=None, experience_months=36):
+        if skills is None:
+            skills = ["Python", "React"]
+        if repos is None:
+            repos = []
+        return {
+            "cv": {
+                "skills": skills,
+                "experiences": [{"durationMonths": experience_months, "company": "Google", "jobTitle": "Senior Software Engineer"}]
+            },
+            "skillProficiencies": [{"skill": s, "proficiencyLevel": 3, "proficiencyLabel": "Practitioner", "confidenceScore": 0.9} for s in skills],
+            "repositoryAssessments": repos,
+            "confidenceMultiplier": {"totalExperienceMonths": experience_months, "hasLeadershipExperience": True, "confidenceMultiplier": 1.25}
         }
-        expected = 80 * 0.35 + 70 * 0.25 + 60 * 0.20 + 50 * 0.12 + 40 * 0.08
-        result = await self._run(inputs)
-        data = __import__("json").loads(result["resultData"])
-        self.assertAlmostEqual(data["candidateScore"], expected, places=1)
 
-    async def test_score_clamped_to_100(self):
-        inputs = {
-            "skillDepthScore": 100.0,
-            "ownershipScore": 100.0,
-            "architectureScore": 100.0,
-            "problemSolvingScore": 100.0,
-            "impactScore": 100.0,
-        }
+    async def test_score_formula_consistency(self):
+        """Verify that overall candidate score is strictly the weighted sum of breakdown dimensions."""
+        inputs = self._build_mock_inputs(
+            skills=["Python", "React"],
+            repos=[{
+                "repositoryId": "repo-1",
+                "repositoryName": "test-repo",
+                "overallScore": 80.0,
+                "cvVerificationLevel": "AiAnalyzed",
+                "trustLevel": 3,
+                "capabilities": [
+                    {"name": "DI", "difficultyScore": 6.0, "maturity": "Advanced", "category": "architecture"},
+                    {"name": "REST API", "difficultyScore": 4.0, "maturity": "Intermediate", "category": "backend"}
+                ],
+                "skillAttributions": [
+                    {"skillName": "Python", "confidence": 90.0, "contributionWeight": 0.8},
+                    {"skillName": "React", "confidence": 90.0, "contributionWeight": 0.8}
+                ],
+                "intelligenceSignal": {
+                    "ownershipSignal": 85.0,
+                    "consistencySignal": 90.0,
+                    "scopeSignal": 75.0,
+                    "leadershipSignal": 80.0
+                },
+                "qualityMetrics": {
+                    "qualityScore": 85.0
+                }
+            }]
+        )
         result = await self._run(inputs)
         data = __import__("json").loads(result["resultData"])
-        self.assertLessEqual(data["candidateScore"], 100.0)
+        s_candidate = data["candidateScore"]
+        breakdown = data["scoreBreakdown"]
+        
+        # Recalculate from breakdown to assert atomic consistency
+        expected = round(
+            breakdown["skillDepth"]["score"] * breakdown["skillDepth"]["weight"] +
+            breakdown["ownership"]["score"] * breakdown["ownership"]["weight"] +
+            breakdown["architecture"]["score"] * breakdown["architecture"]["weight"] +
+            breakdown["problemSolving"]["score"] * breakdown["problemSolving"]["weight"] +
+            breakdown["impact"]["score"] * breakdown["impact"]["weight"]
+        )
+        self.assertEqual(s_candidate, expected)
+
+    async def test_score_is_open_ended_not_capped_at_100(self):
+        """Verify that scores are open-ended and can exceed 100 when abundant evidence is present."""
+        many_skills = [f"Skill_{i}" for i in range(30)]
+        many_repos = []
+        for i in range(15):
+            many_repos.append({
+                "repositoryId": f"repo-{i}",
+                "repositoryName": f"repo-name-{i}",
+                "overallScore": 95.0,
+                "capabilities": [
+                    {"name": f"DI_{i}", "difficultyScore": 8.0, "maturity": "Enterprise", "category": "architecture"},
+                    {"name": f"Feature_{i}", "difficultyScore": 7.0, "maturity": "Advanced", "category": "backend"}
+                ],
+                "skillAttributions": [{"skillName": s, "confidence": 95.0, "contributionWeight": 0.9} for s in many_skills],
+                "intelligenceSignal": {
+                    "ownershipSignal": 95.0,
+                    "consistencySignal": 95.0,
+                    "scopeSignal": 90.0,
+                    "leadershipSignal": 90.0
+                },
+                "qualityMetrics": {
+                    "qualityScore": 95.0
+                }
+            })
+            
+        inputs = self._build_mock_inputs(skills=many_skills, repos=many_repos, experience_months=120)
+        # Add leadership multiplier details
+        inputs["confidenceMultiplier"]["hasLeadershipExperience"] = True
+        
+        result = await self._run(inputs)
+        data = __import__("json").loads(result["resultData"])
+        
+        # Check that individual dimensions or candidateScore can grow beyond 100
+        has_above_100 = any(
+            v["score"] > 100 for v in data["scoreBreakdown"].values()
+        ) or data["candidateScore"] > 100
+        
+        self.assertTrue(has_above_100, f"Expected scores to be open-ended, but all were <= 100: {data}")
 
     async def test_zero_scores_produce_zero_candidate_score(self):
-        inputs = {
-            "skillDepthScore": 0.0, "ownershipScore": 0.0,
-            "architectureScore": 0.0, "problemSolvingScore": 0.0, "impactScore": 0.0,
-        }
-        result = await self._run(inputs)
+        result = await self._run({})
         data = __import__("json").loads(result["resultData"])
-        self.assertEqual(data["candidateScore"], 0.0)
+        self.assertEqual(data["candidateScore"], 0)
 
-    async def test_display_confidence_uses_multiplier(self):
-        inputs = {
-            "skillDepthScore": 70.0, "ownershipScore": 70.0,
-            "architectureScore": 70.0, "problemSolvingScore": 70.0, "impactScore": 70.0,
-            "confidenceInLevel": 0.8, "confidenceMultiplier": 1.2,
-        }
-        result = await self._run(inputs)
-        data = __import__("json").loads(result["resultData"])
-        self.assertAlmostEqual(data["displayConfidence"], min(0.8 * 1.2, 1.0), places=2)
-
-    async def test_display_confidence_capped_at_1(self):
-        inputs = {
-            "skillDepthScore": 70.0, "ownershipScore": 70.0,
-            "architectureScore": 70.0, "problemSolvingScore": 70.0, "impactScore": 70.0,
-            "confidenceInLevel": 0.95, "confidenceMultiplier": 1.25,
-        }
-        result = await self._run(inputs)
-        data = __import__("json").loads(result["resultData"])
-        self.assertLessEqual(data["displayConfidence"], 1.0)
-
-    async def test_score_breakdown_weights_correct(self):
-        inputs = {
-            "skillDepthScore": 70.0, "ownershipScore": 70.0,
-            "architectureScore": 70.0, "problemSolvingScore": 70.0, "impactScore": 70.0,
-        }
-        result = await self._run(inputs)
-        data = __import__("json").loads(result["resultData"])
-        breakdown = data["scoreBreakdown"]
-        self.assertAlmostEqual(breakdown["skillDepth"]["weight"], 0.35)
-        self.assertAlmostEqual(breakdown["ownership"]["weight"], 0.25)
-        self.assertAlmostEqual(breakdown["architecture"]["weight"], 0.20)
-        self.assertAlmostEqual(breakdown["problemSolving"]["weight"], 0.12)
-        self.assertAlmostEqual(breakdown["impact"]["weight"], 0.08)
+    async def test_monotonicity_invariant_on_repository_addition(self):
+        """Adding new repositories must strictly increase or stabilize scores (never decrease)."""
+        base_inputs = self._build_mock_inputs(
+            skills=["Python"],
+            repos=[{
+                "repositoryId": "repo-1",
+                "repositoryName": "test-repo",
+                "overallScore": 50.0,
+                "capabilities": [
+                    {"name": "Feature-1", "difficultyScore": 3.0, "maturity": "Intermediate", "category": "backend"}
+                ],
+                "skillAttributions": [{"skillName": "Python", "confidence": 70.0, "contributionWeight": 0.5}],
+                "intelligenceSignal": {
+                    "ownershipSignal": 40.0,
+                    "consistencySignal": 50.0,
+                },
+                "qualityMetrics": {
+                    "qualityScore": 60.0
+                }
+            }]
+        )
+        
+        # 1. Evaluate base candidate
+        base_result = await self._run(base_inputs)
+        base_data = __import__("json").loads(base_result["resultData"])
+        
+        # 2. Add a new repository (with more capabilities, ownership, skills)
+        mutated_inputs = self._build_mock_inputs(
+            skills=["Python", "Go"],
+            repos=[
+                base_inputs["repositoryAssessments"][0],
+                {
+                    "repositoryId": "repo-2",
+                    "repositoryName": "another-repo",
+                    "overallScore": 80.0,
+                    "capabilities": [
+                        {"name": "DI", "difficultyScore": 6.0, "maturity": "Advanced", "category": "architecture"}
+                    ],
+                    "skillAttributions": [{"skillName": "Go", "confidence": 80.0, "contributionWeight": 0.8}],
+                    "intelligenceSignal": {
+                        "ownershipSignal": 70.0,
+                        "consistencySignal": 80.0,
+                    },
+                    "qualityMetrics": {
+                        "qualityScore": 80.0
+                    }
+                }
+            ]
+        )
+        mutated_inputs["skillProficiencies"].append({"skill": "Go", "proficiencyLevel": 3, "proficiencyLabel": "Practitioner", "confidenceScore": 0.8})
+        
+        mutated_result = await self._run(mutated_inputs)
+        mutated_data = __import__("json").loads(mutated_result["resultData"])
+        
+        # 3. Assert Monotonicity: Mutated scores must be >= Base scores
+        self.assertGreaterEqual(mutated_data["candidateScore"], base_data["candidateScore"])
+        
+        for k in base_data["scoreBreakdown"]:
+            self.assertGreaterEqual(
+                mutated_data["scoreBreakdown"][k]["score"],
+                base_data["scoreBreakdown"][k]["score"],
+                f"Score degradation detected in dimension '{k}'!"
+            )
 
     async def test_schema_version_present(self):
         result = await self._run({})
         data = __import__("json").loads(result["resultData"])
-        self.assertEqual(data["schemaVersion"], "candidate-profile-v1")
+        self.assertEqual(data["schemaVersion"], "candidate-profile-v2")
 
 
 # =============================================================================
@@ -881,5 +979,81 @@ class TestOrchestratorLine1Isolation(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "Completed")
 
 
+# =============================================================================
+# 11. Working Style Classifier Fallback
+# =============================================================================
+class TestWorkingStyleClassifierFallback(unittest.IsolatedAsyncioTestCase):
+    """
+    Validates that:
+    - If the AI returns a valid working style, it is preserved.
+    - If the AI returns an invalid/unclassifiable style, it falls back to the rule-based primary style.
+    - If the AI returns an invalid/unclassifiable style, the styleConfidence is mapped to a low-confidence neutral band (capped at 0.3).
+    """
+
+    def _make_orchestrator(self, claude_response_json: dict):
+        import json
+        from app.pipelines.candidate.orchestrator import CandidateEvaluationOrchestrator
+        from app.core.services.claude_service import ClaudeService
+        from app.pipelines.shared.ai.prompts.candidate_prompt_factory import CandidatePromptFactory
+
+        mock_claude = MagicMock(spec=ClaudeService)
+        mock_claude.analyze_repo_with_telemetry = AsyncMock(
+            return_value=(json.dumps(claude_response_json), {"tokens": 100})
+        )
+
+        mock_prompt = MagicMock(spec=CandidatePromptFactory)
+        mock_prompt.get_system_prompt.return_value = "System"
+        mock_prompt.get_working_style_prompt.return_value = "User"
+
+        orch = CandidateEvaluationOrchestrator()
+        orch.claude_service = mock_claude
+        orch.prompt_factory = mock_prompt
+        return orch
+
+    async def test_valid_style_preserved(self):
+        import json
+        orch = self._make_orchestrator({
+            "primaryWorkingStyle": "System Designer",
+            "styleConfidence": 0.85,
+            "styleDistribution": {"System Designer": 0.85}
+        })
+        result = await orch._working_style_classifier(
+            "job-1",
+            {
+                "commitIntentData": {"commitMessages": ["feat: hello"] * 2},
+                "commitTimelineData": {}
+            },
+            "test"
+        )
+        self.assertEqual(result["status"], "Completed")
+        data = json.loads(result["resultData"])
+        self.assertEqual(data["primaryWorkingStyle"], "System Designer")
+        self.assertEqual(data["styleConfidence"], 0.85)
+
+    async def test_invalid_style_fallback_to_rule_based(self):
+        import json
+        # Setup: rule-based primary will be "Problem Solver" based on bugfix commits
+        # Claude response returns an invalid "Unclassifiable" style
+        orch = self._make_orchestrator({
+            "primaryWorkingStyle": "Unclassifiable",
+            "styleConfidence": 0.9,
+            "styleDistribution": {}
+        })
+        result = await orch._working_style_classifier(
+            "job-1",
+            {
+                "commitIntentData": {"commitMessages": ["fix: bug"] * 10},
+                "commitTimelineData": {}
+            },
+            "test"
+        )
+        self.assertEqual(result["status"], "Completed")
+        data = json.loads(result["resultData"])
+        self.assertEqual(data["primaryWorkingStyle"], "Problem Solver")
+        self.assertEqual(data["styleConfidence"], 0.3)  # Capped at 0.3
+        self.assertEqual(data["_hybridSource"], "fallback_unclassifiable")
+
+
 if __name__ == "__main__":
     unittest.main()
+
