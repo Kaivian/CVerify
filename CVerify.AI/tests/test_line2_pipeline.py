@@ -506,6 +506,19 @@ class TestCandidateProfileComposer(unittest.IsolatedAsyncioTestCase):
         # Add leadership multiplier details
         inputs["confidenceMultiplier"]["hasLeadershipExperience"] = True
         
+        # Add self-declared projects to CV to let self-declared scores contribute
+        inputs["cv"]["projects"] = [
+            {
+                "name": f"Project_{i}",
+                "technologies": [many_skills[i % len(many_skills)], "microservices", "kubernetes"],
+                "startDate": "2020-01-01",
+                "endDate": "2021-01-01",
+                "verificationLevel": "SelfDeclared",
+                "description": "A very large enterprise scaling microservices project."
+            }
+            for i in range(15)
+        ]
+        
         result = await self._run(inputs)
         data = __import__("json").loads(result["resultData"])
         
@@ -589,6 +602,34 @@ class TestCandidateProfileComposer(unittest.IsolatedAsyncioTestCase):
         result = await self._run({})
         data = __import__("json").loads(result["resultData"])
         self.assertEqual(data["schemaVersion"], "candidate-profile-v2")
+
+    async def test_best_fit_roles_deduplicated_and_capped(self):
+        inputs = self._build_mock_inputs()
+        inputs["suggestedRoles"] = [
+            {"role": "Software Engineer", "confidence": 0.85, "rationale": "Strong programming skills"},
+            {"role": "SOFTWARE ENGINEER", "confidence": 0.90, "rationale": "High confidence"},
+            {"role": "DevOps Engineer", "confidence": 0.70, "rationale": "CI/CD setup"},
+            {"role": "Frontend Developer", "confidence": 0.80, "rationale": "React expertise"},
+            {"role": "Fullstack Developer", "confidence": 0.95, "rationale": "React + Python"},
+        ]
+        inputs["topMatch"] = {"roleTitle": "Software Engineer", "confidence": 0.88, "rationale": "Matches primary stack"}
+        
+        result = await self._run(inputs)
+        data = __import__("json").loads(result["resultData"])
+        
+        roles = data["bestFitRoles"]
+        # Should be capped at 3
+        self.assertEqual(len(roles), 3)
+        
+        # Titles must be unique (case-insensitively)
+        titles = [r["roleTitle"] for r in roles]
+        self.assertEqual(len(titles), len(set(t.lower() for t in titles)))
+        
+        # Should be sorted by confidence descending:
+        # Fullstack Developer (0.95), Software Engineer (from suggestedRoles 0.90 since it's higher than 0.88), Frontend Developer (0.80)
+        self.assertEqual(roles[0]["roleTitle"], "Fullstack Developer")
+        self.assertEqual(roles[1]["roleTitle"], "SOFTWARE ENGINEER")
+        self.assertEqual(roles[2]["roleTitle"], "Frontend Developer")
 
 
 # =============================================================================

@@ -15,6 +15,10 @@ public class RepositorySyncJobStatus
     public string Status { get; set; } = "Pending"; // Pending, Syncing, Completed, Failed
     public double Progress { get; set; } = 0.0;
     public string? Error { get; set; }
+    public int MaxPages { get; set; }
+    public int PageSize { get; set; }
+    public int TotalSyncedCount { get; set; }
+    public bool IsPartial { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
@@ -32,6 +36,7 @@ public interface ISourceCodeProviderService
         string? category, 
         string? ownerType,
         Guid? organizationId,
+        string? mode,
         int page, 
         int pageSize);
     Task<IEnumerable<ExternalOrganizationResponseDto>> GetOrganizationsAsync(Guid userId);

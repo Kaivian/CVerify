@@ -44,6 +44,11 @@ SKILL_TAXONOMY: dict[str, TaxonomyEntry] = {
     "vite": TaxonomyEntry("Vite", "Software Development", "15-1252.00"),
     "tailwind": TaxonomyEntry("Tailwind CSS", "Software Development", "15-1252.00"),
     "tailwindcss": TaxonomyEntry("Tailwind CSS", "Software Development", "15-1252.00"),
+    "node": TaxonomyEntry("Node.js", "Software Development", "15-1252.00"),
+    "nodejs": TaxonomyEntry("Node.js", "Software Development", "15-1252.00"),
+    "node.js": TaxonomyEntry("Node.js", "Software Development", "15-1252.00"),
+    "mern": TaxonomyEntry("MERN Stack", "Software Development", "15-1252.00"),
+    "mern stack": TaxonomyEntry("MERN Stack", "Software Development", "15-1252.00"),
 
     # Backend / Frameworks
     "spring boot": TaxonomyEntry("Spring Framework", "Software Development", "15-1252.00"),
@@ -90,6 +95,8 @@ SKILL_TAXONOMY: dict[str, TaxonomyEntry] = {
     "mysql": TaxonomyEntry("MySQL", "Database Administration", "15-1245.00"),
     "mongodb": TaxonomyEntry("MongoDB", "Database Administration", "15-1245.00"),
     "mongo": TaxonomyEntry("MongoDB", "Database Administration", "15-1245.00"),
+    "mongodb & mongoose": TaxonomyEntry("MongoDB", "Database Administration", "15-1245.00"),
+    "mongoose": TaxonomyEntry("MongoDB", "Database Administration", "15-1245.00"),
     "redis": TaxonomyEntry("Redis", "Database Administration", "15-1245.00"),
     "sqlite": TaxonomyEntry("SQLite", "Database Administration", "15-1245.00"),
     "mssql": TaxonomyEntry("SQL Server", "Database Administration", "15-1245.00"),

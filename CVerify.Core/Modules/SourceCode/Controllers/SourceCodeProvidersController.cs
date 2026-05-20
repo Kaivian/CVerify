@@ -57,6 +57,7 @@ public class SourceCodeProvidersController : ControllerBase
         [FromQuery] string? category,
         [FromQuery] string? ownerType,
         [FromQuery] Guid? organizationId,
+        [FromQuery] string? mode = "all",
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
@@ -75,6 +76,7 @@ public class SourceCodeProvidersController : ControllerBase
             category,
             ownerType,
             organizationId,
+            mode,
             page,
             pageSize);
 

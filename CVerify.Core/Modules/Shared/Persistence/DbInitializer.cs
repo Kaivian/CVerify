@@ -91,6 +91,7 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS pipeline_tasks CASCADE;
                 DROP TABLE IF EXISTS pipeline_jobs CASCADE;
                 DROP TABLE IF EXISTS prompt_deployments CASCADE;
+                DROP TABLE IF EXISTS cv_repository_mappings CASCADE;
                 DROP TABLE IF EXISTS repository_skill_attributions CASCADE;
                 DROP TABLE IF EXISTS repository_intelligence_signals CASCADE;
                 DROP TABLE IF EXISTS repository_domains CASCADE;
@@ -676,6 +677,16 @@ public static class DbInitializer
                  updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
              );
 
+             CREATE TABLE IF NOT EXISTS cv_repository_mappings (
+                 id UUID PRIMARY KEY,
+                 user_id UUID NOT NULL,
+                 source_code_repository_id UUID NOT NULL REFERENCES source_code_repositories(id) ON DELETE CASCADE,
+                 reference_source VARCHAR(50) NOT NULL,
+                 reference_entity_id UUID NULL,
+                 indexed_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+             );
+             CREATE INDEX IF NOT EXISTS idx_cv_repository_mappings_user_id ON cv_repository_mappings(user_id);
+             CREATE INDEX IF NOT EXISTS idx_cv_repository_mappings_repo_id ON cv_repository_mappings(source_code_repository_id);
 
             -- Stores user roles for the Role-Based Access Control (RBAC) system
             CREATE TABLE IF NOT EXISTS roles (

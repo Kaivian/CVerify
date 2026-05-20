@@ -7,11 +7,18 @@ from app.core.services.claude_service import ClaudeService
 from app.core.clients.repo_intelligence_client import RepoIntelligenceClient
 from app.pipelines.shared.ai.prompts.candidate_prompt_factory import CandidatePromptFactory
 from app.core.monitoring.observability import trace_stage, TraceContext
-from app.pipelines.candidate.skill_taxonomy import normalize_batch, get_taxonomy_hints
+from app.pipelines.candidate.skill_taxonomy import normalize_batch, get_taxonomy_hints, normalize_skill
 from app.pipelines.candidate.tendency_rules import get_primary_tendency, score_tendencies
 from app.pipelines.candidate.working_style_rules import get_primary_working_style, score_working_styles
+from app.pipelines.candidate import scoring_engine
 
 logger = logging.getLogger("candidate_evaluation_orchestrator")
+
+def _get_normalized_name(name: str) -> str:
+    if not name:
+        return ""
+    entry = normalize_skill(name)
+    return entry.normalized_name.lower() if entry else name.strip().lower()
 
 # Line 1 artifact keys that Line 2 fetches from the database.
 # These must NOT be passed as inputs in the request body.
@@ -613,6 +620,9 @@ class CandidateEvaluationOrchestrator:
 
         cv = inputs.get("cv") or {}
         repository_assessments = inputs.get("repositoryAssessments") or []
+        exp_multiplier_data = inputs.get("confidenceMultiplier") or {}
+        if not isinstance(exp_multiplier_data, dict):
+            exp_multiplier_data = inputs
 
         # Load scoring policy from scoring_policy.json
         policy_path = None
@@ -657,6 +667,67 @@ class CandidateEvaluationOrchestrator:
         w_ps, a_ps, b_ps = dim_cfg["problemSolving"]["weight"], dim_cfg["problemSolving"]["scale_A"], dim_cfg["problemSolving"]["scale_B"]
         w_imp, a_imp, b_imp = dim_cfg["impact"]["weight"], dim_cfg["impact"]["scale_A"], dim_cfg["impact"]["scale_B"]
 
+        has_verified_repos = len(repository_assessments) > 0
+        cv_skills = cv.get("skills", [])
+        skill_proficiencies = inputs.get("skillProficiencies", [])
+
+        # Identify self-declared projects
+        verified_project_ids = {str(ra.get("cvProjectEntryId")).lower() for ra in repository_assessments if ra.get("cvProjectEntryId")}
+        verified_project_names = {str(ra.get("cvProjectName")).lower() for ra in repository_assessments if ra.get("cvProjectName")}
+        
+        self_declared_projects = []
+        for proj in cv.get("projects", []):
+            proj_id = proj.get("cvProjectId")
+            proj_name = proj.get("name")
+            
+            is_verified = False
+            if proj_id and str(proj_id).lower() in verified_project_ids:
+                is_verified = True
+            elif proj_name and str(proj_name).lower() in verified_project_names:
+                is_verified = True
+            elif proj.get("verificationLevel") in ("AiAnalyzed", "RepositoryLinked"):
+                is_verified = True
+                
+            if not is_verified:
+                self_declared_projects.append(proj)
+
+        # Call the standalone scoring engine
+        verified_dict = scoring_engine.calculate_verified_score(
+            repository_assessments=repository_assessments,
+            cv=cv,
+            cv_skills=cv_skills,
+            skill_proficiencies=skill_proficiencies,
+            policy=policy
+        )
+
+        self_declared_dict = scoring_engine.calculate_self_declared_score(
+            cv=cv,
+            cv_skills=cv_skills,
+            skill_proficiencies=skill_proficiencies,
+            repository_assessments=repository_assessments,
+            inputs=inputs,
+            policy=policy
+        )
+
+        combined = scoring_engine.aggregate_scores(
+            verified=verified_dict,
+            self_declared=self_declared_dict,
+            has_verified_repos=has_verified_repos,
+            policy=policy
+        )
+
+        sd_score = int(round(combined["skillDepth"]))
+        own_score = int(round(combined["ownership"]))
+        arch_score = int(round(combined["architecture"]))
+        ps_score = int(round(combined["problemSolving"]))
+        imp_score = int(round(combined["impact"]))
+        s_candidate = int(round(combined["score"]))
+
+        # Cohort Normalization
+        snapshot_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cohort_snapshot_v1.json")
+        cohort_percentile, cohort_version = scoring_engine.normalize_score_to_cohort(combined["score"], snapshot_path)
+        cohort_range = scoring_engine.calculate_uncertainty_band(combined["score"], self_declared_dict["score"], cohort_percentile)
+
         # Parse basic intelligence properties from repos
         repo_scores = []
         max_difficulty_score = 0.0
@@ -675,7 +746,7 @@ class CandidateEvaluationOrchestrator:
                 if diff_score <= 1.0:
                     diff_score *= 10.0
                 max_difficulty_score = max(max_difficulty_score, diff_score)
-                all_categories.add(cap.get("category", "other"))
+                all_categories.add(cap.get("category", "other").lower())
                 
                 maturity = cap.get("maturity", "Basic")
                 maturity_mult = 0.5 if maturity == "Basic" else 1.0 if maturity == "Intermediate" else 1.5 if maturity == "Advanced" else 2.0
@@ -689,108 +760,16 @@ class CandidateEvaluationOrchestrator:
             leaderships.append(float(sig.get("leadershipSignal", 0.0)))
             consistencies.append(float(sig.get("consistencySignal", 0.0)))
 
-        # 1. Skill Depth
-        cv_skills = cv.get("skills", [])
-        skill_proficiencies = inputs.get("skillProficiencies", [])
-        raw_skills = 0.0
-        for skill_name in cv_skills:
-            prof = next((p for p in skill_proficiencies if p.get("skill", "").lower() == skill_name.lower()), None)
-            supporting_repos = []
-            for ra in repository_assessments:
-                for attr in ra.get("skillAttributions", []):
-                    if attr.get("skillName", "").lower() == skill_name.lower():
-                        supporting_repos.append(ra)
-            if prof and supporting_repos:
-                raw_skills += float(prof.get("proficiencyLevel", 1.0)) * 25.0
-                
-        sd_score = int(round(a_sd * math.log1p(b_sd * raw_skills)))
+        # Plus from self-declared projects for category-based breadth
+        from app.pipelines.candidate.skill_taxonomy import SKILL_TAXONOMY
+        for proj in self_declared_projects:
+            for tech in proj.get("technologies", []):
+                entry = SKILL_TAXONOMY.get(str(tech).strip().lower())
+                if entry and entry.sfia_category:
+                    all_categories.add(entry.sfia_category.lower())
 
-        # 2. Repository Ownership
-        raw_ownership = 0.0
-        for idx, ra in enumerate(repository_assessments):
-            sig = ra.get("intelligenceSignal") or {}
-            ownership_signal = float(sig.get("ownershipSignal", 0.0))
-            if ownership_signal > 1.0:
-                ownership_signal /= 100.0
-            if ownership_signal == 0.0:
-                ownership_signal = 1.0
-            raw_ownership += ownership_signal * repo_scores[idx]
-            
-        own_score = int(round(a_own * math.log1p(b_own * raw_ownership)))
-
-        # 3. System Architecture
-        unique_arch_caps = {}
-        for ra in repository_assessments:
-            capabilities = ra.get("capabilities") or []
-            for cap in capabilities:
-                diff_score = float(cap.get("difficultyScore", 1.0))
-                if diff_score <= 1.0:
-                    diff_score *= 10.0
-                if diff_score >= 5.0:
-                    cname = cap.get("name", "").lower()
-                    if not cname:
-                        continue
-                    maturity = cap.get("maturity", "Basic")
-                    maturity_mult = 0.5 if maturity == "Basic" else 1.0 if maturity == "Intermediate" else 1.5 if maturity == "Advanced" else 2.0
-                    cap_score = diff_score * 10.0 * maturity_mult
-                    if cname not in unique_arch_caps or cap_score > unique_arch_caps[cname]:
-                        unique_arch_caps[cname] = cap_score
-                        
-        raw_architecture = sum(unique_arch_caps.values())
-        arch_score = int(round(a_arch * math.log1p(b_arch * raw_architecture)))
-
-        # 4. Problem Solving
-        raw_solving = 0.0
-        for ra in repository_assessments:
-            sig = ra.get("intelligenceSignal") or {}
-            consistency_signal = float(sig.get("consistencySignal", 50.0))
-            ownership_signal = float(sig.get("ownershipSignal", 100.0))
-            if ownership_signal > 1.0:
-                ownership_signal /= 100.0
-            
-            quality_metrics = ra.get("qualityMetrics") or {}
-            quality_score = float(quality_metrics.get("qualityScore", 50.0))
-            
-            raw_solving += (consistency_signal / 100.0) * quality_score * ownership_signal
-            
-        ps_score = int(round(a_ps * math.log1p(b_ps * raw_solving)))
-
-        # 5. Engineering Business Impact
-        exp_multiplier_data = inputs.get("confidenceMultiplier") or {}
-        if not isinstance(exp_multiplier_data, dict):
-            exp_multiplier_data = inputs
-        total_months = float(exp_multiplier_data.get("totalExperienceMonths", 0))
-        if total_months == 0:
-            total_months = calculate_discounted_experience_months(cv)
-
-        has_leadership = bool(exp_multiplier_data.get("hasLeadershipExperience", False))
-        leadership_mult = 1.15 if has_leadership else 1.0
-
-        max_company_scale = 1.0
-        max_role_scale = 1.0
-        for exp in cv.get("experiences", []):
-            if any(term in str(exp.get("company", "")).lower() for term in ["google", "apple", "facebook", "meta", "netflix", "amazon", "microsoft"]):
-                max_company_scale = 1.15
-            title = str(exp.get("jobTitle", "")).lower()
-            if "principal" in title or "director" in title or "head" in title:
-                max_role_scale = max(max_role_scale, 1.6)
-            elif "staff" in title or "lead" in title or "manager" in title:
-                max_role_scale = max(max_role_scale, 1.4)
-            elif "senior" in title:
-                max_role_scale = max(max_role_scale, 1.2)
-            elif "junior" in title or "intern" in title:
-                max_role_scale = max(max_role_scale, 0.8)
-
-        imp_score = int(round(math.log1p(b_imp * total_months) * max_company_scale * max_role_scale * leadership_mult * a_imp))
-
-        # Overall Score: atomic recomputation from breakdown
-        s_candidate = int(round(
-            sd_score * w_sd +
-            own_score * w_own +
-            arch_score * w_arch +
-            ps_score * w_ps +
-            imp_score * w_imp
-        ))
+        if not repository_assessments and self_declared_projects:
+            max_difficulty_score = 3.0
 
         # Trust score calculation
         verified_skills_set = set()
@@ -885,10 +864,13 @@ class CandidateEvaluationOrchestrator:
         skill_proficiencies_out = []
         for skill_name in cv_skills:
             prof = next((p for p in skill_proficiencies if p.get("skill", "").lower() == skill_name.lower()), None)
+            
+            # Check for verified repository support (using normalized names)
             supporting_repos = []
+            norm_skill_name = _get_normalized_name(skill_name)
             for ra in repository_assessments:
                 for attr in ra.get("skillAttributions", []):
-                    if attr.get("skillName", "").lower() == skill_name.lower():
+                    if _get_normalized_name(attr.get("skillName", "")) == norm_skill_name:
                         supporting_repos.append({
                             "repositoryId": ra.get("repositoryId"),
                             "repositoryName": ra.get("repositoryName"),
@@ -896,22 +878,86 @@ class CandidateEvaluationOrchestrator:
                             "contributionWeight": attr.get("contributionWeight", 0.0)
                         })
             
-            if prof and supporting_repos:
-                score = float(prof.get("proficiencyLevel", 1.0)) * 25.0
-                confidence = float(prof.get("confidenceScore", 0.8))
-                level = prof.get("proficiencyLabel", "Working")
-                rationale = prof.get("evidenceRationale", "")
+            # Check for project support (from all projects)
+            supporting_projects = []
+            verified_proj_names = []
+            unverified_proj_names = []
+            for proj in cv.get("projects", []):
+                techs = [_get_normalized_name(t) for t in proj.get("technologies", [])]
+                if norm_skill_name in techs:
+                    proj_id = proj.get("cvProjectId")
+                    proj_name = proj.get("name", "Unnamed Project")
+                    
+                    # Check if this project is verified by matching with repository_assessments
+                    is_this_verified = False
+                    for ra in repository_assessments:
+                        if proj_id and str(ra.get("cvProjectEntryId")).lower() == str(proj_id).lower():
+                            is_this_verified = True
+                        elif proj_name and str(ra.get("cvProjectName")).lower() == str(proj_name).lower():
+                            is_this_verified = True
+                            
+                    if proj.get("verificationLevel") in ("AiAnalyzed", "RepositoryLinked"):
+                        is_this_verified = True
+                        
+                    if is_this_verified:
+                        verified_proj_names.append(proj_name)
+                    else:
+                        unverified_proj_names.append(proj_name)
+                    supporting_projects.append(proj_name)
+
+            if supporting_repos:
+                score = float(prof.get("proficiencyLevel", 1.0)) * 25.0 if prof else 25.0
+                confidence = float(prof.get("confidenceScore", 0.85)) if prof else 0.85
+                level = prof.get("proficiencyLabel", "Working") if prof else "Working"
                 evidence_sources = {
-                    "repositories": supporting_repos,
-                    "rationale": f"Verified via {', '.join(r['repositoryName'] for r in supporting_repos)}: {rationale}"
+                    "verification_level": "AiAnalyzed",
+                    "confidence": 0.85,
+                    "source": "repository_analysis",
+                    "rationale": f"Verified via {', '.join(r['repositoryName'] for r in supporting_repos)}: {prof.get('evidenceRationale', '') if prof else ''}".strip(),
+                    "metadata": {
+                        "repositories": supporting_repos
+                    }
+                }
+            elif verified_proj_names:
+                # Self-declared but linked to a verified project/repository
+                score = float(prof.get("proficiencyLevel", 1.0)) * 25.0 if prof else 25.0
+                confidence = 0.60  # Higher confidence because it's linked to an analyzed repository
+                level = prof.get("proficiencyLabel", "Working") if prof else "Working"
+                evidence_sources = {
+                    "verification_level": "SelfDeclared",
+                    "confidence": 0.60,
+                    "source": "cv_portfolio",
+                    "rationale": f"Self-declared in CV under project(s) linked to analyzed repository: {', '.join(verified_proj_names)}.",
+                    "metadata": {
+                        "projects": verified_proj_names,
+                        "verified_linkage": True
+                    }
+                }
+            elif unverified_proj_names:
+                # Purely self-declared
+                score = float(prof.get("proficiencyLevel", 1.0)) * 25.0 if prof else 25.0
+                confidence = 0.40
+                level = prof.get("proficiencyLabel", "Working") if prof else "Working"
+                evidence_sources = {
+                    "verification_level": "SelfDeclared",
+                    "confidence": 0.40,
+                    "source": "cv_portfolio",
+                    "rationale": f"Declared in CV portfolio for projects: {', '.join(unverified_proj_names)}.",
+                    "metadata": {
+                        "projects": unverified_proj_names,
+                        "verified_linkage": False
+                    }
                 }
             else:
                 score = 0.0
-                confidence = 0.0
-                level = "declared_unproven"
+                confidence = 0.20
+                level = "Unverified"
                 evidence_sources = {
-                    "repositories": [],
-                    "rationale": "Declared in CV but no matching code evidence found in verified repositories."
+                    "verification_level": "Unverified",
+                    "confidence": 0.20,
+                    "source": "cv_skills_list",
+                    "rationale": "Declared in CV skills list, but no matching code evidence or project details found.",
+                    "metadata": {}
                 }
                 
             skill_proficiencies_out.append({
@@ -952,24 +998,47 @@ class CandidateEvaluationOrchestrator:
 
         # 8. Best-Fit Roles Matching V1
         best_fit_roles_out = []
-        matching_roles = inputs.get("suggestedRoles", []) or inputs.get("recommendations", {}).get("suggestedRoles", [])
-        top_role = inputs.get("topMatch", {}) or inputs.get("recommendations", {}).get("topMatch", {})
+        matching_roles = inputs.get("suggestedRoles", []) or inputs.get("recommendations", {}).get("suggestedRoles", []) or []
+        top_role = inputs.get("topMatch", {}) or inputs.get("recommendations", {}).get("topMatch", {}) or {}
         
         all_roles = []
-        if top_role:
+        if top_role and (top_role.get("roleTitle") or top_role.get("role")):
             all_roles.append(top_role)
         all_roles.extend(matching_roles)
 
-        for idx, role in enumerate(all_roles):
+        # Deduplicate, sort by confidence descending, and take the top 3
+        def get_confidence_val(r):
+            val = r.get("confidence", 0.8)
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return 0.8
+
+        # Sort all roles first by confidence descending to ensure that we keep the version
+        # of a duplicate role with the highest confidence
+        all_roles.sort(key=get_confidence_val, reverse=True)
+
+        seen_titles = set()
+        unique_roles = []
+        for role in all_roles:
             title = role.get("roleTitle") or role.get("role")
             if not title:
                 continue
-            if any(r["roleTitle"] == title for r in best_fit_roles_out):
+            title_lower = title.strip().lower()
+            if title_lower in seen_titles:
                 continue
+            seen_titles.add(title_lower)
+            unique_roles.append(role)
+
+        top_3_roles = unique_roles[:3]
+
+        for idx, role in enumerate(top_3_roles):
+            title = role.get("roleTitle") or role.get("role")
+            conf = get_confidence_val(role)
             best_fit_roles_out.append({
                 "roleTitle": title,
-                "matchScore": float(role.get("confidence", 0.8)) * 100.0,
-                "confidence": float(role.get("confidence", 0.8)),
+                "matchScore": conf * 100.0,
+                "confidence": conf,
                 "rank": idx + 1,
                 "matchingEngineVersion": "V1",
                 "evidence": json.dumps({
@@ -1120,6 +1189,10 @@ class CandidateEvaluationOrchestrator:
             "careerLevelLabel": overall_label,
             "careerLevelConfidence": 0.85,
             
+            "cohortPercentile": cohort_percentile,
+            "cohortVersion": cohort_version,
+            "cohortPercentileRange": cohort_range,
+            
             "primaryTendency": inputs.get("primaryTendency", ""),
             "primaryWorkingStyle": inputs.get("primaryWorkingStyle", ""),
             
@@ -1127,23 +1200,23 @@ class CandidateEvaluationOrchestrator:
             "fullSummary": inputs.get("fullSummary", ""),
             "keyStrengths": inputs.get("keyStrengths", []),
             "watchPoints": inputs.get("watchPoints", []),
-
+ 
             "displayConfidence": display_confidence,
             "scoreBreakdown": score_breakdown,
-
+ 
             "technicalDepth": round(candidate_complexity, 2),
             "technicalBreadth": round(float(len(all_categories)) * 10.0, 2),
             "leadershipPotential": round(candidate_leadership, 2),
             "executionStrength": round((candidate_consistency + candidate_problem_solving) / 2.0, 2),
             "trustLevel": t_candidate,
-
+ 
             "trustScoreMetrics": {
                 "verifiedSkillRatio": round(r_skills, 2),
                 "verifiedRepositoryRatio": round(r_repos, 2),
                 "verifiedEvidenceRatio": round(r_evidence, 2),
                 "candidateTrustScore": t_candidate
             },
-
+ 
             "skills": skill_proficiencies_out,
             "domainProfiles": domain_profiles_out,
             "bestFitRoles": best_fit_roles_out,

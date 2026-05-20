@@ -17,10 +17,12 @@ namespace CVerify.API.Modules.Profiles.Services;
 public class ProjectService : IProjectService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICvRepositoryIndexer _cvRepositoryIndexer;
 
-    public ProjectService(ApplicationDbContext context)
+    public ProjectService(ApplicationDbContext context, ICvRepositoryIndexer cvRepositoryIndexer)
     {
         _context = context;
+        _cvRepositoryIndexer = cvRepositoryIndexer;
     }
 
     public async Task<List<ProjectEntryResponse>> GetProjectsAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -123,6 +125,15 @@ public class ProjectService : IProjectService
         _context.ProjectEntries.Add(project);
         await _context.SaveChangesAsync(cancellationToken);
 
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail project operation if indexing throws
+        }
+
         return await GetProjectByIdOrThrowAsync(userId, project.Id, cancellationToken);
     }
 
@@ -222,6 +233,16 @@ public class ProjectService : IProjectService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail project operation if indexing throws
+        }
+
         return MapToResponse(project);
     }
 
@@ -237,6 +258,15 @@ public class ProjectService : IProjectService
 
         _context.ProjectEntries.Remove(project);
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail project operation if indexing throws
+        }
     }
 
     public async Task ReorderProjectsAsync(Guid userId, List<Guid> orderedIds, CancellationToken cancellationToken = default)
@@ -257,6 +287,15 @@ public class ProjectService : IProjectService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail project operation if indexing throws
+        }
     }
 
     public async Task UpgradeRepositoryLinkedProjectsAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -329,6 +368,15 @@ public class ProjectService : IProjectService
         if (anyUpgraded)
         {
             await _context.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+            }
+            catch
+            {
+                // Do not fail project operation if indexing throws
+            }
         }
     }
 

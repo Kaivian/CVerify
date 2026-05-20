@@ -17,6 +17,7 @@ using CVerify.API.Modules.SourceCode.Entities;
 using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.SourceCode.Clients;
 using CVerify.API.Modules.Profiles.Entities;
+using CVerify.API.Modules.Profiles.Services;
 
 namespace CVerify.API.Modules.SourceCode.Services;
 
@@ -30,6 +31,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
     private readonly ILogger<SourceCodeProviderService> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly IEnumerable<ISourceCodeClient> _clients;
+    private readonly ICvRepositoryIndexer _cvRepositoryIndexer;
 
     public SourceCodeProviderService(
         ApplicationDbContext context,
@@ -39,7 +41,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         IHttpClientFactory httpClientFactory,
         ILogger<SourceCodeProviderService> logger,
         TimeProvider timeProvider,
-        IEnumerable<ISourceCodeClient> clients)
+        IEnumerable<ISourceCodeClient> clients,
+        ICvRepositoryIndexer cvRepositoryIndexer)
     {
         _context = context;
         _cacheService = cacheService;
@@ -49,6 +52,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         _logger = logger;
         _timeProvider = timeProvider;
         _clients = clients;
+        _cvRepositoryIndexer = cvRepositoryIndexer;
     }
 
     public async Task<IEnumerable<SourceCodeProviderDto>> GetProvidersAsync(Guid userId)
@@ -101,42 +105,10 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         string? category, 
         string? ownerType,
         Guid? organizationId,
+        string? mode,
         int page, 
         int pageSize)
     {
-        // Auto-heal/backfill: mark repositories as inaccessible if they are no longer referenced in the CV
-        try
-        {
-            var githubPaths = await GetCvReferencedRepositoryPathsAsync(userId, "github", CancellationToken.None);
-            var gitlabPaths = await GetCvReferencedRepositoryPathsAsync(userId, "gitlab", CancellationToken.None);
-            var allReferencedPaths = new HashSet<string>(githubPaths.Concat(gitlabPaths), StringComparer.OrdinalIgnoreCase);
-
-            var activeRepos = await _context.SourceCodeRepositories
-                .Include(r => r.AuthProvider)
-                .Where(r => r.AuthProvider.UserId == userId && r.IsAccessible)
-                .ToListAsync();
-
-            bool changed = false;
-            foreach (var r in activeRepos)
-            {
-                var repoPath = GetRepoPathFromUrl(r.HtmlUrl, r.AuthProvider.ProviderName);
-                if (repoPath == null || !allReferencedPaths.Contains(repoPath))
-                {
-                    r.IsAccessible = false;
-                    changed = true;
-                }
-            }
-
-            if (changed)
-            {
-                await _context.SaveChangesAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to run CV-referenced repository backfill for user {UserId}", userId);
-        }
-
         // Auto-heal/backfill: mark repositories as verified if they have a completed analysis report
         // but are currently marked as not verified due to a parsing discrepancy.
         var unverifiedWithReports = await _context.SourceCodeRepositories
@@ -187,6 +159,14 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         var query = _context.SourceCodeRepositories
             .Include(r => r.AuthProvider)
             .Where(r => r.AuthProvider.UserId == userId && r.AuthProvider.DeletedAt == null && r.IsAccessible);
+
+        if (string.Equals(mode, "cv_linked", StringComparison.OrdinalIgnoreCase))
+        {
+            var cvLinkedRepoIds = _context.CvRepositoryMappings
+                .Where(m => m.UserId == userId)
+                .Select(m => m.SourceCodeRepositoryId);
+            query = query.Where(r => cvLinkedRepoIds.Contains(r.Id));
+        }
 
         if (providerId.HasValue)
         {
@@ -334,6 +314,10 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             UserId = userId,
             AuthProviderId = providerId,
             Status = "Pending",
+            MaxPages = 10,
+            PageSize = 100,
+            TotalSyncedCount = 0,
+            IsPartial = false,
             CreatedAt = _timeProvider.GetUtcNow(),
             UpdatedAt = _timeProvider.GetUtcNow()
         };
@@ -419,8 +403,14 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
                 try
                 {
-                    await SyncProviderRepositoriesAsync(provider, cancellationToken);
+                    var (syncedCount, isPartial) = await SyncProviderRepositoriesAsync(provider, status.MaxPages, status.PageSize, cancellationToken);
                     
+                    status.TotalSyncedCount += syncedCount;
+                    if (isPartial)
+                    {
+                        status.IsPartial = true;
+                    }
+
                     provider.SyncStatus = "Synced";
                     provider.SyncError = null;
                     provider.LastProviderSyncAt = _timeProvider.GetUtcNow();
@@ -438,6 +428,17 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 status.Progress = Math.Min(currentProgress, 99.0);
                 status.UpdatedAt = _timeProvider.GetUtcNow();
                 await _cacheService.SetAsync(redisKey, status, TimeSpan.FromMinutes(30));
+            }
+
+            // Run CV repository indexing as a post-processing step right before completing the job
+            try
+            {
+                _logger.LogInformation("Running CV repository indexing as a post-processing step for user {UserId}", job.UserId);
+                await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(job.UserId, cancellationToken);
+            }
+            catch (Exception indexerEx)
+            {
+                _logger.LogError(indexerEx, "Failed to run CV repository indexing post-sync for user {UserId}", job.UserId);
             }
 
             // Sync Job Completed
@@ -549,122 +550,11 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         return refreshResult.AccessToken;
     }
 
-    private async Task<List<string>> GetCvReferencedRepositoryPathsAsync(Guid userId, string providerName, CancellationToken cancellationToken)
-    {
-        var repoPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // 1. Scan UserProfile (Bio, Headline, SocialLinks)
-        var profile = await _context.UserProfiles
-            .FirstOrDefaultAsync(up => up.UserId == userId && up.DeletedAt == null, cancellationToken);
-        if (profile != null)
-        {
-            ExtractPathsFromText(profile.Bio, providerName, repoPaths);
-            ExtractPathsFromText(profile.Headline, providerName, repoPaths);
-            if (profile.SocialLinks != null)
-            {
-                foreach (var link in profile.SocialLinks)
-                {
-                    ExtractPathsFromText(link, providerName, repoPaths);
-                }
-            }
-        }
-
-        // 2. Scan Work Experience Descriptions and Links
-        var experiences = await _context.WorkExperiences
-            .Include(we => we.Links)
-            .Where(we => we.UserId == userId && we.DeletedAt == null)
-            .ToListAsync(cancellationToken);
-        foreach (var exp in experiences)
-        {
-            ExtractPathsFromText(exp.Description, providerName, repoPaths);
-            if (exp.Links != null)
-            {
-                foreach (var link in exp.Links)
-                {
-                    ExtractPathsFromText(link.Url, providerName, repoPaths);
-                }
-            }
-        }
-
-        // 3. Scan Project Descriptions, Names, and already linked repositories
-        var projects = await _context.ProjectEntries
-            .Where(pe => pe.UserId == userId && pe.DeletedAt == null)
-            .ToListAsync(cancellationToken);
-        foreach (var proj in projects)
-        {
-            ExtractPathsFromText(proj.Name, providerName, repoPaths);
-            ExtractPathsFromText(proj.Description, providerName, repoPaths);
-        }
-
-        var linkedRepos = await _context.ProjectRepositoryLinks
-            .Include(rl => rl.SourceCodeRepository)
-            .ThenInclude(r => r.AuthProvider)
-            .Where(rl => rl.ProjectEntry.UserId == userId && rl.ProjectEntry.DeletedAt == null && rl.SourceCodeRepository.AuthProvider.ProviderName == providerName)
-            .Select(rl => rl.SourceCodeRepository)
-            .ToListAsync(cancellationToken);
-        foreach (var r in linkedRepos)
-        {
-            repoPaths.Add($"{r.Owner}/{r.Name}");
-        }
-
-        return repoPaths.ToList();
-    }
-
-    private void ExtractPathsFromText(string? text, string providerName, HashSet<string> repoPaths)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return;
-
-        if (string.Equals(providerName, "github", StringComparison.OrdinalIgnoreCase))
-        {
-            var matches = System.Text.RegularExpressions.Regex.Matches(text, @"github\.com[:/]([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            foreach (System.Text.RegularExpressions.Match match in matches)
-            {
-                if (match.Success)
-                {
-                    var owner = match.Groups[1].Value;
-                    var repo = match.Groups[2].Value;
-                    if (repo.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-                    {
-                        repo = repo.Substring(0, repo.Length - 4);
-                    }
-                    if (!string.Equals(repo, "blob", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(repo, "tree", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(repo, "issues", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(repo, "pull", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(repo, "settings", StringComparison.OrdinalIgnoreCase))
-                    {
-                        repoPaths.Add($"{owner}/{repo}");
-                    }
-                }
-            }
-        }
-        else if (string.Equals(providerName, "gitlab", StringComparison.OrdinalIgnoreCase))
-        {
-            var matches = System.Text.RegularExpressions.Regex.Matches(text, @"gitlab\.com[:/]([a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*)/([a-zA-Z0-9_.-]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            foreach (System.Text.RegularExpressions.Match match in matches)
-            {
-                if (match.Success)
-                {
-                    var group = match.Groups[1].Value;
-                    var repo = match.Groups[2].Value;
-                    if (repo.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-                    {
-                        repo = repo.Substring(0, repo.Length - 4);
-                    }
-                    if (!string.Equals(repo, "blob", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(repo, "tree", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(repo, "issues", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(repo, "pull", StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(repo, "settings", StringComparison.OrdinalIgnoreCase))
-                    {
-                        repoPaths.Add($"{group}/{repo}");
-                    }
-                }
-            }
-        }
-    }
-
-    private async Task SyncProviderRepositoriesAsync(AuthProvider provider, CancellationToken cancellationToken)
+    private async Task<(int syncedCount, bool isPartial)> SyncProviderRepositoriesAsync(
+        AuthProvider provider,
+        int maxPages,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
         var decryptedToken = await GetOrRefreshAccessTokenAsync(provider, cancellationToken);
         
@@ -674,31 +564,57 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             throw new NotSupportedException($"Sync is not supported for provider '{provider.ProviderName}'.");
         }
 
-        var referencedPaths = await GetCvReferencedRepositoryPathsAsync(provider.UserId, provider.ProviderName, cancellationToken);
+        var allRepos = new List<SourceCodeRepository>();
+        var allOrgs = new List<ExternalOrganizationDto>();
+        bool isPartial = false;
 
-        SyncResult syncResult;
-        try
+        for (int page = 1; page <= maxPages; page++)
         {
-            syncResult = await client.SyncRepositoriesAsync(decryptedToken, referencedPaths, cancellationToken);
-        }
-        catch (Exception ex) when (ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("401"))
-        {
-            _logger.LogWarning("API returned Unauthorized. Attempting reactive token refresh.");
+            SyncResult syncResult;
             try
             {
-                decryptedToken = await RefreshTokenInternalAsync(provider, cancellationToken);
-                syncResult = await client.SyncRepositoriesAsync(decryptedToken, referencedPaths, cancellationToken);
+                syncResult = await client.SyncRepositoriesAsync(decryptedToken, page, pageSize, cancellationToken);
             }
-            catch (Exception refreshEx)
+            catch (Exception ex) when (ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("401"))
             {
-                _logger.LogError(refreshEx, "Reactive token refresh failed for provider {ProviderName}.", provider.ProviderName);
-                throw;
+                _logger.LogWarning("API returned Unauthorized. Attempting reactive token refresh.");
+                try
+                {
+                    decryptedToken = await RefreshTokenInternalAsync(provider, cancellationToken);
+                    syncResult = await client.SyncRepositoriesAsync(decryptedToken, page, pageSize, cancellationToken);
+                }
+                catch (Exception refreshEx)
+                {
+                    _logger.LogError(refreshEx, "Reactive token refresh failed for provider {ProviderName}.", provider.ProviderName);
+                    throw;
+                }
             }
-        }
 
-        if (!string.IsNullOrEmpty(syncResult.SyncError))
-        {
-            throw new InvalidOperationException($"Provider synchronization failed: {syncResult.SyncError}");
+            if (!string.IsNullOrEmpty(syncResult.SyncError))
+            {
+                throw new InvalidOperationException($"Provider synchronization failed on page {page}: {syncResult.SyncError}");
+            }
+
+            if (syncResult.Repositories == null || !syncResult.Repositories.Any())
+            {
+                break;
+            }
+
+            allRepos.AddRange(syncResult.Repositories);
+            if (syncResult.Organizations != null)
+            {
+                allOrgs.AddRange(syncResult.Organizations);
+            }
+
+            if (syncResult.Repositories.Count < pageSize)
+            {
+                break;
+            }
+
+            if (page == maxPages)
+            {
+                isPartial = true;
+            }
         }
 
         // 1. Process Organizations
@@ -709,7 +625,13 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         var existingOrgsMap = existingOrgs.ToDictionary(eo => eo.ExternalId);
         var activeOrgsList = new List<ExternalOrganization>();
 
-        foreach (var orgDto in syncResult.Organizations)
+        // Deduplicate fetched organizations
+        var uniqueOrgs = allOrgs
+            .GroupBy(o => o.ExternalId)
+            .Select(g => g.First())
+            .ToList();
+
+        foreach (var orgDto in uniqueOrgs)
         {
             if (existingOrgsMap.TryGetValue(orgDto.ExternalId, out var existingOrg))
             {
@@ -744,7 +666,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         }
 
         // Soft delete/deactivate organizations not returned
-        var activeOrgsExtIds = new HashSet<string>(syncResult.Organizations.Select(o => o.ExternalId));
+        var activeOrgsExtIds = new HashSet<string>(uniqueOrgs.Select(o => o.ExternalId));
         foreach (var org in existingOrgs)
         {
             if (!activeOrgsExtIds.Contains(org.ExternalId))
@@ -768,8 +690,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         var existingReposMap = existingRepos.ToDictionary(r => r.ExternalRepositoryId);
         var externalIds = new List<string>();
 
-        // Deduplicate fetched repositories by ExternalRepositoryId to avoid unique key constraint violations (e.g. repo returned in both user repos and org repos)
-        var uniqueFetchedRepos = syncResult.Repositories
+        // Deduplicate fetched repositories by ExternalRepositoryId to avoid unique key constraint violations
+        var uniqueFetchedRepos = allRepos
             .GroupBy(r => r.ExternalRepositoryId)
             .Select(g => g.First())
             .ToList();
@@ -840,15 +762,10 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        return (uniqueFetchedRepos.Count, isPartial);
     }
 
-    private string? GetRepoPathFromUrl(string? url, string providerName)
-    {
-        if (string.IsNullOrWhiteSpace(url)) return null;
-        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        ExtractPathsFromText(url, providerName, paths);
-        return paths.FirstOrDefault();
-    }
 
     public async Task<IEnumerable<string>> GetDistinctCategoriesAsync(Guid userId)
     {

@@ -125,36 +125,33 @@ public class GitLabSourceCodeClient : ISourceCodeClient
         return new ExternalUserProfile(id, username, displayName, email, avatarUrl, profileUrl);
     }
 
-    public async Task<SyncResult> SyncRepositoriesAsync(string accessToken, List<string> referencedRepoPaths, CancellationToken cancellationToken)
+    public async Task<SyncResult> SyncRepositoriesAsync(string accessToken, int page, int pageSize, CancellationToken cancellationToken)
     {
         var httpClient = _httpClientFactory.CreateClient();
         var orgsList = new List<ExternalOrganizationDto>();
         var reposList = new List<SourceCodeRepository>();
 
-        if (referencedRepoPaths == null || referencedRepoPaths.Count == 0)
-        {
-            return new SyncResult(orgsList, reposList, null);
-        }
-
         try
         {
-            foreach (var repoPath in referencedRepoPaths)
+            var request = new HttpRequestMessage(HttpMethod.Get, $"https://gitlab.com/api/v4/projects?membership=true&per_page={pageSize}&page={page}");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
             {
-                var encodedPath = Uri.EscapeDataString(repoPath);
-                var request = new HttpRequestMessage(HttpMethod.Get, $"https://gitlab.com/api/v4/projects/{encodedPath}");
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                var errContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new HttpRequestException($"GitLab API fetch projects page {page} returned status {response.StatusCode}: {errContent}");
+            }
 
-                var response = await httpClient.SendAsync(request, cancellationToken);
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("GitLab fetch for project {RepoPath} failed with status {StatusCode}", repoPath, response.StatusCode);
-                    continue;
-                }
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+            using var doc = JsonDocument.Parse(responseJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return new SyncResult(orgsList, reposList, null);
+            }
 
-                var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-                using var doc = JsonDocument.Parse(responseJson);
-                var projectElement = doc.RootElement;
-
+            foreach (var projectElement in doc.RootElement.EnumerateArray())
+            {
                 var extId = projectElement.GetProperty("id").GetInt64().ToString();
                 var name = projectElement.GetProperty("name").GetString() ?? "";
                 
@@ -231,7 +228,7 @@ public class GitLabSourceCodeClient : ISourceCodeClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred during GitLab targeted synchronization.");
+            _logger.LogError(ex, "Error occurred during GitLab synchronization.");
             return new SyncResult(orgsList, reposList, ex.Message);
         }
     }
