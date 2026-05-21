@@ -24,6 +24,14 @@ interface CandidateAssessmentState {
   streamStep: string;
   streamMessage: string;
 
+  // Real-time evaluation results
+  realtimeScore: number | null;
+  realtimeLevel: string | null;
+  realtimeLevelLabel: string | null;
+  realtimeDimensions: Record<string, number>;
+  realtimeRecommendations: Array<{ id: string; priority: string; action: string }>;
+  realtimeSignals: string[];
+
   fetchReadiness: () => Promise<void>;
   fetchLatest: () => Promise<void>;
   fetchDetails: (id: string) => Promise<void>;
@@ -53,7 +61,8 @@ const FALLBACK_STAGES: AssessmentStageDto[] = [
   { id: 'L2-011', name: 'Experience Confidence Calibration', description: 'Adjusts assessment confidence scores based on codebase age, volume, and contributor density.' },
   { id: 'L2-012', name: 'Role Recommendation Engine', description: 'Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect).' },
   { id: 'L2-013', name: 'Executive Summary Generation', description: 'Generates a comprehensive recruiter-friendly assessment narrative and executive summary.' },
-  { id: 'L2-014', name: 'AI Profile Composition', description: 'Assembles and serializes the final verified candidate profile and calibrated score index.' }
+  { id: 'L2-014', name: 'AI Profile Composition', description: 'Assembles and serializes the final verified candidate profile and calibrated score index.' },
+  { id: 'L2-015', name: 'Candidate Improvement Engine', description: 'Formulates targeted vector-improvement recommendations and prioritizes progression paths.' }
 ];
 
 export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set, get) => ({
@@ -69,6 +78,13 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
   streamProgress: 0,
   streamStep: '',
   streamMessage: '',
+
+  realtimeScore: null,
+  realtimeLevel: null,
+  realtimeLevelLabel: null,
+  realtimeDimensions: {},
+  realtimeRecommendations: [],
+  realtimeSignals: [],
 
   clearError: () => set({ error: null }),
 
@@ -169,6 +185,12 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
       streamProgress: 0,
       streamStep: 'Initializing',
       streamMessage: 'Connecting to progress stream...',
+      realtimeScore: null,
+      realtimeLevel: null,
+      realtimeLevelLabel: null,
+      realtimeDimensions: {},
+      realtimeRecommendations: [],
+      realtimeSignals: [],
     });
 
     const sseBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -231,11 +253,77 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
             return;
           }
 
-          set({
+          const updates: Partial<CandidateAssessmentState> = {
             streamProgress: progress,
             streamStep: step,
             streamMessage: message,
-          });
+          };
+
+          // Parse nested PipelineEvent if it exists in the payload envelope
+          if (payload.event) {
+            const pipeEvent = payload.event;
+            const eventType = pipeEvent.eventType;
+            const eventPayload = pipeEvent.payload || {};
+            const snapshot = pipeEvent.stateSnapshot || {};
+
+            if (snapshot.partialScore !== undefined) {
+              updates.realtimeScore = snapshot.partialScore;
+            }
+            if (snapshot.estimatedLevel !== undefined) {
+              updates.realtimeLevel = snapshot.estimatedLevel;
+              const levelLabels: Record<string, string> = {
+                'L1': 'Junior',
+                'L2': 'Middle',
+                'L3': 'Senior',
+                'L4': 'Staff',
+                'L5': 'Principal'
+              };
+              updates.realtimeLevelLabel = levelLabels[snapshot.estimatedLevel] || snapshot.estimatedLevel;
+            }
+
+            if (eventType === 'DIMENSION_SCORE_UPDATED') {
+              const dim = eventPayload.dimension;
+              const val = eventPayload.value;
+              if (dim && val !== undefined) {
+                updates.realtimeDimensions = {
+                  ...get().realtimeDimensions,
+                  [dim]: val
+                };
+              }
+            } else if (eventType === 'SCORE_DELTA_UPDATED') {
+              if (eventPayload.candidateScore !== undefined) {
+                updates.realtimeScore = eventPayload.candidateScore;
+              }
+            } else if (eventType === 'LEVEL_ESTIMATE_UPDATED') {
+              if (eventPayload.level) {
+                updates.realtimeLevel = eventPayload.level;
+                updates.realtimeLevelLabel = eventPayload.label || eventPayload.level;
+              }
+            } else if (eventType === 'IMPROVEMENT_SIGNAL_DETECTED') {
+              if (eventPayload.gapCategory) {
+                const currentSignals = get().realtimeSignals;
+                if (!currentSignals.includes(eventPayload.gapCategory)) {
+                  updates.realtimeSignals = [...currentSignals, eventPayload.gapCategory];
+                }
+              }
+            } else if (eventType === 'IMPROVEMENT_RECOMMENDATION_READY') {
+              if (eventPayload.id) {
+                const currentRecs = get().realtimeRecommendations;
+                if (!currentRecs.some(r => r.id === eventPayload.id)) {
+                  updates.realtimeRecommendations = [
+                    ...currentRecs,
+                    {
+                      id: eventPayload.id,
+                      priority: eventPayload.priority || 'Medium',
+                      action: eventPayload.action || ''
+                    }
+                  ];
+                }
+              }
+            }
+          }
+
+          set(updates);
         }
       } catch (e) {
         console.error('Failed to parse SSE payload:', e);
@@ -265,6 +353,12 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
       streamProgress: 0,
       streamStep: '',
       streamMessage: '',
+      realtimeScore: null,
+      realtimeLevel: null,
+      realtimeLevelLabel: null,
+      realtimeDimensions: {},
+      realtimeRecommendations: [],
+      realtimeSignals: [],
     });
   },
 }));

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, AsyncGenerator, Optional
 
 from app.core.clients.repo_intelligence_client import RepoIntelligenceClient
 from app.pipelines.candidate.orchestrator import CandidateEvaluationOrchestrator
+from app.pipelines.candidate.context import PipelineEvent
 
 logger = logging.getLogger("candidate_assessment_stream_orchestrator")
 
@@ -25,6 +26,7 @@ STAGES = [
     ("L2-012", "MultiRoleRecommendationEngine", "Recommendations"),
     ("L2-013", "CandidateSummaryGenerator", None),
     ("L2-014", "CandidateProfileComposer", "CandidateProfile"),
+    ("L2-015", "CandidateImprovementEngine", "ImprovementPlan"),
 ]
 
 
@@ -292,13 +294,14 @@ class CandidateAssessmentStreamOrchestrator:
             "workingExperience": working_experience,
             "cv": cv,
             "repositoryAssessments": repository_assessments,
-            "backgroundRepositories": background_repositories or []
+            "backgroundRepositories": background_repositories or [],
+            "_skipDbFetch": True
         }
 
         # Synthetic job ID for L2 calls
         synthetic_job_id = f"candidate-assess-{cv_id}"
 
-        # 4. Sequentially execute Pipeline 2 tasks L2-001 -> L2-014
+        # 4. Sequentially execute Pipeline 2 tasks L2-001 -> L2-015
         for idx, (task_alias, task_name, artifact_type) in enumerate(STAGES):
             current_pct = round(10.0 + (90.0 * idx / len(STAGES)), 1)
             yield {
@@ -309,33 +312,37 @@ class CandidateAssessmentStreamOrchestrator:
             }
 
             try:
-                # Resolve orchestrator private methods using explicit task mapping
-                task_method_mapping = {
-                    "SkillTaxonomyMapper": "_skill_taxonomy_mapper",
-                    "SkillProficiencyEstimator": "_skill_proficiency_estimator",
-                    "StrengthWeaknessAnalyzer": "_strength_weakness_analyzer",
-                    "CareerLevelMapper": "_career_level_mapper",
-                    "CareerLevelCalibrator": "_career_level_calibrator",
-                    "CareerLevelGate": "_career_level_gate",
-                    "EngineeringMaturityAssessor": "_engineering_maturity_assessor",
-                    "ProblemSolvingAnalyzer": "_problem_solving_analyzer",
-                    "TechnicalTendencyClassifier": "_technical_tendency_classifier",
-                    "WorkingStyleClassifier": "_working_style_classifier",
-                    "ExperienceConfidenceMultiplier": "_experience_confidence_multiplier",
-                    "MultiRoleRecommendationEngine": "_multi_role_recommendation",
-                    "CandidateSummaryGenerator": "_candidate_summary_generator",
-                    "CandidateProfileComposer": "_candidate_profile_composer",
-                }
-                method_name = task_method_mapping.get(task_name)
-                if not method_name:
-                    raise ValueError(f"Task method mapping not found for: {task_name}")
+                event_queue = asyncio.Queue()
 
-                orchestrator_method = getattr(self.orchestrator, method_name, None)
-                if not orchestrator_method:
-                    raise ValueError(f"Task method not found on orchestrator: {method_name}")
+                async def event_callback(evt: PipelineEvent) -> None:
+                    await event_queue.put(evt)
 
-                # Execute in memory
-                result = await orchestrator_method(synthetic_job_id, inputs, correlation_id)
+                # Execute directly using the modular orchestrator uniform task runner with callback
+                task_coro = self.orchestrator.execute_task(
+                    task_alias,
+                    synthetic_job_id,
+                    inputs,
+                    correlation_id,
+                    event_callback=event_callback
+                )
+                bg_task = asyncio.create_task(task_coro)
+
+                while not bg_task.done() or not event_queue.empty():
+                    try:
+                        event = await asyncio.wait_for(event_queue.get(), timeout=0.05)
+                        yield {
+                            "status": "Running",
+                            "step": task_alias,
+                            "message": f"Task {task_alias} emitted {event.eventType}.",
+                            "percentage": current_pct,
+                            "event": event.model_dump()
+                        }
+                        event_queue.task_done()
+                    except asyncio.TimeoutError:
+                        if bg_task.done():
+                            break
+
+                result = await bg_task
 
                 if result.get("status") != "Completed":
                     raise ValueError(result.get("errorMessage") or f"Task {task_name} failed.")
@@ -343,6 +350,15 @@ class CandidateAssessmentStreamOrchestrator:
                 # Extract resultData and merge it back into inputs
                 result_data = json.loads(result["resultData"])
                 inputs = {**inputs, **result_data}
+
+                # Unpack single-key wrapper for artifact types if they are nested in task outputs
+                json_payload = result_data
+                if artifact_type == "CandidateProfile" and "candidateProfile" in result_data:
+                    json_payload = result_data["candidateProfile"]
+                elif artifact_type == "SkillsList" and "skillProficiencies" in result_data:
+                    json_payload = result_data["skillProficiencies"]
+                elif artifact_type == "ImprovementPlan" and "improvementPlan" in result_data:
+                    json_payload = result_data["improvementPlan"]
 
                 # Emit completion
                 completion_pct = round(10.0 + (90.0 * (idx + 1) / len(STAGES)), 1)
@@ -352,7 +368,7 @@ class CandidateAssessmentStreamOrchestrator:
                     "message": f"Completed task {task_alias} ({task_name}).",
                     "percentage": completion_pct,
                     "artifactType": artifact_type,
-                    "jsonData": json.dumps(result_data)
+                    "jsonData": json.dumps(json_payload)
                 }
 
             except Exception as e:

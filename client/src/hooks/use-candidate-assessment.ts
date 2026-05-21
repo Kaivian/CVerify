@@ -45,6 +45,14 @@ export function useCandidateAssessment() {
     streamStep: store.streamStep,
     streamMessage: store.streamMessage,
 
+    // Real-time evaluation results
+    realtimeScore: store.realtimeScore,
+    realtimeLevel: store.realtimeLevel,
+    realtimeLevelLabel: store.realtimeLevelLabel,
+    realtimeDimensions: store.realtimeDimensions,
+    realtimeRecommendations: store.realtimeRecommendations,
+    realtimeSignals: store.realtimeSignals,
+
     // Actions
     fetchReadiness: store.fetchReadiness,
     fetchLatest: store.fetchLatest,

@@ -36,11 +36,16 @@ class RepoClassification:
     timestamp_compression_ratio: float = 0.0
     uncalibrated_identities_count: int = 0
 
+    # Resolved Identity Cache
+    username: Optional[str] = None
+    user_emails: List[str] = field(default_factory=list) # SHA-256 hashes of emails
+
 async def classify_repository(
     repo_owner: str,
     repo_name: str,
     encrypted_token: str,
-    correlation_id: str = "system"
+    correlation_id: str = "system",
+    resolved_identity: Optional[dict] = None
 ) -> RepoClassification:
     extra_log = {"correlation_id": correlation_id}
     logger.info(f"Starting repository classification for {repo_owner}/{repo_name}", extra=extra_log)
@@ -52,24 +57,15 @@ async def classify_repository(
     }
 
     async with httpx.AsyncClient(headers=headers, timeout=10.0) as client:
-        # Step 1: Identify the authenticated user's details
+        # Step 1: Identify the authenticated user's details from resolved_identity
         username = None
-        user_email = None
-        try:
-            user_response = await client.get("https://api.github.com/user")
-            user_response.raise_for_status()
-            user_data = user_response.json()
-            username = user_data.get("login")
-            user_email = user_data.get("email")
-            logger.info(f"Authenticated user identified as: {username} (Email: {user_email})", extra=extra_log)
-        except Exception as e:
-            logger.error(f"Failed to fetch authenticated user profile from GitHub API: {e}", extra=extra_log)
-            return RepoClassification(
-                repo_type="ORG_PRIVATE_SELF_DECLARE",
-                confidence_ceiling=0.40,
-                confidence_modifier=0.40,
-                classification_rationale=f"Failed to authenticate user profile via GitHub API. Falling back to self-declared status."
-            )
+        user_emails = []
+        if resolved_identity:
+            username = resolved_identity.get("authenticated_user_login")
+            user_emails = resolved_identity.get("user_email_hashes", [])
+            logger.info(f"Resolved identity for classification: {username} (Hashed Emails Count: {len(user_emails)})", extra=extra_log)
+        else:
+            logger.warning("No resolved identity injected into classify_repository.", extra=extra_log)
 
         # Step 2: Fetch target repository metadata
         try:
@@ -230,6 +226,8 @@ async def classify_repository(
 
         # Package base metadata args for easy dataclass initialization
         meta_args = {
+            "username": username,
+            "user_emails": user_emails,
             "branches_count": branches_count,
             "prs_count": prs_count,
             "issues_count": issues_count,
@@ -333,13 +331,16 @@ async def classify_repository(
             if commits_per_day < 0.1:
                 red_flags.append(f"Low commit density over time (commits/day: {commits_per_day:.3f} < 0.1)")
 
-            # Check: Author email mismatch
-            if len(commits) > 0:
+            # Check: Author email mismatch (using hashed user emails)
+            if len(commits) > 0 and user_emails:
+                from app.pipelines.repository.github.identity_resolver import hash_email
                 mismatch_count = 0
                 for c in commits:
                     commit_author_email = c.get("commit", {}).get("author", {}).get("email")
-                    if commit_author_email and user_email and commit_author_email.lower() != user_email.lower():
-                        mismatch_count += 1
+                    if commit_author_email:
+                        h = hash_email(commit_author_email)
+                        if h not in user_emails:
+                            mismatch_count += 1
                 mismatch_ratio = mismatch_count / len(commits)
                 if mismatch_ratio > 0.50:
                     red_flags.append(f"High authorship email mismatch (ratio: {mismatch_ratio:.2%})")
