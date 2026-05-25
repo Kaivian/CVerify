@@ -411,6 +411,15 @@ class CandidateProfileComposer(BaseTask):
             repo_name = ra.get("repositoryName")
             repo_contrib = float(ra.get("intelligenceSignal", {}).get("ownershipSignal", 100.0)) / 100.0 * repo_scores[idx]
             contrib_pct = (repo_contrib / total_contrib * 100.0) if total_contrib > 0 else (100.0 / len(repository_assessments))
+            
+            own_sig = float(ra.get("intelligenceSignal", {}).get("ownershipSignal", 0.0))
+            if own_sig == 0.0:
+                own_sig = float(ra.get("overallScore", 100.0))
+            elif own_sig > 1.0:
+                pass
+            else:
+                own_sig *= 100.0
+
             evidence_governance_out.append({
                 "repositoryId": ra.get("repositoryId"),
                 "repositoryName": repo_name,
@@ -418,6 +427,7 @@ class CandidateProfileComposer(BaseTask):
                 "cvProjectName": ra.get("cvProjectName"),
                 "cvVerificationLevel": ra.get("cvVerificationLevel"),
                 "trustLevel": ra.get("trustLevel", 2),
+                "authorshipPercent": round(own_sig, 2),
                 "scoreContributionPercent": round(contrib_pct, 2)
             })
 
@@ -430,6 +440,7 @@ class CandidateProfileComposer(BaseTask):
                 "cvProjectName": None,
                 "cvVerificationLevel": "Background",
                 "trustLevel": 0,
+                "authorshipPercent": 0.0,
                 "scoreContributionPercent": 0.0
             })
 
