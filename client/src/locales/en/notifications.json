@@ -1,0 +1,24 @@
+{
+  "general": {
+    "success": "Success!",
+    "error": "Error!",
+    "warning": "Warning!",
+    "info": "Information"
+  },
+  "session": {
+    "timeoutTitle": "Session Inactivity Warning",
+    "timeoutDesc": "Due to prolonged inactivity, your traveler session is about to be terminated for your protection.",
+    "timeoutCountdown": "Your session will automatically terminate in {{count}}s.",
+    "keepActive": "Keep Session Active",
+    "logoutNow": "Sign Out Now",
+    "hydratingProfile": "Verifying secure hydration of traveler profile..."
+  },
+  "rateLimit": {
+    "bruteForceTitle": "Session Temporarily Gated",
+    "bruteForceDesc": "Too many invalid credential attempts detected. Access is restricted for {{count}}s."
+  },
+  "clipboard": {
+    "copySuccessTitle": "Copied to Clipboard",
+    "copySuccessDesc": "The AI itinerary layout text was successfully copied."
+  }
+}

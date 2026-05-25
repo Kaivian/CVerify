@@ -1,0 +1,34 @@
+{
+  "title": "Quản Lý Đặt Chỗ Của Tôi",
+  "subtitle": "Xem và quản lý tất cả các dịch vụ, khách sạn, vé máy bay và hoạt động lữ hành bạn đã đặt.",
+  "tabs": {
+    "all": "Tất cả đặt chỗ",
+    "upcoming": "Sắp diễn ra",
+    "completed": "Đã hoàn thành",
+    "cancelled": "Đã hủy"
+  },
+  "columns": {
+    "bookingId": "Mã đặt chỗ",
+    "serviceName": "Dịch vụ",
+    "date": "Ngày khởi hành / Check-in",
+    "amount": "Tổng thanh toán",
+    "status": "Trạng thái",
+    "actions": "Thao tác"
+  },
+  "details": {
+    "bookingInfo": "Thông tin chi tiết đặt chỗ",
+    "supplier": "Nhà cung cấp",
+    "travellers": "Số lượng khách",
+    "paymentMethod": "Phương thức thanh toán",
+    "viewItinerary": "Xem hành trình liên kết"
+  },
+  "actions": {
+    "cancelBooking": "Hủy đặt chỗ",
+    "support": "Yêu cầu hỗ trợ",
+    "review": "Đánh giá dịch vụ"
+  },
+  "toast": {
+    "cancelSuccess": "Đặt chỗ của bạn đã được hủy thành công.",
+    "cancelFailed": "Không thể hủy đặt chỗ. Vui lòng liên hệ bộ phận hỗ trợ."
+  }
+}

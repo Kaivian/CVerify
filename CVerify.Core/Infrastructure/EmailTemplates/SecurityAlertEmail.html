@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVerify Security Notification</title>
+    <!-- Modern typography integration -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body style="margin: 0; padding: 0; width: 100% !important; background-color: #f8fafc; font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; padding: 40px 10px;">
+        <tr>
+            <td align="center">
+                <!-- Outer Envelope -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);">
+                    
+                    <!-- Header Accent Bar (Danger Red) -->
+                    <tr>
+                        <td height="4" style="background-color: #dc2626; line-height: 4px; font-size: 4px;">&nbsp;</td>
+                    </tr>
+
+                    <!-- Header Content -->
+                    <tr>
+                        <td align="left" style="padding: 32px 40px 20px 40px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td>
+                                        <table border="0" cellpadding="0" cellspacing="0" style="display: inline-block; vertical-align: middle;">
+                                            <tr>
+                                                <td style="background-color: #fef2f2; border-radius: 8px; padding: 6px 12px; font-weight: 700; font-size: 15px; color: #dc2626; letter-spacing: -0.3px;">
+                                                    CVerify Security
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <span style="display: inline-block; margin-left: 8px; font-size: 13px; font-weight: 500; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;">Trust Protection</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Divider -->
+                    <tr>
+                        <td style="padding: 0 40px;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-top: 1px solid #f4f4f5;">
+                                <tr><td height="1" style="font-size: 1px; line-height: 1px;">&nbsp;</td></tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding: 24px 40px 32px 40px; text-align: left;">
+                            <h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: #09090b; letter-spacing: -0.4px;">{{ alert_title }}</h2>
+                            
+                            <p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: #475569;">
+                                Hi <strong>{{ full_name }}</strong>,
+                            </p>
+                            
+                            <p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: #475569;">
+                                {{ alert_message }}
+                            </p>
+
+                            <!-- Structured metadata parameters -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background-color: #fafafa;">
+                                <tr>
+                                    <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; width: 35%; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: #52525b; text-transform: uppercase;">Activity</td>
+                                    <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-family: 'Inter', sans-serif; font-size: 14px; color: #09090b;">{{ activity_type }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; width: 35%; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: #52525b; text-transform: uppercase;">Timestamp</td>
+                                    <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-family: 'Inter', sans-serif; font-size: 14px; color: #09090b;">{{ activity_time }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; width: 35%; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: #52525b; text-transform: uppercase;">IP Address</td>
+                                    <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; font-family: 'Inter', sans-serif; font-size: 14px; color: #09090b;">{{ ip_address }}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 14px 18px; width: 35%; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: #52525b; text-transform: uppercase;">Location / Agent</td>
+                                    <td style="padding: 14px 18px; font-family: 'Inter', sans-serif; font-size: 14px; color: #09090b;">{{ user_agent }}</td>
+                                </tr>
+                            </table>
+
+                            <!-- Urgent Alert container warning -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fef2f2; border-left: 4px solid #dc2626; border-radius: 4px; margin-bottom: 28px;">
+                                <tr>
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 18px; color: #b91c1c;">
+                                            <strong>Did you not authorize this?</strong> If this action was not initiated by you, your credentials might be compromised. Click the secure button below to lock your account immediately and block all sessions.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Centered Urgent Call to Action Button -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 16px 0;">
+                                <tr>
+                                    <td align="left">
+                                        <table border="0" cellpadding="0" cellspacing="0" style="border-collapse: separate;">
+                                            <tr>
+                                                <td align="center" style="border-radius: 8px; background-color: #dc2626;">
+                                                    <a href="{{ action_link }}" target="_blank" style="display: inline-block; padding: 12px 28px; font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 8px; border: 1px solid #b91c1c; letter-spacing: -0.2px;">Lock Account Immediately</a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Footer Content -->
+                    <tr>
+                        <td align="left" style="background-color: #fafafa; padding: 24px 40px; border-top: 1px solid #e2e8f0;">
+                            <p style="margin: 0 0 4px 0; font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px;">CVerify Threat Analysis Team</p>
+                            <p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 12px; line-height: 18px; color: #71717a;">
+                                Secure Security Notice &bull; Please do not reply directly to this mail.
+                            </p>
+                            <p style="margin: 0; font-family: 'Inter', sans-serif; font-size: 11px; color: #a1a1aa;">
+                                &copy; 2026 CVerify Inc. All rights reserved. &bull; Secure Trust Network
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

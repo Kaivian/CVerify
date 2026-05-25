@@ -1,0 +1,38 @@
+{
+  "title": "AI Contribution Verifier",
+  "welcome": "How can I help verify technical capabilities today?",
+  "welcomeDesc": "Perform repository audits, verify developer proof-of-work, and analyze skill graphs. Select a suggestion or start typing below.",
+  "placeholders": {
+    "input": "Ask CVerify to analyze a repository (e.g. 'Perform a code quality audit on github.com/user/repo')...",
+    "sidebarSearch": "Search verification history...",
+    "streaming": "CVerify is analyzing repository technical depth..."
+  },
+  "suggestions": {
+    "kyotoTitle": "Repository Audit",
+    "kyotoDesc": "Suggest a technical depth audit for a software repository...",
+    "kyotoPrompt": "Perform a technical depth audit of a software repository, focusing on architectural patterns, modularity, and test coverage.",
+    "yosemiteTitle": "Proof of Work",
+    "yosemiteDesc": "Verify developer Git contributions and commit history...",
+    "yosemitePrompt": "Analyze Git contribution histories and verify developer authorship and complexity levels of pull requests.",
+    "romeTitle": "Skill Graph",
+    "romeDesc": "Build an evidence-based skill graph for a candidate...",
+    "romePrompt": "Generate an evidence-based professional skill graph for a candidate based on verified GitHub pull requests."
+  },
+  "sidebar": {
+    "history": "Verification History",
+    "newChat": "New Verification Session",
+    "empty": "No recent verifications."
+  },
+  "actions": {
+    "send": "Gửi yêu cầu",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "regenerate": "Regenerate Analysis",
+    "deleteChat": "Delete Session",
+    "share": "Share Report"
+  },
+  "errors": {
+    "failedToStream": "Could not connect to the AI stream. Please check your network connection.",
+    "emptyPrompt": "Please enter a verification prompt."
+  }
+}

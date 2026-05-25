@@ -1,0 +1,37 @@
+{
+  "title": "Cài Đặt Tài Khoản",
+  "subtitle": "Cấu hình thông tin cá nhân, bảo mật, thông báo và các tùy chọn hệ thống lữ hành của bạn.",
+  "tabs": {
+    "profile": "Thông tin cá nhân",
+    "security": "Bảo mật tài khoản",
+    "preferences": "Tùy chọn trải nghiệm"
+  },
+  "profile": {
+    "avatar": "Ảnh đại diện",
+    "uploadAvatar": "Tải lên ảnh mới",
+    "removeAvatar": "Gỡ bỏ",
+    "personalInfo": "Thông tin cá nhân",
+    "fullName": "Họ và tên",
+    "phone": "Số điện thoại",
+    "saveChanges": "Lưu thay đổi",
+    "successUpdate": "Thông tin cá nhân của bạn đã được cập nhật thành công."
+  },
+  "security": {
+    "changePassword": "Đổi mật khẩu",
+    "currentPassword": "Mật khẩu hiện tại",
+    "newPassword": "Mật khẩu mới",
+    "confirmNewPassword": "Xác nhận mật khẩu mới",
+    "updatePassword": "Cập nhật mật khẩu",
+    "successUpdate": "Mật khẩu của bạn đã được cập nhật thành công.",
+    "twoFactor": "Xác thực hai yếu tố (2FA)",
+    "twoFactorDesc": "Tăng cường bảo mật bằng cách kích hoạt mã xác thực OTP qua ứng dụng di động."
+  },
+  "preferences": {
+    "language": "Ngôn ngữ hiển thị",
+    "theme": "Chế độ giao diện",
+    "themeDark": "Giao diện tối",
+    "themeLight": "Giao diện sáng",
+    "currency": "Đồng tiền mặc định",
+    "marketingEmails": "Nhận email thông tin khuyến mãi hành trình từ CVerify AI"
+  }
+}

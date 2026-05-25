@@ -1,0 +1,97 @@
+﻿version: '3.8'
+
+services:
+  # 1. DATABASE LAYER: PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: cverify-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: cverify
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_password_here
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cverify"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. CACHING LAYER: Redis
+  redis:
+    image: redis:7-alpine
+    container_name: cverify-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. AI SERVICE LAYER: FastAPI Python Microservice
+  cverify-ai:
+    build:
+      context: ./CVerify.AI
+      dockerfile: Dockerfile
+    container_name: cverify-ai
+    restart: always
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SHARED_SECRET=${AI_SERVICE_SHARED_SECRET:-your_hmac_shared_secret_key_here}
+      - CLIENT_ID=cverify-core
+      - HOST=0.0.0.0
+      - PORT=8000
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # 4. SERVER LAYER: ASP.NET Core v10 Web API Gateway
+  cverify-core:
+    build:
+      context: ./CVerify.Core
+      dockerfile: Dockerfile
+    container_name: cverify-core
+    restart: always
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=cverify;Username=postgres;Password=your_secure_password_here
+      - Redis__ConnectionString=redis:6379
+      - AI_SERVICE_URL=http://cverify-ai:8000
+      - AI_SERVICE_SHARED_SECRET=${AI_SERVICE_SHARED_SECRET:-your_hmac_shared_secret_key_here}
+      - AI_SERVICE_CLIENT_ID=cverify-core
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      cverify-ai:
+        condition: service_started
+
+  # 5. CLIENT PORTAL LAYER: Next.js 16 Web App
+  cverify-client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: cverify-client
+    restart: always
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - cverify-core
+
+volumes:
+  postgres_data:
+  redis_data:

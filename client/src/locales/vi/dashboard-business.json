@@ -1,0 +1,62 @@
+{
+  "title": "Bảng Điều Khiển Đối Tác",
+  "welcome": "Chào mừng đối tác, {{name}}!",
+  "metrics": {
+    "earnings": "Doanh thu tháng này",
+    "bookings": "Số lượng đặt dịch vụ",
+    "commission": "Phần trăm hoa hồng",
+    "conversion": "Tỷ lệ chuyển đổi"
+  },
+  "tables": {
+    "recentBookings": "Các giao dịch đặt chỗ gần đây",
+    "colId": "Mã đặt chỗ",
+    "colCustomer": "Khách hàng",
+    "colService": "Dịch vụ",
+    "colAmount": "Giá trị",
+    "colCommission": "Hoa hồng",
+    "colStatus": "Trạng thái",
+    "empty": "Chưa có giao dịch nào được ghi nhận."
+  },
+  "widgets": {
+    "partnerLevel": "Hạng Đối Tác",
+    "partnerLevelDesc": "Tình trạng hoạt động: Đang liên kết",
+    "systemStatus": "Trạng thái kết nối API",
+    "systemLatency": "Độ trễ API",
+    "activeOffers": "Số gói dịch vụ hoạt động"
+  },
+  "actions": {
+    "addService": "Thêm dịch vụ mới",
+    "exportReport": "Xuất báo cáo tài chính",
+    "syncApi": "Đồng bộ API"
+  },
+  "banner": {
+    "title": "Bảng Điều Khiển Đối Tác Dịch Vụ",
+    "subtitle": "Quản lý dịch vụ lưu trú, sản phẩm du lịch, danh sách niêm yết và theo dõi chỉ số đặt chỗ của khách hàng.",
+    "addListing": "Thêm danh sách niêm yết"
+  },
+  "kpis": {
+    "activeProducts": "SẢN PHẨM HOẠT ĐỘNG",
+    "activeProductsSub": "+2 mới niêm yết tháng này",
+    "totalBookings": "TỔNG LƯỢT ĐẶT",
+    "totalBookingsSub": "+12.4% so với quý trước",
+    "partnerRevenue": "DOANH THU ĐỐI TÁC",
+    "partnerRevenueSub": "Chu kỳ thanh toán trung bình: {{days}} ngày"
+  },
+  "offerings": {
+    "title": "Danh sách Gói dịch vụ Quản lý",
+    "subtitle": "Hành trình & các gói dịch vụ du lịch sẵn có cho hành khách",
+    "manageSettings": "Quản lý Cài đặt",
+    "table": {
+      "title": "Tên dịch vụ",
+      "category": "Danh mục",
+      "price": "Mức giá",
+      "bookingRate": "Tỷ lệ đặt",
+      "action": "Hành động",
+      "hotelBundle": "Gói khách sạn",
+      "itineraryGuide": "Hướng dẫn hành trình",
+      "occupancy": "{{percent}}% công suất phòng",
+      "bookings": "{{count}} lượt đặt",
+      "edit": "Chỉnh sửa"
+    }
+  }
+}

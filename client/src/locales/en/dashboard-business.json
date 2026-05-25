@@ -1,0 +1,62 @@
+{
+  "title": "Partner Dashboard",
+  "welcome": "Welcome back, {{name}}!",
+  "metrics": {
+    "earnings": "Monthly Revenue",
+    "bookings": "Service Bookings",
+    "commission": "Commission Rate",
+    "conversion": "Conversion Rate"
+  },
+  "tables": {
+    "recentBookings": "Recent Customer Bookings",
+    "colId": "Booking ID",
+    "colCustomer": "Customer",
+    "colService": "Service",
+    "colAmount": "Amount",
+    "colCommission": "Commission",
+    "colStatus": "Status",
+    "empty": "No transaction records found."
+  },
+  "widgets": {
+    "partnerLevel": "Partner Rank",
+    "partnerLevelDesc": "Activity Status: Connected",
+    "systemStatus": "API Endpoint Status",
+    "systemLatency": "API Gateway Latency",
+    "activeOffers": "Active Package Listing"
+  },
+  "actions": {
+    "addService": "Add New Service",
+    "exportReport": "Export Statement",
+    "syncApi": "Synchronize APIs"
+  },
+  "banner": {
+    "title": "Service Partner Console",
+    "subtitle": "Manage your hospitality, travel products, listings, and monitor customer booking indexes.",
+    "addListing": "Add Listing"
+  },
+  "kpis": {
+    "activeProducts": "ACTIVE PRODUCTS",
+    "activeProductsSub": "+2 new listed this month",
+    "totalBookings": "TOTAL BOOKINGS",
+    "totalBookingsSub": "+12.4% vs previous quarter",
+    "partnerRevenue": "PARTNER REVENUE",
+    "partnerRevenueSub": "Average payout cycles: {{days}} days"
+  },
+  "offerings": {
+    "title": "Current Managed Offerings",
+    "subtitle": "Itineraries & hospitality packages available for travelers",
+    "manageSettings": "Manage Settings",
+    "table": {
+      "title": "Offering Title",
+      "category": "Category",
+      "price": "Price Rate",
+      "bookingRate": "Booking Rate",
+      "action": "Action",
+      "hotelBundle": "Hotel Bundle",
+      "itineraryGuide": "Itinerary Guide",
+      "occupancy": "{{percent}}% occupancy",
+      "bookings": "{{count}} bookings",
+      "edit": "Edit"
+    }
+  }
+}

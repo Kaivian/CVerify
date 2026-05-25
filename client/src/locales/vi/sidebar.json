@@ -1,0 +1,23 @@
+{
+  "title": "Bảng điều khiển",
+  "navigation": {
+    "dashboard": "Tổng quan",
+    "aiChat": "Trò chuyện AI",
+    "bookings": "Đặt chỗ của tôi",
+    "settings": "Cài đặt",
+    "partnerPanel": "Kênh Đối Tác",
+    "adminPanel": "Kênh Quản Trị"
+  },
+  "sections": {
+    "personal": "Cá nhân",
+    "business": "Doanh nghiệp",
+    "system": "Hệ thống"
+  },
+  "session": {
+    "activeBanner": "Phiên làm việc đang hoạt động",
+    "timeoutWarn": "Cảnh báo hết hạn phiên",
+    "roleGated": "Quyền hạn được kiểm soát"
+  },
+  "expand": "Mở rộng thanh bên",
+  "collapse": "Thu gọn thanh bên"
+}

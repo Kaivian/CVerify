@@ -1,0 +1,26 @@
+{
+  "search": "Tìm kiếm hành trình, địa điểm...",
+  "notifications": {
+    "title": "Thông báo",
+    "empty": "Không có thông báo mới",
+    "markAllRead": "Đánh dấu tất cả đã đọc"
+  },
+  "menu": {
+    "dashboard": "Bảng điều khiển",
+    "settings": "Cài đặt hồ sơ",
+    "logout": "Đăng xuất",
+    "avatarAlt": "Ảnh đại diện người dùng",
+    "userMenu": "Menu người dùng",
+    "profile": "Xem hồ sơ",
+    "remainCredit": "Số dư tín dụng",
+    "themes": "Giao diện",
+    "languages": "Ngôn ngữ",
+    "support": "Hỗ trợ",
+    "themes_light": "Sáng",
+    "themes_dark": "Tối",
+    "themes_system": "Hệ thống"
+  },
+  "badge": {
+    "sandbox": "Hộp cát"
+  }
+}

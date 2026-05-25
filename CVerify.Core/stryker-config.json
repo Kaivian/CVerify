@@ -1,0 +1,27 @@
+﻿{
+  "stryker-config": {
+    "mutate": [
+      "Infrastructure/Services/EmailService.cs",
+      "Infrastructure/Services/EmailTemplateService.cs",
+      "Infrastructure/Security/EmailTokenGenerator.cs",
+      "Infrastructure/Services/BackgroundEmailQueueService.cs",
+      "Infrastructure/Services/FailoverEmailSender.cs"
+    ],
+    "solution": "CVerify.sln",
+    "project": "CVerify.API.csproj",
+    "test-projects": [
+      "tests/CVerify.API.UnitTests/CVerify.API.UnitTests.csproj"
+    ],
+    "reporters": [
+      "clear-text",
+      "progress",
+      "html"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 60,
+      "break": 70
+    },
+    "concurrency": 4
+  }
+}

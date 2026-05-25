@@ -1,0 +1,15 @@
+{
+  "UNKNOWN_ERROR": "Đã xảy ra lỗi không xác định. Vui lòng thử lại sau.",
+  "NETWORK_ERROR": "Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại đường truyền internet.",
+  "UNAUTHORIZED": "Bạn không có quyền truy cập tính năng này. Vui lòng đăng nhập lại.",
+  "FORBIDDEN": "Tài khoản của bạn không được cấp quyền thực hiện hành động này.",
+  "NOT_FOUND": "Không tìm thấy tài nguyên được yêu cầu.",
+  "BAD_REQUEST": "Dữ liệu yêu cầu không hợp lệ.",
+  "SERVER_ERROR": "Máy chủ hệ thống gặp sự cố. Đang nỗ lực khắc phục.",
+  "RATE_LIMIT_EXCEEDED": "Bạn đã gửi quá nhiều yêu cầu trong thời gian ngắn. Vui lòng thử lại sau ít phút.",
+  "AUTH_EXPIRED_TOKEN": "Liên kết xác thực đã hết hạn. Vui lòng yêu cầu một liên kết mới.",
+  "INVALID_CREDENTIALS": "Địa chỉ email hoặc mật khẩu không chính xác.",
+  "BRUTE_FORCE_LOCKED": "Tài khoản bị tạm khóa do nhập sai nhiều lần. Vui lòng đợi {{count}} giây.",
+  "EMAIL_ALREADY_EXISTS": "Địa chỉ email này đã được sử dụng để đăng ký tài khoản khác.",
+  "VALIDATION_ERROR": "Dữ liệu nhập vào chưa đúng định dạng."
+}

@@ -1,0 +1,79 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+
+        <!-- PostgreSQL -->
+        <PackageReference Include="Google.Apis.Auth" Version="1.74.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+
+        <!-- Entity Framework -->
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>
+                runtime;
+                build;
+                native;
+                contentfiles;
+                analyzers;
+                buildtransitive
+            </IncludeAssets>
+        </PackageReference>
+
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.8">
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+
+        <!-- Snake Case Naming -->
+        <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
+
+        <!-- JWT Authentication -->
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
+
+        <!-- Password Hashing -->
+        <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+
+        <!-- Redis -->
+        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.8" />
+        <PackageReference Include="StackExchange.Redis" Version="2.9.32" />
+
+        <!-- Swagger / OpenAPI -->
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.0.1" />
+
+        <!-- OpenAPI -->
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
+
+        <!-- Optional Micro ORM -->
+        <PackageReference Include="Dapper" Version="2.1.72" />
+
+        <!-- Mail & Rendering Infrastructure -->
+        <PackageReference Include="MailKit" Version="4.10.0" />
+        <PackageReference Include="MimeKit" Version="4.10.0" />
+        <PackageReference Include="Scriban" Version="5.12.1" />
+        
+        <!-- Resilience Infrastructure -->
+        <PackageReference Include="Polly" Version="8.4.1" />
+
+    </ItemGroup>
+
+    <!-- Copy physical email templates to output folder during builds -->
+    <ItemGroup>
+        <None Update="Infrastructure\EmailTemplates\*.html">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <!-- Exclude test projects from compilation in the main Web API project -->
+    <ItemGroup>
+        <Compile Remove="tests\**" />
+        <Content Remove="tests\**" />
+        <EmbeddedResource Remove="tests\**" />
+        <None Remove="tests\**" />
+    </ItemGroup>
+
+</Project>

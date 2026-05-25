@@ -1,0 +1,38 @@
+{
+  "title": "AI Xác Minh Đóng Góp",
+  "welcome": "Tôi có thể giúp xác minh năng lực kỹ thuật nào hôm nay?",
+  "welcomeDesc": "Kiểm toán kỹ thuật kho mã nguồn, xác minh bằng chứng công việc lập trình viên, phân tích biểu đồ kỹ năng. Hãy thử chọn một gợi ý dưới đây hoặc nhập yêu cầu.",
+  "placeholders": {
+    "input": "Hỏi CVerify để phân tích kho lưu trữ (ví dụ: 'Kiểm toán chất lượng mã nguồn github.com/user/repo')...",
+    "sidebarSearch": "Tìm kiếm lịch sử xác minh...",
+    "streaming": "CVerify đang phân tích độ sâu kỹ thuật kho lưu trữ..."
+  },
+  "suggestions": {
+    "kyotoTitle": "Kiểm Toán Mã Nguồn",
+    "kyotoDesc": "Đề xuất kiểm toán độ sâu kỹ thuật của kho lưu trữ phần mềm...",
+    "kyotoPrompt": "Thực hiện kiểm toán độ sâu kỹ thuật của kho lưu trữ phần mềm, tập trung vào cấu trúc kiến trúc, tính mô-đun và độ bao phủ kiểm thử.",
+    "yosemiteTitle": "Bằng Chứng Công Việc",
+    "yosemiteDesc": "Xác minh đóng góp Git và lịch sử commit của lập trình viên...",
+    "yosemitePrompt": "Phân tích lịch sử đóng góp Git, xác minh quyền tác giả và mức độ phức tạp của các pull request của lập trình viên.",
+    "romeTitle": "Biểu Đồ Kỹ Năng",
+    "romeDesc": "Xây dựng biểu đồ kỹ năng thực tế dựa trên đóng góp đã xác minh...",
+    "romePrompt": "Tạo biểu đồ kỹ năng chuyên môn dựa trên bằng chứng đóng góp từ các pull request GitHub đã được xác minh của ứng viên."
+  },
+  "sidebar": {
+    "history": "Lịch sử xác minh",
+    "newChat": "Phiên xác minh mới",
+    "empty": "Chưa có phiên xác minh nào gần đây."
+  },
+  "actions": {
+    "send": "Gửi yêu cầu",
+    "copy": "Sao chép",
+    "copied": "Đã sao chép!",
+    "regenerate": "Tạo lại phân tích",
+    "deleteChat": "Xóa phiên xác minh",
+    "share": "Chia sẻ báo cáo"
+  },
+  "errors": {
+    "failedToStream": "Không thể kết nối với luồng phản hồi AI. Vui lòng kiểm tra lại kết nối.",
+    "emptyPrompt": "Vui lòng nhập nội dung yêu cầu xác minh."
+  }
+}

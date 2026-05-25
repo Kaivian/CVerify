@@ -1,0 +1,34 @@
+{
+  "title": "My Travel Bookings",
+  "subtitle": "Track, view, and organize all hotels, flights, packages, and custom activities.",
+  "tabs": {
+    "all": "All Bookings",
+    "upcoming": "Upcoming",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "columns": {
+    "bookingId": "Booking ID",
+    "serviceName": "Service Details",
+    "date": "Departure / Check-in",
+    "amount": "Total Paid",
+    "status": "Booking Status",
+    "actions": "Actions"
+  },
+  "details": {
+    "bookingInfo": "Reservation Specifications",
+    "supplier": "Vendor Provider",
+    "travellers": "Guest Count",
+    "paymentMethod": "Payment Scheme",
+    "viewItinerary": "View Linked Trip Plan"
+  },
+  "actions": {
+    "cancelBooking": "Cancel Booking",
+    "support": "Contact Service Hub",
+    "review": "Submit Rating"
+  },
+  "toast": {
+    "cancelSuccess": "Your reservation was cancelled successfully.",
+    "cancelFailed": "Unable to cancel reservation. Please connect with Support."
+  }
+}

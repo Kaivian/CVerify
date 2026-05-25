@@ -1,0 +1,66 @@
+{
+  "title": "Trung tâm Lữ hành",
+  "welcome": "Chào mừng bạn, {{name}}!",
+  "widgets": {
+    "itineraries": {
+      "title": "Hành trình của tôi",
+      "count": "{{count}} hành trình",
+      "empty": "Chưa có hành trình nào được tạo. Hãy trò chuyện với AI để lập kế hoạch ngay!"
+    },
+    "bookings": {
+      "title": "Đặt chỗ sắp tới",
+      "count": "{{count}} lượt đặt",
+      "empty": "Không có lịch đặt dịch vụ sắp tới."
+    },
+    "points": {
+      "title": "Điểm thưởng Genie",
+      "value": "{{points}} điểm",
+      "loyalty": "Hạng Thành viên: {{tier}}"
+    }
+  },
+  "sections": {
+    "recentItineraries": "Hành trình gần đây",
+    "recommendedDestinations": "Điểm đến gợi ý cho bạn",
+    "specialOffers": "Ưu đãi dành riêng cho bạn"
+  },
+  "actions": {
+    "createTrip": "Lập kế hoạch chuyến đi mới",
+    "viewAllItineraries": "Xem tất cả hành trình",
+    "exploreOffers": "Khám phá ưu đãi"
+  },
+  "banner": {
+    "welcome": "Chào mừng bạn trở lại, {{name}}! 👤",
+    "subtitle": "Lên kế hoạch cho hành trình tiếp theo của bạn hoặc tìm kiếm lịch trình tùy chỉnh bằng Trình hướng dẫn du lịch AI của chúng tôi.",
+    "createPrompt": "Tạo câu lệnh"
+  },
+  "profile": {
+    "title": "Thông tin cá nhân",
+    "subtitle": "Chi tiết tài khoản đăng ký của bạn",
+    "fullName": "HỌ VÀ TÊN",
+    "email": "ĐỊA CHỈ EMAIL",
+    "accountId": "MÃ TÀI KHOẢN",
+    "status": "TRẠNG THÁI",
+    "verified": "Tài khoản đã xác thực",
+    "pending": "Đang chờ xác thực"
+  },
+  "security": {
+    "title": "Vai trò & Quyền hạn",
+    "subtitle": "Giới hạn năng lực RBAC được chỉ định",
+    "currentRole": "VAI TRÒ HIỆN TẠI",
+    "grantedAccess": "QUYỀN TRUY CẬP HỆ THỐNG ĐƯỢC CẤP",
+    "fullPrivilege": "*:* (Bỏ qua toàn bộ đặc quyền)"
+  },
+  "sandbox": {
+    "title": "Hộp cát tính năng",
+    "subtitle": "Trực quan hóa trình bảo vệ PermissionGuard",
+    "gatedComponent": "HỢP PHẦN BỊ KHÓA",
+    "gatedComponentDesc": "Yêu cầu quyền `trips:create`. Hãy thêm quyền này hoặc nâng cấp vai trò để kiểm thử.",
+    "creatorEnabled": "BẢNG ĐIỀU KHIỂN SÁNG TẠO ĐÃ MỞ",
+    "creatorEnabledDesc": "Bạn được ủy quyền ghi cấu hình hành trình tùy chỉnh vào kho lưu trữ trung tâm của CVerify.",
+    "newItinerary": "Hành trình mới",
+    "systemControls": "ĐIỀU KHIỂN HỆ THỐNG",
+    "systemControlsDesc": "Yêu cầu quyền `admin:system:view`. Bị khóa đối với hành khách tiêu chuẩn.",
+    "systemUnlocked": "BẢNG ĐIỀU KHIỂN HỆ THỐNG ĐÃ MỞ",
+    "systemUnlockedDesc": "Bạn có đặc quyền quản trị để giám sát hoạt động CPU nền tảng, bảng cơ sở dữ liệu và dung lượng bộ nhớ."
+  }
+}
