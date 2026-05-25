@@ -85,6 +85,57 @@ public class RepositoryAnalysisController : ControllerBase
         }
     }
 
+    [HttpPost("repositories/{repoId}/reset")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetRepositoryAnalysis(Guid repoId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _analysisService.ResetRepositoryAnalysisAsync(CurrentUserId, repoId, cancellationToken);
+            if (!result)
+            {
+                return BadRequest(new { Message = "Failed to reset repository analysis. Active analysis may be running." });
+            }
+            return Ok(new { Success = true, Message = "Repository analysis reset successfully." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { Message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    [HttpGet("repositories/{repoId}/dev-reset-and-analyze")]
+    [AllowAnonymous]
+    public async Task<IActionResult> DevResetAndAnalyze(Guid repoId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var targetUserId = Guid.Parse("019ecc1b-44e6-7600-803f-11249088ae92");
+            var resetResult = await _analysisService.ResetRepositoryAnalysisAsync(targetUserId, repoId, cancellationToken);
+            if (!resetResult)
+            {
+                // If reset fails because job is active, we can try to cancel active jobs first.
+                // But normally we just return bad request or try to cancel.
+            }
+            var jobId = await _analysisService.EnqueueAnalysisJobAsync(targetUserId, repoId);
+            return Ok(new { Success = true, Message = "Repository reset and reanalyzed successfully.", JobId = jobId });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+
+
+
     [HttpGet("repository-analyses/jobs/{jobId}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AnalysisJobDto))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

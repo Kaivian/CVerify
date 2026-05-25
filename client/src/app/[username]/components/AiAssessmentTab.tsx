@@ -2,18 +2,18 @@
 
 import React, { useState } from 'react';
 import { Chip, ProgressCircle, ProgressBar, Tooltip, Skeleton, Button } from '@heroui/react';
-import { 
-  ShieldCheck, 
-  CheckCircle2, 
-  Award, 
-  Sparkles, 
-  GitCommit, 
-  Clock, 
-  HelpCircle, 
-  Info, 
-  TrendingUp, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  ShieldCheck,
+  CheckCircle2,
+  Award,
+  Sparkles,
+  GitCommit,
+  Clock,
+  HelpCircle,
+  Info,
+  TrendingUp,
+  ChevronDown,
+  ChevronUp,
   AlertTriangle,
   ShieldAlert,
   GitFork
@@ -64,7 +64,7 @@ export interface NormalizedAssessmentViewModel {
   modelName: string;
   promptVersion: string;
   schemaVersion: string;
-  
+
   overallScore: number;
   careerLevel: string;
   careerLevelLabel: string;
@@ -73,12 +73,12 @@ export interface NormalizedAssessmentViewModel {
   workingStyle: string;
   headline: string;
   summary: string;
-  
+
   trustScore: number;
   verifiedSkillRatio: number;
   verifiedRepositoryRatio: number;
   verifiedEvidenceRatio: number;
-  
+
   dimensions: {
     skillDepth: number;
     ownership: number;
@@ -86,7 +86,7 @@ export interface NormalizedAssessmentViewModel {
     problemSolving: number;
     impact: number;
   };
-  
+
   keyStrengths: string[];
   watchPoints: string[];
   bestFitRoles: Array<{
@@ -97,7 +97,7 @@ export interface NormalizedAssessmentViewModel {
   }>;
   skills: NormalizedSkill[];
   evidenceGovernance: NormalizedRepoEvidence[];
-  
+
   improvementPlan: {
     summary: string;
     targetLevel: string;
@@ -232,7 +232,7 @@ function mapToViewModel(
   const pipelineVersion = assessment.pipelineVersion || '3.0.0';
   const calculationDate = assessment.completedAtUtc || null;
   const rawModelName = assessment.modelVersion || 'Gemini';
-  const modelName = rawModelName === 'gemini-1.5-flash' || rawModelName === 'Gemini' ? 'claude-3-5-sonnet-20241022' : rawModelName;
+  const modelName = rawModelName === 'gemini-1.5-flash' || rawModelName === 'Gemini' ? 'claude-haiku-4-5-20251001' : rawModelName;
   const promptVersion = assessment.promptVersion || 'v2.1';
   const schemaVersion = profileData?.schemaVersion || 'candidate-profile-v1';
 
@@ -497,7 +497,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
   );
 
   // Filter skills based on search term
-  const filteredSkills = vm.skills.filter(s => 
+  const filteredSkills = vm.skills.filter(s =>
     s.name.toLowerCase().includes(skillSearch.toLowerCase())
   );
 
@@ -508,7 +508,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
 
   return (
     <div className="flex flex-col gap-8 text-left py-4">
-      
+
       {/* Legacy Warning Banner */}
       {vm.status === 'Legacy' && (
         <div className="p-4 border border-warning/30 bg-warning/5 rounded-xl flex items-start gap-3 select-none">
@@ -526,7 +526,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
           SECTION 1: Dashboard Header & Trust Dial
           ========================================== */}
       <div className="p-6 border border-border rounded-xl bg-surface flex flex-col lg:flex-row items-center lg:items-start justify-between gap-8 shadow-xs">
-        
+
         {/* Left: General Assessment Info */}
         <div className="flex flex-col gap-3 min-w-0 w-full lg:max-w-xl text-center lg:text-left">
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 select-none">
@@ -562,11 +562,11 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
 
         {/* Right: Score Dial & Trust breakdown */}
         <div className="flex flex-col sm:flex-row items-center gap-6 shrink-0 w-full lg:w-auto justify-center lg:justify-end">
-          
+
           {/* Circular Score Dial */}
           <div className="relative flex items-center justify-center shrink-0 select-none">
             <ProgressCircle aria-label="Overall Score" value={vm.overallScore} size="lg" className="w-24 h-24">
-              <ProgressCircle.Track strokeWidth={4}>
+              <ProgressCircle.Track strokeWidth={4} className="w-full! h-full!">
                 <ProgressCircle.TrackCircle strokeWidth={4} />
                 <ProgressCircle.FillCircle strokeWidth={4} className="stroke-accent" />
               </ProgressCircle.Track>
@@ -628,7 +628,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
             Capability Vector Space
             {renderTooltip("Deconstructs the candidate's engineering competencies into five objective dimensions mapped directly from codebase signals.")}
           </h4>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {CAPABILITY_PILLARS.map((pillar) => {
               const val = vm.dimensions[pillar.key];
@@ -651,10 +651,10 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
                     </p>
                   </div>
                   <div className="pt-2 border-t border-separator">
-                    <ProgressBar 
-                      aria-label={pillar.label} 
-                      value={Math.min(val, 100)} 
-                      size="sm" 
+                    <ProgressBar
+                      aria-label={pillar.label}
+                      value={Math.min(val, 100)}
+                      size="sm"
                       className={`h-1.5 rounded-full ${pillar.color === 'success' ? 'bg-success/20' : 'bg-accent/20'}`}
                     />
                   </div>
@@ -669,7 +669,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
           SECTION 3: Snapshot & Role Alignment (Split columns)
           ========================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
-        
+
         {/* Left: Summary and Credentials */}
         <div className="lg:col-span-7 flex flex-col gap-6">
           <div className="flex flex-col gap-4">
@@ -763,7 +763,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
             Role Archetype Alignment
             {renderTooltip("Maps the capability vector against classic software roles, evaluating matching suitability and confidence indicators.")}
           </h4>
-          
+
           <div className="p-5 border border-border rounded-xl bg-surface flex flex-col gap-4 shadow-xs h-full justify-between">
             {vm.bestFitRoles.length > 0 ? (
               <div className="flex flex-col gap-4">
@@ -792,7 +792,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
                 <span className="text-xs text-muted italic">No role archetypes mapped yet.</span>
               </div>
             )}
-            
+
             <div className="text-[9px] text-muted leading-relaxed border-t border-separator pt-3">
               Matches are derived from repository content categories, commit timeline structures, and design complexity ratios.
             </div>
@@ -810,7 +810,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
             Technical Skill Ledger
             {renderTooltip("A complete audit of skills declared on the CV. Green-badged skills have confirmed code repository evidence.")}
           </h4>
-          
+
           {/* Search bar inside progressive disclosure */}
           <div className="relative max-w-xs w-full">
             <input
@@ -825,10 +825,10 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
 
         {filteredSkills.length > 0 ? (
           <div className="flex flex-col gap-6">
-            
+
             {/* Split Skills by Verification Type */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
+
               {/* Group A: AI Verified (Evidence backed) */}
               <div className="flex flex-col gap-3">
                 <span className="text-[10px] uppercase font-black text-success tracking-wider select-none flex items-center gap-1.5">
@@ -892,7 +892,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
               Level Progression Path
               {renderTooltip("Actionable roadmap generated by analyzing score gaps against target seniority level vectors.")}
             </h4>
-            
+
             <div className="flex items-center gap-3 select-none">
               <span className="text-[10px] text-muted font-semibold">Current: <b className="text-foreground">{vm.careerLevelLabel} ({vm.careerLevel})</b></span>
               <span className="text-[10px] text-muted font-semibold">Target: <b className="text-accent">{vm.improvementPlan.targetLevel}</b></span>
@@ -900,7 +900,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-            
+
             {/* Plan Info Card */}
             <div className="lg:col-span-4 p-5 border border-accent/20 bg-accent/2 rounded-xl flex flex-col justify-between gap-5 shadow-xs">
               <div className="flex flex-col gap-2">
@@ -928,18 +928,17 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
             <div className="lg:col-span-8 flex flex-col gap-3">
               {vm.improvementPlan.recommendations.length > 0 ? (
                 (() => {
-                  const items = showAllRecommendations 
-                    ? vm.improvementPlan.recommendations 
+                  const items = showAllRecommendations
+                    ? vm.improvementPlan.recommendations
                     : vm.improvementPlan.recommendations.slice(0, 2);
-                  
+
                   return (
                     <div className="flex flex-col gap-3">
                       {items.map((rec) => (
                         <div key={rec.id} className="p-4 border border-border rounded-xl bg-surface flex flex-col sm:flex-row sm:items-start justify-between gap-4 shadow-xs">
                           <div className="flex items-start gap-3 min-w-0">
-                            <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded-full shrink-0 mt-0.5 select-none ${
-                              rec.priority === 'High' ? 'bg-danger/10 text-danger border border-danger/15' : 'bg-warning/10 text-warning border border-warning/15'
-                            }`}>
+                            <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded-full shrink-0 mt-0.5 select-none ${rec.priority === 'High' ? 'bg-danger/10 text-danger border border-danger/15' : 'bg-warning/10 text-warning border border-warning/15'
+                              }`}>
                               {rec.priority} PRIORITY
                             </span>
                             <div className="flex flex-col gap-1 min-w-0">
@@ -960,8 +959,8 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
 
                       {/* Progressive Disclosure Toggle */}
                       {vm.improvementPlan.recommendations.length > 2 && (
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           variant="ghost"
                           className="font-bold text-xs text-accent hover:text-accent/80 flex items-center justify-center gap-1"
                           onClick={() => setShowAllRecommendations(!showAllRecommendations)}
@@ -1001,7 +1000,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
           Audited Code Evidence Governance Ledger
           {renderTooltip("The underlying commit ledger. Lists all repositories connected by the candidate, direct authorship percentage, and total score contribution weight.")}
         </h4>
-        
+
         {vm.evidenceGovernance.length > 0 ? (
           <div className="flex flex-col gap-3">
             <div className="border border-border rounded-xl bg-surface overflow-hidden shadow-xs">
@@ -1022,8 +1021,8 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
                 </thead>
                 <tbody>
                   {(() => {
-                    const items = showAllRepos 
-                      ? vm.evidenceGovernance 
+                    const items = showAllRepos
+                      ? vm.evidenceGovernance
                       : vm.evidenceGovernance.slice(0, 4);
 
                     return items.map((repo) => (
@@ -1032,13 +1031,12 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
                           {repo.name}
                         </td>
                         <td className="p-4.5">
-                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${
-                            repo.verificationLevel === 'AiAnalyzed'
-                              ? 'bg-success/10 text-success border-success/15'
-                              : repo.verificationLevel === 'RepositoryLinked'
-                                ? 'bg-primary/10 text-primary border-primary/15'
-                                : 'bg-default text-muted-foreground border-border'
-                          }`}>
+                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${repo.verificationLevel === 'AiAnalyzed'
+                            ? 'bg-success/10 text-success border-success/15'
+                            : repo.verificationLevel === 'RepositoryLinked'
+                              ? 'bg-primary/10 text-primary border-primary/15'
+                              : 'bg-default text-muted-foreground border-border'
+                            }`}>
                             {repo.verificationLevel === 'AiAnalyzed' ? 'AI Audited' : repo.verificationLevel === 'RepositoryLinked' ? 'Repo Linked' : 'Background'}
                           </span>
                         </td>
@@ -1057,8 +1055,8 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
 
             {/* Progressive Disclosure Toggle */}
             {vm.evidenceGovernance.length > 4 && (
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 variant="ghost"
                 className="font-bold text-xs text-accent hover:text-accent/80 flex items-center justify-center gap-1 mx-auto"
                 onClick={() => setShowAllRepos(!showAllRepos)}
@@ -1104,19 +1102,18 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
     const isExpanded = expandedSkill === skill.name;
 
     return (
-      <div 
-        key={skill.name} 
+      <div
+        key={skill.name}
         className="p-3.5 border border-border rounded-xl bg-surface flex flex-col gap-3 shadow-xs"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-foreground">{skill.name}</span>
-          <Chip size="sm" className={`text-[8px] h-4.5 px-1.5 border-none font-bold font-outfit uppercase select-none ${
-            skill.verificationLevel === 'AiAnalyzed' 
-              ? 'bg-success/10 text-success' 
-              : skill.verificationLevel === 'SelfDeclared' 
-                ? 'bg-accent/10 text-accent' 
-                : 'bg-default text-muted-foreground'
-          }`}>
+          <Chip size="sm" className={`text-[8px] h-4.5 px-1.5 border-none font-bold font-outfit uppercase select-none ${skill.verificationLevel === 'AiAnalyzed'
+            ? 'bg-success/10 text-success'
+            : skill.verificationLevel === 'SelfDeclared'
+              ? 'bg-accent/10 text-accent'
+              : 'bg-default text-muted-foreground'
+            }`}>
             {skill.level}
           </Chip>
         </div>

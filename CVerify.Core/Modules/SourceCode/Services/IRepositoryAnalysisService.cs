@@ -17,4 +17,5 @@ public interface IRepositoryAnalysisService
     Task<bool> RetryTaskAsync(Guid userId, Guid jobId, Guid taskId);
     Task<IEnumerable<AnalysisTaskEventDto>> GetTaskEventsAsync(Guid userId, Guid jobId, Guid taskId);
     Task<string?> GetJobSnapshotAsync(Guid userId, Guid jobId);
+    Task<bool> ResetRepositoryAnalysisAsync(Guid userId, Guid repositoryId, CancellationToken cancellationToken = default);
 }

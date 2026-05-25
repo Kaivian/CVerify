@@ -411,7 +411,7 @@ class CandidatePromptFactory:
             f"CRITICAL REQUIREMENTS:\n"
             f"1. Evaluate and compute 'ownershipScore' (0.0 to 1.0) and 'complexityScore' (0.0 to 100.0) based on code quality and patterns.\n"
             f"2. Evaluate 'qualityScore' (0.0 to 100.0) reflecting architecture cleanliness, test coverage, and documentation.\n"
-            f"3. Classify clone risk into 'cloneRiskClassification' (clean, low_risk, medium_risk, high_risk).\n"
+            f"3. Classify clone risk into 'cloneRiskClassification' (clean, low_risk, medium_risk, high_risk). IMPORTANT: This measures code plagiarism, copy-pasting, or template usage. Do NOT classify clone risk as 'high_risk' based on security vulnerabilities, poor code quality, or low bus factor. If the Default Clone Risk provided below is 'clean' or 'not_evaluated', you should default to 'clean' unless there is explicit evidence of code plagiarism.\n"
             f"4. Identify 'verifiedPatterns' (e.g. CQRS, Repository Pattern) and 'keyStrengths'/'identifiedGaps'.\n"
             f"5. Return a clean JSON structure only. Do not truncate the JSON or include markdown formatting blocks.\n\n"
             f"EXPECTED JSON SCHEMA:\n"

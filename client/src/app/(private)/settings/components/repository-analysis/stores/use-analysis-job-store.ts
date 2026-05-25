@@ -174,6 +174,7 @@ interface AnalysisJobStore {
   checkActiveJobs: () => Promise<void>;
   loadLatestReport: (repoId: string) => Promise<void>;
   updateJobStateDirectly: (repoId: string, updates: Partial<RepoJobState>) => void;
+  resetRepositoryAnalysis: (repoId: string) => Promise<void>;
 }
 
 // Map to track active EventSources in the module scope
@@ -685,6 +686,37 @@ export const useAnalysisJobStore = create<AnalysisJobStore>((set, get) => {
           },
         },
       }));
+    },
+
+    resetRepositoryAnalysis: async (repoId) => {
+      if (activeEventSources[repoId]) {
+        activeEventSources[repoId].close();
+        delete activeEventSources[repoId];
+      }
+
+      try {
+        await repositoryAnalysisApi.resetAnalysis(repoId);
+        set((state) => ({
+          repoStates: {
+            ...state.repoStates,
+            [repoId]: {
+              repoId,
+              jobId: null,
+              status: "idle",
+              progress: 0,
+              currentStep: "Never Analyzed",
+              logs: [],
+              taskEvents: [],
+              latestReport: null,
+              partialSnapshot: null,
+              lastUpdated: Date.now(),
+            },
+          },
+        }));
+      } catch (err) {
+        console.error(`Failed to reset repository analysis for ${repoId}:`, err);
+        throw err;
+      }
     },
   };
 });

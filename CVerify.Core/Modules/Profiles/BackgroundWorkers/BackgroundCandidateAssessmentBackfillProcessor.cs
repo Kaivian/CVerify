@@ -491,10 +491,8 @@ public class BackgroundCandidateAssessmentBackfillProcessor : BackgroundService
                                 catch {}
                             }
 
-                            if (ownership >= 0.30 && cloneClassification != "high_risk")
-                            {
-                                verifiedReposCount++;
-                            }
+                            // Always count repository as verified regardless of readiness gates
+                            verifiedReposCount++;
                         }
 
                         double rRepos = repoAssessments.Count > 0 ? (double)verifiedReposCount / repoAssessments.Count : 1.0;

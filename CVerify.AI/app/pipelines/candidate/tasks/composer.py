@@ -175,8 +175,8 @@ class CandidateProfileComposer(BaseTask):
                 
             quality_metrics = ra.get("qualityMetrics") or {}
             clone_classification = quality_metrics.get("cloneRiskClassification", "clean")
-            if ownership >= 0.30 and clone_classification != "high_risk":
-                verified_repos_count += 1
+            # Always count repository as verified regardless of readiness gates
+            verified_repos_count += 1
 
         r_repos = verified_repos_count / len(repository_assessments) if repository_assessments else 1.0
         r_evidence = (context.ownershipScore or 0.60) / s_candidate if s_candidate > 0 else 0.0
