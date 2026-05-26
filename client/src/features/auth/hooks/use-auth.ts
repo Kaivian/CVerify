@@ -3,15 +3,15 @@
 import { useAuthStore } from '../store/use-auth-store';
 import {
   authApi,
-  LoginPayload,
-  RegisterPayload,
-  ResetPasswordPayload,
-  CreatePasswordPayload,
-  RegisterCompanyPayload,
-  SetupWorkspacePayload,
-  CompanyLoginPayload
+  type LoginPayload,
+  type RegisterPayload,
+  type ResetPasswordPayload,
+  type CreatePasswordPayload,
+  type RegisterCompanyPayload,
+  type SetupWorkspacePayload,
+  type CompanyLoginPayload
 } from '../services/auth.service';
-import { User, UserRole, ResourceActionPermission } from '../../../types/auth.types';
+import { type User, type UserRole, type ResourceActionPermission } from '../../../types/auth.types';
 import { useState, useCallback } from 'react';
 import { normalizeError } from '../../../services/axios-client';
 import { normalizeRole } from '../../../lib/utils/auth-utils';

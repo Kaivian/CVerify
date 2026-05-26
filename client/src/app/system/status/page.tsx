@@ -17,7 +17,7 @@ import {
   Gauge
 } from 'lucide-react';
 import { systemApi } from '../../../services/system.service';
-import { SystemTelemetryData } from '../../../types/system.types';
+import { type SystemTelemetryData } from '../../../types/system.types';
 
 // Helper to log telemetry updates in development environment only
 const logDev = (message: string, data?: unknown) => {
@@ -240,13 +240,13 @@ export default function SystemStatusPage() {
                           : overallStatus === 'degraded'
                             ? 'bg-amber-400'
                             : 'bg-rose-400'
-                        }`}></span>
+                        }`} />
                       <span className={`relative inline-flex rounded-full h-3.5 w-3.5 ${overallStatus === 'healthy'
                           ? 'bg-emerald-500'
                           : overallStatus === 'degraded'
                             ? 'bg-amber-500'
                             : 'bg-rose-500'
-                        }`}></span>
+                        }`} />
                     </span>
                     <span className={`text-sm font-extrabold uppercase tracking-widest ${overallStatus === 'healthy'
                         ? 'text-emerald-400'

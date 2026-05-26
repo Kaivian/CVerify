@@ -1,4 +1,4 @@
-import { NotificationRenderer, NotificationEvent } from '../types';
+import { type NotificationRenderer, type NotificationEvent } from '../types';
 import { toast } from '@heroui/react';
 
 /**

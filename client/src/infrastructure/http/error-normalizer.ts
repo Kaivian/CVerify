@@ -1,5 +1,5 @@
-import axios, { AxiosError } from 'axios';
-import { ApiError, UxSemantics } from '@/types/api.types';
+import axios, { type AxiosError } from 'axios';
+import { type ApiError, type UxSemantics } from '@/types/api.types';
 
 /**
  * Normalizes all HTTP, network, and unhandled exceptions into a standardized ApiError contract.

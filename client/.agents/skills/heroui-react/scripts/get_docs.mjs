@@ -24,7 +24,7 @@ async function fetchApi(path) {
   // The v1 API expects path without /docs/ prefix
   // Input: /docs/react/getting-started/theming
   // API expects: react/getting-started/theming (route is /v1/docs/:path(*))
-  let apiPath = path.startsWith("/docs/")
+  const apiPath = path.startsWith("/docs/")
     ? path.slice(6) // Remove /docs/ prefix
     : path.startsWith("/")
       ? path.slice(1) // Remove leading /

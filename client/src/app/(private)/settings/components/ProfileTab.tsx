@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { useForm, FormProvider } from "react-hook-form";
+import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
@@ -9,10 +9,24 @@ import { Button } from "@/components/ui/button";
 import { SettingsSection } from "./SettingsSection";
 import { SocialLinksEditor } from "./SocialLinksEditor";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { parseDate } from "@internationalized/date";
+import { type User } from "@/types/auth.types";
 
 import {
-  Typography, Avatar, Select, Label,
-  ListBox, TextArea, Description, Input,
+  Typography,
+  Avatar,
+  Select,
+  Label,
+  ListBox,
+  TextArea,
+  Description,
+  Input,
+  InputGroup,
+  TextField,
+  FieldError,
+  DatePicker,
+  DateField,
+  Calendar,
 } from "@heroui/react";
 
 // 1. Define schema using Zod
@@ -33,6 +47,18 @@ const profileSchema = z.object({
     .string()
     .max(50, "Location must be under 50 characters")
     .optional(),
+  phoneNumber: z
+    .string()
+    .optional()
+    .refine((val) => !val || /^[0-9]{9,10}$/.test(val), {
+      message: "Phone number is invalid",
+    }),
+  birthDate: z.string().optional().or(z.literal("")),
+  headline: z
+    .string()
+    .max(50, "Headline must be under 50 characters")
+    .optional()
+    .or(z.literal("")),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -47,6 +73,9 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   onSaveSuccess,
 }) => {
   const { user, updateProfile } = useAuth();
+  const extendedUser = user as
+    | (User & { phoneNumber?: string; birthDate?: string; headline?: string })
+    | null;
 
   // Load social links from local state as they are not standard in user types
   const [socialLinks, setSocialLinks] = React.useState<
@@ -67,19 +96,31 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       customPronouns: "",
       company: "CVerify Inc.",
       location: "San Francisco, CA",
+      phoneNumber: extendedUser?.phoneNumber || "",
+      birthDate: extendedUser?.birthDate || "",
+      headline: extendedUser?.headline || "Software Engineer at CVerify",
     },
     mode: "onChange",
   });
 
   const {
     handleSubmit,
-    watch,
     reset,
     setValue,
-    formState: { isDirty, isSubmitting },
+    formState: { isDirty, isSubmitting, errors },
   } = methods;
 
-  const currentValues = watch();
+  const currentValues = useWatch({ control: methods.control });
+
+  const birthDateString = currentValues.birthDate || "";
+  let birthDateValue = null;
+  if (birthDateString) {
+    try {
+      birthDateValue = parseDate(birthDateString);
+    } catch (e) {
+      console.error("Failed to parse birthDate:", e);
+    }
+  }
 
   // Reset form when user data loads
   useEffect(() => {
@@ -92,9 +133,12 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         customPronouns: "",
         company: "CVerify Inc.",
         location: "San Francisco, CA",
+        phoneNumber: extendedUser?.phoneNumber || "",
+        birthDate: extendedUser?.birthDate || "",
+        headline: extendedUser?.headline || "Software Engineer at CVerify",
       });
     }
-  }, [user, reset, isDirty]);
+  }, [user, reset, isDirty, extendedUser]);
 
   // Track dirty changes to inform parent page navigation guard
   useEffect(() => {
@@ -126,7 +170,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   };
 
   // Auto-resize Bio textarea handler
-  const bioValue = watch("bio") || "";
+  const bioValue = currentValues.bio || "";
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -139,11 +183,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   // Initials for avatar fallback
   const initials = user?.fullName
     ? user.fullName
-      .split(" ")
-      .map((n: string) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase()
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
     : "U";
 
   // Dropdown options
@@ -165,19 +209,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
 
   return (
     <FormProvider {...methods}>
-      <form
-        onSubmit={handleSubmit(handleFormSubmit)}
-        className="space-y-10 pb-2"
-      >
-        <SettingsSection title="Profile Information">
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        <SettingsSection title="General Information">
           <Card className="flex flex-col">
             <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-8 items-start">
               {/* Left Column — Avatar */}
               <div className="flex flex-col items-start gap-2">
-                <Typography type="body-sm" className="font-semibold">
-                  Profile Picture
-                </Typography>
-
+                <Label>Profile Picture</Label>
                 <Avatar
                   variant="default"
                   className="w-30 h-30 select-none rounded-full"
@@ -193,7 +231,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               {/* Right Column — Form Content */}
               <div className="flex flex-col gap-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col">
                     <Label htmlFor="input-type-fullname">Full Name</Label>
                     <Input
                       id="input-type-fullname"
@@ -211,7 +249,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                   <div className="flex flex-col text-left gap-2 w-full">
                     <Select
                       placeholder="Select one"
-                      value={currentValues.publicEmail}
+                      value={currentValues.publicEmail || "none"}
                       onChange={(val) =>
                         setValue("publicEmail", val as string, {
                           shouldDirty: true,
@@ -264,18 +302,126 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-[180px_250px_1fr] gap-4 mb-6 items-start">
+              <TextField
+                name="phoneNumber"
+                isInvalid={!!errors.phoneNumber}
+                className="flex flex-col w-full h-full"
+              >
+                <Label htmlFor="input-type-phone">Phone Number</Label>
+                <InputGroup>
+                  <InputGroup.Prefix className="text-muted text-xs font-mono bg-background">
+                    +084
+                  </InputGroup.Prefix>
+                  <InputGroup.Input
+                    id="input-type-phone"
+                    type="tel"
+                    placeholder="912345678"
+                    className="pl-2"
+                    value={currentValues.phoneNumber || ""}
+                    onChange={(e) =>
+                      setValue("phoneNumber", e.target.value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  />
+                </InputGroup>
+                {errors.phoneNumber && (
+                  <FieldError>{errors.phoneNumber.message}</FieldError>
+                )}
+              </TextField>
+
+              {/* Date of Birth DatePicker */}
+              <DatePicker
+                name="birthDate"
+                value={birthDateValue}
+                onChange={(val) =>
+                  setValue("birthDate", val ? val.toString() : "", {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                className="flex flex-col gap-1 w-full"
+              >
+                <Label>Date of Birth</Label>
+                <DateField.Group fullWidth>
+                  <DateField.Input>
+                    {(segment) => <DateField.Segment segment={segment} />}
+                  </DateField.Input>
+                  <DateField.Suffix>
+                    <DatePicker.Trigger>
+                      <DatePicker.TriggerIndicator />
+                    </DatePicker.Trigger>
+                  </DateField.Suffix>
+                </DateField.Group>
+                <DatePicker.Popover>
+                  <Calendar aria-label="Birth date">
+                    <Calendar.Header>
+                      <Calendar.YearPickerTrigger>
+                        <Calendar.YearPickerTriggerHeading />
+                        <Calendar.YearPickerTriggerIndicator />
+                      </Calendar.YearPickerTrigger>
+                      <Calendar.NavButton slot="previous" />
+                      <Calendar.NavButton slot="next" />
+                    </Calendar.Header>
+                    <Calendar.Grid>
+                      <Calendar.GridHeader>
+                        {(day) => (
+                          <Calendar.HeaderCell>{day}</Calendar.HeaderCell>
+                        )}
+                      </Calendar.GridHeader>
+                      <Calendar.GridBody>
+                        {(date) => <Calendar.Cell date={date} />}
+                      </Calendar.GridBody>
+                    </Calendar.Grid>
+                    <Calendar.YearPickerGrid>
+                      <Calendar.YearPickerGridBody>
+                        {({ year }) => <Calendar.YearPickerCell year={year} />}
+                      </Calendar.YearPickerGridBody>
+                    </Calendar.YearPickerGrid>
+                  </Calendar>
+                </DatePicker.Popover>
+              </DatePicker>
+
+              {/* Headline Input with character cap */}
+              <div className="flex flex-col gap-1 w-full">
+                <Label htmlFor="input-type-headline">Headline</Label>
+                <Input
+                  id="input-type-headline"
+                  type="text"
+                  value={currentValues.headline || ""}
+                  onChange={(e) =>
+                    setValue("headline", e.target.value.slice(0, 50), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  placeholder="e.g. Lead Architect"
+                  maxLength={50}
+                />
+                <Description className="text-muted text-[10px] flex justify-end">
+                  {(currentValues.headline || "").length}/50 characters
+                </Description>
+              </div>
+            </div>
+            <div className="grid grid-cols-[180px_300px_1fr] gap-4 items-start">
               <Select
                 placeholder="Select one"
-                value={currentValues.pronouns}
+                value={currentValues.pronouns || "he_him"}
                 onChange={(val) =>
                   setValue(
                     "pronouns",
-                    val as "he_him" | "she_her" | "they_them" | "prefer_not" | "custom",
+                    val as
+                      | "he_him"
+                      | "she_her"
+                      | "they_them"
+                      | "prefer_not"
+                      | "custom",
                     {
                       shouldDirty: true,
                       shouldValidate: true,
-                    }
+                    },
                   )
                 }
               >
@@ -345,10 +491,9 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
             />
           </Card>
         </SettingsSection>
-
         {/* Sticky Actions Bar */}
         {isDirty && (
-          <div className="sticky bottom-0 w-full bg-[#ffffff] border border-border shadow-modal rounded-2xl p-4 flex items-center justify-between gap-4 z-40 animate-fade-in -mb-19">
+          <div className="sticky bottom-0 w-full bg-[#ffffff] border border-border rounded-2xl p-4 flex items-center justify-between gap-4 z-40 animate-fade-in">
             <Typography type="body-xs" className="font-bold select-none pl-2">
               You have unsaved public profile changes.
             </Typography>

@@ -1,5 +1,5 @@
 import registry from "./permissions-registry.json";
-import { PermissionsRegistry, PermissionDefinition } from "./permission.types";
+import { type PermissionsRegistry, type PermissionDefinition } from "./permission.types";
 
 export const PERMISSIONS_REGISTRY = registry as PermissionsRegistry;
 

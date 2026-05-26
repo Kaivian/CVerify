@@ -5,18 +5,134 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Override default ignores of eslint-config-next.
+
+  /**
+   * Global ignores
+   */
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
+    "dist/**",
+    "coverage/**",
+    "public/**/*.min.*",
     "next-env.d.ts",
   ]),
+
+  /**
+   * Main application rules
+   */
   {
-    files: ["scripts/**/*.js"],
+    rules: {
+      /**
+       * General
+       */
+      "no-console":
+        process.env.NODE_ENV === "production"
+          ? ["warn", { allow: ["warn", "error"] }]
+          : "off",
+
+      "no-debugger":
+        process.env.NODE_ENV === "production" ? "warn" : "off",
+
+      /**
+       * Imports
+       */
+      "no-duplicate-imports": "error",
+
+      /**
+       * React
+       */
+      "react/jsx-key": "error",
+      "react/self-closing-comp": "error",
+      "react/no-unescaped-entities": "off",
+
+      /**
+       * React Hooks
+       */
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+
+      /**
+       * TypeScript
+       */
+      "@typescript-eslint/consistent-type-imports": [
+        "warn",
+        {
+          prefer: "type-imports",
+          fixStyle: "inline-type-imports",
+        },
+      ],
+
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+
+      "@typescript-eslint/no-explicit-any": "warn",
+
+      "@typescript-eslint/ban-ts-comment": [
+        "warn",
+        {
+          "ts-expect-error": "allow-with-description",
+        },
+      ],
+
+      /**
+       * Style / Clean code
+       */
+      "prefer-const": "error",
+      "object-shorthand": "error",
+      eqeqeq: ["error", "always"],
+    },
+  },
+
+  /**
+   * Node.js scripts
+   */
+  {
+    files: ["scripts/**/*.js", "scripts/**/*.ts"],
+
     rules: {
       "@typescript-eslint/no-require-imports": "off",
+      "no-console": "off",
+    },
+  },
+
+  /**
+   * Config files
+   */
+  {
+    files: [
+      "*.config.js",
+      "*.config.ts",
+      "*.config.mjs",
+      "*.config.cjs",
+    ],
+
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+
+  /**
+   * Test files
+   */
+  {
+    files: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+    ],
+
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "no-console": "off",
     },
   },
 ]);

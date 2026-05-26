@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import { Card, Typography, Button, toast } from "@heroui/react";
 import { ShieldAlert, ShieldCheck, RefreshCw } from 'lucide-react';
-import { Suspense } from 'react';
 
 function VerifyLinkContent() {
   const router = useRouter();

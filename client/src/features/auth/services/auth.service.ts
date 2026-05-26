@@ -1,24 +1,24 @@
 import { axiosClient } from '../../../services/axios-client';
 import {
-  LoginResponseData,
-  UserProfileResponseData,
-  AuthSuccessResponse,
-  SendOtpResponseData,
-  VerifyOtpResponseData,
-  VerifyCompanyLinkResponseData,
-  SessionInfoData,
-  ResolveEmailAuthStateResponseData,
+  type LoginResponseData,
+  type UserProfileResponseData,
+  type AuthSuccessResponse,
+  type SendOtpResponseData,
+  type VerifyOtpResponseData,
+  type VerifyCompanyLinkResponseData,
+  type SessionInfoData,
+  type ResolveEmailAuthStateResponseData,
 } from '../../../types/auth.types';
-import { z } from 'zod';
+import { type z } from 'zod';
 import {
-  loginSchema,
-  registerSchema,
-  forgotPasswordSchema,
-  resetPasswordSchema,
-  createPasswordSchema,
-  registerCompanySchema,
-  setupWorkspaceSchema,
-  companyLoginSchema,
+  type loginSchema,
+  type registerSchema,
+  type forgotPasswordSchema,
+  type resetPasswordSchema,
+  type createPasswordSchema,
+  type registerCompanySchema,
+  type setupWorkspaceSchema,
+  type companyLoginSchema,
 } from '../validators/auth.validator';
 
 // Derive request payloads from schemas using Zod's infer capabilities

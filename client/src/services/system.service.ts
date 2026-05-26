@@ -1,5 +1,5 @@
 import { axiosClient } from './axios-client';
-import { SystemHealthResponse, SystemPingResponse, SystemVersionResponse } from '../types/system.types';
+import { type SystemHealthResponse, type SystemPingResponse, type SystemVersionResponse } from '../types/system.types';
 
 // Central helper for development mode logging
 const logDev = (message: string, ...optionalParams: unknown[]) => {

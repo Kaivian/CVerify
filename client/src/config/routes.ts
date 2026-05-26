@@ -7,7 +7,7 @@ import {
   Shield, 
   FileText,
   Settings,
-  LucideIcon
+  type LucideIcon
 } from 'lucide-react';
 
 export interface RouteMetadata {

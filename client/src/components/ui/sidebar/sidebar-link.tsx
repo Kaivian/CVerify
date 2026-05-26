@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Tooltip } from "@heroui/react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
 import { isActiveRoute } from "../../../lib/navigation-utils";
-import { NavigationLinkItem } from "../../../types/navigation.types";
+import { type NavigationLinkItem } from "../../../types/navigation.types";
 
 interface SidebarLinkProps {
   item: NavigationLinkItem;

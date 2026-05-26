@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { getCookie } from './cookies';
 import { AUTH_KEYS } from '@/infrastructure/config/constants';
 

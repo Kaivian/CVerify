@@ -1,5 +1,5 @@
-import { LucideIcon } from 'lucide-react';
-import { ResourceActionPermission, UserRole } from './auth.types';
+import { type LucideIcon } from 'lucide-react';
+import { type ResourceActionPermission, type UserRole } from './auth.types';
 
 export type NavigationNodeType = 'item' | 'group' | 'section';
 
