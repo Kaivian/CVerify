@@ -6,6 +6,7 @@ import {
   Users, 
   Shield, 
   FileText,
+  Settings,
   LucideIcon
 } from 'lucide-react';
 
@@ -19,6 +20,12 @@ export interface RouteMetadata {
 }
 
 export const routesConfig: Record<string, RouteMetadata> = {
+  '/settings': {
+    path: '/settings',
+    translationKey: 'common:dashboard.settings',
+    fallbackLabel: 'Settings',
+    icon: Settings,
+  },
   '/user': {
     path: '/user',
     translationKey: 'common:dashboard.travelerHub',

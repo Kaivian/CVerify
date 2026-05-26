@@ -30,6 +30,16 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
+interface Level2Request {
+  requestId?: string;
+  organizationId?: string;
+  requestedRepresentative?: string;
+  verificationCallStatus?: string;
+  adminApprovalStatus?: string;
+  supportApprovalStatus?: string;
+  finalDecision?: string;
+}
+
 export function ReclaimView() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,7 +87,7 @@ export function ReclaimView() {
   );
   const [optionalMsg, setOptionalMsg] = useState("");
   const [isSubmittingLevel2, setIsSubmittingLevel2] = useState(false);
-  const [level2Request, setLevel2Request] = useState<any>(null);
+  const [level2Request, setLevel2Request] = useState<Level2Request | null>(null);
 
   // Recovery Receipt Data
   const [receipt, setReceipt] = useState<{
@@ -107,7 +117,7 @@ export function ReclaimView() {
     isNewRepEmailValid &&
     isNewRepPhoneValid;
 
-  const fetchLevel2Status = async () => {
+  const fetchLevel2Status = React.useCallback(async () => {
     if (!taxCode) {
       setLevel2Loading(false);
       return;
@@ -117,9 +127,9 @@ export function ReclaimView() {
       if (checkRes.isLevel2) {
         setIsLevel2(true);
         // Look up if an active rotation request already exists in system to resume tracking
-        const queue = await recoveryApi.level2GetRequests();
+        const queue = (await recoveryApi.level2GetRequests()) as Level2Request[];
         const activeReq = queue.find(
-          (r: any) =>
+          (r) =>
             r.organizationId &&
             r.finalDecision !== "rejected" &&
             r.finalDecision !== "expired" &&
@@ -135,11 +145,13 @@ export function ReclaimView() {
     } finally {
       setLevel2Loading(false);
     }
-  };
+  }, [taxCode]);
 
   useEffect(() => {
-    fetchLevel2Status();
-  }, [taxCode]);
+    Promise.resolve().then(() => {
+      fetchLevel2Status();
+    });
+  }, [fetchLevel2Status]);
 
   const handleSubmitLevel2 = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,7 +159,7 @@ export function ReclaimView() {
 
     setIsSubmittingLevel2(true);
     try {
-      const response = await recoveryApi.level2RequestRotation({
+      const response = (await recoveryApi.level2RequestRotation({
         taxCode,
         newRepresentativeFullName: newRepName,
         newRepresentativePosition: newRepPosition,
@@ -155,7 +167,7 @@ export function ReclaimView() {
         newRepresentativePhone: newRepPhone,
         reasonForRepresentativeChange: rotationReason,
         optionalSupportingMessage: optionalMsg,
-      });
+      })) as Level2Request;
 
       setLevel2Request(response);
       setLevel2Step(2); // Advance to tracking dashboard!

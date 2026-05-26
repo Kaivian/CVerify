@@ -67,7 +67,7 @@ export function AuthAvatar() {
         router.push(`/${role}`);
         break;
       case "settings":
-        router.push("/user"); // Fallback setting routing to dashboard traveler page
+        router.push("/settings");
         break;
       case "lang-vi":
         setCookie("i18next", "vi");

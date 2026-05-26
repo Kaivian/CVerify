@@ -55,7 +55,6 @@ export function AdminVoteView() {
   } | null>(null);
 
   const {
-    register,
     handleSubmit,
     setValue,
     watch,

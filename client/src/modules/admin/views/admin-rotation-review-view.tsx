@@ -80,46 +80,50 @@ export function AdminRotationReviewView() {
   const [decisionFilter, setDecisionFilter] = useState<string>("all");
   const [callFilter, setCallFilter] = useState<string>("all");
 
-  const fetchRequests = async (showLoading = true) => {
+  const fetchRequests = React.useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const data = await recoveryApi.level2GetRequests();
+      const data = (await recoveryApi.level2GetRequests()) as RotationRequest[];
       setRequests(data);
-    } catch (err) {
+    } catch {
       toast.danger("Failed to load requests", {
         description: "Please check your admin session authorization.",
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchRequests(true);
-  }, []);
+    Promise.resolve().then(() => {
+      fetchRequests(true);
+    });
+  }, [fetchRequests]);
 
   // Fetch organization rotation history when request selection changes
   useEffect(() => {
-    if (!selectedReq) {
-      setRotationHistory([]);
-      return;
-    }
-
-    const fetchHistory = async () => {
-      setLoadingHistory(true);
-      try {
-        const historyData = await recoveryApi.level2GetHistory(selectedReq.organizationId);
-        setRotationHistory(historyData);
-      } catch (err) {
-        console.error("Failed to load representative history", err);
-      } finally {
-        setLoadingHistory(false);
+    Promise.resolve().then(() => {
+      if (!selectedReq) {
+        setRotationHistory([]);
+        return;
       }
-    };
 
-    fetchHistory();
-    setCallNotes(selectedReq.verificationCallNotes || "");
-    setCallStatus(selectedReq.verificationCallStatus);
+      const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+          const historyData = (await recoveryApi.level2GetHistory(selectedReq.organizationId)) as HistoryItem[];
+          setRotationHistory(historyData);
+        } catch (err) {
+          console.error("Failed to load representative history", err);
+        } finally {
+          setLoadingHistory(false);
+        }
+      };
+
+      fetchHistory();
+      setCallNotes(selectedReq.verificationCallNotes || "");
+      setCallStatus(selectedReq.verificationCallStatus);
+    });
   }, [selectedReq]);
 
   // Log / update verification call status
@@ -139,7 +143,7 @@ export function AdminRotationReviewView() {
       });
 
       // Refresh data
-      const refreshed = await recoveryApi.level2GetRequests();
+      const refreshed = (await recoveryApi.level2GetRequests()) as RotationRequest[];
       setRequests(refreshed);
       const updated = refreshed.find((r) => r.requestId === selectedReq.requestId);
       setSelectedReq(updated || null);
@@ -168,7 +172,7 @@ export function AdminRotationReviewView() {
       });
 
       // Refresh data
-      const refreshed = await recoveryApi.level2GetRequests();
+      const refreshed = (await recoveryApi.level2GetRequests()) as RotationRequest[];
       setRequests(refreshed);
       const updated = refreshed.find((r) => r.requestId === selectedReq.requestId);
       setSelectedReq(updated || null);
@@ -395,7 +399,7 @@ export function AdminRotationReviewView() {
                   <span className="font-semibold text-foreground capitalize">{selectedReq.reason.replace("_", " ")}</span>
                   {selectedReq.optionalSupportingMessage && (
                     <div className="mt-1 p-2 rounded-lg bg-surface-secondary text-[11px] text-muted italic border border-border/60">
-                      "{selectedReq.optionalSupportingMessage}"
+                      &quot;{selectedReq.optionalSupportingMessage}&quot;
                     </div>
                   )}
                 </div>
@@ -416,7 +420,7 @@ export function AdminRotationReviewView() {
                   <select
                     className="w-full h-9 bg-surface border border-border rounded-xl px-2.5 text-xs text-foreground focus:outline-none focus:border-accent"
                     value={callStatus}
-                    onChange={(e) => setCallStatus(e.target.value as any)}
+                    onChange={(e) => setCallStatus(e.target.value as typeof callStatus)}
                   >
                     <option value="not_started">Not Started</option>
                     <option value="scheduled">Scheduled</option>
