@@ -35,7 +35,7 @@ export default function SettingsPage() {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   const tabs: TabItem[] = [
-    { id: "profile", label: "Public Profile", icon: User },
+    { id: "profile", label: "Profile Settings", icon: User },
     { id: "career", label: "Career Preferences", icon: Briefcase },
     { id: "account", label: "Account & Security", icon: Settings },
   ];
@@ -87,7 +87,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col h-full w-full text-left relative overflow-hidden">
       {/* Header and Title */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
         <div className="flex flex-col text-left">
           <Typography.Heading level={2} className="font-extrabold">
             Account Settings
@@ -116,23 +116,23 @@ export default function SettingsPage() {
             className="text-muted leading-relaxed text-[11px] text-right"
           >
             {activeTab === "profile" && (
-              <div>
+              <span>
                 Update your name, public contact email, location,
                 <br /> and write a small bio detailing your work.
-              </div>
+              </span>
             )}
             {activeTab === "career" && (
-              <div>
+              <span>
                 Signal to companies, recruiters, and the CVerify network
                 <br />
                 if you are currently open to new job contracts.
-              </div>
+              </span>
             )}
             {activeTab === "account" && (
-              <div>
+              <span>
                 Customize your public username, manage connected auth accounts,
                 security credentials, sessions, and privacy settings.
-              </div>
+              </span>
             )}
           </Typography>
         </div>
