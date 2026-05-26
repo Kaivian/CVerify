@@ -1,9 +1,9 @@
-﻿version: '3.8'
+version: '3.8'
 
 services:
   # 1. DATABASE LAYER: PostgreSQL
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: cverify-postgres
     restart: always
     environment:

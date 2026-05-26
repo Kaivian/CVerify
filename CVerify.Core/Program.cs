@@ -42,6 +42,8 @@ using CVerify.API.Modules.Shared.Domain.Services;
 using CVerify.API.Modules.SourceCode.Clients;
 using CVerify.API.Modules.Shared.Domain.Resolvers;
 using CVerify.API.Modules.Shared.Hubs;
+using CVerify.API.Modules.Intelligence.Services;
+using CVerify.API.Modules.Intelligence.BackgroundWorkers;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -356,6 +358,17 @@ builder.Services.AddScoped<ICapabilityProjectionBuilder, CapabilityProjectionBui
 builder.Services.AddScoped<IRequirementGraphBuilder, RequirementGraphBuilder>();
 builder.Services.AddScoped<ITalentGraphBuilder, TalentGraphBuilder>();
 
+// Talent Intelligence Service Registrations
+builder.Services.AddScoped<IOutboxPublisher, OutboxPublisher>();
+builder.Services.AddScoped<ICapabilityGraphService, CapabilityGraphService>();
+builder.Services.AddScoped<ITrustEngineService, TrustEngineService>();
+builder.Services.AddScoped<IExplainableMatchService, ExplainableMatchService>();
+builder.Services.AddScoped<ICandidateEvaluationService, CandidateEvaluationService>();
+builder.Services.AddScoped<IRepositoryIntelligencePipeline, RepositoryIntelligencePipeline>();
+builder.Services.AddScoped<IJobRankingStrategy, WeightedJobRankingStrategy>();
+builder.Services.AddScoped<IRecommendationProvider, DefaultRecommendationProvider>();
+builder.Services.AddScoped<IJobEligibilityService, JobEligibilityService>();
+
 
 // Register Cloudflare R2 Object Storage Stack (IAmazonS3 + IStorageService)
 builder.Services.AddSingleton<IAmazonS3>(sp =>
@@ -463,6 +476,7 @@ builder.Services.AddHostedService<AnalysisQueueRecoverySweeper>();
 builder.Services.AddHostedService<BackgroundRepositoryAnalysisProcessor>();
 builder.Services.AddHostedService<BackgroundCandidateAssessmentProcessor>();
 builder.Services.AddHostedService<BackgroundCandidateAssessmentBackfillProcessor>();
+builder.Services.AddHostedService<TalentOutboxBackgroundProcessor>();
 
 
 builder.Services.AddHostedService<RedisNotificationSubscriberWorker>();

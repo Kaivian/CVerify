@@ -14,6 +14,7 @@ using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.Intelligence.Services;
 
 namespace CVerify.API.Modules.Profiles.Services;
 
@@ -26,6 +27,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
     private readonly IConnectionMultiplexer _redis;
     private readonly ICandidateRepositoryProvider _repositoryProvider;
     private readonly ILogger<CandidateAssessmentService> _logger;
+    private readonly ICandidateEvaluationService _evaluationService;
 
     public CandidateAssessmentService(
         ApplicationDbContext context,
@@ -34,7 +36,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         IHmacSignatureService hmacService,
         IConnectionMultiplexer redis,
         ICandidateRepositoryProvider repositoryProvider,
-        ILogger<CandidateAssessmentService> _logger)
+        ILogger<CandidateAssessmentService> _logger,
+        ICandidateEvaluationService evaluationService)
     {
         _context = context;
         _queue = queue;
@@ -43,6 +46,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         _redis = redis;
         _repositoryProvider = repositoryProvider;
         this._logger = _logger;
+        _evaluationService = evaluationService;
     }
 
     public async Task<CandidateReadinessDto> GetReadinessStatusAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -676,6 +680,9 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Recalculate candidate evaluation snapshot and capability projection
+            await _evaluationService.EvaluateAndSnapshotCandidateAsync(assessment.UserId, cancellationToken);
 
             // Publish final completion
             await PublishProgressAsync(assessment.UserId, "Completed", "CandidateProfileComposer", "Candidate Assessment completed successfully.", 100.0);

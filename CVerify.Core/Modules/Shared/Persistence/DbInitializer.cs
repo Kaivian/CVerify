@@ -3050,6 +3050,16 @@ public static class DbInitializer
             // Ignore index creation conflicts
         }
 
+        // Automatically apply any pending EF Core migrations to keep database schema up to date
+        try
+        {
+            await context.Database.MigrateAsync();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Fatal: Database migrations failed to apply. Please ensure PostgreSQL is running and accessible.", ex);
+        }
+
         // Clear Npgsql connection pools to force reload of system types (like citext and user_status enum) 
         // created during database initialization, preventing System.NotSupportedException.
         Npgsql.NpgsqlConnection.ClearAllPools();
@@ -3096,6 +3106,9 @@ public static class DbInitializer
         {
             // Ignore other DB errors at this stage (e.g. if database is completely fresh, table might not exist yet)
         }
+
+        // Apply all pending migrations (e.g., Talent Intelligence migrations)
+        await context.Database.MigrateAsync();
 
         // Invoke modular seeders
         await SuperAdminSeeder.SeedAsync(context, config.SuperAdmin, seedingPolicy);

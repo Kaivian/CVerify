@@ -6,3 +6,4 @@ export { useErrorLifecycle } from './use-error-lifecycle';
 export type { ErrorStatus, ErrorStateNode } from './use-error-lifecycle';
 export { useProfileStore } from './use-profile-store';
 export { useNotificationStore } from './use-notification-store';
+export { useSavedJobsStore } from './use-saved-jobs-store';

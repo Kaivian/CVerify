@@ -32,7 +32,8 @@ import {
   Briefcase,
   FileText,
   Info,
-  CreditCard
+  CreditCard,
+  UserCheck
 } from "lucide-react";
 import { type NavigationNode } from "../../../types/navigation.types";
 
@@ -202,6 +203,13 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
                 label: "JD Management",
                 href: `/workspace/${currentOrgSlug}/recruitment/jd`,
                 icon: FileText,
+              },
+              {
+                id: "org-recruitment-intelligence",
+                type: "item" as const,
+                label: "Talent Intelligence",
+                href: `/workspace/${currentOrgSlug}/intelligence`,
+                icon: UserCheck,
               },
             ],
           },
