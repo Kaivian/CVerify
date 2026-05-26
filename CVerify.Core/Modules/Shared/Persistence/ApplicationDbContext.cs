@@ -250,6 +250,16 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<RoleAssignment>().Property(ra => ra.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkspacePost>().Property(wp => wp.Id).ValueGeneratedNever();
         modelBuilder.Entity<JobVacancy>().Property(jv => jv.Id).ValueGeneratedNever();
+        modelBuilder.Entity<JobVacancy>()
+            .HasOne(jv => jv.HiringRequirement)
+            .WithMany()
+            .HasForeignKey(jv => jv.HiringRequirementId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<JobVacancy>()
+            .HasOne(jv => jv.RequirementSnapshot)
+            .WithMany()
+            .HasForeignKey(jv => jv.RequirementSnapshotId)
+            .OnDelete(DeleteBehavior.SetNull);
         modelBuilder.Entity<AdminMember>().Property(am => am.Id).ValueGeneratedNever();
         modelBuilder.Entity<AdminInvitation>().Property(ai => ai.Id).ValueGeneratedNever();
         modelBuilder.Entity<AdminInvitationRole>().Property(air => air.Id).ValueGeneratedNever();

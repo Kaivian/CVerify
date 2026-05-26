@@ -23,8 +23,103 @@ import {
   Search,
   Plus,
   X,
-  Upload
+  Upload,
+  Globe,
+  ArrowLeft,
+  Building
 } from "lucide-react";
+
+// Helper parsers for markdown content
+const getSectionId = (title: string) => {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+};
+
+const parseInlineMarkdown = (text: string) => {
+  if (!text) return "";
+  const parts = text.split(/(\*\*[^*]+\*\*|\+\+[^+]+\+\+)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("++") && part.endsWith("++")) {
+      return <strong key={index} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+};
+
+const renderMarkdown = (text: string) => {
+  if (!text) return null;
+  return text.split("\n").map((line, idx) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("# ")) {
+      const title = trimmed.substring(2).trim();
+      return (
+        <h1 key={idx} id={getSectionId(title)} className="text-sm font-bold text-foreground mt-5 mb-2 border-b border-border/40 pb-1">
+          {parseInlineMarkdown(title)}
+        </h1>
+      );
+    }
+    if (trimmed.startsWith("## ")) {
+      const title = trimmed.substring(3).trim();
+      return (
+        <h2 key={idx} id={getSectionId(title)} className="text-xs font-bold text-accent mt-4 mb-1.5">
+          {parseInlineMarkdown(title)}
+        </h2>
+      );
+    }
+    if (trimmed.startsWith("### ")) {
+      const title = trimmed.substring(4).trim();
+      return (
+        <h3 key={idx} id={getSectionId(title)} className="text-[11px] font-semibold text-foreground mt-3 mb-1">
+          {parseInlineMarkdown(title)}
+        </h3>
+      );
+    }
+    if (trimmed.startsWith("- ")) {
+      return (
+        <li key={idx} className="text-xs text-foreground/80 list-disc ml-5 mb-1.5 leading-relaxed">
+          {parseInlineMarkdown(trimmed.substring(2))}
+        </li>
+      );
+    }
+    if (trimmed.startsWith("* ")) {
+      return (
+        <li key={idx} className="text-xs text-foreground/80 list-disc ml-5 mb-1.5 leading-relaxed">
+          {parseInlineMarkdown(trimmed.substring(2))}
+        </li>
+      );
+    }
+    if (!trimmed) {
+      return <div key={idx} className="h-2" />;
+    }
+    return (
+      <p key={idx} className="text-xs text-foreground/80 mb-2.5 leading-relaxed">
+        {parseInlineMarkdown(trimmed)}
+      </p>
+    );
+  });
+};
+
+const renderSectionContent = (items: string[]) => {
+  if (!items || items.length === 0) return null;
+  const joinedText = items.join("\n");
+  const hasMarkdown = joinedText.includes("#") || joinedText.includes("**") || joinedText.includes("- ") || joinedText.includes("* ");
+  
+  if (hasMarkdown) {
+    return <div className="space-y-1 select-text font-outfit">{renderMarkdown(joinedText)}</div>;
+  }
+  
+  return (
+    <ul className="list-disc pl-5 space-y-1.5 text-xs text-foreground font-normal font-outfit">
+      {items.map((item, idx) => (
+        <li key={idx} className="leading-relaxed text-foreground/80">
+          {parseInlineMarkdown(item)}
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 export default function WorkspaceJobsTab() {
   const params = useParams();
@@ -87,7 +182,6 @@ export default function WorkspaceJobsTab() {
   // Reactive Permission helper key check
   const hasPermission = (permissionKey: string): boolean => {
     if (!workspaceDetails) return false;
-    // Fallback logic for managers
     if (
       workspaceDetails.userRole === "OWNER" ||
       workspaceDetails.userRole === "REPRESENTATIVE" ||
@@ -211,258 +305,275 @@ export default function WorkspaceJobsTab() {
   return (
     <div className="space-y-6 relative">
       {activeJob ? (
-        <Card className="bg-surface border border-border rounded-xl overflow-hidden font-outfit select-none">
-          {/* Header Bar */}
-          <div className="p-4 border-b border-border flex items-center justify-between bg-card/10">
+        <div className="space-y-6 animate-fade-in font-outfit select-text">
+          {/* Back Button and Quick Info Header */}
+          <div className="flex items-center justify-between py-2 border-b border-border/40 select-none">
             <button
               onClick={() => setActiveJob(null)}
-              className="font-semibold text-xs border border-border text-muted hover:text-foreground cursor-pointer bg-transparent rounded-lg px-4 py-1.5 flex items-center gap-1 transition-colors"
+              className="text-xs font-bold text-muted hover:text-foreground cursor-pointer flex items-center gap-1.5 transition-colors border border-border/85 rounded-xl px-3.5 py-1.5 bg-surface hover:bg-surface-secondary"
             >
-              ← Back to list
+              <ArrowLeft size={14} />
+              <span>Back to Job Listings</span>
             </button>
-            <span className="text-xs text-muted-foreground font-normal">Job Details</span>
+            <span className="text-[10px] uppercase tracking-wider font-bold text-accent bg-accent/10 px-2.5 py-0.5 rounded-full">
+              Job Vacancy Detail
+            </span>
           </div>
 
-          {/* 1. Large Cover Banner Image */}
-          <div className="w-full h-48 md:h-64 relative shrink-0 bg-surface-secondary">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={activeJob.coverUrl} alt={activeJob.title} className="w-full h-full object-cover" />
-          </div>
+          {/* Job Details Main Premium Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* Left 8-col Layout */}
+            <div className="lg:col-span-8 space-y-6">
+              
+              {/* Cover Card with Overlapping Logo & Main Info */}
+              <Card className="bg-surface border border-border rounded-2xl overflow-hidden shadow-xs relative">
+                {/* Cover Image Banner */}
+                <div className="w-full h-44 md:h-60 relative bg-surface-secondary overflow-hidden">
+                  <div className="absolute inset-0 bg-black/15 z-10" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={activeJob.coverUrl} alt={activeJob.title} className="w-full h-full object-cover" />
+                </div>
 
-          {/* 2. Overlapping circular company Logo */}
-          <div className="px-6 flex gap-4 items-end shrink-0 relative z-10">
-            <div className="w-20 h-20 rounded-full border-4 border-surface bg-surface -mt-10 shadow-md overflow-hidden flex items-center justify-center text-accent font-semibold text-xl">
-              {orgLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={orgLogo} alt={`${orgName} Logo`} className="w-full h-full object-cover" />
-              ) : (
-                orgName.substring(0, 1).toUpperCase()
-              )}
-            </div>
-            <div className="pb-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-foreground">{orgName}</span>
-                <span className="inline-flex items-center justify-center bg-blue-500 rounded-full p-0.5 text-white size-3">
-                  <Check className="size-1.5" strokeWidth={5} />
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Job details Body Header */}
-          <div className="px-6 pt-4 pb-2 shrink-0">
-            <Typography type="h3" className="font-semibold text-foreground text-xl leading-tight">
-              {activeJob.title}
-            </Typography>
-            <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-normal">
-              <span className="text-accent font-semibold text-sm">
-                {activeJob.salary} ({activeJob.salaryMinMax})
-              </span>
-              <span className="text-muted">·</span>
-              <Chip size="sm" variant="soft" color="accent" className="text-[9px] font-medium h-5 px-1.5">
-                {activeJob.department}
-              </Chip>
-              <Chip size="sm" variant="soft" color="warning" className="text-[9px] font-medium h-5 px-1.5">
-                {activeJob.type}
-              </Chip>
-            </div>
-          </div>
-
-          {/* 4. Split Two Column Detail Layout */}
-          <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Left Column (Job Specifications & Lists) */}
-            <div className="lg:col-span-2 space-y-6">
-
-              {/* -- Recruitment Information (Grid Card) -- */}
-              <div className="p-4 rounded-xl border border-border bg-card/10 space-y-3 font-normal">
-                <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1.5">
-                  Recruitment Information
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[11px] text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="size-3.5 text-accent shrink-0" />
-                    <div>
-                      <span className="block text-[9px] text-muted uppercase">Position</span>
-                      <span className="font-medium text-foreground">Staff ({activeJob.department})</span>
+                {/* Content Overlay & Logo Wrap */}
+                <div className="px-6 pb-6 relative">
+                  
+                  {/* Circular overlapping Logo */}
+                  <div className="flex gap-4 items-end relative z-20">
+                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl border-4 border-surface bg-surface -mt-10 md:-mt-12 shadow-sm overflow-hidden flex items-center justify-center text-accent font-bold text-2xl select-none shrink-0">
+                      {orgLogo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={orgLogo} alt={`${orgName} Logo`} className="w-full h-full object-cover" />
+                      ) : (
+                        orgName.substring(0, 1).toUpperCase()
+                      )}
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Calendar className="size-3.5 text-accent shrink-0" />
-                    <div>
-                      <span className="block text-[9px] text-muted uppercase">Deadline</span>
-                      <span className="font-medium text-foreground">{activeJob.deadline}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Users className="size-3.5 text-accent shrink-0" />
-                    <div>
-                      <span className="block text-[9px] text-muted uppercase">Headcount</span>
-                      <span className="font-medium text-foreground">{activeJob.headcount} people</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Users className="size-3.5 text-accent shrink-0" />
-                    <div>
-                      <span className="block text-[9px] text-muted uppercase">Gender</span>
-                      <span className="font-medium text-foreground">{activeJob.gender}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Award className="size-3.5 text-accent shrink-0" />
-                    <div>
-                      <span className="block text-[9px] text-muted uppercase">Experience</span>
-                      <span className="font-medium text-foreground">{activeJob.experience}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="size-3.5 text-accent shrink-0" />
-                    <div>
-                      <span className="block text-[9px] text-muted uppercase">Degree</span>
-                      <span className="font-medium text-foreground">{activeJob.degree}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <MapPin className="size-3.5 text-accent shrink-0" />
-                    <div>
-                      <span className="block text-[9px] text-muted uppercase">Workplace</span>
-                      <span className="font-medium text-foreground">{activeJob.workplaceType} job in {activeJob.city}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="size-3.5 text-accent shrink-0" />
-                    <div>
-                      <span className="block text-[9px] text-muted uppercase">Category</span>
-                      <span className="font-medium text-foreground truncate max-w-[200px]" title={activeJob.category}>
-                        {activeJob.category}
+                    <div className="pb-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-foreground truncate max-w-[200px]">{orgName}</span>
+                        <span className="inline-flex items-center justify-center bg-blue-500 rounded-full p-0.5 text-white size-3.5 shrink-0 select-none">
+                          <Check className="size-2" strokeWidth={5} />
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted font-semibold block uppercase tracking-wider mt-0.5">
+                        Verified Enterprise Partner
                       </span>
                     </div>
                   </div>
+
+                  {/* Title & Headline Specs */}
+                  <div className="mt-5 space-y-3">
+                    <Typography type="h3" className="font-extrabold text-foreground text-xl md:text-2xl leading-snug">
+                      {activeJob.title}
+                    </Typography>
+                    
+                    <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
+                      <span className="text-accent font-bold text-sm bg-accent/5 px-2.5 py-1 rounded-lg">
+                        {activeJob.salary} ({activeJob.salaryMinMax})
+                      </span>
+                      <span className="text-separator">|</span>
+                      <Chip size="sm" variant="soft" color="accent" className="text-[9px] font-bold h-5.5 px-2.5 rounded-lg">
+                        {activeJob.department}
+                      </Chip>
+                      <Chip size="sm" variant="soft" color="warning" className="text-[9px] font-bold h-5.5 px-2.5 rounded-lg">
+                        {activeJob.type}
+                      </Chip>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </Card>
 
-              {/* -- Job Description -- */}
-              <div className="space-y-2 font-normal text-foreground">
-                <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1">
-                  Job Description
+              {/* Specs Grid Card (Recruitment Specifications) */}
+              <Card className="p-5 md:p-6 bg-surface border border-border rounded-2xl space-y-4">
+                <span className="border-l-3 border-accent pl-3 text-xs uppercase font-bold text-foreground block tracking-wider select-none">
+                  Recruitment Specifications
                 </span>
-                <ul className="list-disc pl-5 space-y-1.5 text-xs text-foreground font-normal">
-                  {activeJob.description.map((desc, idx) => (
-                    <li key={idx} className="leading-relaxed">
-                      {desc}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-outfit select-text">
+                  <div className="p-3 bg-surface-secondary/35 border border-border/50 rounded-xl space-y-1">
+                    <span className="block text-[9px] text-muted font-bold uppercase tracking-wider">Position</span>
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <Briefcase size={13} className="text-accent shrink-0" />
+                      <span className="truncate">Staff</span>
+                    </div>
+                  </div>
 
-              {/* ── Job Requirements ── */}
-              <div className="space-y-2 font-normal text-foreground">
-                <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1">
-                  Job Requirements
-                </span>
-                <ul className="list-disc pl-5 space-y-1.5 text-xs text-foreground font-normal">
-                  {activeJob.requirements.map((req, idx) => (
-                    <li key={idx} className="leading-relaxed">
-                      {req}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                  <div className="p-3 bg-surface-secondary/35 border border-border/50 rounded-xl space-y-1">
+                    <span className="block text-[9px] text-muted font-bold uppercase tracking-wider">Experience</span>
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <Award size={13} className="text-accent shrink-0" />
+                      <span className="truncate">{activeJob.experience}</span>
+                    </div>
+                  </div>
 
-              {/* ── Perks & Benefits ── */}
-              <div className="space-y-2 font-normal text-foreground">
-                <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1">
-                  Perks & Benefits
-                </span>
-                <ul className="list-disc pl-5 space-y-1.5 text-xs text-foreground font-normal">
-                  {activeJob.benefits.map((ben, idx) => (
-                    <li key={idx} className="leading-relaxed">
-                      {ben}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                  <div className="p-3 bg-surface-secondary/35 border border-border/50 rounded-xl space-y-1">
+                    <span className="block text-[9px] text-muted font-bold uppercase tracking-wider">Application Deadline</span>
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <Calendar size={13} className="text-accent shrink-0" />
+                      <span className="truncate">{activeJob.deadline}</span>
+                    </div>
+                  </div>
 
-              {/* ── Recruitment Tags & Required Skills ── */}
-              <div className="space-y-3 font-normal">
-                <div>
-                  <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1 mb-2">
-                    Recruitment Tags
+                  <div className="p-3 bg-surface-secondary/35 border border-border/50 rounded-xl space-y-1">
+                    <span className="block text-[9px] text-muted font-bold uppercase tracking-wider">Degree</span>
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <GraduationCap size={13} className="text-accent shrink-0" />
+                      <span className="truncate">{activeJob.degree}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-surface-secondary/35 border border-border/50 rounded-xl space-y-1">
+                    <span className="block text-[9px] text-muted font-bold uppercase tracking-wider">Headcount</span>
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <Users size={13} className="text-accent shrink-0" />
+                      <span>{activeJob.headcount} target</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-surface-secondary/35 border border-border/50 rounded-xl space-y-1">
+                    <span className="block text-[9px] text-muted font-bold uppercase tracking-wider">Gender Requirement</span>
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <Users size={13} className="text-accent shrink-0" />
+                      <span className="truncate">{activeJob.gender}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-surface-secondary/35 border border-border/50 rounded-xl space-y-1">
+                    <span className="block text-[9px] text-muted font-bold uppercase tracking-wider">Workplace Mode</span>
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <MapPin size={13} className="text-accent shrink-0" />
+                      <span className="truncate">{activeJob.workplaceType} ({activeJob.city})</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-surface-secondary/35 border border-border/50 rounded-xl space-y-1">
+                    <span className="block text-[9px] text-muted font-bold uppercase tracking-wider">Category</span>
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <BookOpen size={13} className="text-accent shrink-0" />
+                      <span className="truncate">{activeJob.category}</span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Main Content Sections (parsed as markdown or lists) */}
+              <div className="space-y-6 select-text">
+                {/* Description */}
+                <Card className="p-5 md:p-6 bg-surface border border-border rounded-2xl space-y-4">
+                  <span className="border-l-3 border-accent pl-3 text-xs uppercase font-bold text-foreground block tracking-wider select-none">
+                    Job Description
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {activeJob.tags.map((t) => (
-                      <span key={t} className="text-[10px] bg-card border border-border/60 text-muted px-2 py-0.5 rounded-md font-medium">
-                        {t}
-                      </span>
-                    ))}
+                  <div className="pt-1">
+                    {renderSectionContent(activeJob.description)}
                   </div>
-                </div>
+                </Card>
 
-                <div>
-                  <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1 mb-2">
+                {/* Requirements */}
+                <Card className="p-5 md:p-6 bg-surface border border-border rounded-2xl space-y-4">
+                  <span className="border-l-3 border-accent pl-3 text-xs uppercase font-bold text-foreground block tracking-wider select-none">
+                    Job Requirements
+                  </span>
+                  <div className="pt-1">
+                    {renderSectionContent(activeJob.requirements)}
+                  </div>
+                </Card>
+
+                {/* Benefits */}
+                <Card className="p-5 md:p-6 bg-surface border border-border rounded-2xl space-y-4">
+                  <span className="border-l-3 border-accent pl-3 text-xs uppercase font-bold text-foreground block tracking-wider select-none">
+                    Perks & Benefits
+                  </span>
+                  <div className="pt-1">
+                    {renderSectionContent(activeJob.benefits)}
+                  </div>
+                </Card>
+              </div>
+
+              {/* Skill Tags & Target Tags */}
+              <Card className="p-5 md:p-6 bg-surface border border-border rounded-2xl space-y-5">
+                <div className="space-y-3.5">
+                  <span className="border-l-3 border-accent pl-3 text-xs uppercase font-bold text-foreground block tracking-wider select-none">
                     Required Skills
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {activeJob.skills.map((s) => (
-                      <span key={s} className="text-[10px] bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-md font-medium">
-                        {s}
+                  <div className="flex flex-wrap gap-2 pt-1.5">
+                    {activeJob.skills.map((skill) => (
+                      <span key={skill} className="text-[10px] bg-accent/10 border border-accent/25 text-accent px-3 py-1 rounded-lg font-bold">
+                        {skill}
                       </span>
                     ))}
                   </div>
                 </div>
-              </div>
 
-              {/* -- Workplace & Team Images -- */}
-              {activeJob.images && activeJob.images.length > 1 && (
-                <div className="space-y-2 font-normal">
-                  <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold border-b border-border/40 pb-1 mb-2">
-                    Workplace & Team Images ({activeJob.images.length} images)
+                <div className="space-y-3.5 pt-4 border-t border-border/50">
+                  <span className="border-l-3 border-accent pl-3 text-xs uppercase font-bold text-foreground block tracking-wider select-none">
+                    Recruitment Tags
                   </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="flex flex-wrap gap-2 pt-1.5">
+                    {activeJob.tags.map((tag) => (
+                      <span key={tag} className="text-[10px] bg-surface-secondary border border-border text-foreground/80 px-3 py-1 rounded-lg font-bold">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+
+              {/* Workplace & Team Gallery */}
+              {activeJob.images && activeJob.images.length > 0 && (
+                <Card className="p-5 md:p-6 bg-surface border border-border rounded-2xl space-y-4">
+                  <span className="border-l-3 border-accent pl-3 text-xs uppercase font-bold text-foreground block tracking-wider select-none">
+                    Workplace & Team Images
+                  </span>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
                     {activeJob.images.map((img, idx) => (
-                      <div key={idx} className="h-28 rounded-lg overflow-hidden border border-border/80 bg-card/10">
+                      <div key={idx} className="aspect-video sm:h-28 rounded-xl overflow-hidden border border-border bg-surface-secondary select-none relative group cursor-zoom-in">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img} alt={`Job detail image ${idx + 1}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
+                        <img 
+                          src={img} 
+                          alt={`Gallery image ${idx + 1}`} 
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                        />
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
               )}
             </div>
 
-            {/* Right Column (Widget cards & actions) */}
-            <div className="space-y-5">
-
-              {/* Apply card box */}
-              <Card className="p-4 bg-amber-500/5 border border-accent/30 rounded-xl text-center space-y-3 font-normal">
-                <Typography type="body-xs" className="text-muted leading-relaxed text-[11px] font-normal">
-                  Are you interested in this position? There is still time to apply directly!
+            {/* Right 4-col Sidebar */}
+            <div className="lg:col-span-4 space-y-6 select-none">
+              
+              {/* Apply Action Card */}
+              <Card className="p-5 bg-accent/5 border border-accent/25 rounded-2xl text-center space-y-4 relative">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-accent bg-accent/10 px-3 py-0.5 rounded-full inline-block">
+                  Direct Apply
+                </span>
+                <Typography type="body-xs" className="text-muted leading-relaxed font-semibold">
+                  Are you interested in this position? Submit your profile to apply immediately.
                 </Typography>
+                
                 <Button
                   onClick={() => handleApply(activeJob.id)}
                   disabled={appliedJobs.includes(activeJob.id)}
-                  variant="solid"
-                  size="sm"
-                  className={`w-full font-semibold text-xs py-2 h-9 rounded-lg cursor-pointer border-none transition-colors ${appliedJobs.includes(activeJob.id)
-                    ? "bg-success/20 text-success cursor-default"
-                    : "bg-accent text-background hover:bg-accent/90"
-                    }`}
+                  className={`w-full font-bold text-xs py-5 rounded-xl cursor-pointer border-none transition-all shadow-xs ${
+                    appliedJobs.includes(activeJob.id)
+                      ? "bg-success/20 text-success cursor-default"
+                      : "bg-accent text-accent-foreground hover:bg-accent/90 hover:shadow-sm"
+                  }`}
                 >
-                  {appliedJobs.includes(activeJob.id) ? "Applied" : "Apply Now"}
+                  {appliedJobs.includes(activeJob.id) ? "Applied Successfully" : "Apply Now"}
                 </Button>
               </Card>
 
-              {/* Company summary info widget */}
-              <Card className="p-4 bg-surface border border-border rounded-xl space-y-3 font-normal">
-                <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-                  <div className="w-8 h-8 rounded-full border border-border flex items-center justify-center overflow-hidden shrink-0">
+              {/* Company Info Box */}
+              <Card className="p-5 bg-surface border border-border rounded-2xl space-y-4">
+                <span className="text-[10px] text-muted font-bold block uppercase tracking-wider border-b border-border/40 pb-2">
+                  Company Profile
+                </span>
+                
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl border border-border flex items-center justify-center overflow-hidden shrink-0 bg-surface shadow-xs">
                     {orgLogo ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={orgLogo} alt={orgName} className="w-full h-full object-cover" />
@@ -470,49 +581,62 @@ export default function WorkspaceJobsTab() {
                       orgName.substring(0, 1).toUpperCase()
                     )}
                   </div>
-                  <div>
-                    <span className="font-semibold text-foreground text-xs block truncate max-w-[170px]">
+                  <div className="min-w-0">
+                    <span className="font-extrabold text-foreground text-xs block truncate leading-snug">
                       {orgName}
+                    </span>
+                    <span className="text-[9px] text-muted font-semibold block mt-0.5">
+                      Verified Organization
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-2 text-[10px] text-muted-foreground">
+                <div className="space-y-3 text-[10px] text-muted font-semibold pt-2">
                   {workspaceDetails.companySize && (
-                    <div>
-                      <span className="block text-[8px] text-muted uppercase">Company Size</span>
-                      <span className="font-medium text-foreground">{workspaceDetails.companySize}</span>
+                    <div className="flex items-start gap-2">
+                      <Users size={12} className="text-accent shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block text-[8px] text-muted-foreground uppercase font-bold tracking-wider">Company Size</span>
+                        <span className="text-foreground">{workspaceDetails.companySize}</span>
+                      </div>
                     </div>
                   )}
 
-                  <div>
-                    <span className="block text-[8px] text-muted uppercase">Location</span>
-                    <span className="font-medium text-foreground">{workspaceDetails.city || workspaceDetails.location || "Not updated"}</span>
+                  <div className="flex items-start gap-2">
+                    <Building size={12} className="text-accent shrink-0 mt-0.5" />
+                    <div>
+                      <span className="block text-[8px] text-muted-foreground uppercase font-bold tracking-wider">Location</span>
+                      <span className="text-foreground">{workspaceDetails.city || workspaceDetails.location || "Not updated"}</span>
+                    </div>
                   </div>
 
                   {workspaceDetails.website && (
-                    <div>
-                      <span className="block text-[8px] text-muted uppercase">Website</span>
-                      <a
-                        href={workspaceDetails.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-accent hover:underline break-all"
-                      >
-                        {workspaceDetails.website.replace("https://", "").replace("http://", "")}
-                      </a>
+                    <div className="flex items-start gap-2">
+                      <Globe size={12} className="text-accent shrink-0 mt-0.5" />
+                      <div>
+                        <span className="block text-[8px] text-muted-foreground uppercase font-bold tracking-wider">Website</span>
+                        <a
+                          href={workspaceDetails.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent hover:underline break-all"
+                        >
+                          {workspaceDetails.website.replace("https://", "").replace("http://", "")}
+                        </a>
+                      </div>
                     </div>
                   )}
                 </div>
               </Card>
 
-              {/* Google Map location widget */}
+              {/* Map Location box */}
               {workspaceDetails.googleMapsEmbedUrl && (
-                <Card className="p-4 bg-surface border border-border rounded-xl space-y-2 font-normal">
-                  <span className="text-[10px] text-foreground uppercase tracking-wider block font-semibold pb-1 border-b border-border/40">
-                    Map
+                <Card className="p-5 bg-surface border border-border rounded-2xl space-y-3.5">
+                  <span className="text-[10px] text-muted font-bold block uppercase tracking-wider border-b border-border/40 pb-2">
+                    Office Location Map
                   </span>
-                  <div className="h-40 rounded-lg overflow-hidden border border-border/80">
+                  
+                  <div className="h-44 rounded-xl overflow-hidden border border-border">
                     <iframe
                       src={workspaceDetails.googleMapsEmbedUrl}
                       width="100%"
@@ -528,33 +652,45 @@ export default function WorkspaceJobsTab() {
             </div>
           </div>
 
-          {/* Footer actions */}
-          <div className="p-4 border-t border-border flex justify-end gap-2 shrink-0 bg-card/10">
+          {/* Bottom Footer Actions */}
+          <div className="flex justify-end pt-4 select-none">
             <button
               onClick={() => setActiveJob(null)}
-              className="font-semibold text-xs border border-border text-muted hover:text-foreground cursor-pointer bg-transparent rounded-lg px-4 py-1.5 transition-colors"
+              className="text-xs font-bold text-muted hover:text-foreground cursor-pointer transition-colors border border-border/80 bg-surface rounded-xl px-5 py-2.5"
             >
-              Back to list
+              Back to Job Listings
             </button>
           </div>
-        </Card>
+        </div>
       ) : (
-        <>
-          {/* Create Job Button - Scoped Permission Matrix Check */}
-          {hasPermission("organization:jobs:write") && (
-            <div className="flex justify-end select-none">
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-[#8A532B] hover:bg-[#724320] text-white font-semibold text-xs px-4 py-2.5 rounded-lg cursor-pointer flex items-center gap-1.5 transition-all shadow-md active:scale-95 border-none"
-              >
-                <Plus className="size-4" />
-                <span>Post Job</span>
-              </button>
+        <div className="space-y-6">
+          {/* Header Brand Subtitle Section */}
+          <div className="space-y-1.5 py-4 border-b border-border/40 select-none">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <Typography type="h2" className="font-extrabold text-foreground text-xl md:text-2xl leading-snug">
+                  Open Positions
+                </Typography>
+                <Typography type="body-xs" className="text-muted font-semibold mt-0.5">
+                  Explore job vacancies and career opportunities at {orgName}
+                </Typography>
+              </div>
+              
+              {/* Create Job Button */}
+              {hasPermission("organization:jobs:write") && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold text-xs px-4.5 py-2.5 rounded-xl cursor-pointer flex items-center gap-1.5 transition-all shadow-xs active:scale-95 border-none shrink-0"
+                >
+                  <Plus className="size-4" />
+                  <span>Post New Job</span>
+                </button>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Search and Filter Panel */}
-          <Card className="p-5 bg-surface border border-border rounded-xl space-y-4 select-none">
+          <Card className="p-5 bg-surface border border-border rounded-2xl space-y-4 select-none shadow-xs">
             {/* Search */}
             <div className="relative">
               <input
@@ -562,19 +698,19 @@ export default function WorkspaceJobsTab() {
                 placeholder="Search jobs by title, skills or keywords..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-card border border-border rounded-lg pl-10 pr-4 py-2 text-xs focus:outline-hidden focus:border-accent text-foreground font-outfit font-normal"
+                className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-xs focus:outline-hidden focus:border-accent text-foreground font-outfit font-normal"
               />
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted" />
             </div>
 
             {/* Filters */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-normal">
-              <div className="space-y-1">
-                <span className="text-[10px] text-muted uppercase tracking-wider block font-semibold">Department</span>
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-muted uppercase tracking-wider block font-bold">Department</span>
                 <select
                   value={selectedDept}
                   onChange={(e) => setSelectedDept(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit font-normal cursor-pointer"
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit font-normal cursor-pointer"
                 >
                   {departments.map((dept) => (
                     <option key={dept} value={dept}>
@@ -584,12 +720,12 @@ export default function WorkspaceJobsTab() {
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <span className="text-[10px] text-muted uppercase tracking-wider block font-semibold">Location</span>
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-muted uppercase tracking-wider block font-bold">Location</span>
                 <select
                   value={selectedLoc}
                   onChange={(e) => setSelectedLoc(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit font-normal cursor-pointer"
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit font-normal cursor-pointer"
                 >
                   {locations.map((loc) => (
                     <option key={loc} value={loc}>
@@ -599,12 +735,12 @@ export default function WorkspaceJobsTab() {
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <span className="text-[10px] text-muted uppercase tracking-wider block font-semibold">Workplace Type</span>
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-muted uppercase tracking-wider block font-bold">Workplace Type</span>
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit font-normal cursor-pointer"
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit font-normal cursor-pointer"
                 >
                   {types.map((type) => (
                     <option key={type} value={type}>
@@ -642,8 +778,8 @@ export default function WorkspaceJobsTab() {
             )}
 
             {!loadingJobs && !jobsError && filteredJobs.length === 0 && (
-              <Card className="border border-dashed border-border/80 rounded-xl p-12 text-center select-none bg-surface">
-                <Typography type="h4" className="font-semibold text-foreground mb-1">
+              <Card className="border border-dashed border-border/80 rounded-2xl p-12 text-center select-none bg-surface">
+                <Typography type="h4" className="font-bold text-foreground mb-1">
                   No matching positions found
                 </Typography>
                 <Typography type="body-xs" className="text-muted max-w-md mx-auto font-normal">
@@ -661,7 +797,7 @@ export default function WorkspaceJobsTab() {
                   <Card
                     key={job.id}
                     onClick={() => setActiveJob(job)}
-                    className="p-4 md:p-5 bg-surface border border-border rounded-xl hover:border-accent/40 hover:shadow-xs transition-all cursor-pointer select-none relative"
+                    className="p-4 md:p-5 bg-surface border border-border rounded-2xl hover:border-accent/40 hover:shadow-xs transition-all duration-200 cursor-pointer select-none relative"
                   >
                     {/* Bookmark Button - Absolute Top Right Corner */}
                     <button
@@ -675,7 +811,7 @@ export default function WorkspaceJobsTab() {
                     {/* Horizontal side-by-side flex layout */}
                     <div className="flex flex-row gap-4 items-start w-full pr-8">
                       {/* Left: Cover/Image Frame */}
-                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-lg overflow-hidden shrink-0 border border-border bg-card/20 select-none">
+                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden shrink-0 border border-border bg-card/20 select-none">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={job.coverUrl} alt={job.title} className="w-full h-full object-cover" />
                       </div>
@@ -685,22 +821,22 @@ export default function WorkspaceJobsTab() {
                         {/* Job main metadata */}
                         <div className="space-y-1.5 min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <Typography type="body-sm" className="font-semibold text-foreground text-sm hover:text-accent transition-colors truncate">
+                            <Typography type="body-sm" className="font-bold text-foreground text-sm hover:text-accent transition-colors truncate">
                               {job.title}
                             </Typography>
                           </div>
 
                           {/* Company Name & Verified Checkmark */}
-                          <div className="flex items-center gap-1 text-[11px] text-muted leading-tight font-normal">
+                          <div className="flex items-center gap-1 text-[11px] text-muted leading-tight font-semibold">
                             <span className="truncate">{orgName}</span>
-                            <span className="inline-flex items-center justify-center bg-blue-500 rounded-full p-0.5 text-white size-3 select-none">
+                            <span className="inline-flex items-center justify-center bg-blue-500 rounded-full p-0.5 text-white size-3 select-none shrink-0">
                               <Check className="size-1.5" strokeWidth={5} />
                             </span>
                           </div>
 
                           {/* Salary, Location, Date line with Icons */}
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-normal text-muted-foreground pt-0.5">
-                            <span className="flex items-center gap-1 text-accent font-semibold font-outfit">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-muted-foreground pt-0.5">
+                            <span className="flex items-center gap-1 text-accent font-bold font-outfit">
                               <DollarSign className="size-3" />
                               <span>{job.salary}</span>
                             </span>
@@ -721,7 +857,7 @@ export default function WorkspaceJobsTab() {
                             {job.tags.map((tag) => (
                               <span
                                 key={tag}
-                                className="text-[9px] bg-card border border-border/80 text-muted px-1.5 py-0.5 rounded-md font-medium"
+                                className="text-[9px] bg-card border border-border/80 text-muted px-1.5 py-0.5 rounded-md font-bold"
                               >
                                 {tag}
                               </span>
@@ -736,9 +872,9 @@ export default function WorkspaceJobsTab() {
                               e.stopPropagation();
                               handleApply(job.id);
                             }}
-                            className={`text-xs font-semibold px-6 py-2 rounded-lg cursor-pointer transition-colors border-none whitespace-nowrap min-w-[120px] md:min-w-[140px] text-center ${isApplied
+                            className={`text-xs font-bold px-6 py-2 rounded-xl cursor-pointer transition-colors border-none whitespace-nowrap min-w-[120px] md:min-w-[140px] text-center ${isApplied
                               ? "bg-success/20 text-success cursor-default"
-                              : "bg-accent text-background hover:bg-accent/90"
+                              : "bg-accent text-accent-foreground hover:bg-accent/90"
                               }`}
                           >
                             {isApplied ? "Applied" : "Apply Now"}
@@ -751,16 +887,16 @@ export default function WorkspaceJobsTab() {
               })
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* -- Scoped Form Drawer Modal Dialog for Job Creation -- */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface border border-border w-full max-w-xl rounded-xl shadow-2xl overflow-hidden font-outfit select-none flex flex-col max-h-[90vh]">
+          <div className="bg-surface border border-border w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden font-outfit select-none flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-4 border-b border-border flex items-center justify-between bg-card/10">
-              <span className="font-semibold text-sm text-foreground">Post New Job</span>
+              <span className="font-extrabold text-sm text-foreground">Post New Job</span>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="p-1 rounded-full hover:bg-card/50 text-muted hover:text-foreground cursor-pointer border-none"
@@ -773,25 +909,25 @@ export default function WorkspaceJobsTab() {
             <form onSubmit={handleCreateJobSubmit} className="p-6 overflow-y-auto space-y-4 text-xs font-normal">
               {/* Job Title */}
               <div className="space-y-1">
-                <label className="text-[10px] text-muted uppercase font-semibold">Job Title *</label>
+                <label className="text-[10px] text-muted uppercase font-bold">Job Title *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Senior React Developer..."
                   value={newJobTitle}
                   onChange={(e) => setNewJobTitle(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
+                  className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Department */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Department</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Department</label>
                   <select
                     value={newJobDept}
                     onChange={(e) => setNewJobDept(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
                   >
                     <option value="Engineering">Engineering</option>
                     <option value="Quality Assurance">Quality Assurance</option>
@@ -803,11 +939,11 @@ export default function WorkspaceJobsTab() {
 
                 {/* Workplace Type */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Workplace Type</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Workplace Type</label>
                   <select
                     value={newJobWorkplace}
                     onChange={(e) => setNewJobWorkplace(e.target.value as "Hybrid" | "Remote" | "On-site")}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
                   >
                     <option value="Hybrid">Hybrid</option>
                     <option value="Remote">Remote</option>
@@ -819,11 +955,11 @@ export default function WorkspaceJobsTab() {
               <div className="grid grid-cols-2 gap-4">
                 {/* City */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">City</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">City</label>
                   <select
                     value={newJobCity}
                     onChange={(e) => setNewJobCity(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
                   >
                     <option value="Hanoi">Hanoi</option>
                     <option value="Da Nang">Da Nang</option>
@@ -833,11 +969,11 @@ export default function WorkspaceJobsTab() {
 
                 {/* Employment Type */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Job Type</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Job Type</label>
                   <select
                     value={newJobType}
                     onChange={(e) => setNewJobType(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
                   >
                     <option value="Full-Time">Full-Time</option>
                     <option value="Contract">Contract</option>
@@ -850,25 +986,25 @@ export default function WorkspaceJobsTab() {
               <div className="grid grid-cols-2 gap-4">
                 {/* Salary USD */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Salary (USD)</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Salary (USD)</label>
                   <input
                     type="text"
                     placeholder="e.g. $1,500 - $3,000 USD"
                     value={newJobSalary}
                     onChange={(e) => setNewJobSalary(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
+                    className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                   />
                 </div>
 
                 {/* Salary Min Max VND */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Salary range / details (VND/Negotiable)</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Salary range (VND)</label>
                   <input
                     type="text"
                     placeholder="e.g. Negotiable or 30-50M VND"
                     value={newJobSalaryMinMax}
                     onChange={(e) => setNewJobSalaryMinMax(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
+                    className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                   />
                 </div>
               </div>
@@ -876,23 +1012,23 @@ export default function WorkspaceJobsTab() {
               {/* Deadline & Detailed location */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Application Deadline</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Application Deadline</label>
                   <input
                     type="text"
                     placeholder="e.g. 30/09/2026"
                     value={newJobDeadline}
                     onChange={(e) => setNewJobDeadline(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
+                    className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Detailed Address</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Detailed Address</label>
                   <input
                     type="text"
                     placeholder="e.g. FPT Tower, Cau Giay"
                     value={newJobLoc}
                     onChange={(e) => setNewJobLoc(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
+                    className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                   />
                 </div>
               </div>
@@ -900,74 +1036,74 @@ export default function WorkspaceJobsTab() {
               {/* Skills & Tags */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Skills (separated by commas)</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Skills (comma separated)</label>
                   <input
                     type="text"
                     placeholder="e.g. React, TypeScript, Tailwind"
                     value={newJobSkills}
                     onChange={(e) => setNewJobSkills(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
+                    className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Tags (separated by commas)</label>
+                  <label className="text-[10px] text-muted uppercase font-bold">Tags (comma separated)</label>
                   <input
                     type="text"
                     placeholder="e.g. React, Frontend, UI/UX"
                     value={newJobTags}
                     onChange={(e) => setNewJobTags(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
+                    className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent"
                   />
                 </div>
               </div>
 
               {/* Job Description */}
               <div className="space-y-1">
-                <label className="text-[10px] text-muted uppercase font-semibold">Job Description (One item per line)</label>
+                <label className="text-[10px] text-muted uppercase font-bold">Job Description (One item per line)</label>
                 <textarea
                   rows={2}
                   placeholder="e.g. Develop new frontend features&#10;Optimize application performance"
                   value={newJobDesc}
                   onChange={(e) => setNewJobDesc(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
+                  className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
                 />
               </div>
 
               {/* Job Requirements */}
               <div className="space-y-1">
-                <label className="text-[10px] text-muted uppercase font-semibold">Job Requirements (One item per line)</label>
+                <label className="text-[10px] text-muted uppercase font-bold">Job Requirements (One item per line)</label>
                 <textarea
                   rows={2}
                   placeholder="e.g. At least 3 years of experience with React&#10;Proficient in TypeScript"
                   value={newJobReq}
                   onChange={(e) => setNewJobReq(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
+                  className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
                 />
               </div>
 
               {/* Perks & Benefits */}
               <div className="space-y-1">
-                <label className="text-[10px] text-muted uppercase font-semibold">Perks & Benefits (One item per line)</label>
+                <label className="text-[10px] text-muted uppercase font-bold">Perks & Benefits (One item per line)</label>
                 <textarea
                   rows={2}
                   placeholder="e.g. Competitive salary and 13th-month bonus&#10;Premium health insurance"
                   value={newJobBen}
                   onChange={(e) => setNewJobBen(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
+                  className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent font-outfit"
                 />
               </div>
 
               {/* Recruitment Images */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-[10px] text-muted uppercase font-semibold">
+                  <label className="text-[10px] text-muted uppercase font-bold">
                     Recruitment Images * (Min 1, Max 5 images)
                   </label>
                   {selectedFiles.length < 5 && (
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-[10px] text-accent font-semibold flex items-center gap-0.5 hover:underline cursor-pointer border-none bg-transparent"
+                      className="text-[10px] text-accent font-bold flex items-center gap-0.5 hover:underline cursor-pointer border-none bg-transparent"
                     >
                       <Plus className="size-3" /> Add Image
                     </button>
@@ -990,13 +1126,13 @@ export default function WorkspaceJobsTab() {
                 {selectedFiles.length === 0 ? (
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border border-dashed border-border hover:border-accent/40 rounded-lg p-6 flex flex-col items-center justify-center bg-card/10 text-muted transition-colors cursor-pointer select-none text-center"
+                    className="border border-dashed border-border hover:border-accent/40 rounded-xl p-6 flex flex-col items-center justify-center bg-card/10 text-muted transition-colors cursor-pointer select-none text-center"
                   >
-                    <Upload className="size-5 text-muted-foreground mb-1" />
-                    <span className="text-[11px] font-semibold text-foreground">
+                    <Upload className="size-5 text-muted mb-1" />
+                    <span className="text-[11px] font-bold text-foreground">
                       Upload recruitment images
                     </span>
-                    <span className="text-[9px] text-muted-foreground mt-0.5">
+                    <span className="text-[9px] text-muted mt-0.5">
                       Select 1 to 5 images (JPEG, PNG, WebP, GIF)
                     </span>
                   </div>
@@ -1005,7 +1141,7 @@ export default function WorkspaceJobsTab() {
                     {selectedFiles.map((file, index) => {
                       const objectUrl = URL.createObjectURL(file);
                       return (
-                        <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-border/80 group bg-card/20 select-none">
+                        <div key={index} className="relative aspect-square rounded-xl overflow-hidden border border-border/80 group bg-card/20 select-none">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={objectUrl}
@@ -1038,14 +1174,14 @@ export default function WorkspaceJobsTab() {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setShowCreateModal(false)}
-                  className="font-semibold text-xs border border-border text-muted hover:text-foreground cursor-pointer bg-transparent rounded-lg px-4 py-2 transition-colors disabled:opacity-55 disabled:cursor-not-allowed"
+                  className="font-bold text-xs border border-border text-muted hover:text-foreground cursor-pointer bg-transparent rounded-xl px-4 py-2 transition-colors disabled:opacity-55 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="bg-[#8A532B] hover:bg-[#724320] text-white font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer transition-colors border-none disabled:opacity-55 disabled:cursor-not-allowed"
+                  className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold text-xs px-4.5 py-2.5 rounded-xl cursor-pointer transition-colors border-none disabled:opacity-55 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? "Posting..." : "Post Job"}
                 </button>

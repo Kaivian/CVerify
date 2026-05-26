@@ -81,6 +81,22 @@ public class JobVacancy
 
     public bool IsActive { get; set; } = true;
 
+    [Required]
+    [MaxLength(50)]
+    public string Status { get; set; } = "Draft"; // Draft, Published, Archived
+
+    [Required]
+    [MaxLength(50)]
+    public string AcquisitionStrategy { get; set; } = "Hybrid"; // ManualOnly, AiMatchingOnly, Hybrid
+
+    [Column(TypeName = "jsonb")]
+    public string? DiscoveryProfileJson { get; set; }
+
+    public Guid? RequirementSnapshotId { get; set; }
+
+    [ForeignKey(nameof(RequirementSnapshotId))]
+    public virtual RequirementSnapshot? RequirementSnapshot { get; set; }
+
     public string? Metadata { get; set; }
 
     public Guid? HiringRequirementId { get; set; }

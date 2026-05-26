@@ -109,3 +109,86 @@ class RequirementPromptFactory(IPromptFactory):
             '{"questions": [{"capabilityId": "db.query-tuning", "questionText": "Describe a time you optimized a slow query...", "gradingRubric": "Look for EXPLAIN execution plan analysis."}], '
             '"dimensions": ["Code Hygiene", "Problem Solving", "Architecture Intent"]}'
         )
+
+    def get_unified_requirements_prompt(self, requirement: Dict[str, Any]) -> str:
+        return (
+            "Analyze the following hiring requirement data and generate a unified requirements package as a single valid JSON object matching the requested schema.\n"
+            "You MUST respond with a single valid JSON object and nothing else. Do not include markdown code fences (like ```json). Do not truncate JSON. Start directly with the opening brace '{'.\n\n"
+            f"REQUIREMENT DATA:\n{json.dumps(requirement, indent=2)}\n\n"
+            "JSON SCHEMA EXPECTED:\n"
+            "{\n"
+            '  "schemaVersion": "1.0.0",\n'
+            '  "metadata": {\n'
+            '    "modelIdentifier": "claude-3-5-sonnet",\n'
+            '    "promptVersion": "2.0",\n'
+            '    "generatedAtUtc": "2026-06-21T10:13:41Z"\n'
+            '  },\n'
+            '  "jobDescription": {\n'
+            '    "markdownContent": "The complete Job Description text formatted in markdown matching the required 13 sections in order.",\n'
+            '    "title": "Role title",\n'
+            '    "department": "Department name",\n'
+            '    "summary": "Brief summary from About the Role section",\n'
+            '    "responsibilities": ["List of core responsibilities as strings"],\n'
+            '    "skills": ["List of core technical capabilities mapped to the role"]\n'
+            '  },\n'
+            '  "assessmentRubric": {\n'
+            '    "scoringRules": {\n'
+            '      "minimumMaturityThreshold": "Practitioner",\n'
+            '      "selfDeclaredMatchCeiling": 0.40,\n'
+            '      "additionalRules": ["Rule 1", "Rule 2"]\n'
+            '    },\n'
+            '    "evidenceRequirements": [\n'
+            '      {\n'
+            '        "capabilityId": "db.query-tuning",\n'
+            '        "evidenceType": "AstSignature",\n'
+            '        "rationale": "Reason why this signal fits",\n'
+            '        "expectedMetric": "Git blame ownership > 40%"\n'
+            '      }\n'
+            '    ]\n'
+            '  },\n'
+            '  "interviewBlueprint": {\n'
+            '    "questions": [\n'
+            '      {\n'
+            '        "capabilityId": "db.query-tuning",\n'
+            '        "questionText": "Targeted behavioral or situational question...",\n'
+            '        "gradingRubric": "What strong/weak answers look like"\n'
+            '      }\n'
+            '    ],\n'
+            '    "dimensions": ["Code Hygiene", "Problem Solving", "Architecture Intent"]\n'
+            '  },\n'
+            '  "jobPostMetadata": {\n'
+            '    "experienceRange": "3-5 years",\n'
+            '    "degreeRequirement": "Bachelor\'s Degree",\n'
+            '    "industryCategory": "Software Engineering",\n'
+            '    "coverUrl": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=600&auto=format&fit=crop",\n'
+            '    "tags": ["Tag1", "Tag2"]\n'
+            '  },\n'
+            '  "candidateDiscoveryProfile": {\n'
+            '    "keyKeywords": ["Keyword1", "Keyword2"],\n'
+            '    "minimumYearsOfExperience": 3,\n'
+            '    "priorityWeights": {\n'
+            '      "db.query-tuning": 0.6\n'
+            '    },\n'
+            '    "trustRequirements": {\n'
+            '      "minimumTrustScore": 60.0,\n'
+            '      "requireVerifiedEmail": true\n'
+            '    }\n'
+            '  }\n'
+            "}\n\n"
+            "SECTIONS REQUIRED IN THE JOB DESCRIPTION MARKDOWN CONTENT:\n"
+            "Inside `jobDescription.markdownContent`, you MUST generate exactly these 13 sections in order, using the specified headers:\n"
+            "1. # [Job Title] - [Department]\n"
+            "2. ## About the Role\n"
+            "3. ## Business Goals & Outcomes\n"
+            "4. ## 30-60-90 Day Milestones\n"
+            "5. ## Key Responsibilities\n"
+            "6. ## Required Capabilities\n"
+            "7. ## Technology Stack\n"
+            "8. ## Preferred Skills\n"
+            "9. ## Experience Requirements\n"
+            "10. ## Qualifications\n"
+            "11. ## Soft Skills\n"
+            "12. ## Benefits & Compensation\n"
+            "13. ## Hiring Process\n"
+        )
+

@@ -79,5 +79,6 @@ public record PublicProfileResponse(
     List<EducationEntryResponse>? Educations = null,
     List<AcademicAchievementResponse>? Achievements = null,
     bool HasCompletedAssessment = false,
-    DateTimeOffset? LastAssessmentDate = null
+    DateTimeOffset? LastAssessmentDate = null,
+    List<CVerify.API.Modules.Auth.DTOs.JobVacancyDto>? Vacancies = null
 );

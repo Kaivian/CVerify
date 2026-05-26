@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   Button,
   Chip,
@@ -55,15 +56,20 @@ export default function JdDetailView({
   onBack,
   onEdit
 }: JdDetailViewProps) {
+  const params = useParams();
+  const router = useRouter();
   const [activeRequirement, setActiveRequirement] = useState<HiringRequirement | null>(null);
   const [artifacts, setArtifacts] = useState<GeneratedArtifacts | null>(null);
   const [candidateMatches, setCandidateMatches] = useState<CandidateMatch[]>([]);
+  const [jobPosting, setJobPosting] = useState<any | null>(null);
+  const [isCreatingVersion, setIsCreatingVersion] = useState(false);
 
   // Loading states
   const [isLoadingMain, setIsLoadingMain] = useState(true);
   const [isLoadingArtifacts, setIsLoadingArtifacts] = useState(false);
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isLoadingJobPosting, setIsLoadingJobPosting] = useState(false);
 
   // SSE Progress Streaming State
   const [generationProgress, setGenerationProgress] = useState<{
@@ -89,68 +95,16 @@ export default function JdDetailView({
   // Expander state for JD regeneration history runs
   const [expandedRuns, setExpandedRuns] = useState<Record<number, boolean>>({});
 
-  const loadMatches = async () => {
-    setIsLoadingMatches(true);
-    try {
-      const matches = await hiringRequirementService.getCandidateMatches(requirementId);
-      const sorted = [...matches].sort((a, b) => b.matchScore - a.matchScore);
-      setCandidateMatches(sorted);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoadingMatches(false);
-    }
+  // Expander state for Candidate Matches details
+  const [expandedCandidates, setExpandedCandidates] = useState<string[]>([]);
+
+  const toggleCandidateExpand = (candidateId: string) => {
+    setExpandedCandidates((prev) =>
+      prev.includes(candidateId)
+        ? prev.filter((id) => id !== candidateId)
+        : [...prev, candidateId]
+    );
   };
-
-  const loadArtifacts = async (reqOverride?: HiringRequirement) => {
-    setIsLoadingArtifacts(true);
-    try {
-      const arts = await hiringRequirementService.getArtifacts(requirementId);
-      setArtifacts(arts);
-      
-      const req = reqOverride || activeRequirement;
-      if (req?.status.toLowerCase() === "published") {
-        loadMatches();
-      }
-
-      // Check if JobDescription is in Generating or Regenerating state for reconnection
-      const jdArtifact = arts?.artifacts?.find(a => a.artifactType === "JobDescription") || arts?.generatedJd;
-      if (jdArtifact && (jdArtifact.status === "Generating" || jdArtifact.status === "Regenerating")) {
-        setupProgressStream(requirementId, jdArtifact.markdownContent || "");
-      }
-    } catch (err) {
-      setArtifacts(null);
-      console.warn("No artifacts generated yet.");
-    } finally {
-      setIsLoadingArtifacts(false);
-    }
-  };
-
-  const loadRequirementDetails = async () => {
-    setIsLoadingMain(true);
-    try {
-      const req = await hiringRequirementService.getById(requirementId);
-      setActiveRequirement(req);
-      await loadArtifacts(req);
-    } catch (err) {
-      toast.danger("Failed to load requirement details.");
-    } finally {
-      setIsLoadingMain(false);
-    }
-  };
-
-  useEffect(() => {
-    loadRequirementDetails();
-    return () => {
-      if (esRef.current) esRef.current.close();
-    };
-  }, [requirementId]);
-
-  useEffect(() => {
-    if (activeRequirement && activeArtifactTab === "matches" && activeRequirement.status.toLowerCase() === "published" && candidateMatches.length === 0) {
-      loadMatches();
-    }
-  }, [activeArtifactTab, activeRequirement]);
 
   // Setup SSE stream for AI generation
   const setupProgressStream = (reqId: string, initialContent = "") => {
@@ -219,7 +173,85 @@ export default function JdDetailView({
     };
   };
 
-  const handleGenerateJd = async () => {
+  const loadMatches = async () => {
+    setIsLoadingMatches(true);
+    try {
+      const matches = await hiringRequirementService.getCandidateMatches(requirementId);
+      const sorted = [...matches].sort((a, b) => b.matchScore - a.matchScore);
+      setCandidateMatches(sorted);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingMatches(false);
+    }
+  };
+
+  const loadArtifacts = async (reqOverride?: HiringRequirement) => {
+    setIsLoadingArtifacts(true);
+    try {
+      const arts = await hiringRequirementService.getArtifacts(requirementId);
+      setArtifacts(arts);
+      
+      const req = reqOverride || activeRequirement;
+      if (req?.status.toLowerCase() === "published") {
+        loadMatches();
+      }
+
+      // Check if JobDescription is in Generating or Regenerating state for reconnection
+      const jdArtifact = arts?.artifacts?.find(a => a.artifactType === "JobDescription") || arts?.generatedJd;
+      if (jdArtifact && (jdArtifact.status === "Generating" || jdArtifact.status === "Regenerating")) {
+        setupProgressStream(requirementId, jdArtifact.markdownContent || "");
+      }
+    } catch (err) {
+      setArtifacts(null);
+      console.warn("No artifacts generated yet.");
+    } finally {
+      setIsLoadingArtifacts(false);
+    }
+  };
+
+  const loadJobPosting = async () => {
+    setIsLoadingJobPosting(true);
+    try {
+      const posting = await hiringRequirementService.getJobPosting(requirementId);
+      setJobPosting(posting);
+    } catch (err) {
+      setJobPosting(null);
+    } finally {
+      setIsLoadingJobPosting(false);
+    }
+  };
+
+  const loadRequirementDetails = async () => {
+    setIsLoadingMain(true);
+    try {
+      const req = await hiringRequirementService.getById(requirementId);
+      setActiveRequirement(req);
+      await loadArtifacts(req);
+      await loadJobPosting();
+    } catch (err) {
+      toast.danger("Failed to load requirement details.");
+    } finally {
+      setIsLoadingMain(false);
+    }
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadRequirementDetails();
+    return () => {
+      if (esRef.current) esRef.current.close();
+    };
+  }, [requirementId]);
+
+  useEffect(() => {
+    if (activeRequirement && activeArtifactTab === "matches" && activeRequirement.status.toLowerCase() === "published" && candidateMatches.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadMatches();
+    }
+  }, [activeArtifactTab, activeRequirement]);
+
+  const handleGenerateRequirements = async () => {
     if (!activeRequirement) return;
     try {
       setStreamedMarkdown("");
@@ -227,49 +259,46 @@ export default function JdDetailView({
       setGenerationProgress({
         status: "Running",
         step: "Initialize",
-        message: "Initiating Job Description generation...",
+        message: "Initiating unified requirements package generation...",
         percentage: 0
       });
-      await hiringRequirementService.generateArtifact(activeRequirement.id, "JobDescription");
+      await hiringRequirementService.triggerArtifactGeneration(activeRequirement.id);
       setupProgressStream(activeRequirement.id, "");
     } catch (err: any) {
-      toast.danger(err.message || "Failed to trigger Job Description generation.");
+      toast.danger(err.message || "Failed to trigger requirements package generation.");
       setIsGeneratingJd(false);
       setGenerationProgress(null);
     }
   };
 
-  const handleGenerateRubric = async () => {
-    if (!activeRequirement) return;
+  const handleGenerateJd = handleGenerateRequirements;
+  const handleGenerateRubric = handleGenerateRequirements;
+  const handleGenerateBlueprint = handleGenerateRequirements;
+
+  const handleCreateJobPostingDraft = async () => {
+    setIsLoadingJobPosting(true);
     try {
-      setGenerationProgress({
-        status: "Running",
-        step: "GenerateEvaluationRubric",
-        message: "Generating Evaluation Rubric...",
-        percentage: 0
-      });
-      await hiringRequirementService.generateArtifact(activeRequirement.id, "EvaluationRubric");
-      setupProgressStream(activeRequirement.id, "");
+      const draft = await hiringRequirementService.createJobPostingDraft(requirementId);
+      toast.success("Job posting draft created successfully!");
+      setJobPosting(draft);
+      router.push(`/workspace/${params.organizationSlug}/recruitment/jd/${requirementId}/review`);
     } catch (err: any) {
-      toast.danger(err.message || "Failed to trigger Evaluation Rubric generation.");
-      setGenerationProgress(null);
+      toast.danger(err.response?.data?.message || err.message || "Failed to create job posting draft.");
+    } finally {
+      setIsLoadingJobPosting(false);
     }
   };
 
-  const handleGenerateBlueprint = async () => {
-    if (!activeRequirement) return;
+  const handleCreateNewVersion = async () => {
+    setIsCreatingVersion(true);
     try {
-      setGenerationProgress({
-        status: "Running",
-        step: "GenerateInterviewBlueprint",
-        message: "Generating Interview Blueprint...",
-        percentage: 0
-      });
-      await hiringRequirementService.generateArtifact(activeRequirement.id, "InterviewBlueprint");
-      setupProgressStream(activeRequirement.id, "");
+      await hiringRequirementService.createNewVersion(requirementId);
+      toast.success("New requirement version draft created successfully!");
+      onBack();
     } catch (err: any) {
-      toast.danger(err.message || "Failed to trigger Interview Blueprint generation.");
-      setGenerationProgress(null);
+      toast.danger(err.response?.data?.message || err.message || "Failed to create new version.");
+    } finally {
+      setIsCreatingVersion(false);
     }
   };
 
@@ -370,6 +399,20 @@ export default function JdDetailView({
     }
   };
 
+  const parseInlineMarkdown = (text: string) => {
+    if (!text) return "";
+    const parts = text.split(/(\*\*[^*]+\*\*|\+\+[^+]+\+\+)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={index} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("++") && part.endsWith("++")) {
+        return <strong key={index} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
   // Helper parser for markdown preview
   const renderMarkdown = (text: string) => {
     if (!text) return null;
@@ -377,26 +420,26 @@ export default function JdDetailView({
       const trimmed = line.trim();
       if (trimmed.startsWith("# ")) {
         const title = trimmed.substring(2).trim();
-        return <h1 key={idx} id={getSectionId(title)} className="text-xl font-bold text-foreground mt-6 mb-2 border-b border-border/40 pb-1">{title}</h1>;
+        return <h1 key={idx} id={getSectionId(title)} className="text-xl font-bold text-foreground mt-6 mb-2 border-b border-border/40 pb-1">{parseInlineMarkdown(title)}</h1>;
       }
       if (trimmed.startsWith("## ")) {
         const title = trimmed.substring(3).trim();
-        return <h2 key={idx} id={getSectionId(title)} className="text-sm font-bold text-accent mt-5 mb-2">{title}</h2>;
+        return <h2 key={idx} id={getSectionId(title)} className="text-sm font-bold text-accent mt-5 mb-2">{parseInlineMarkdown(title)}</h2>;
       }
       if (trimmed.startsWith("### ")) {
         const title = trimmed.substring(4).trim();
-        return <h3 key={idx} id={getSectionId(title)} className="text-xs font-semibold text-foreground mt-3 mb-1">{title}</h3>;
+        return <h3 key={idx} id={getSectionId(title)} className="text-xs font-semibold text-foreground mt-3 mb-1">{parseInlineMarkdown(title)}</h3>;
       }
       if (trimmed.startsWith("- ")) {
-        return <li key={idx} className="text-xs text-foreground/80 list-disc ml-5 mb-1">{trimmed.substring(2)}</li>;
+        return <li key={idx} className="text-xs text-foreground/80 list-disc ml-5 mb-1">{parseInlineMarkdown(trimmed.substring(2))}</li>;
       }
       if (trimmed.startsWith("* ")) {
-        return <li key={idx} className="text-xs text-foreground/80 list-disc ml-5 mb-1">{trimmed.substring(2)}</li>;
+        return <li key={idx} className="text-xs text-foreground/80 list-disc ml-5 mb-1">{parseInlineMarkdown(trimmed.substring(2))}</li>;
       }
       if (!trimmed) {
         return <div key={idx} className="h-2" />;
       }
-      return <p key={idx} className="text-xs text-foreground/80 mb-2 leading-relaxed">{trimmed}</p>;
+      return <p key={idx} className="text-xs text-foreground/80 mb-2 leading-relaxed">{parseInlineMarkdown(trimmed)}</p>;
     });
   };
 
@@ -419,6 +462,7 @@ export default function JdDetailView({
 
   const isPublished = activeRequirement.status.toLowerCase() === "published";
   const jdArtifact = artifacts?.artifacts?.find(a => a.artifactType === "JobDescription") || artifacts?.generatedJd;
+  const hasGenerated = !!jdArtifact;
 
   // Outline navigation definitions
   const outlineSections = [
@@ -438,6 +482,52 @@ export default function JdDetailView({
 
   const currentContent = isGeneratingJd ? streamedMarkdown : (jdArtifact?.markdownContent || "");
   const activeOutline = outlineSections.filter(sec => currentContent.toLowerCase().includes(sec.key));
+
+  const renderUnifiedCTA = () => {
+    return (
+      <Card className="p-12 text-center border border-dashed border-border min-h-[350px] flex flex-col justify-center items-center select-none no-print">
+        <div className="size-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent mb-4">
+          <Sparkles size={28} />
+        </div>
+        <Typography type="h4" className="font-bold text-foreground mb-1">Generate AI Requirements Package</Typography>
+        <Typography type="body-xs" className="text-muted max-w-md mx-auto mb-6 leading-relaxed font-medium">
+          Analyze the requirement taxonomy, business outcomes, and key parameters to automatically compile the Job Description, Evaluation Rubric, and Interview Blueprint together.
+        </Typography>
+        <Button
+          onClick={handleGenerateRequirements}
+          className="bg-accent text-accent-foreground font-bold text-xs px-5 py-3 rounded-xl cursor-pointer flex items-center gap-2 hover:opacity-95"
+        >
+          <Sparkles size={14} /> Generate AI Requirements
+        </Button>
+      </Card>
+    );
+  };
+
+  const renderProgressUI = () => {
+    return (
+      <Card className="p-8 border border-border min-h-[350px] bg-surface select-none no-print flex flex-col justify-center items-center">
+        <div className="size-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent mb-4">
+          <Sparkles size={28} className="animate-pulse" />
+        </div>
+        <Typography type="h4" className="font-bold text-foreground mb-1">Generating AI Requirements Package...</Typography>
+        <Typography type="body-xs" className="text-muted max-w-sm mx-auto mb-6 text-center leading-relaxed font-medium">
+          Claude is analyzing the codebase and requirements to generate the unified Job Description, Assessment Rubric, and Interview Blueprint.
+        </Typography>
+
+        {generationProgress && (
+          <div className="w-full max-w-md space-y-2">
+            <div className="flex justify-between text-xs font-bold text-foreground">
+              <span>{generationProgress.message}</span>
+              <span className="font-mono">{Math.round(generationProgress.percentage)}%</span>
+            </div>
+            <div className="w-full bg-separator/50 h-3 rounded-full overflow-hidden">
+              <div className="bg-accent h-full rounded-full transition-all duration-300" style={{ width: `${generationProgress.percentage}%` }} />
+            </div>
+          </div>
+        )}
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-6 font-outfit text-foreground select-none">
@@ -492,7 +582,7 @@ export default function JdDetailView({
         </div>
 
         <div className="flex gap-2">
-          {!isPublished && (
+          {!isPublished ? (
             <>
               <Button
                 onClick={() => onEdit(activeRequirement)}
@@ -500,16 +590,33 @@ export default function JdDetailView({
               >
                 Edit Requirement
               </Button>
-              {jdArtifact && jdArtifact.status === "Generated" && (
-                <Button
-                  onClick={handlePublish}
-                  isPending={isPublishing}
-                  className="bg-accent text-accent-foreground font-bold text-xs h-10 px-4 rounded-xl cursor-pointer flex items-center gap-1.5 hover:opacity-90 animate-none"
-                >
-                  Publish & Post Job
-                </Button>
+              {hasGenerated && (
+                jobPosting ? (
+                  <Button
+                    onClick={() => router.push(`/workspace/${params.organizationSlug}/recruitment/jd/${requirementId}/review`)}
+                    className="bg-accent text-accent-foreground font-bold text-xs h-10 px-4 rounded-xl cursor-pointer flex items-center gap-1.5 hover:opacity-90 animate-none"
+                  >
+                    <ExternalLink size={14} /> Review Job Posting
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleCreateJobPostingDraft}
+                    isPending={isLoadingJobPosting}
+                    className="bg-accent text-accent-foreground font-bold text-xs h-10 px-4 rounded-xl cursor-pointer flex items-center gap-1.5 hover:opacity-90 animate-none"
+                  >
+                    <Sparkles size={14} /> Create Job Posting Draft
+                  </Button>
+                )
               )}
             </>
+          ) : (
+            <Button
+              onClick={handleCreateNewVersion}
+              isPending={isCreatingVersion}
+              className="bg-accent text-accent-foreground font-bold text-xs h-10 px-4 rounded-xl cursor-pointer flex items-center gap-1.5 hover:opacity-90 animate-none"
+            >
+              <GitBranch size={14} /> Create New Version
+            </Button>
           )}
         </div>
       </div>
@@ -517,7 +624,7 @@ export default function JdDetailView({
       {/* Main Dashboard Details Split */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Side: Summary Parameters */}
-        <div className="lg:col-span-4 space-y-6 no-print">
+        <div className="lg:col-span-3 space-y-6 no-print">
           <Card className="p-5 border border-border space-y-4">
             <span className="text-[10px] font-bold text-accent uppercase tracking-wider block">Intake Parameters</span>
             <div className="space-y-3.5 text-xs select-text">
@@ -587,7 +694,7 @@ export default function JdDetailView({
         </div>
 
         {/* Right Side: Tab panel and Artifacts View */}
-        <div className="lg:col-span-8 space-y-4 print-content">
+        <div className="lg:col-span-9 space-y-4 print-content">
           <div className="tabs-container no-print">
             <Tabs
               selectedKey={activeArtifactTab}
@@ -634,14 +741,27 @@ export default function JdDetailView({
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                   <div className="md:col-span-9 space-y-4 print-content">
                     <Card className="p-6 border border-border min-h-[350px] bg-surface select-text relative">
-                      <div className="absolute top-4 right-4 z-10 no-print flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={handleCancelJdGeneration}
-                          className="bg-danger/10 hover:bg-danger/25 text-danger border border-danger/20 text-[10px] font-bold rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1 animate-none"
-                        >
-                          Cancel Generation
-                        </Button>
+                      {/* Document Toolbar / Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4 mb-4 select-none no-print">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded-lg bg-warning/10 text-warning">
+                            <Sparkles size={16} className="animate-pulse" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-foreground block">AI Generating Job Description...</span>
+                            <span className="text-[10px] text-muted block mt-0.5 font-medium">Writing recruiter-ready draft artifact</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            onClick={handleCancelJdGeneration}
+                            className="bg-danger/10 hover:bg-danger/25 text-danger border border-danger/20 text-[10px] font-bold rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1 min-w-0"
+                          >
+                            Cancel Generation
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Generation Header Progress */}
@@ -657,7 +777,7 @@ export default function JdDetailView({
                         </div>
                       )}
 
-                      <div className="prose prose-sm max-w-none pt-4 max-h-[600px] overflow-y-auto font-sans leading-relaxed">
+                      <div className="prose prose-sm max-w-none pt-2 font-sans leading-relaxed select-text">
                         {streamedMarkdown ? renderMarkdown(streamedMarkdown) : (
                           <div className="text-xs text-muted italic p-4 text-center">Waiting for AI stream...</div>
                         )}
@@ -692,48 +812,62 @@ export default function JdDetailView({
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                   <div className="md:col-span-9 space-y-4 print-content">
                     <Card className="p-6 border border-border min-h-[350px] bg-surface select-text relative">
-                      <div className="absolute top-4 right-4 z-10 no-print flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            navigator.clipboard.writeText(jdArtifact.markdownContent);
-                            toast.success("Copied to clipboard!");
-                          }}
-                          className="bg-surface text-foreground hover:bg-surface-secondary border border-border text-[10px] font-bold rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1"
-                        >
-                          <Copy size={12} /> Copy JD
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => window.print()}
-                          className="bg-surface text-foreground hover:bg-surface-secondary border border-border text-[10px] font-bold rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1"
-                        >
-                          <Printer size={12} /> Print
-                        </Button>
-                        {!isPublished && (
+                      {/* Document Toolbar / Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4 mb-4 select-none no-print">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded-lg bg-warning/10 text-warning">
+                            <Sparkles size={16} />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-foreground block">AI Generated Job Description</span>
+                            <span className="text-[10px] text-muted block mt-0.5 font-medium">Recruiter-ready draft artifact</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-1.5">
                           <Button
                             size="sm"
-                            onClick={handleGenerateJd}
-                            className="bg-accent/15 hover:bg-accent/25 text-accent border border-accent/20 text-[10px] font-bold rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1"
+                            onClick={() => {
+                              navigator.clipboard.writeText(jdArtifact.markdownContent);
+                              toast.success("Copied to clipboard!");
+                            }}
+                            className="bg-surface text-foreground hover:bg-surface-secondary border border-border text-[10px] font-bold rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1 min-w-0"
                           >
-                            <RefreshCw size={12} /> Regenerate
+                            <Copy size={12} /> Copy JD
                           </Button>
-                        )}
+                          <Button
+                            size="sm"
+                            onClick={() => window.print()}
+                            className="bg-surface text-foreground hover:bg-surface-secondary border border-border text-[10px] font-bold rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1 min-w-0"
+                          >
+                            <Printer size={12} /> Print
+                          </Button>
+                          {!isPublished && (
+                            <Button
+                              size="sm"
+                              onClick={handleGenerateJd}
+                              className="bg-accent/15 hover:bg-accent/25 text-accent border border-accent/20 text-[10px] font-bold rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1 min-w-0"
+                            >
+                              <RefreshCw size={12} /> Regenerate
+                            </Button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Telemetry metadata stats block */}
                       {jdArtifact.generationMetadata && (
-                        <div className="mb-4 p-3 bg-surface-secondary/40 border border-border/60 rounded-xl text-[10px] font-semibold text-muted flex flex-wrap gap-x-4 gap-y-1.5 select-none no-print">
-                          <span className="flex items-center gap-1"><Cpu size={12} className="text-accent" /> Model: {jdArtifact.modelInfo || "Claude 3.5 Sonnet"}</span>
-                          <span>Prompt Ver: {jdArtifact.promptVersion || "1.2"}</span>
-                          <span>Cost: ${jdArtifact.generationMetadata.estimatedCostUsd?.toFixed(4)}</span>
-                          <span>Input Tokens: {jdArtifact.generationMetadata.inputTokens}</span>
-                          <span>Output Tokens: {jdArtifact.generationMetadata.outputTokens}</span>
-                          <span>Duration: {(jdArtifact.generationMetadata.durationMs / 1000).toFixed(1)}s</span>
+                        <div className="mb-4 p-3 bg-surface-secondary/40 border border-border/60 rounded-xl text-[10px] font-semibold text-muted flex flex-wrap gap-x-4 gap-y-1.5 select-none no-print items-center justify-between">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                            <span className="flex items-center gap-1"><Cpu size={12} className="text-accent" /> Model: {jdArtifact.modelInfo || "Claude 3.5 Sonnet"}</span>
+                            <span>Version: {jdArtifact.promptVersion || "1.2"}</span>
+                            <span>Tokens: {jdArtifact.generationMetadata.inputTokens} In / {jdArtifact.generationMetadata.outputTokens} Out</span>
+                            <span>Cost: ${jdArtifact.generationMetadata.estimatedCostUsd?.toFixed(4)}</span>
+                          </div>
+                          <span className="text-accent font-bold">Duration: {(jdArtifact.generationMetadata.durationMs / 1000).toFixed(1)}s</span>
                         </div>
                       )}
 
-                      <div className="prose prose-sm max-w-none pt-4 max-h-[600px] overflow-y-auto font-sans leading-relaxed">
+                      <div className="prose prose-sm max-w-none pt-2 font-sans leading-relaxed select-text">
                         {renderMarkdown(jdArtifact.markdownContent)}
                       </div>
                     </Card>
@@ -759,22 +893,7 @@ export default function JdDetailView({
                   </div>
                 </div>
               ) : (
-                // Explicit Generate AI JD CTA Card
-                <Card className="p-12 text-center border border-dashed border-border min-h-[350px] flex flex-col justify-center items-center select-none no-print">
-                  <div className="size-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent mb-4">
-                    <FileText size={28} />
-                  </div>
-                  <Typography type="h4" className="font-bold text-foreground mb-1">Generate AI Job Description</Typography>
-                  <Typography type="body-xs" className="text-muted max-w-md mx-auto mb-6 leading-relaxed font-medium">
-                    Analyze the requirement taxonomy, business outcomes, and key parameters to automatically compile a recruiter-ready, highly professional Job Description draft.
-                  </Typography>
-                  <Button
-                    onClick={handleGenerateJd}
-                    className="bg-accent text-accent-foreground font-bold text-xs px-5 py-3 rounded-xl cursor-pointer flex items-center gap-2 hover:opacity-95"
-                  >
-                    <Sparkles size={14} /> Generate AI Job Description
-                  </Button>
-                </Card>
+                renderUnifiedCTA()
               )}
             </div>
           )}
@@ -782,7 +901,11 @@ export default function JdDetailView({
           {/* Rubric Tab Panel */}
           {activeArtifactTab === "rubric" && (
             <div className="space-y-4">
-              {artifacts?.rubric ? (
+              {isGeneratingJd ? (
+                renderProgressUI()
+              ) : !hasGenerated ? (
+                renderUnifiedCTA()
+              ) : artifacts?.rubric ? (
                 <Card className="p-6 border border-border min-h-[350px] space-y-6">
                   <div>
                     <span className="text-xs font-bold text-foreground block">Dynamic Capability Assessment Weights</span>
@@ -792,7 +915,7 @@ export default function JdDetailView({
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Object.entries(artifacts.rubric.capabilityWeights).map(([capId, weight]) => {
+                    {Object.entries(artifacts?.rubric?.capabilityWeights || {}).map(([capId, weight]) => {
                       const detail = activeRequirement.capabilities.find((c) => c.capabilityId === capId);
                       return (
                         <div key={capId} className="p-3.5 bg-surface-secondary/40 border border-border/60 rounded-xl space-y-2 select-text">
@@ -832,7 +955,7 @@ export default function JdDetailView({
                           </tr>
                         </thead>
                         <tbody>
-                          {artifacts.rubric.evidenceRequirements.map((er, idx) => (
+                          {(artifacts?.rubric?.evidenceRequirements || []).map((er, idx) => (
                             <tr key={idx} className="border-b border-border/30 last:border-b-0 hover:bg-surface-secondary/20 select-text">
                               <td className="py-2.5 font-semibold text-foreground">{er.signalType}</td>
                               <td className="py-2.5 text-muted font-medium">{er.expectedMetric}</td>
@@ -844,21 +967,7 @@ export default function JdDetailView({
                   </div>
                 </Card>
               ) : (
-                <Card className="p-12 text-center border border-dashed border-border min-h-[350px] flex flex-col justify-center items-center select-none no-print">
-                  <div className="size-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent mb-4">
-                    <ShieldCheck size={28} />
-                  </div>
-                  <Typography type="h4" className="font-bold text-foreground mb-1">Generate Evaluation Rubric</Typography>
-                  <Typography type="body-xs" className="text-muted max-w-md mx-auto mb-6 leading-relaxed font-medium">
-                    Design structured grading baselines and define expected git codebase evidence parameters for the candidate matching algorithms.
-                  </Typography>
-                  <Button
-                    onClick={handleGenerateRubric}
-                    className="bg-accent text-accent-foreground font-bold text-xs px-5 py-3 rounded-xl cursor-pointer flex items-center gap-2 hover:opacity-95"
-                  >
-                    <Sparkles size={14} /> Generate Evaluation Rubric
-                  </Button>
-                </Card>
+                renderUnifiedCTA()
               )}
             </div>
           )}
@@ -866,7 +975,11 @@ export default function JdDetailView({
           {/* Blueprint Tab Panel */}
           {activeArtifactTab === "blueprint" && (
             <div className="space-y-4">
-              {artifacts?.interviewBlueprint ? (
+              {isGeneratingJd ? (
+                renderProgressUI()
+              ) : !hasGenerated ? (
+                renderUnifiedCTA()
+              ) : artifacts?.interviewBlueprint ? (
                 <Card className="p-6 border border-border min-h-[350px] space-y-4">
                   <div>
                     <span className="text-xs font-bold text-foreground block">Technical & Behavioral Interview Blueprint</span>
@@ -901,21 +1014,7 @@ export default function JdDetailView({
                   />
                 </Card>
               ) : (
-                <Card className="p-12 text-center border border-dashed border-border min-h-[350px] flex flex-col justify-center items-center select-none no-print">
-                  <div className="size-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent mb-4">
-                    <Cpu size={28} />
-                  </div>
-                  <Typography type="h4" className="font-bold text-foreground mb-1">Generate Interview Blueprint</Typography>
-                  <Typography type="body-xs" className="text-muted max-w-md mx-auto mb-6 leading-relaxed font-medium">
-                    Synthesize customized developer screening questions and explicit behavioral scoring dimensions matched directly to the capabilities.
-                  </Typography>
-                  <Button
-                    onClick={handleGenerateBlueprint}
-                    className="bg-accent text-accent-foreground font-bold text-xs px-5 py-3 rounded-xl cursor-pointer flex items-center gap-2 hover:opacity-95"
-                  >
-                    <Sparkles size={14} /> Generate Interview Blueprint
-                  </Button>
-                </Card>
+                renderUnifiedCTA()
               )}
             </div>
           )}
@@ -945,6 +1044,7 @@ export default function JdDetailView({
                   {candidateMatches.map((match) => {
                     const isHighTrust = match.trustLevel >= 0.7;
                     const isMedTrust = match.trustLevel >= 0.4 && match.trustLevel < 0.7;
+                    const isExpanded = expandedCandidates.includes(match.candidateId);
                     return (
                       <Card key={match.candidateId} className="p-5 border border-border bg-surface space-y-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
@@ -967,13 +1067,13 @@ export default function JdDetailView({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
                             <div className="text-right">
-                              <span className="text-[10px] text-muted font-bold block uppercase">Match Score</span>
+                              <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">Match Score</span>
                               <span className="text-lg font-mono font-bold text-accent">{(match.matchScore * 100).toFixed(0)}%</span>
                             </div>
-                            <div className="text-right border-l border-border pl-3">
-                              <span className="text-[10px] text-muted font-bold block uppercase">Trust Level</span>
+                            <div className="text-right border-l border-border pl-3 pr-2">
+                              <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">Trust Level</span>
                               <span className="text-xs font-semibold text-foreground flex items-center justify-end gap-1">
                                 {isHighTrust ? (
                                   <span className="text-success flex items-center gap-0.5"><ShieldCheck size={12} /> High</span>
@@ -984,109 +1084,124 @@ export default function JdDetailView({
                                 )}
                               </span>
                             </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => toggleCandidateExpand(match.candidateId)}
+                              className={`text-xs font-bold px-4 py-2 rounded-xl cursor-pointer min-w-[100px] border-none ${
+                                isExpanded ? "bg-default text-foreground hover:bg-default/80" : "bg-accent/15 text-accent hover:bg-accent/20"
+                              }`}
+                            >
+                              {isExpanded ? "Hide Details" : "View Details"}
+                            </Button>
                           </div>
                         </div>
 
-                        {/* Breakdown stats bar */}
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 bg-surface-secondary/40 p-3 rounded-xl border border-border/60 text-center select-none">
-                          <div className="space-y-0.5">
-                            <span className="text-[9px] text-muted font-bold uppercase block">Capabilities</span>
-                            <span className="text-xs font-bold text-foreground">{(match.breakdown.capabilitiesScore * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className="space-y-0.5">
-                            <span className="text-[9px] text-muted font-bold uppercase block">Tech Stack</span>
-                            <span className="text-xs font-bold text-foreground">{(match.breakdown.skillsScore * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className="space-y-0.5">
-                            <span className="text-[9px] text-muted font-bold uppercase block">Duties</span>
-                            <span className="text-xs font-bold text-foreground">{(match.breakdown.responsibilitiesScore * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className="space-y-0.5">
-                            <span className="text-[9px] text-muted font-bold uppercase block">Salary Fit</span>
-                            <span className="text-xs font-bold text-foreground">{(match.breakdown.salaryScore * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className="space-y-0.5">
-                            <span className="text-[9px] text-muted font-bold uppercase block">Cosine Fit</span>
-                            <span className="text-xs font-bold text-foreground">{(match.breakdown.cosineSimilarity * 100).toFixed(0)}%</span>
-                          </div>
-                          <div className="space-y-0.5">
-                            <span className="text-[9px] text-muted font-bold uppercase block">Gap Score</span>
-                            <span className="text-xs font-bold text-foreground">{(match.breakdown.gapScore * 100).toFixed(0)}%</span>
-                          </div>
-                        </div>
+                        {/* Collapsible Candidate Details Section */}
+                        {isExpanded && (
+                          <div className="border-t border-border/50 pt-4 space-y-4">
+                            {/* Breakdown stats bar */}
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 bg-surface-secondary/40 p-3 rounded-xl border border-border/60 text-center select-none">
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Capabilities</span>
+                                <span className="text-xs font-bold text-foreground">{(match.breakdown.capabilitiesScore * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Tech Stack</span>
+                                <span className="text-xs font-bold text-foreground">{(match.breakdown.skillsScore * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Duties</span>
+                                <span className="text-xs font-bold text-foreground">{(match.breakdown.responsibilitiesScore * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Salary Fit</span>
+                                <span className="text-xs font-bold text-foreground">{(match.breakdown.salaryScore * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Cosine Fit</span>
+                                <span className="text-xs font-bold text-foreground">{(match.breakdown.cosineSimilarity * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Gap Score</span>
+                                <span className="text-xs font-bold text-foreground">{(match.breakdown.gapScore * 100).toFixed(0)}%</span>
+                              </div>
+                            </div>
 
-                        {/* Expandable Evidence Traces */}
-                        <div className="space-y-2">
-                          <span className="text-[10px] text-muted font-bold uppercase block select-none">Evidence Traceability Chain</span>
-                          <AccordionWrapper
-                            variant="surface"
-                            className="w-full"
-                            items={match.traces.map((trace, tIdx) => {
-                              let statusColor = "bg-default/20 text-foreground font-semibold";
-                              if (trace.matchStatus === "Verified") {
-                                statusColor = "bg-success/15 border border-success/30 text-success font-bold";
-                              } else if (trace.matchStatus === "Self-Declared") {
-                                statusColor = "bg-warning/15 border border-warning/30 text-warning font-bold";
-                              } else if (trace.matchStatus === "Missing") {
-                                statusColor = "bg-danger/10 border border-danger/20 text-danger font-bold";
-                              }
+                            {/* Expandable Evidence Traces */}
+                            <div className="space-y-2">
+                              <span className="text-[10px] text-muted font-bold uppercase block select-none tracking-wider">Evidence Traceability Chain</span>
+                              <AccordionWrapper
+                                variant="surface"
+                                className="w-full"
+                                items={match.traces.map((trace, tIdx) => {
+                                  let statusColor = "bg-default/20 text-foreground font-semibold";
+                                  if (trace.matchStatus === "Verified") {
+                                    statusColor = "bg-success/15 border border-success/30 text-success font-bold";
+                                  } else if (trace.matchStatus === "Self-Declared") {
+                                    statusColor = "bg-warning/15 border border-warning/30 text-warning font-bold";
+                                  } else if (trace.matchStatus === "Missing") {
+                                    statusColor = "bg-danger/10 border border-danger/20 text-danger font-bold";
+                                  }
 
-                              return {
-                                id: `${match.candidateId}-trace-${tIdx}`,
-                                title: trace.capabilityName || trace.capabilityId,
-                                icon: trace.matchStatus === "Verified" ? (
-                                  <ShieldCheck size={14} className="text-success" />
-                                ) : trace.matchStatus === "Self-Declared" ? (
-                                  <User size={14} className="text-warning" />
-                                ) : (
-                                  <AlertTriangle size={14} className="text-danger" />
-                                ),
-                                content: (
-                                  <div className="space-y-3.5 text-xs text-foreground select-text">
-                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-bold text-muted">Status:</span>
-                                        <Chip size="sm" variant="soft" className={statusColor}>
-                                          {trace.matchStatus}
-                                        </Chip>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-bold text-muted">Confidence:</span>
-                                        <span className="font-mono font-bold text-accent">{(trace.confidence * 100).toFixed(0)}%</span>
-                                      </div>
-                                    </div>
+                                  return {
+                                    id: `${match.candidateId}-trace-${tIdx}`,
+                                    title: trace.capabilityName || trace.capabilityId,
+                                    icon: trace.matchStatus === "Verified" ? (
+                                      <ShieldCheck size={14} className="text-success" />
+                                    ) : trace.matchStatus === "Self-Declared" ? (
+                                      <User size={14} className="text-warning" />
+                                    ) : (
+                                      <AlertTriangle size={14} className="text-danger" />
+                                    ),
+                                    content: (
+                                      <div className="space-y-3.5 text-xs text-foreground select-text font-outfit">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-muted">Status:</span>
+                                            <Chip size="sm" variant="soft" className={statusColor}>
+                                              {trace.matchStatus}
+                                            </Chip>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-muted">Confidence:</span>
+                                            <span className="font-mono font-bold text-accent">{(trace.confidence * 100).toFixed(0)}%</span>
+                                          </div>
+                                        </div>
 
-                                    <div className="space-y-1">
-                                      <span className="font-bold text-muted">Repository Trace Signal:</span>
-                                      <p className="font-semibold text-foreground bg-surface border border-border/80 p-2.5 rounded-lg font-mono text-[10px] break-all leading-normal">
-                                        {trace.metric || "No active repository signal matching this capability."}
-                                      </p>
-                                    </div>
+                                        <div className="space-y-1">
+                                          <span className="font-bold text-muted font-outfit">Repository Trace Signal:</span>
+                                          <p className="font-semibold text-foreground bg-surface border border-border/80 p-2.5 rounded-lg font-mono text-[10px] break-all leading-normal">
+                                            {trace.metric || "No active repository signal matching this capability."}
+                                          </p>
+                                        </div>
 
-                                    {trace.targetFile && (
-                                      <div className="space-y-1">
-                                        <span className="font-bold text-muted">Codebase Reference:</span>
-                                        <div className="flex items-center gap-1.5 text-[10px] font-mono text-accent font-semibold hover:underline">
-                                          <ExternalLink size={10} className="shrink-0" />
-                                          <a href={trace.targetFile} target="_blank" rel="noopener noreferrer" className="break-all">
-                                            {trace.targetFile.split("/").pop() || trace.targetFile}
-                                          </a>
+                                        {trace.targetFile && (
+                                          <div className="space-y-1 font-outfit">
+                                            <span className="font-bold text-muted">Codebase Reference:</span>
+                                            <div className="flex items-center gap-1.5 text-[10px] font-mono text-accent font-semibold hover:underline">
+                                              <ExternalLink size={10} className="shrink-0" />
+                                              <a href={trace.targetFile} target="_blank" rel="noopener noreferrer" className="break-all">
+                                                {trace.targetFile.split("/").pop() || trace.targetFile}
+                                              </a>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        <div className="space-y-1">
+                                          <span className="font-bold text-muted font-outfit">AI Matching Rationale:</span>
+                                          <p className="text-muted leading-relaxed font-semibold font-outfit">
+                                            {trace.rationale || "No trace analysis extracted."}
+                                          </p>
                                         </div>
                                       </div>
-                                    )}
-
-                                    <div className="space-y-1">
-                                      <span className="font-bold text-muted">AI Matching Rationale:</span>
-                                      <p className="text-muted leading-relaxed font-semibold">
-                                        {trace.rationale || "No trace analysis extracted."}
-                                      </p>
-                                    </div>
-                                  </div>
-                                )
-                              };
-                            })}
-                          />
-                        </div>
+                                    )
+                                  };
+                                })}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </Card>
                     );
                   })}

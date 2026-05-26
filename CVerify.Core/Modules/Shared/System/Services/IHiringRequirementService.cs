@@ -13,6 +13,7 @@ public interface IHiringRequirementService
     Task<HiringRequirement> UpdateDraftAsync(Guid id, UpdateHiringRequirementRequestDto request, CancellationToken cancellationToken);
     Task<HiringRequirement> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<RequirementSnapshot> PublishAsync(Guid id, CancellationToken cancellationToken);
+    Task<HiringRequirement> CreateNewVersionAsync(Guid id, CancellationToken cancellationToken);
     Task<PaginatedListDto<HiringRequirement>> GetByWorkspaceIdAsync(
         Guid workspaceId,
         string? search,

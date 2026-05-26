@@ -255,6 +255,7 @@ export interface PublicProfileResponse {
   achievements?: AcademicAchievementResponse[] | null;
   hasCompletedAssessment: boolean;
   lastAssessmentDate: string | null;
+  vacancies?: any[];
 }
 
 export interface WorkExperienceAchievement {

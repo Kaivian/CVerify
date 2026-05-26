@@ -63,6 +63,76 @@ export interface HiringRequirement {
   jobDescriptions?: any[];
 }
 
+export type JobPostStatus = "Draft" | "Published" | "Archived";
+export type AcquisitionStrategy = "ManualOnly" | "AiMatchingOnly" | "Hybrid";
+
+export interface CandidateDiscoveryProfile {
+  keyKeywords: string[];
+  minimumYearsOfExperience: number;
+  priorityWeights: Record<string, number>;
+  trustRequirements: {
+    minimumTrustScore: number;
+    requireVerifiedEmail: boolean;
+    [key: string]: any;
+  };
+}
+
+export interface JobVacancyDto {
+  id: string;
+  organizationId: string;
+  title: string;
+  department: string;
+  workplaceType: string;
+  city: string;
+  type: string;
+  salary: string;
+  salaryMinMax: string;
+  headcount: number;
+  gender: string;
+  experience: string;
+  degree: string;
+  category: string;
+  description: string[];
+  requirements: string[];
+  benefits: string[];
+  tags: string[];
+  skills: string[];
+  coverUrl: string;
+  images: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  status: JobPostStatus;
+  acquisitionStrategy: AcquisitionStrategy;
+  discoveryProfileJson?: string;
+  requirementSnapshotId?: string;
+  hiringRequirementId?: string;
+  metadata?: string;
+}
+
+export interface UpdateJobVacancyDto {
+  title: string;
+  department: string;
+  workplaceType: string;
+  city: string;
+  type: string;
+  salary: string;
+  salaryMinMax: string;
+  headcount: number;
+  gender: string;
+  experience: string;
+  degree: string;
+  category: string;
+  description: string[];
+  requirements: string[];
+  benefits: string[];
+  tags: string[];
+  skills: string[];
+  coverUrl: string;
+  acquisitionStrategy: AcquisitionStrategy;
+  discoveryProfileJson: string;
+}
+
 export interface CapabilityCatalogItem {
   capabilityId: string;
   displayName: string;
@@ -323,6 +393,31 @@ export const hiringRequirementService = {
 
   async bulkArchive(ids: string[]): Promise<void> {
     await axiosClient.post("/v1/hiring-requirements/bulk-archive", { ids });
+  },
+
+  async getJobPosting(requirementId: string): Promise<JobVacancyDto> {
+    const response = await axiosClient.get<JobVacancyDto>(`/v1/job-vacancies/requirement/${requirementId}`);
+    return response.data;
+  },
+
+  async createJobPostingDraft(requirementId: string): Promise<JobVacancyDto> {
+    const response = await axiosClient.post<JobVacancyDto>(`/v1/job-vacancies/requirement/${requirementId}/create-draft`);
+    return response.data;
+  },
+
+  async updateJobPosting(id: string, data: UpdateJobVacancyDto): Promise<JobVacancyDto> {
+    const response = await axiosClient.put<JobVacancyDto>(`/v1/job-postings/${id}`, data);
+    return response.data;
+  },
+
+  async publishJobPosting(id: string, notes?: string): Promise<JobVacancyDto> {
+    const response = await axiosClient.post<JobVacancyDto>(`/v1/job-postings/${id}/publish`, { notes });
+    return response.data;
+  },
+
+  async createNewVersion(id: string): Promise<{ id: string; status: string; version: number; createdAt: string }> {
+    const response = await axiosClient.post<{ id: string; status: string; version: number; createdAt: string }>(`/v1/hiring-requirements/${id}/new-version`);
+    return response.data;
   }
 };
 

@@ -9,7 +9,8 @@ from app.pipelines.shared.ai.prompts.requirement_prompt_factory import Requireme
 from app.pipelines.requirement.contracts import (
     JobDescriptionResponse,
     EvaluationRubricResponse,
-    InterviewBlueprintResponse
+    InterviewBlueprintResponse,
+    UnifiedRequirementArtifactsResponse
 )
 
 logger = logging.getLogger("requirement_artifacts_orchestrator")
@@ -70,205 +71,9 @@ class RequirementArtifactsOrchestrator:
         request: Any = None,
         correlation_id: str = "system"
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        extra = {"correlation_id": correlation_id, "artifact_type": artifact_type}
-        req_id = requirement_data.get("id", "unknown")
-        logger.info(f"Starting single-artifact stream generation ({artifact_type}) for Requirement: {req_id}", extra=extra)
-
-        start_time = time.perf_counter()
-
-        if artifact_type == "JobDescription":
-            yield {
-                "status": "Running",
-                "step": "GenerateJobDescription",
-                "message": "Initiating Job Description generation...",
-                "percentage": 10.0
-            }
-
-            system_prompt = self.prompt_factory.get_system_prompt()
-            user_prompt = self.prompt_factory.get_jd_generator_prompt(requirement_data)
-            prompt_hash = self.prompt_factory.get_prompt_hash(user_prompt)
-            prompt_version = self.prompt_factory.PROMPT_VERSION
-            prompt_template_id = self.prompt_factory.PROMPT_TEMPLATE_ID
-
-            full_markdown_parts = []
-            stream_telemetry = None
-
-            try:
-                async for chunk in self.claude_service.stream_prompt(system_prompt, user_prompt, correlation_id):
-                    # Check for client disconnect
-                    if request and await request.is_disconnected():
-                        logger.info("Client disconnected during Job Description streaming. Aborting generation.", extra=extra)
-                        yield {
-                            "status": "Failed",
-                            "step": "GenerateJobDescription",
-                            "message": "Client disconnected.",
-                            "percentage": 100.0
-                        }
-                        return
-
-                    if chunk["type"] == "content":
-                        text = chunk["text"]
-                        full_markdown_parts.append(text)
-                        yield {
-                            "status": "Generating",
-                            "step": "JobDescriptionStream",
-                            "chunk": text,
-                            "percentage": 30.0
-                        }
-                    elif chunk["type"] == "telemetry":
-                        stream_telemetry = chunk
-                    elif chunk["type"] == "error":
-                        raise Exception(chunk["message"])
-            except Exception as e:
-                logger.exception(f"Error streaming Job Description: {e}", extra=extra)
-                yield {
-                    "status": "Failed",
-                    "step": "GenerateJobDescription",
-                    "message": f"Job Description streaming failed: {str(e)}",
-                    "percentage": 100.0
-                }
-                return
-
-            full_markdown = "".join(full_markdown_parts)
-
-            # Check client disconnect before parser call
-            if request and await request.is_disconnected():
-                logger.info("Client disconnected before parser call. Aborting.", extra=extra)
-                return
-
-            yield {
-                "status": "Running",
-                "step": "ParseJobDescription",
-                "message": "Extracting structured sections from Job Description...",
-                "percentage": 75.0
-            }
-
-            try:
-                parser_system = self.prompt_factory.get_system_prompt()
-                parser_user = self.prompt_factory.get_jd_parser_prompt(full_markdown)
-
-                raw_json_str, parser_telemetry = await self.claude_service.analyze_repo_with_telemetry(
-                    parser_system, parser_user, correlation_id
-                )
-                structured_content = self._repair_and_extract_json(raw_json_str, correlation_id)
-
-                total_input_tokens = (stream_telemetry.get("promptTokens", 0) if stream_telemetry else 0) + parser_telemetry.get("promptTokens", 0)
-                total_output_tokens = (stream_telemetry.get("completionTokens", 0) if stream_telemetry else 0) + parser_telemetry.get("completionTokens", 0)
-                total_cost = (stream_telemetry.get("estimatedCostUsd", 0.0) if stream_telemetry else 0.0) + parser_telemetry.get("estimatedCostUsd", 0.0)
-
-                duration_ms = int((time.perf_counter() - start_time) * 1000)
-
-                generation_metadata = {
-                    "inputTokens": total_input_tokens,
-                    "outputTokens": total_output_tokens,
-                    "estimatedCostUsd": total_cost,
-                    "durationMs": duration_ms
-                }
-
-                final_payload = {
-                    "markdownContent": full_markdown,
-                    "structuredContent": structured_content,
-                    "modelInfo": parser_telemetry.get("modelName", "claude-3-5-sonnet"),
-                    "promptTemplateId": prompt_template_id,
-                    "promptVersion": prompt_version,
-                    "promptHash": prompt_hash,
-                    "generationMetadata": generation_metadata
-                }
-
-                yield {
-                    "status": "Running",
-                    "step": "RequirementArtifactsComposer",
-                    "message": "Job Description generated and parsed successfully.",
-                    "percentage": 100.0,
-                    "artifactType": "JobDescription",
-                    "jsonData": json.dumps(final_payload)
-                }
-
-            except Exception as e:
-                logger.exception(f"Error parsing generated Job Description: {e}", extra=extra)
-                yield {
-                    "status": "Failed",
-                    "step": "ParseJobDescription",
-                    "message": f"Job Description parsing failed: {str(e)}",
-                    "percentage": 100.0
-                }
-                return
-
-        elif artifact_type == "EvaluationRubric":
-            yield {
-                "status": "Running",
-                "step": "GenerateEvaluationRubric",
-                "message": "Generating Evaluation Rubric...",
-                "percentage": 20.0
-            }
-
-            try:
-                system = self.prompt_factory.get_system_prompt()
-                user = self.prompt_factory.get_rubric_generator_prompt(requirement_data)
-                
-                rubric_validated, rubric_telemetry = await self._call_claude_with_validation(
-                    system, user, EvaluationRubricResponse, correlation_id
-                )
-
-                yield {
-                    "status": "Running",
-                    "step": "RequirementArtifactsComposer",
-                    "message": "Evaluation Rubric generated successfully.",
-                    "percentage": 100.0,
-                    "artifactType": "EvaluationRubric",
-                    "jsonData": rubric_validated.model_dump_json()
-                }
-            except Exception as e:
-                logger.exception(f"Error generating Evaluation Rubric: {e}", extra=extra)
-                yield {
-                    "status": "Failed",
-                    "step": "GenerateEvaluationRubric",
-                    "message": f"Evaluation Rubric generation failed: {str(e)}",
-                    "percentage": 100.0
-                }
-                return
-
-        elif artifact_type == "InterviewBlueprint":
-            yield {
-                "status": "Running",
-                "step": "GenerateInterviewBlueprint",
-                "message": "Generating Interview Blueprint...",
-                "percentage": 20.0
-            }
-
-            try:
-                system = self.prompt_factory.get_system_prompt()
-                user = self.prompt_factory.get_blueprint_generator_prompt(requirement_data)
-
-                blueprint_validated, blueprint_telemetry = await self._call_claude_with_validation(
-                    system, user, InterviewBlueprintResponse, correlation_id
-                )
-
-                yield {
-                    "status": "Running",
-                    "step": "RequirementArtifactsComposer",
-                    "message": "Interview Blueprint generated successfully.",
-                    "percentage": 100.0,
-                    "artifactType": "InterviewBlueprint",
-                    "jsonData": blueprint_validated.model_dump_json()
-                }
-            except Exception as e:
-                logger.exception(f"Error generating Interview Blueprint: {e}", extra=extra)
-                yield {
-                    "status": "Failed",
-                    "step": "GenerateInterviewBlueprint",
-                    "message": f"Interview Blueprint generation failed: {str(e)}",
-                    "percentage": 100.0
-                }
-                return
-
-        else:
-            yield {
-                "status": "Failed",
-                "step": "RequirementArtifactsComposer",
-                "message": f"Unknown artifact type: {artifact_type}",
-                "percentage": 100.0
-            }
+        # Regenerate all artifacts together to ensure data consistency
+        async for progress in self.generate_all_artifacts_async(requirement_data, correlation_id):
+            yield progress
 
     async def generate_all_artifacts_async(
         self, requirement_data: Dict[str, Any], correlation_id: str = "system"
@@ -277,43 +82,47 @@ class RequirementArtifactsOrchestrator:
         req_id = requirement_data.get("id", "unknown")
         logger.info(f"Starting Requirement Artifacts Generation Orchestrator for Requirement: {req_id}", extra=extra)
 
-        # Stage 1: Generate Job Description
+        # Stage 1: Generate Job Description and all other unified elements
         yield {
             "status": "Running",
-            "step": "GenerateJobDescription",
-            "message": "Generating professional Job Description text...",
+            "step": "GenerateUnifiedRequirements",
+            "message": "Generating unified hiring requirement package...",
             "percentage": 10.0
         }
         try:
             system = self.prompt_factory.get_system_prompt()
-            user = self.prompt_factory.get_jd_generator_prompt(requirement_data)
+            user = self.prompt_factory.get_unified_requirements_prompt(requirement_data)
             
-            # Since the prompt now asks for raw markdown and doesn't return JSON, we must adapt this old method.
-            # But wait, this method is only kept for backwards-compatibility or not used.
-            # Let's perform a direct call and construct the JSON mock or use the new single stream generator.
-            # Let's just generate the JD markdown and parse it to stay robust.
-            raw_md, md_telemetry = await self.claude_service.analyze_repo_with_telemetry(system, user, correlation_id)
-            
-            parser_user = self.prompt_factory.get_jd_parser_prompt(raw_md)
-            raw_json, parse_telemetry = await self.claude_service.analyze_repo_with_telemetry(system, parser_user, correlation_id)
-            structured_content = self._repair_and_extract_json(raw_json, correlation_id)
+            unified_validated, telemetry = await self._call_claude_with_validation(
+                system, user, UnifiedRequirementArtifactsResponse, correlation_id
+            )
 
-            total_input_tokens = md_telemetry.get("promptTokens", 0) + parse_telemetry.get("promptTokens", 0)
-            total_output_tokens = md_telemetry.get("completionTokens", 0) + parse_telemetry.get("completionTokens", 0)
-            total_cost = md_telemetry.get("estimatedCostUsd", 0.0) + parse_telemetry.get("estimatedCostUsd", 0.0)
-
-            final_payload = {
-                "markdownContent": raw_md,
-                "structuredContent": structured_content,
-                "modelInfo": parse_telemetry.get("modelName", "claude-3-5-sonnet"),
+            # Extract JD
+            jd_payload = {
+                "markdownContent": unified_validated.jobDescription.markdownContent,
+                "structuredContent": {
+                    "jobTitle": unified_validated.jobDescription.title,
+                    "positionSummary": unified_validated.jobDescription.summary,
+                    "companyOverview": f"Company details for {unified_validated.jobDescription.title} in the {unified_validated.jobDescription.department} department.",
+                    "responsibilities": unified_validated.jobDescription.responsibilities,
+                    "technicalSkills": unified_validated.jobDescription.skills,
+                    "preferredSkills": [],
+                    "experienceRequirements": unified_validated.jobPostMetadata.experienceRange,
+                    "qualifications": [unified_validated.jobPostMetadata.degreeRequirement],
+                    "softSkills": [],
+                    "successCriteria": [],
+                    "benefits": [],
+                    "hiringProcess": []
+                },
+                "modelInfo": telemetry.get("modelName", "claude-3-5-sonnet"),
                 "promptTemplateId": self.prompt_factory.PROMPT_TEMPLATE_ID,
                 "promptVersion": self.prompt_factory.PROMPT_VERSION,
                 "promptHash": self.prompt_factory.get_prompt_hash(user),
                 "generationMetadata": {
-                    "inputTokens": total_input_tokens,
-                    "outputTokens": total_output_tokens,
-                    "estimatedCostUsd": total_cost,
-                    "durationMs": int(md_telemetry.get("durationMs", 0) + parse_telemetry.get("durationMs", 0))
+                    "inputTokens": telemetry.get("promptTokens", 0),
+                    "outputTokens": telemetry.get("completionTokens", 0),
+                    "estimatedCostUsd": telemetry.get("estimatedCostUsd", 0.0),
+                    "durationMs": telemetry.get("durationMs", 0)
                 }
             }
 
@@ -323,82 +132,63 @@ class RequirementArtifactsOrchestrator:
                 "message": "Job Description generated successfully.",
                 "percentage": 40.0,
                 "artifactType": "JobDescription",
-                "jsonData": json.dumps(final_payload)
+                "jsonData": json.dumps(jd_payload)
             }
-        except Exception as e:
-            logger.exception(f"Error generating Job Description: {e}", extra=extra)
-            yield {
-                "status": "Failed",
-                "step": "GenerateJobDescription",
-                "message": f"Job Description generation failed: {str(e)}",
-                "percentage": 40.0
-            }
-            return
 
-        # Stage 2: Generate Evaluation Rubric
-        yield {
-            "status": "Running",
-            "step": "GenerateEvaluationRubric",
-            "message": "Formulating evaluation rubric and evidence mapping...",
-            "percentage": 50.0
-        }
-        try:
-            user = self.prompt_factory.get_rubric_generator_prompt(requirement_data)
-            rubric_validated, rubric_telemetry = await self._call_claude_with_validation(
-                system, user, EvaluationRubricResponse, correlation_id
-            )
+            # Extract Rubric
             yield {
                 "status": "Running",
                 "step": "GenerateEvaluationRubric",
                 "message": "Evaluation Rubric generated successfully.",
-                "percentage": 70.0,
+                "percentage": 60.0,
                 "artifactType": "EvaluationRubric",
-                "jsonData": rubric_validated.model_dump_json()
+                "jsonData": unified_validated.assessmentRubric.model_dump_json()
             }
-        except Exception as e:
-            logger.exception(f"Error generating Evaluation Rubric: {e}", extra=extra)
-            yield {
-                "status": "Failed",
-                "step": "GenerateEvaluationRubric",
-                "message": f"Evaluation Rubric generation failed: {str(e)}",
-                "percentage": 70.0
-            }
-            return
 
-        # Stage 3: Generate Interview Blueprint
-        yield {
-            "status": "Running",
-            "step": "GenerateInterviewBlueprint",
-            "message": "Designing interview questions and rubrics...",
-            "percentage": 80.0
-        }
-        try:
-            user = self.prompt_factory.get_blueprint_generator_prompt(requirement_data)
-            blueprint_validated, blueprint_telemetry = await self._call_claude_with_validation(
-                system, user, InterviewBlueprintResponse, correlation_id
-            )
+            # Extract Blueprint
             yield {
                 "status": "Running",
                 "step": "GenerateInterviewBlueprint",
                 "message": "Interview Blueprint generated successfully.",
-                "percentage": 100.0,
+                "percentage": 80.0,
                 "artifactType": "InterviewBlueprint",
-                "jsonData": blueprint_validated.model_dump_json()
+                "jsonData": unified_validated.interviewBlueprint.model_dump_json()
+            }
+
+            # Extract Job Post Metadata (Staging context)
+            yield {
+                "status": "Running",
+                "step": "GenerateJobPostMetadata",
+                "message": "Job Post Metadata generated successfully.",
+                "percentage": 90.0,
+                "artifactType": "JobPostMetadata",
+                "jsonData": unified_validated.jobPostMetadata.model_dump_json()
+            }
+
+            # Extract Candidate Discovery Profile (Staging context)
+            yield {
+                "status": "Running",
+                "step": "GenerateCandidateDiscoveryProfile",
+                "message": "Candidate Discovery Profile generated successfully.",
+                "percentage": 95.0,
+                "artifactType": "CandidateDiscoveryProfile",
+                "jsonData": unified_validated.candidateDiscoveryProfile.model_dump_json()
+            }
+
+            # Success final yield
+            yield {
+                "status": "Completed",
+                "step": "RequirementArtifactsComposer",
+                "message": "All requirement package artifacts generated successfully.",
+                "percentage": 100.0
             }
         except Exception as e:
-            logger.exception(f"Error generating Interview Blueprint: {e}", extra=extra)
+            logger.exception(f"Error generating unified requirements: {e}", extra=extra)
             yield {
                 "status": "Failed",
-                "step": "GenerateInterviewBlueprint",
-                "message": f"Interview Blueprint generation failed: {str(e)}",
+                "step": "RequirementArtifactsComposer",
+                "message": f"Requirements generation failed: {str(e)}",
                 "percentage": 100.0
             }
             return
 
-        # Success final yield
-        yield {
-            "status": "Completed",
-            "step": "RequirementArtifactsComposer",
-            "message": "All requirement artifacts generated successfully.",
-            "percentage": 100.0
-        }

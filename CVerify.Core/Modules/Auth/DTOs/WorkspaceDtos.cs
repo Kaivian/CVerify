@@ -150,6 +150,11 @@ public record JobVacancyDto(
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
+    string? Status = "Draft",
+    string? AcquisitionStrategy = "Hybrid",
+    string? DiscoveryProfileJson = null,
+    Guid? RequirementSnapshotId = null,
+    Guid? HiringRequirementId = null,
     string? Metadata = null
 );
 

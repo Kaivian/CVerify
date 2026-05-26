@@ -504,6 +504,69 @@ public class ProfileService : IProfileService
             ));
         }
 
+        // Retrieve published jobs for the recruiter's organizations
+        var organizationIds = await _context.OrganizationMemberships
+            .Where(om => om.UserId == profile.UserId && om.Status == "active")
+            .Select(om => om.OrganizationId)
+            .ToListAsync(cancellationToken);
+
+        var publishedVacancies = new List<CVerify.API.Modules.Auth.DTOs.JobVacancyDto>();
+        if (organizationIds.Any())
+        {
+            var vacancies = await _context.JobVacancies
+                .Include(jv => jv.Organization)
+                .Where(jv => organizationIds.Contains(jv.OrganizationId) && jv.IsActive && jv.Status == "Published")
+                .OrderByDescending(jv => jv.CreatedAt)
+                .ToListAsync(cancellationToken);
+
+            foreach (var jv in vacancies)
+            {
+                var signedCoverUrl = await GetSignedVacancyUrlAsync(jv.CoverUrl, cancellationToken) ?? jv.CoverUrl;
+                var signedImages = new List<string>();
+                if (jv.Images != null)
+                {
+                    foreach (var img in jv.Images)
+                    {
+                        var signedImg = await GetSignedVacancyUrlAsync(img, cancellationToken);
+                        if (signedImg != null) signedImages.Add(signedImg);
+                    }
+                }
+
+                publishedVacancies.Add(new CVerify.API.Modules.Auth.DTOs.JobVacancyDto(
+                    jv.Id,
+                    jv.OrganizationId,
+                    jv.Title,
+                    jv.Department,
+                    jv.WorkplaceType,
+                    jv.City,
+                    jv.Type,
+                    jv.Salary,
+                    jv.SalaryMinMax,
+                    jv.Headcount,
+                    jv.Gender,
+                    jv.Experience,
+                    jv.Degree,
+                    jv.Category,
+                    jv.Description,
+                    jv.Requirements,
+                    jv.Benefits,
+                    jv.Tags,
+                    jv.Skills,
+                    signedCoverUrl,
+                    signedImages,
+                    jv.IsActive,
+                    jv.CreatedAt,
+                    jv.UpdatedAt,
+                    jv.Status,
+                    jv.AcquisitionStrategy,
+                    jv.DiscoveryProfileJson,
+                    jv.RequirementSnapshotId,
+                    jv.HiringRequirementId,
+                    jv.Organization?.Username
+                ));
+            }
+        }
+
         return new PublicProfileResponse(
             profile.UserId,
             profile.Username ?? profile.User?.Username ?? string.Empty,
@@ -522,8 +585,32 @@ public class ProfileService : IProfileService
             educationResponses,
             achievementResponses,
             hasCompletedAssessment,
-            lastAssessmentDate
+            lastAssessmentDate,
+            publishedVacancies
         );
+    }
+
+    private async Task<string?> GetSignedVacancyUrlAsync(string? url, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return null;
+        }
+
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return url;
+        }
+
+        try
+        {
+            return await _storageService.GetSignedUrlAsync(url, TimeSpan.FromHours(24), cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task<string?> GetSignedAvatarUrlAsync(string? avatarUrl, CancellationToken cancellationToken)

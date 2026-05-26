@@ -120,3 +120,30 @@ public record GenerateArtifactRequestDto(
 public record CancelArtifactRequestDto(
     string ArtifactType
 );
+
+public record UpdateJobVacancyDto(
+    string Title,
+    string Department,
+    string WorkplaceType,
+    string City,
+    string Type,
+    string Salary,
+    string SalaryMinMax,
+    int Headcount,
+    string Gender,
+    string Experience,
+    string Degree,
+    string Category,
+    List<string> Description,
+    List<string> Requirements,
+    List<string> Benefits,
+    List<string> Tags,
+    List<string> Skills,
+    string CoverUrl,
+    string AcquisitionStrategy,
+    string DiscoveryProfileJson
+);
+
+public record PublishRequirementRequestDto(
+    string? Notes = null
+);

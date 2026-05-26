@@ -13,6 +13,8 @@ using StackExchange.Redis;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.Shared.System.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace CVerify.API.Modules.Shared.System.Controllers;
 
@@ -25,17 +27,23 @@ public class HiringRequirementController : ControllerBase
     private readonly ICandidateMatchService _candidateMatchService;
     private readonly IConnectionMultiplexer _redis;
     private readonly ICapabilityCatalogService _catalogService;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<HiringRequirementController> _logger;
 
     public HiringRequirementController(
         IHiringRequirementService hiringRequirementService,
         ICandidateMatchService candidateMatchService,
         IConnectionMultiplexer redis,
-        ICapabilityCatalogService catalogService)
+        ICapabilityCatalogService catalogService,
+        IServiceScopeFactory scopeFactory,
+        ILogger<HiringRequirementController> logger)
     {
         _hiringRequirementService = hiringRequirementService;
         _candidateMatchService = candidateMatchService;
         _redis = redis;
         _catalogService = catalogService;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     private Guid CurrentUserId
@@ -168,15 +176,18 @@ public class HiringRequirementController : ControllerBase
             }
 
             // Trigger asynchronously
+            var scopeFactory = _scopeFactory;
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await _hiringRequirementService.GenerateArtifactsAsync(id, CancellationToken.None);
+                    using var scope = scopeFactory.CreateScope();
+                    var scopedService = scope.ServiceProvider.GetRequiredService<IHiringRequirementService>();
+                    await scopedService.GenerateArtifactsAsync(id, CancellationToken.None);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Log handled in service
+                    _logger.LogError(ex, "Failed to asynchronously generate artifacts for hiring requirement {Id}", id);
                 }
             });
 
@@ -304,15 +315,18 @@ public class HiringRequirementController : ControllerBase
                 return NotFound(new { message = "Hiring requirement not found." });
             }
 
+            var scopeFactory = _scopeFactory;
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await _hiringRequirementService.GenerateArtifactAsync(id, request.ArtifactType, CancellationToken.None);
+                    using var scope = scopeFactory.CreateScope();
+                    var scopedService = scope.ServiceProvider.GetRequiredService<IHiringRequirementService>();
+                    await scopedService.GenerateArtifactAsync(id, request.ArtifactType, CancellationToken.None);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Log handled in service
+                    _logger.LogError(ex, "Failed to asynchronously generate artifact {ArtifactType} for hiring requirement {Id}", request.ArtifactType, id);
                 }
             });
 
@@ -561,5 +575,32 @@ public class HiringRequirementController : ControllerBase
     {
         await _hiringRequirementService.BulkArchiveAsync(request.Ids, cancellationToken);
         return NoContent();
+    }
+
+    [HttpPost("{id}/new-version")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateNewVersion(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var newReq = await _hiringRequirementService.CreateNewVersionAsync(id, cancellationToken);
+            return Ok(new
+            {
+                id = newReq.Id,
+                status = newReq.Status,
+                version = newReq.Version,
+                createdAt = newReq.CreatedAt
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }
