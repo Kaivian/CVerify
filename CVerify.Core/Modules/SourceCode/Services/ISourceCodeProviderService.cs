@@ -39,6 +39,7 @@ public interface ISourceCodeProviderService
         string? mode,
         int page, 
         int pageSize);
+    Task<IEnumerable<UserRepositoryIdentityDto>> GetUserRepositoriesForIndexingAsync(Guid userId, CancellationToken cancellationToken);
     Task<IEnumerable<ExternalOrganizationResponseDto>> GetOrganizationsAsync(Guid userId);
     Task<IEnumerable<string>> GetDistinctCategoriesAsync(Guid userId);
     Task<Guid> EnqueueSyncJobAsync(Guid userId, Guid? providerId);

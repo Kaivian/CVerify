@@ -209,6 +209,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(
             new System.Text.Json.Serialization.JsonStringEnumConverter());
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
 builder.Services.AddSignalR(options =>
 {
@@ -349,6 +350,8 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUsernameService, UsernameService>();
 builder.Services.AddScoped<IEncryptedFileStorageService, EncryptedFileStorageService>();
 builder.Services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
+builder.Services.AddScoped<ICapabilityCatalogService, CapabilityCatalogService>();
+builder.Services.AddScoped<IHiringRequirementService, HiringRequirementService>();
 
 
 // Register Cloudflare R2 Object Storage Stack (IAmazonS3 + IStorageService)
@@ -406,6 +409,7 @@ builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ICvRepositoryIndexer, CvRepositoryIndexer>();
+builder.Services.AddScoped<ICandidateMatchService, CandidateMatchService>();
 builder.Services.AddScoped<ICandidateAssessmentService, CandidateAssessmentService>();
 builder.Services.AddSingleton<ICandidateAssessmentQueue, BackgroundCandidateAssessmentQueue>();
 

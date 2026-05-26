@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260620120213_AddCapabilityCatalogTaxonomy")]
+    partial class AddCapabilityCatalogTaxonomy
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3690,6 +3693,59 @@ namespace CVerify.API.Migrations
                     b.ToTable("interview_blueprint_snapshots", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobDescription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<string>("MarkdownContent")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("markdown_content");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_job_descriptions");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("ix_job_descriptions_hiring_requirement_id");
+
+                    b.ToTable("job_descriptions", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobDescriptionSnapshot", b =>
+                {
+                    b.Property<Guid>("RequirementSnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_snapshot_id");
+
+                    b.Property<string>("MarkdownContent")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("markdown_content");
+
+                    b.Property<DateTimeOffset>("SnapshottedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("snapshotted_at");
+
+                    b.HasKey("RequirementSnapshotId")
+                        .HasName("pk_job_description_snapshots");
+
+                    b.ToTable("job_description_snapshots", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4454,124 +4510,6 @@ namespace CVerify.API.Migrations
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "varchar_pattern_ops" });
 
                     b.ToTable("permissions", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementArtifact", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("ArtifactType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("artifact_type");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("GenerationMetadataJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("generation_metadata_json");
-
-                    b.Property<DateTimeOffset?>("GenerationTimestamp")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("generation_timestamp");
-
-                    b.Property<Guid>("HiringRequirementId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("hiring_requirement_id");
-
-                    b.Property<string>("MarkdownContent")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("markdown_content");
-
-                    b.Property<string>("ModelInfo")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("model_info");
-
-                    b.Property<string>("PromptHash")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("prompt_hash");
-
-                    b.Property<string>("PromptTemplateId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("prompt_template_id");
-
-                    b.Property<string>("PromptVersion")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("prompt_version");
-
-                    b.Property<string>("RegenerationHistoryJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("regeneration_history_json");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("status");
-
-                    b.Property<string>("StructuredContentJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("structured_content_json");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_requirement_artifacts");
-
-                    b.HasIndex("HiringRequirementId")
-                        .HasDatabaseName("ix_requirement_artifacts_hiring_requirement_id");
-
-                    b.ToTable("requirement_artifacts", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementArtifactSnapshot", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("ArtifactType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("artifact_type");
-
-                    b.Property<string>("MarkdownContent")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("markdown_content");
-
-                    b.Property<Guid>("RequirementSnapshotId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("requirement_snapshot_id");
-
-                    b.Property<DateTimeOffset>("SnapshottedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("snapshotted_at");
-
-                    b.Property<string>("StructuredContentJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("structured_content_json");
-
-                    b.HasKey("Id")
-                        .HasName("pk_requirement_artifact_snapshots");
-
-                    b.HasIndex("RequirementSnapshotId")
-                        .HasDatabaseName("ix_requirement_artifact_snapshots_requirement_snapshot_id");
-
-                    b.ToTable("requirement_artifact_snapshots", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementCapability", b =>
@@ -6972,6 +6910,30 @@ namespace CVerify.API.Migrations
                     b.Navigation("RequirementSnapshot");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobDescription", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("JobDescriptions")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_job_descriptions_hiring_requirements_hiring_requirement_id");
+
+                    b.Navigation("HiringRequirement");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobDescriptionSnapshot", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", "RequirementSnapshot")
+                        .WithOne("JobDescriptionSnapshot")
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.JobDescriptionSnapshot", "RequirementSnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_job_description_snapshots_requirement_snapshots_requirement");
+
+                    b.Navigation("RequirementSnapshot");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
@@ -7136,30 +7098,6 @@ namespace CVerify.API.Migrations
                     b.Navigation("ConsumedByUser");
 
                     b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementArtifact", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
-                        .WithMany("RequirementArtifacts")
-                        .HasForeignKey("HiringRequirementId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_requirement_artifacts_hiring_requirements_hiring_requiremen");
-
-                    b.Navigation("HiringRequirement");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementArtifactSnapshot", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", "RequirementSnapshot")
-                        .WithMany("ArtifactSnapshots")
-                        .HasForeignKey("RequirementSnapshotId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_requirement_artifact_snapshots_requirement_snapshots_requir");
-
-                    b.Navigation("RequirementSnapshot");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementCapability", b =>
@@ -7574,7 +7512,7 @@ namespace CVerify.API.Migrations
 
                     b.Navigation("InterviewBlueprints");
 
-                    b.Navigation("RequirementArtifacts");
+                    b.Navigation("JobDescriptions");
 
                     b.Navigation("Responsibilities");
 
@@ -7600,11 +7538,11 @@ namespace CVerify.API.Migrations
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", b =>
                 {
-                    b.Navigation("ArtifactSnapshots");
-
                     b.Navigation("EvaluationRubricSnapshot");
 
                     b.Navigation("InterviewBlueprintSnapshot");
+
+                    b.Navigation("JobDescriptionSnapshot");
 
                     b.Navigation("RequirementVectorSnapshot");
                 });

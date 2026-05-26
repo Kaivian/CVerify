@@ -81,6 +81,13 @@ public class JobVacancy
 
     public bool IsActive { get; set; } = true;
 
+    public string? Metadata { get; set; }
+
+    public Guid? HiringRequirementId { get; set; }
+
+    [ForeignKey(nameof(HiringRequirementId))]
+    public virtual HiringRequirement? HiringRequirement { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

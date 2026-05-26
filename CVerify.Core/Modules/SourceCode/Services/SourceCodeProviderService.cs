@@ -286,6 +286,21 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         return new PaginatedResultDto<RepositoryDto>(items, totalCount, page, pageSize);
     }
 
+    public async Task<IEnumerable<UserRepositoryIdentityDto>> GetUserRepositoriesForIndexingAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var repos = await _context.SourceCodeRepositories
+            .Include(r => r.AuthProvider)
+            .Where(r => r.AuthProvider.UserId == userId && r.AuthProvider.DeletedAt == null && r.IsAccessible)
+            .ToListAsync(cancellationToken);
+
+        return repos.Select(r => new UserRepositoryIdentityDto(
+            r.Id,
+            r.AuthProvider?.ProviderName?.ToLowerInvariant() ?? "unknown",
+            r.ExternalRepositoryId,
+            Helpers.RepositoryIdentityHelper.NormalizeUrl(r.HtmlUrl)
+        ));
+    }
+
     public async Task<IEnumerable<ExternalOrganizationResponseDto>> GetOrganizationsAsync(Guid userId)
     {
         return await _context.ExternalOrganizations

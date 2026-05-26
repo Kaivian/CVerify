@@ -149,7 +149,8 @@ public record JobVacancyDto(
     List<string> Images,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
+    DateTimeOffset UpdatedAt,
+    string? Metadata = null
 );
 
 public record CreateJobRequestDto(
@@ -172,5 +173,6 @@ public record CreateJobRequestDto(
     List<string> Skills,
     string CoverUrl,
     List<string>? Images = null,
-    List<string>? ImageUrls = null
+    List<string>? ImageUrls = null,
+    string? Metadata = null
 );
