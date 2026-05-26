@@ -1,19 +1,18 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { useForm, FormProvider, useWatch } from "react-hook-form";
+import { useForm, FormProvider, useWatch, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { SettingsSection } from "./SettingsSection";
 import { SocialLinksEditor } from "./SocialLinksEditor";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { parseDate } from "@internationalized/date";
 import { type User } from "@/types/auth.types";
+import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
 
 import {
-  Typography,
   Avatar,
   Select,
   Label,
@@ -59,6 +58,12 @@ const profileSchema = z.object({
     .max(50, "Headline must be under 50 characters")
     .optional()
     .or(z.literal("")),
+  socialLinks: z.array(
+    z.object({
+      id: z.string(),
+      url: z.string(),
+    })
+  ).optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -77,14 +82,6 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     | (User & { phoneNumber?: string; birthDate?: string; headline?: string })
     | null;
 
-  // Load social links from local state as they are not standard in user types
-  const [socialLinks, setSocialLinks] = React.useState<
-    { id: string; url: string }[]
-  >([
-    { id: "1", url: "https://github.com/developer-cverify" },
-    { id: "2", url: "https://linkedin.com/in/cverify" },
-  ]);
-
   // Setup form methods
   const methods = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -99,6 +96,10 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       phoneNumber: extendedUser?.phoneNumber || "",
       birthDate: extendedUser?.birthDate || "",
       headline: extendedUser?.headline || "Software Engineer at CVerify",
+      socialLinks: [
+        { id: "1", url: "https://github.com/developer-cverify" },
+        { id: "2", url: "https://linkedin.com/in/cverify" },
+      ],
     },
     mode: "onChange",
   });
@@ -107,7 +108,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     handleSubmit,
     reset,
     setValue,
-    formState: { isDirty, isSubmitting, errors },
+    formState: { isDirty, errors },
   } = methods;
 
   const currentValues = useWatch({ control: methods.control });
@@ -136,14 +137,19 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         phoneNumber: extendedUser?.phoneNumber || "",
         birthDate: extendedUser?.birthDate || "",
         headline: extendedUser?.headline || "Software Engineer at CVerify",
+        socialLinks: [
+          { id: "1", url: "https://github.com/developer-cverify" },
+          { id: "2", url: "https://linkedin.com/in/cverify" },
+        ],
       });
     }
   }, [user, reset, isDirty, extendedUser]);
 
   // Track dirty changes to inform parent page navigation guard
   useEffect(() => {
-    onDirtyChange(isDirty);
-  }, [isDirty, onDirtyChange]);
+    const hasChanges = !isDeepEqual(currentValues, methods.formState.defaultValues);
+    onDirtyChange(hasChanges);
+  }, [currentValues, methods.formState.defaultValues, onDirtyChange]);
 
   const handleReset = () => {
     reset();
@@ -482,41 +488,23 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         {/* Personal Links Section */}
         <SettingsSection title="Personal Links">
           <Card>
-            <SocialLinksEditor
-              links={socialLinks}
-              onChange={(updatedLinks) => {
-                setSocialLinks(updatedLinks);
-                onDirtyChange(true); // Treat social link modification as dirty
-              }}
+            <Controller
+              control={methods.control}
+              name="socialLinks"
+              render={({ field: { value, onChange } }) => (
+                <SocialLinksEditor
+                  links={value || []}
+                  onChange={onChange}
+                />
+              )}
             />
           </Card>
         </SettingsSection>
         {/* Sticky Actions Bar */}
-        {isDirty && (
-          <div className="sticky bottom-0 w-full bg-[#ffffff] border border-border rounded-2xl p-4 flex items-center justify-between gap-4 z-40 animate-fade-in">
-            <Typography type="body-xs" className="font-bold select-none pl-2">
-              You have unsaved public profile changes.
-            </Typography>
-            <div className="flex items-center gap-2.5">
-              <Button
-                variant="bordered"
-                onClick={handleReset}
-                disabled={isSubmitting}
-                className="rounded-xl font-bold h-9 px-4 text-xs select-none"
-              >
-                Reset
-              </Button>
-              <Button
-                variant="primary"
-                type="submit"
-                isLoading={isSubmitting}
-                className="rounded-xl font-bold h-9 px-4 text-xs select-none"
-              >
-                Save profile
-              </Button>
-            </div>
-          </div>
-        )}
+        <UnsavedChangesBar
+          message="You have unsaved public profile changes."
+          onReset={handleReset}
+        />
       </form>
     </FormProvider>
   );

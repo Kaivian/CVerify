@@ -7,13 +7,13 @@ import {
   Separator,
   Button,
   AlertDialog,
+  toast,
 } from "@heroui/react";
 import {
   User,
   Briefcase,
   Settings,
   AlertTriangle,
-  CheckCircle,
   BookOpen,
 } from "lucide-react";
 import { ProfileTab } from "./components/ProfileTab";
@@ -37,9 +37,6 @@ export default function SettingsPage() {
   const [pendingTab, setPendingTab] = useState<TabId | null>(null);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
-  // Success toast state
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
-
   const tabs: TabItem[] = [
     { id: "profile", label: "Profile Settings", icon: User },
     { id: "personal-info", label: "Personal Information", icon: BookOpen },
@@ -52,8 +49,9 @@ export default function SettingsPage() {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isFormDirty) {
         e.preventDefault();
-        e.returnValue =
-          "You have unsaved settings modifications. Are you sure you want to exit?";
+        // Bypass deprecation warning while maintaining legacy browser compatibility
+        const legacyEvent = e as unknown as { returnValue: string };
+        legacyEvent.returnValue = "";
       }
     };
 
@@ -85,10 +83,9 @@ export default function SettingsPage() {
   };
 
   const triggerSaveNotification = () => {
-    setShowSuccessToast(true);
-    setTimeout(() => {
-      setShowSuccessToast(false);
-    }, 3000);
+    toast.success("Settings updated successfully.", {
+      description: "Your account and profile configurations have been updated.",
+    });
   };
 
   return (
@@ -278,26 +275,6 @@ export default function SettingsPage() {
         </AlertDialog.Container>
       </AlertDialog.Backdrop>
 
-      {/* 2. Success Toast Alert Banner */}
-      {showSuccessToast && (
-        <div className="fixed top-6 right-6 z-9999 flex items-center gap-2.5 px-4.5 py-3 rounded-xl border border-success/30 bg-success text-success-foreground shadow-modal animate-slide-in select-none">
-          <CheckCircle size={16} className="shrink-0" />
-          <div className="flex flex-col text-left">
-            <Typography
-              type="body-xs"
-              className="font-extrabold font-outfit uppercase tracking-wider text-[9px] text-success-foreground/90 leading-none"
-            >
-              Success
-            </Typography>
-            <Typography
-              type="body-xs"
-              className="font-bold text-[10.5px] mt-0.5"
-            >
-              Settings updated successfully.
-            </Typography>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

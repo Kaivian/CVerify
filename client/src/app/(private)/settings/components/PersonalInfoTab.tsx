@@ -18,6 +18,10 @@ import { SettingsSection } from "./SettingsSection";
 import { parseDate } from "@internationalized/date";
 import { Plus, Trash2, Edit2 } from "lucide-react";
 import {
+  UnsavedChangesBar,
+  isDeepEqual,
+} from "@/components/ui/unsaved-changes-bar";
+import {
   Typography,
   Label,
   Input,
@@ -150,28 +154,23 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
       name: `education.${index}.label`,
     }) || "School / University";
 
-  const schoolValue =
-    useWatch({
-      control,
-      name: `education.${index}.school`,
-    }) || "";
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[1fr_320px_auto] gap-4 items-start">
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_250px_auto] gap-4 items-start">
       {/* School Name Input with Click-to-Edit Label */}
       <div className="flex flex-col gap-2 w-full">
         <ClickToEditLabel index={index} control={control} setValue={setValue} />
-        <Input
-          id={`school-${index}`}
-          aria-label={labelValue}
-          placeholder="e.g. Stanford University"
-          value={schoolValue}
-          onChange={(e) =>
-            setValue(`education.${index}.school`, e.target.value, {
-              shouldDirty: true,
-              shouldValidate: true,
-            })
-          }
+        <Controller
+          control={control}
+          name={`education.${index}.school`}
+          render={({ field: { value, onChange } }) => (
+            <Input
+              id={`school-${index}`}
+              aria-label={labelValue}
+              placeholder="e.g. Stanford University"
+              value={value || ""}
+              onChange={onChange}
+            />
+          )}
         />
         {errors.education?.[index]?.school && (
           <FieldError className="text-danger text-xs mt-1 block">
@@ -292,7 +291,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
     handleSubmit,
     reset,
     setValue,
-    formState: { isDirty, isSubmitting, errors },
+    formState: { errors },
   } = methods;
 
   const { fields, append, remove } = useFieldArray({
@@ -300,9 +299,15 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
     name: "education",
   });
 
+  const currentValues = useWatch({ control });
+
   useEffect(() => {
-    onDirtyChange(isDirty);
-  }, [isDirty, onDirtyChange]);
+    const hasChanges = !isDeepEqual(
+      currentValues,
+      methods.formState.defaultValues,
+    );
+    onDirtyChange(hasChanges);
+  }, [currentValues, methods.formState.defaultValues, onDirtyChange]);
 
   const handleReset = () => {
     reset();
@@ -386,33 +391,10 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
         </SettingsSection>
 
         {/* Sticky Actions Bar */}
-        {isDirty && (
-          <div className="sticky bottom-0 w-full bg-[#ffffff] border border-border rounded-2xl p-4 flex items-center justify-between gap-4 z-40 animate-fade-in">
-            <Typography
-              type="body-xs"
-              className="text-foreground font-bold font-outfit select-none pl-2"
-            >
-              You have unsaved personal info changes.
-            </Typography>
-            <div className="flex items-center gap-2.5">
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                isDisabled={isSubmitting}
-                className="rounded-xl font-bold h-9 px-4 text-xs select-none"
-              >
-                Reset
-              </Button>
-              <Button
-                type="submit"
-                isPending={isSubmitting}
-                className="rounded-xl font-bold h-9 px-4 text-xs select-none"
-              >
-                Save settings
-              </Button>
-            </div>
-          </div>
-        )}
+        <UnsavedChangesBar
+          message="You have unsaved personal info changes."
+          onReset={handleReset}
+        />
       </form>
     </FormProvider>
   );
