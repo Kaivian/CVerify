@@ -142,6 +142,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<InterviewBlueprintSnapshot> InterviewBlueprintSnapshots => Set<InterviewBlueprintSnapshot>();
     public DbSet<RequirementArtifactSnapshot> RequirementArtifactSnapshots => Set<RequirementArtifactSnapshot>();
     public DbSet<RequirementVectorSnapshot> RequirementVectorSnapshots => Set<RequirementVectorSnapshot>();
+    public DbSet<CandidateDiscoveryRun> CandidateDiscoveryRuns => Set<CandidateDiscoveryRun>();
+    public DbSet<CapabilityRegistry> CapabilityRegistries => Set<CapabilityRegistry>();
+    public DbSet<CapabilityHierarchy> CapabilityHierarchies => Set<CapabilityHierarchy>();
+    public DbSet<CapabilityAlias> CapabilityAliases => Set<CapabilityAlias>();
 
     public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
     public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
@@ -287,6 +291,23 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<RepositorySkillAttribution>().Property(x => x.Id).ValueGeneratedNever();
         modelBuilder.Entity<RepositoryDomain>().Property(x => x.Id).ValueGeneratedNever();
         modelBuilder.Entity<RepositoryIntelligenceSignal>().Property(x => x.Id).ValueGeneratedNever();
+
+        modelBuilder.Entity<CandidateDiscoveryRun>(entity =>
+        {
+            entity.Property(cdr => cdr.Id).ValueGeneratedNever();
+            entity.HasOne(cdr => cdr.HiringRequirement)
+                  .WithMany(hr => hr.DiscoveryRuns)
+                  .HasForeignKey(cdr => cdr.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(cdr => cdr.TriggeredBy)
+                  .WithMany()
+                  .HasForeignKey(cdr => cdr.TriggeredById)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(cdr => cdr.HiringRequirementId)
+                  .HasDatabaseName("idx_candidate_discovery_runs_requirement_id");
+            entity.HasIndex(cdr => cdr.TriggeredById)
+                  .HasDatabaseName("idx_candidate_discovery_runs_triggered_by_id");
+        });
 
 
         // Enable PostgreSQL Extensions
@@ -1662,6 +1683,42 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<RequirementVectorSnapshot>(entity =>
         {
             entity.ToTable("requirement_vector_snapshots");
+        });
+
+        modelBuilder.Entity<CapabilityRegistry>(entity =>
+        {
+            entity.ToTable("capability_registries");
+            entity.Property(cr => cr.CapabilityId).ValueGeneratedNever();
+            entity.HasOne(cr => cr.DeprecatedBy)
+                  .WithMany()
+                  .HasForeignKey(cr => cr.DeprecatedById)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(cr => cr.Status);
+            entity.HasIndex(cr => cr.TaxonomyVersion);
+        });
+
+        modelBuilder.Entity<CapabilityHierarchy>(entity =>
+        {
+            entity.ToTable("capability_hierarchies");
+            entity.HasKey(ch => new { ch.ParentId, ch.ChildId });
+            entity.HasOne(ch => ch.Parent)
+                  .WithMany()
+                  .HasForeignKey(ch => ch.ParentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(ch => ch.Child)
+                  .WithMany()
+                  .HasForeignKey(ch => ch.ChildId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CapabilityAlias>(entity =>
+        {
+            entity.ToTable("capability_aliases");
+            entity.HasKey(ca => ca.AliasName);
+            entity.HasOne(ca => ca.CanonicalCapability)
+                  .WithMany()
+                  .HasForeignKey(ca => ca.CanonicalId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

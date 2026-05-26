@@ -25,7 +25,8 @@ import {
   Plus,
   X,
   HelpCircle,
-  Trash2
+  Trash2,
+  Calendar
 } from "lucide-react";
 import {
   hiringRequirementService,
@@ -134,6 +135,12 @@ export default function JdIntakeWizard({
   const [newLangText, setNewLangText] = useState<string>("");
   const [benefits, setBenefits] = useState<string[]>([]);
   const [newBenefitText, setNewBenefitText] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [autoCloseRule, setAutoCloseRule] = useState<number>(0);
+  const [candidatesNeededCount, setCandidatesNeededCount] = useState<number>(5);
+  const [salaryPeriod, setSalaryPeriod] = useState<number>(1);
+  const [isSalaryNegotiable, setIsSalaryNegotiable] = useState<boolean>(false);
 
   // UI States
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -146,8 +153,7 @@ export default function JdIntakeWizard({
         return [
           { label: "Role Title provided", met: jobTitle.trim() !== "" },
           { label: "Department provided", met: department.trim() !== "" },
-          { label: "Location city provided (or Remote)", met: workplaceType === "Remote" || city.trim() !== "" },
-          { label: "Headcount target set (>= 1)", met: headcount >= 1 }
+          { label: "Location city provided (or Remote)", met: workplaceType === "Remote" || city.trim() !== "" }
         ];
       case 2:
         return [
@@ -162,8 +168,17 @@ export default function JdIntakeWizard({
       case 4:
         return [
           { label: "At least 1 required skill/technology mapped", met: skills.length >= 1 },
-          { label: "At least 1 language requirement", met: languageRequirements.length >= 1 },
-          { label: "Salary range valid (Min <= Max)", met: salaryMin <= salaryMax }
+          { label: "At least 1 language requirement", met: languageRequirements.length >= 1 }
+        ];
+      case 5:
+        return [
+          { label: "Salary range valid (Min <= Max)", met: salaryMin <= salaryMax },
+          { label: "At least 1 perk or benefit", met: benefits.length >= 1 }
+        ];
+      case 6:
+        return [
+          { label: "Headcount target set (>= 1)", met: headcount >= 1 },
+          { label: "Active Campaign Window configured", met: !!startDate && !!endDate }
         ];
       default:
         return [];
@@ -233,6 +248,12 @@ export default function JdIntakeWizard({
         setDegreeRequirement(initialDraft.degreeRequirement || "Bachelor's Degree");
         setLanguageRequirements(initialDraft.languageRequirements || []);
         setBenefits(initialDraft.benefits || []);
+        setStartDate(initialDraft.startDate ? initialDraft.startDate.substring(0, 10) : "");
+        setEndDate(initialDraft.endDate ? initialDraft.endDate.substring(0, 10) : "");
+        setAutoCloseRule(initialDraft.autoCloseRule || 0);
+        setCandidatesNeededCount(initialDraft.candidatesNeededCount || 5);
+        setSalaryPeriod(initialDraft.salaryPeriod || 1);
+        setIsSalaryNegotiable(initialDraft.isSalaryNegotiable || false);
       }, 0);
       return () => clearTimeout(timer);
     } else {
@@ -291,6 +312,12 @@ export default function JdIntakeWizard({
       setDegreeRequirement(draft.degreeRequirement || "Bachelor's Degree");
       setLanguageRequirements(draft.languageRequirements || []);
       setBenefits(draft.benefits || []);
+      setStartDate(draft.startDate ? draft.startDate.substring(0, 10) : "");
+      setEndDate(draft.endDate ? draft.endDate.substring(0, 10) : "");
+      setAutoCloseRule(draft.autoCloseRule || 0);
+      setCandidatesNeededCount(draft.candidatesNeededCount || 5);
+      setSalaryPeriod(draft.salaryPeriod || 1);
+      setIsSalaryNegotiable(draft.isSalaryNegotiable || false);
       
       toast.success("Draft successfully recovered!");
     } catch (err) {
@@ -318,6 +345,13 @@ export default function JdIntakeWizard({
     degreeRequirement: string;
     benefits: string[];
     languageRequirements: string[];
+    startDate?: string;
+    endDate?: string;
+    autoCloseRule?: number;
+    candidatesNeededCount?: number;
+    salaryPeriod?: number;
+    isSalaryNegotiable?: boolean;
+    headcount?: number;
   }) => {
     if (!draftId) return;
 
@@ -357,7 +391,14 @@ export default function JdIntakeWizard({
           timezoneRange: updatedData.timezoneRange,
           degreeRequirement: updatedData.degreeRequirement,
           benefits: updatedData.benefits,
-          languageRequirements: updatedData.languageRequirements
+          languageRequirements: updatedData.languageRequirements,
+          startDate: updatedData.startDate ? new Date(updatedData.startDate).toISOString() : undefined,
+          endDate: updatedData.endDate ? new Date(updatedData.endDate).toISOString() : undefined,
+          autoCloseRule: updatedData.autoCloseRule,
+          candidatesNeededCount: updatedData.candidatesNeededCount,
+          salaryPeriod: updatedData.salaryPeriod,
+          isSalaryNegotiable: updatedData.isSalaryNegotiable,
+          headcount: updatedData.headcount
         });
         setAutosaveState("saved");
         setLastSavedTime(new Date().toLocaleTimeString());
@@ -383,6 +424,13 @@ export default function JdIntakeWizard({
       degreeRequirement,
       benefits,
       languageRequirements,
+      startDate,
+      endDate,
+      autoCloseRule,
+      candidatesNeededCount,
+      salaryPeriod,
+      isSalaryNegotiable,
+      headcount,
       ...overrides
     };
     triggerAutosave(data);
@@ -522,7 +570,13 @@ export default function JdIntakeWizard({
           timezoneRange,
           degreeRequirement,
           benefits,
-          languageRequirements
+          languageRequirements,
+          startDate: startDate ? new Date(startDate).toISOString() : undefined,
+          endDate: endDate ? new Date(endDate).toISOString() : undefined,
+          autoCloseRule,
+          candidatesNeededCount,
+          salaryPeriod,
+          isSalaryNegotiable
         });
       } else {
         // Just update step 1 params on existing draft
@@ -531,7 +585,13 @@ export default function JdIntakeWizard({
           salaryMax: salaryMax || 0,
           currency,
           timezoneRange,
-          degreeRequirement
+          degreeRequirement,
+          startDate: startDate ? new Date(startDate).toISOString() : undefined,
+          endDate: endDate ? new Date(endDate).toISOString() : undefined,
+          autoCloseRule,
+          candidatesNeededCount,
+          salaryPeriod,
+          isSalaryNegotiable
         });
       }
       setCurrentStep(2);
@@ -554,6 +614,17 @@ export default function JdIntakeWizard({
     } else if (currentStep === 3) {
       if (selectedCapabilities.length === 0) {
         stepErrors.capabilities = "Please map at least one required capability.";
+      }
+    } else if (currentStep === 4) {
+      if (skills.length === 0) {
+        stepErrors.skills = "Please map at least one required skill/technology.";
+      }
+      if (languageRequirements.length === 0) {
+        stepErrors.languageRequirements = "Please specify at least one language requirement.";
+      }
+    } else if (currentStep === 5) {
+      if (salaryMin > salaryMax) {
+        stepErrors.salaryRange = "Salary minimum cannot be greater than maximum.";
       }
     }
 
@@ -603,6 +674,71 @@ export default function JdIntakeWizard({
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const getCurrencyConversionPreview = () => {
+    if (!salaryMin && !salaryMax) return null;
+    const rate = 25400; // 1 USD = 25,400 VND
+    const formatNumber = (num: number) => {
+      return new Intl.NumberFormat().format(Math.round(num));
+    };
+
+    if (currency === "USD") {
+      const minVnd = salaryMin * rate;
+      const maxVnd = salaryMax * rate;
+      return (
+        <div className="p-3.5 bg-accent/5 rounded-xl border border-accent/15 flex items-center justify-between text-xs mt-2 select-text font-medium text-accent">
+          <span>VND Estimation Preview (approx.):</span>
+          <span className="font-bold font-mono">
+            ₫{formatNumber(minVnd)} - ₫{formatNumber(maxVnd)} {salaryPeriod === 1 ? "Monthly" : "Yearly"}
+          </span>
+        </div>
+      );
+    } else if (currency === "VND") {
+      const minUsd = salaryMin / rate;
+      const maxUsd = salaryMax / rate;
+      return (
+        <div className="p-3.5 bg-accent/5 rounded-xl border border-accent/15 flex items-center justify-between text-xs mt-2 select-text font-medium text-accent">
+          <span>USD Estimation Preview (approx.):</span>
+          <span className="font-bold font-mono">
+            ${formatNumber(minUsd)} - ${formatNumber(maxUsd)} {salaryPeriod === 1 ? "Monthly" : "Yearly"}
+          </span>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const getDynamicStatusPreview = () => {
+    const now = new Date();
+    let status = "Active";
+    let explanation = "The job intake campaign is active and open for candidates.";
+    let statusColor = "bg-success/10 text-success border-success/20";
+
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+
+    if (start && start > now) {
+      status = "Scheduled";
+      explanation = `The campaign will automatically activate on the start date: ${startDate}.`;
+      statusColor = "bg-warning/10 text-warning border-warning/20";
+    } else if (end && end < now) {
+      status = "Expired";
+      explanation = `The campaign has passed its closing date: ${endDate}.`;
+      statusColor = "bg-danger/10 text-danger border-danger/20";
+    }
+
+    return (
+      <div className="p-4 bg-surface-secondary/40 border border-border/80 rounded-xl space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-foreground">Lifecycle Status Preview</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
+            {status}
+          </span>
+        </div>
+        <p className="text-[10px] text-muted leading-relaxed font-medium">{explanation}</p>
+      </div>
+    );
   };
 
   const renderStepContent = () => {
@@ -1200,8 +1336,8 @@ export default function JdIntakeWizard({
         return (
           <div className="space-y-6">
             <div>
-              <Typography type="h3" className="font-bold mb-1">Step 4: Tech Stack & Logistics</Typography>
-              <Typography type="body-xs" className="text-muted">Establish the technologies and compensation package for target calibration.</Typography>
+              <Typography type="h3" className="font-bold mb-1">Step 4: Tech Stack & Qualifications</Typography>
+              <Typography type="body-xs" className="text-muted">Define the specific technologies, SFIA competency tiers, degree and language requirements.</Typography>
             </div>
 
             {/* Skills Builder */}
@@ -1249,13 +1385,13 @@ export default function JdIntakeWizard({
                           <span className="text-xs font-bold text-foreground block">{skill.name}</span>
                           <div className="flex gap-1.5">
                             <select
-                              value={skill.priority}
-                              onChange={(e) => {
-                                const next = skills.map((s) => (s.name === skill.name ? { ...s, priority: e.target.value as any } : s));
-                                setSkills(next);
-                                queueStateAutosave({ skills: next });
-                              }}
-                              className="text-[9px] bg-surface-secondary border border-border rounded-md px-1 py-0.5 font-bold text-foreground cursor-pointer"
+                               value={skill.priority}
+                               onChange={(e) => {
+                                 const next = skills.map((s) => (s.name === skill.name ? { ...s, priority: e.target.value as any } : s));
+                                 setSkills(next);
+                                 queueStateAutosave({ skills: next });
+                               }}
+                               className="text-[9px] bg-surface-secondary border border-border rounded-md px-1 py-0.5 font-bold text-foreground cursor-pointer"
                             >
                               <option value="Must Have">Must Have</option>
                               <option value="Should Have">Should Have</option>
@@ -1263,13 +1399,13 @@ export default function JdIntakeWizard({
                             </select>
 
                             <select
-                              value={skill.sfiaLevel}
-                              onChange={(e) => {
-                                const next = skills.map((s) => (s.name === skill.name ? { ...s, sfiaLevel: parseInt(e.target.value) } : s));
-                                setSkills(next);
-                                queueStateAutosave({ skills: next });
-                              }}
-                              className="text-[9px] bg-surface-secondary border border-border rounded-md px-1 py-0.5 font-bold text-foreground cursor-pointer"
+                               value={skill.sfiaLevel}
+                               onChange={(e) => {
+                                 const next = skills.map((s) => (s.name === skill.name ? { ...s, sfiaLevel: parseInt(e.target.value) } : s));
+                                 setSkills(next);
+                                 queueStateAutosave({ skills: next });
+                               }}
+                               className="text-[9px] bg-surface-secondary border border-border rounded-md px-1 py-0.5 font-bold text-foreground cursor-pointer"
                             >
                               <option value={1}>L1 - Awareness</option>
                               <option value={2}>L2 - Contributor</option>
@@ -1295,69 +1431,10 @@ export default function JdIntakeWizard({
                 </div>
               )}
             </div>
+            {errors.skills && <span className="text-xs text-danger font-medium block">{errors.skills}</span>}
 
-            {/* Logistics details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5 select-none">
-                <div className="flex items-center gap-1 mb-1">
-                  <label className="text-xs font-semibold text-foreground/80">Salary Bounds (Monthly)</label>
-                  <HelpTooltip content="The budgeted base monthly compensation range for this position." />
-                </div>
-                <div className="flex items-center gap-3">
-                  <Input
-                    type="number"
-                    value={salaryMin.toString()}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
-                      setSalaryMin(val);
-                      queueStateAutosave({ salaryMin: val });
-                    }}
-                    placeholder="Min"
-                    className="text-xs font-medium"
-                  />
-                  <span className="text-xs text-muted font-bold">—</span>
-                  <Input
-                    type="number"
-                    value={salaryMax.toString()}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
-                      setSalaryMax(val);
-                      queueStateAutosave({ salaryMax: val });
-                    }}
-                    placeholder="Max"
-                    className="text-xs font-medium"
-                  />
-                  <select
-                    value={currency}
-                    onChange={(e) => {
-                      setCurrency(e.target.value);
-                      queueStateAutosave({ currency: e.target.value });
-                    }}
-                    className="w-24 px-3 py-2.5 rounded-xl border border-border bg-field-background text-foreground text-xs font-medium focus:border-focus focus:ring-1 focus:ring-focus/20 outline-hidden cursor-pointer"
-                  >
-                    <option value="USD">USD</option>
-                    <option value="VND">VND</option>
-                    <option value="EUR">EUR</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1 mb-1">
-                  <label className="text-xs font-semibold text-foreground/80">Timezone Scope</label>
-                  <HelpTooltip content="Expected working hours overlap or geographical timezone coordination requirements." />
-                </div>
-                <Input
-                  value={timezoneRange}
-                  onChange={(e) => {
-                    setTimezoneRange(e.target.value);
-                    queueStateAutosave({ timezoneRange: e.target.value });
-                  }}
-                  placeholder="e.g. GMT+7 +/- 2 Hours"
-                  className="text-xs font-medium"
-                />
-              </div>
-
+            {/* Degree and Timezone */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border/40 pt-4">
               <div className="space-y-1.5 select-none">
                 <div className="flex items-center gap-1 mb-1">
                   <label className="text-xs font-semibold text-foreground/80">Degree Requirement</label>
@@ -1377,105 +1454,317 @@ export default function JdIntakeWizard({
                   <option value="PhD">PhD</option>
                 </select>
               </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 mb-1">
+                  <label className="text-xs font-semibold text-foreground/80">Timezone Scope</label>
+                  <HelpTooltip content="Expected working hours overlap or geographical timezone coordination requirements." />
+                </div>
+                <Input
+                  value={timezoneRange}
+                  onChange={(e) => {
+                    setTimezoneRange(e.target.value);
+                    queueStateAutosave({ timezoneRange: e.target.value });
+                  }}
+                  placeholder="e.g. GMT+7 +/- 2 Hours"
+                  className="text-xs font-medium"
+                />
+              </div>
             </div>
 
-            {/* Language & Benefits lists */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border/40 pt-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-1 mb-1">
-                  <label className="text-xs font-semibold text-foreground/80">Languages</label>
-                  <HelpTooltip content="Language proficiencies required for daily team collaboration (e.g. English, Vietnamese)." />
+            {/* Language proficiencies */}
+            <div className="space-y-3 border-t border-border/40 pt-4">
+              <div className="flex items-center gap-1 mb-1">
+                <label className="text-xs font-semibold text-foreground/80">Languages</label>
+                <HelpTooltip content="Language proficiencies required for daily team collaboration (e.g. English, Vietnamese)." />
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={newLangText}
+                  onChange={(e) => setNewLangText(e.target.value)}
+                  placeholder="e.g. English - Professional"
+                  className="flex-1 text-xs font-medium"
+                />
+                <Button
+                  onClick={() => {
+                    if (newLangText.trim() && !languageRequirements.includes(newLangText.trim())) {
+                      const next = [...languageRequirements, newLangText.trim()];
+                      setLanguageRequirements(next);
+                      setNewLangText("");
+                      queueStateAutosave({ languageRequirements: next });
+                    }
+                  }}
+                  className="bg-accent text-accent-foreground text-xs px-4 rounded-xl cursor-pointer font-bold h-10 w-10 min-w-0"
+                >
+                  <Plus size={14} />
+                </Button>
+              </div>
+              {languageRequirements.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1 select-none">
+                  {languageRequirements.map((lang) => (
+                    <Chip key={lang} variant="soft" className="bg-accent/10 border border-accent/20 text-accent font-semibold text-xs py-1 flex items-center gap-1">
+                      <Chip.Label>{lang}</Chip.Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = languageRequirements.filter((x) => x !== lang);
+                          setLanguageRequirements(next);
+                          queueStateAutosave({ languageRequirements: next });
+                        }}
+                        className="hover:opacity-85 cursor-pointer outline-hidden p-0.5"
+                      >
+                        <X size={10} />
+                      </button>
+                    </Chip>
+                  ))}
+                </div>
+              )}
+              {errors.languageRequirements && <span className="text-xs text-danger font-medium block">{errors.languageRequirements}</span>}
+            </div>
+          </div>
+        );
+
+      case 5:
+        return (
+          <div className="space-y-6">
+            <div>
+              <Typography type="h3" className="font-bold mb-1">Step 5: Compensation & Benefits</Typography>
+              <Typography type="body-xs" className="text-muted">Define the base salary structures, currency selections, and company perks.</Typography>
+            </div>
+
+            {/* Salary bounds */}
+            <div className="bg-surface-secondary/40 p-4 rounded-xl border border-border/80 space-y-4">
+              <div className="flex items-center gap-1 mb-1">
+                <label className="text-xs font-semibold text-foreground/80">Salary Range & Period</label>
+                <HelpTooltip content="The budgeted salary bounds. Toggle between currencies and periods." />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="number"
+                    value={salaryMin.toString()}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setSalaryMin(val);
+                      queueStateAutosave({ salaryMin: val });
+                    }}
+                    placeholder="Min"
+                    className="text-xs font-medium flex-1"
+                  />
+                  <span className="text-xs text-muted font-bold">—</span>
+                  <Input
+                    type="number"
+                    value={salaryMax.toString()}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setSalaryMax(val);
+                      queueStateAutosave({ salaryMax: val });
+                    }}
+                    placeholder="Max"
+                    className="text-xs font-medium flex-1"
+                  />
                 </div>
                 <div className="flex gap-2">
-                  <Input
-                    value={newLangText}
-                    onChange={(e) => setNewLangText(e.target.value)}
-                    placeholder="e.g. English - Professional"
-                    className="flex-1 text-xs font-medium"
-                  />
-                  <Button
-                    onClick={() => {
-                      if (newLangText.trim() && !languageRequirements.includes(newLangText.trim())) {
-                        const next = [...languageRequirements, newLangText.trim()];
-                        setLanguageRequirements(next);
-                        setNewLangText("");
-                        queueStateAutosave({ languageRequirements: next });
-                      }
+                  <select
+                    value={currency}
+                    onChange={(e) => {
+                      setCurrency(e.target.value);
+                      queueStateAutosave({ currency: e.target.value });
                     }}
-                    className="bg-accent text-accent-foreground text-xs px-4 rounded-xl cursor-pointer font-bold h-10 w-10 min-w-0"
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-border bg-field-background text-foreground text-xs font-medium focus:border-focus focus:ring-1 focus:ring-focus/20 outline-hidden cursor-pointer"
                   >
-                    <Plus size={14} />
-                  </Button>
+                    <option value="USD">USD</option>
+                    <option value="VND">VND</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                  <select
+                    value={salaryPeriod}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      setSalaryPeriod(val);
+                      queueStateAutosave({ salaryPeriod: val });
+                    }}
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-border bg-field-background text-foreground text-xs font-medium focus:border-focus focus:ring-1 focus:ring-focus/20 outline-hidden cursor-pointer"
+                  >
+                    <option value={1}>Monthly</option>
+                    <option value={2}>Yearly</option>
+                  </select>
                 </div>
-                {languageRequirements.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-1 select-none">
-                    {languageRequirements.map((lang) => (
-                      <Chip key={lang} variant="soft" className="bg-accent/10 border border-accent/20 text-accent font-semibold text-xs py-1 flex items-center gap-1">
-                        <Chip.Label>{lang}</Chip.Label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = languageRequirements.filter((x) => x !== lang);
-                            setLanguageRequirements(next);
-                            queueStateAutosave({ languageRequirements: next });
-                          }}
-                          className="hover:opacity-85 cursor-pointer outline-hidden p-0.5"
-                        >
-                          <X size={10} />
-                        </button>
-                      </Chip>
-                    ))}
-                  </div>
-                )}
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-1 mb-1">
-                  <label className="text-xs font-semibold text-foreground/80">Benefits</label>
-                  <HelpTooltip content="Corporate perks, insurance coverage, or extra allowances associated with this role." />
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    value={newBenefitText}
-                    onChange={(e) => setNewBenefitText(e.target.value)}
-                    placeholder="e.g. Health Insurance Plan"
-                    className="flex-1 text-xs font-medium"
-                  />
-                  <Button
-                    onClick={() => {
-                      if (newBenefitText.trim() && !benefits.includes(newBenefitText.trim())) {
-                        const next = [...benefits, newBenefitText.trim()];
-                        setBenefits(next);
-                        setNewBenefitText("");
-                        queueStateAutosave({ benefits: next });
-                      }
-                    }}
-                    className="bg-accent text-accent-foreground text-xs px-4 rounded-xl cursor-pointer font-bold h-10 w-10 min-w-0"
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </div>
-                {benefits.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-1 select-none">
-                    {benefits.map((b) => (
-                      <Chip key={b} variant="soft" className="bg-accent/10 border border-accent/20 text-accent font-semibold text-xs py-1 flex items-center gap-1">
-                        <Chip.Label>{b}</Chip.Label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = benefits.filter((x) => x !== b);
-                            setBenefits(next);
-                            queueStateAutosave({ benefits: next });
-                          }}
-                          className="hover:opacity-85 cursor-pointer outline-hidden p-0.5"
-                        >
-                          <X size={10} />
-                        </button>
-                      </Chip>
-                    ))}
-                  </div>
-                )}
+              {/* Real-time currency conversion preview */}
+              {getCurrencyConversionPreview()}
+
+              {/* Negotiable check */}
+              <div className="flex items-center gap-2 pt-2 select-none">
+                <input
+                  type="checkbox"
+                  id="isSalaryNegotiable"
+                  checked={isSalaryNegotiable}
+                  onChange={(e) => {
+                    setIsSalaryNegotiable(e.target.checked);
+                    queueStateAutosave({ isSalaryNegotiable: e.target.checked });
+                  }}
+                  className="rounded accent-accent border-border"
+                />
+                <label htmlFor="isSalaryNegotiable" className="text-xs font-semibold text-foreground/80 cursor-pointer">
+                  Salary is Negotiable based on qualifications
+                </label>
               </div>
+            </div>
+            {errors.salaryRange && <span className="text-xs text-danger font-medium block">{errors.salaryRange}</span>}
+
+            {/* Perks & Benefits */}
+            <div className="space-y-3 border-t border-border/40 pt-4">
+              <div className="flex items-center gap-1 mb-1">
+                <label className="text-xs font-semibold text-foreground/80">Corporate Perks & Benefits</label>
+                <HelpTooltip content="Corporate perks, insurance coverage, or extra allowances associated with this role." />
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={newBenefitText}
+                  onChange={(e) => setNewBenefitText(e.target.value)}
+                  placeholder="e.g. Premium Health Insurance Plan"
+                  className="flex-1 text-xs font-medium"
+                />
+                <Button
+                  onClick={() => {
+                    if (newBenefitText.trim() && !benefits.includes(newBenefitText.trim())) {
+                      const next = [...benefits, newBenefitText.trim()];
+                      setBenefits(next);
+                      setNewBenefitText("");
+                      queueStateAutosave({ benefits: next });
+                    }
+                  }}
+                  className="bg-accent text-accent-foreground text-xs px-4 rounded-xl cursor-pointer font-bold h-10 w-10 min-w-0"
+                >
+                  <Plus size={14} />
+                </Button>
+              </div>
+              {benefits.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1 select-none">
+                  {benefits.map((b) => (
+                    <Chip key={b} variant="soft" className="bg-accent/10 border border-accent/20 text-accent font-semibold text-xs py-1 flex items-center gap-1">
+                      <Chip.Label>{b}</Chip.Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = benefits.filter((x) => x !== b);
+                          setBenefits(next);
+                          queueStateAutosave({ benefits: next });
+                        }}
+                        className="hover:opacity-85 cursor-pointer outline-hidden p-0.5"
+                      >
+                        <X size={10} />
+                      </button>
+                    </Chip>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 6:
+        return (
+          <div className="space-y-6">
+            <div>
+              <Typography type="h3" className="font-bold mb-1">Step 6: Campaign Window & Lifecycle</Typography>
+              <Typography type="body-xs" className="text-muted">Configure your campaign targets, active windows, and automation closing policies.</Typography>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 mb-1">
+                  <label className="text-xs font-semibold text-foreground/80">Start Date</label>
+                  <HelpTooltip content="The scheduled launch date for this hiring requirements campaign." />
+                </div>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    queueStateAutosave({ startDate: e.target.value });
+                  }}
+                  className="text-xs font-medium"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 mb-1">
+                  <label className="text-xs font-semibold text-foreground/80">End Date</label>
+                  <HelpTooltip content="The final closure date. Used to compute automatic closure." />
+                </div>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    queueStateAutosave({ endDate: e.target.value });
+                  }}
+                  className="text-xs font-medium"
+                />
+              </div>
+
+              <div className="space-y-1.5 select-none">
+                <div className="flex items-center gap-1 mb-1">
+                  <label className="text-xs font-semibold text-foreground/80">Auto-Close Policy</label>
+                  <HelpTooltip content="Rules to automatically terminate campaign status based on targets or dates." />
+                </div>
+                <select
+                  value={autoCloseRule}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 0;
+                    setAutoCloseRule(val);
+                    queueStateAutosave({ autoCloseRule: val });
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-border bg-field-background text-foreground text-xs font-medium focus:border-focus focus:ring-1 focus:ring-focus/20 outline-hidden cursor-pointer"
+                >
+                  <option value={0}>No Automatic Close</option>
+                  <option value={1}>Close on End Date</option>
+                  <option value={2}>Close on Hiring Headcount Target</option>
+                  <option value={3}>Close on Date or Hiring Target (Either)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 mb-1">
+                  <label className="text-xs font-semibold text-foreground/80">Pipeline Targets (Candidates Needed)</label>
+                  <HelpTooltip content="The size of verified candidate matches pipeline requested." />
+                </div>
+                <Input
+                  type="number"
+                  value={candidatesNeededCount.toString()}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 5;
+                    setCandidatesNeededCount(val);
+                    queueStateAutosave({ candidatesNeededCount: val });
+                  }}
+                  className="text-xs font-medium"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 mb-1">
+                  <label className="text-xs font-semibold text-foreground/80">Hiring Headcount Target</label>
+                  <HelpTooltip content="The total number of open vacancies targeted for this role profile." />
+                </div>
+                <Input
+                  type="number"
+                  value={headcount.toString()}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 1;
+                    setHeadcount(val);
+                    queueStateAutosave({ headcount: val });
+                  }}
+                  className="text-xs font-medium"
+                />
+              </div>
+            </div>
+
+            {/* Dynamic Preview Status Widget */}
+            <div className="border-t border-border/40 pt-4">
+              {getDynamicStatusPreview()}
             </div>
           </div>
         );
@@ -1517,7 +1806,9 @@ export default function JdIntakeWizard({
               { step: 1, label: "Role Definition", icon: Briefcase },
               { step: 2, label: "Hiring Goals", icon: Target },
               { step: 3, label: "Responsibilities", icon: User },
-              { step: 4, label: "Logistics & Stack", icon: Coins }
+              { step: 4, label: "Tech Stack & Quals", icon: Sparkles },
+              { step: 5, label: "Comp & Benefits", icon: Coins },
+              { step: 6, label: "Campaign & Lifecycle", icon: Calendar }
             ].map((s) => {
               const Icon = s.icon;
               const isPassed = currentStep > s.step;
@@ -1609,7 +1900,7 @@ export default function JdIntakeWizard({
               {currentStep === 1 ? "Cancel" : "Back"}
             </Button>
 
-            {currentStep < 4 ? (
+            {currentStep < 6 ? (
               <Button
                 onClick={currentStep === 1 ? handleStep1Submit : handleNextStep}
                 className="px-5 py-2 bg-foreground text-background font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5 hover:opacity-90"

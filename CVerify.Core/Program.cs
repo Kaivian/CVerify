@@ -352,6 +352,9 @@ builder.Services.AddScoped<IEncryptedFileStorageService, EncryptedFileStorageSer
 builder.Services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<ICapabilityCatalogService, CapabilityCatalogService>();
 builder.Services.AddScoped<IHiringRequirementService, HiringRequirementService>();
+builder.Services.AddScoped<ICapabilityProjectionBuilder, CapabilityProjectionBuilder>();
+builder.Services.AddScoped<IRequirementGraphBuilder, RequirementGraphBuilder>();
+builder.Services.AddScoped<ITalentGraphBuilder, TalentGraphBuilder>();
 
 
 // Register Cloudflare R2 Object Storage Stack (IAmazonS3 + IStorageService)

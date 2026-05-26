@@ -32,7 +32,8 @@ import {
   RefreshCw,
   Info,
   Printer,
-  FileText
+  FileText,
+  Search
 } from "lucide-react";
 import {
   hiringRequirementService,
@@ -86,6 +87,17 @@ export default function JdDetailView({
   // Navigation tabs
   const [activeArtifactTab, setActiveArtifactTab] = useState<string>("jd");
   const esRef = useRef<EventSource | null>(null);
+
+  // Discovery Run States
+  const [discoveryRuns, setDiscoveryRuns] = useState<any[]>([]);
+  const [isLoadingRuns, setIsLoadingRuns] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveryProgress, setDiscoveryProgress] = useState<{
+    status: string;
+    step: string;
+    message: string;
+    percentage: number;
+  } | null>(null);
 
   // Version Comparison State
   const [selectedCompareVersion, setSelectedCompareVersion] = useState<any | null>(null);
@@ -186,6 +198,93 @@ export default function JdDetailView({
     }
   };
 
+  const loadDiscoveryRuns = async () => {
+    setIsLoadingRuns(true);
+    try {
+      const runs = await hiringRequirementService.getDiscoveryRuns(requirementId);
+      setDiscoveryRuns(runs);
+    } catch (err) {
+      console.error("Failed to load discovery runs", err);
+    } finally {
+      setIsLoadingRuns(false);
+    }
+  };
+
+  const setupDiscoveryProgressStream = (reqId: string) => {
+    if (esRef.current) esRef.current.close();
+
+    setIsDiscovering(true);
+
+    const url = `${API_URL}/v1/hiring-requirements/${reqId}/progress-stream`;
+    const es = new EventSource(url, { withCredentials: true });
+    esRef.current = es;
+
+    es.onmessage = async (event) => {
+      if (event.data === "[DONE]") {
+        es.close();
+        setIsDiscovering(false);
+        setDiscoveryProgress(null);
+        await loadMatches();
+        await loadDiscoveryRuns();
+        return;
+      }
+
+      try {
+        const data = JSON.parse(event.data);
+        setDiscoveryProgress({
+          status: data.status,
+          step: data.step,
+          message: data.message || "",
+          percentage: data.percentage || 0
+        });
+
+        if (data.status === "Completed") {
+          es.close();
+          setIsDiscovering(false);
+          setDiscoveryProgress(null);
+          await loadMatches();
+          await loadDiscoveryRuns();
+          toast.success("Candidate matches discovered successfully!");
+        } else if (data.status === "Failed") {
+          es.close();
+          setIsDiscovering(false);
+          setDiscoveryProgress(null);
+          toast.danger(`Discovery failed: ${data.message}`);
+          await loadDiscoveryRuns();
+        }
+      } catch (err) {
+        console.error("SSE message parse error:", err);
+      }
+    };
+
+    es.onerror = (err) => {
+      console.error("Discovery progress stream error:", err);
+      es.close();
+      setIsDiscovering(false);
+      setDiscoveryProgress(null);
+      loadMatches();
+      loadDiscoveryRuns();
+    };
+  };
+
+  const handleTriggerDiscovery = async () => {
+    setIsDiscovering(true);
+    setDiscoveryProgress({
+      status: "Running",
+      step: "DiscoveryInit",
+      message: "Initializing Candidate Discovery Run...",
+      percentage: 0
+    });
+    try {
+      await hiringRequirementService.triggerDiscovery(requirementId);
+      setupDiscoveryProgressStream(requirementId);
+    } catch (err: any) {
+      toast.danger(err.message || "Failed to trigger candidate matches discovery.");
+      setIsDiscovering(false);
+      setDiscoveryProgress(null);
+    }
+  };
+
   const loadArtifacts = async (reqOverride?: HiringRequirement) => {
     setIsLoadingArtifacts(true);
     try {
@@ -245,9 +344,10 @@ export default function JdDetailView({
   }, [requirementId]);
 
   useEffect(() => {
-    if (activeRequirement && activeArtifactTab === "matches" && activeRequirement.status.toLowerCase() === "published" && candidateMatches.length === 0) {
+    if (activeRequirement && activeArtifactTab === "matches" && activeRequirement.status.toLowerCase() === "published") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       loadMatches();
+      loadDiscoveryRuns();
     }
   }, [activeArtifactTab, activeRequirement]);
 
@@ -1022,6 +1122,114 @@ export default function JdDetailView({
           {/* Candidate Matches Tab */}
           {activeArtifactTab === "matches" && isPublished && (
             <div className="space-y-4 no-print">
+              {/* Manual Discover CTA Header Card */}
+              <Card className="p-5 border border-border bg-surface">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+                  <div>
+                    <Typography type="body-sm" className="font-bold text-foreground block">
+                      Candidate Discovery Engine
+                    </Typography>
+                    <Typography type="body-xs" className="text-muted font-medium mt-0.5">
+                      Manually trigger the matching pipeline to identify, align, and rank candidate profiles across the workspace.
+                    </Typography>
+                  </div>
+                  <Button
+                    onClick={handleTriggerDiscovery}
+                    isPending={isDiscovering}
+                    className="bg-accent text-accent-foreground font-bold text-xs h-10 px-5 rounded-xl cursor-pointer flex items-center gap-2 hover:opacity-90 transition-all select-none shrink-0 animate-none"
+                  >
+                    <Search size={14} /> Find Candidates
+                  </Button>
+                </div>
+              </Card>
+
+              {/* Streaming Progress State */}
+              {isDiscovering && (
+                <Card className="p-5 border border-border bg-surface select-none no-print flex flex-col justify-center">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Spinner size="sm" color="warning" />
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">Running Candidate Discovery Pipeline...</span>
+                      <span className="text-[10px] text-muted block mt-0.5 font-medium">
+                        {discoveryProgress?.message || "Executing vector match analysis..."}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="w-full bg-separator/50 h-2.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-accent h-full rounded-full transition-all duration-300"
+                        style={{ width: `${discoveryProgress?.percentage || 0}%` }}
+                      />
+                    </div>
+                    
+                    {/* Multi-step progress tracker */}
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-muted pt-1">
+                      <div className="flex items-center gap-1">
+                        <div className={`size-2 rounded-full ${
+                          discoveryProgress?.step === "Searching" ? "bg-accent animate-pulse" :
+                          (discoveryProgress?.percentage && discoveryProgress.percentage > 20) ? "bg-success" : "bg-border"
+                        }`} />
+                        <span>1. Search Candidates</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className={`size-2 rounded-full ${
+                          discoveryProgress?.step === "Matching" ? "bg-accent animate-pulse" :
+                          (discoveryProgress?.percentage && discoveryProgress.percentage > 50) ? "bg-success" : "bg-border"
+                        }`} />
+                        <span>2. Match Profiles</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className={`size-2 rounded-full ${
+                          discoveryProgress?.step === "Ranking" ? "bg-accent animate-pulse" :
+                          (discoveryProgress?.percentage && discoveryProgress.percentage > 80) ? "bg-success" : "bg-border"
+                        }`} />
+                        <span>3. Rank Fits</span>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Latest Run Stats / Telemetry History */}
+              {discoveryRuns.length > 0 && !isDiscovering && (
+                (() => {
+                  const latestRun = discoveryRuns[0];
+                  const isCompleted = latestRun.status === 5;
+                  const isFailed = latestRun.status === 6;
+                  const startedTime = new Date(latestRun.startedAt).toLocaleString();
+
+                  return (
+                    <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 text-[11px] font-medium select-text ${
+                      isCompleted ? "bg-success/5 border-success/20 text-success" :
+                      isFailed ? "bg-danger/5 border-danger/20 text-danger" :
+                      "bg-warning/5 border-warning/20 text-warning"
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <Info size={14} className="shrink-0" />
+                        <div>
+                          <span>
+                            Latest Discovery Run: <strong>{isCompleted ? "Completed" : isFailed ? "Failed" : "Running"}</strong> at {startedTime}
+                          </span>
+                          {isCompleted && (
+                            <span className="block mt-0.5 text-muted font-normal text-[10px]">
+                              Found {latestRun.candidatesFoundCount} candidates &bull; {latestRun.matchQualitySummary || "No quality summary details"}
+                            </span>
+                          )}
+                          {isFailed && latestRun.errorMessage && (
+                            <span className="block mt-0.5 font-mono text-[10px]">
+                              Error details: {latestRun.errorMessage}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+
+              {/* Matches list */}
               {isLoadingMatches ? (
                 <Card className="p-8 text-center min-h-[350px] flex items-center justify-center">
                   <div className="space-y-3">
@@ -1035,16 +1243,22 @@ export default function JdDetailView({
                     <User size={24} />
                   </div>
                   <Typography type="h4" className="font-bold text-foreground mb-1">No Candidate Matches Found</Typography>
-                  <Typography type="body-xs" className="text-muted max-w-sm mx-auto font-medium">
-                    Ensure there are candidates with completed repository analysis assessments in this workspace.
+                  <Typography type="body-xs" className="text-muted max-w-sm mx-auto font-medium text-center">
+                    Ensure there are candidates with completed repository analysis assessments in this workspace, then click "Find Candidates" to discover matches.
                   </Typography>
                 </Card>
               ) : (
                 <div className="space-y-4">
                   {candidateMatches.map((match) => {
-                    const isHighTrust = match.trustLevel >= 0.7;
-                    const isMedTrust = match.trustLevel >= 0.4 && match.trustLevel < 0.7;
+                    const isHighTrust = match.trustLevel >= 70 || (match.trustLevel >= 0.7 && match.trustLevel <= 1.0);
+                    const isMedTrust = (match.trustLevel >= 40 && match.trustLevel < 70) || (match.trustLevel >= 0.4 && match.trustLevel < 0.7);
                     const isExpanded = expandedCandidates.includes(match.candidateId);
+                    
+                    const formatScore = (val: number) => {
+                      if (val <= 1.0 && val > 0) return `${(val * 100).toFixed(0)}%`;
+                      return `${val.toFixed(0)}%`;
+                    };
+
                     return (
                       <Card key={match.candidateId} className="p-5 border border-border bg-surface space-y-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
@@ -1070,7 +1284,7 @@ export default function JdDetailView({
                           <div className="flex items-center gap-4 flex-wrap sm:flex-nowrap">
                             <div className="text-right">
                               <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">Match Score</span>
-                              <span className="text-lg font-mono font-bold text-accent">{(match.matchScore * 100).toFixed(0)}%</span>
+                              <span className="text-lg font-mono font-bold text-accent">{formatScore(match.matchScore)}</span>
                             </div>
                             <div className="text-right border-l border-border pl-3 pr-2">
                               <span className="text-[10px] text-muted font-bold block uppercase tracking-wider">Trust Level</span>
@@ -1104,27 +1318,27 @@ export default function JdDetailView({
                             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 bg-surface-secondary/40 p-3 rounded-xl border border-border/60 text-center select-none">
                               <div className="space-y-0.5">
                                 <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Capabilities</span>
-                                <span className="text-xs font-bold text-foreground">{(match.breakdown.capabilitiesScore * 100).toFixed(0)}%</span>
+                                <span className="text-xs font-bold text-foreground">{formatScore(match.breakdown.capabilitiesScore)}</span>
                               </div>
                               <div className="space-y-0.5">
                                 <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Tech Stack</span>
-                                <span className="text-xs font-bold text-foreground">{(match.breakdown.skillsScore * 100).toFixed(0)}%</span>
+                                <span className="text-xs font-bold text-foreground">{formatScore(match.breakdown.skillsScore)}</span>
                               </div>
                               <div className="space-y-0.5">
                                 <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Duties</span>
-                                <span className="text-xs font-bold text-foreground">{(match.breakdown.responsibilitiesScore * 100).toFixed(0)}%</span>
+                                <span className="text-xs font-bold text-foreground">{formatScore(match.breakdown.responsibilitiesScore)}</span>
                               </div>
                               <div className="space-y-0.5">
                                 <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Salary Fit</span>
-                                <span className="text-xs font-bold text-foreground">{(match.breakdown.salaryScore * 100).toFixed(0)}%</span>
+                                <span className="text-xs font-bold text-foreground">{formatScore(match.breakdown.salaryScore)}</span>
                               </div>
                               <div className="space-y-0.5">
                                 <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Cosine Fit</span>
-                                <span className="text-xs font-bold text-foreground">{(match.breakdown.cosineSimilarity * 100).toFixed(0)}%</span>
+                                <span className="text-xs font-bold text-foreground">{formatScore(match.breakdown.cosineSimilarity)}</span>
                               </div>
                               <div className="space-y-0.5">
                                 <span className="text-[9px] text-muted font-bold uppercase block tracking-wider">Gap Score</span>
-                                <span className="text-xs font-bold text-foreground">{(match.breakdown.gapScore * 100).toFixed(0)}%</span>
+                                <span className="text-xs font-bold text-foreground">{formatScore(match.breakdown.gapScore)}</span>
                               </div>
                             </div>
 

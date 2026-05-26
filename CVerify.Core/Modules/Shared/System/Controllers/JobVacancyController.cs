@@ -53,6 +53,67 @@ public class JobVacancyController : ControllerBase
             return NotFound(new { message = "Job posting draft not found for this requirement." });
         }
 
+        // Sync with the latest HiringRequirement and JobDescription artifact if in Draft status
+        if (vacancy.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase))
+        {
+            bool isDirty = false;
+
+            var req = await _context.HiringRequirements
+                .Include(r => r.TechnologyRequirements)
+                .FirstOrDefaultAsync(r => r.Id == requirementId, cancellationToken);
+
+            if (req != null)
+            {
+                if (vacancy.Title != req.Title) { vacancy.Title = req.Title; isDirty = true; }
+                if (vacancy.Department != req.Department) { vacancy.Department = req.Department; isDirty = true; }
+                if (vacancy.WorkplaceType != req.WorkplaceType) { vacancy.WorkplaceType = req.WorkplaceType; isDirty = true; }
+                if (req.City != null && vacancy.City != req.City) { vacancy.City = req.City; isDirty = true; }
+                if (vacancy.Type != req.EmploymentType) { vacancy.Type = req.EmploymentType; isDirty = true; }
+                if (vacancy.Headcount != req.Headcount) { vacancy.Headcount = req.Headcount; isDirty = true; }
+
+                var degreeVal = req.DegreeRequirement ?? "No Degree Required";
+                if (vacancy.Degree != degreeVal) { vacancy.Degree = degreeVal; isDirty = true; }
+
+                var salaryVal = req.SalaryMin.HasValue && req.SalaryMax.HasValue ? $"{req.SalaryMin} - {req.SalaryMax} {req.Currency}" : "Negotiable";
+                var salaryMinMaxVal = $"{req.SalaryMin ?? 0}-{req.SalaryMax ?? 0}";
+
+                if (vacancy.Salary != salaryVal) { vacancy.Salary = salaryVal; isDirty = true; }
+                if (vacancy.SalaryMinMax != salaryMinMaxVal) { vacancy.SalaryMinMax = salaryMinMaxVal; isDirty = true; }
+
+                var reqBenefits = req.Benefits ?? new List<string>();
+                if (!vacancy.Benefits.SequenceEqual(reqBenefits))
+                {
+                    vacancy.Benefits = reqBenefits.ToList();
+                    isDirty = true;
+                }
+
+                var reqSkills = req.TechnologyRequirements.Select(t => t.Name).ToList();
+                if (!vacancy.Skills.SequenceEqual(reqSkills))
+                {
+                    vacancy.Skills = reqSkills;
+                    isDirty = true;
+                }
+            }
+
+            var jdArt = await _context.RequirementArtifacts
+                .FirstOrDefaultAsync(ra => ra.HiringRequirementId == requirementId && ra.ArtifactType == "JobDescription", cancellationToken);
+            if (jdArt != null)
+            {
+                var jdContent = jdArt.MarkdownContent;
+                if (vacancy.Description == null || vacancy.Description.Count == 0 || vacancy.Description[0] != jdContent)
+                {
+                    vacancy.Description = new List<string> { jdContent };
+                    isDirty = true;
+                }
+            }
+
+            if (isDirty)
+            {
+                vacancy.UpdatedAt = DateTimeOffset.UtcNow;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         var dto = await MapToJobVacancyDtoAsync(vacancy, cancellationToken);
         return Ok(dto);
     }

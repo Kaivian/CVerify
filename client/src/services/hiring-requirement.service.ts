@@ -43,11 +43,19 @@ export interface HiringRequirement {
   salaryMin?: number;
   salaryMax?: number;
   currency?: string;
+  salaryPeriod?: number; // 1 = Monthly, 2 = Yearly
+  isSalaryNegotiable: boolean;
   timezoneRange?: string;
   degreeRequirement?: string;
   benefits: string[];
   languageRequirements: string[];
   headcount: number;
+  startDate?: string;
+  endDate?: string;
+  autoCloseRule?: number; // 0 = None, 1 = CloseOnEndDate, 2 = CloseOnHiringTarget, 3 = Either
+  candidatesNeededCount?: number;
+  isManuallyClosed: boolean;
+  lifecycleStatus: string;
   status: "Draft" | "Published" | "Archived";
   version: number;
   hiringReason?: string;
@@ -179,10 +187,18 @@ export interface UpdateHiringRequirementRequest {
   salaryMin?: number;
   salaryMax?: number;
   currency?: string;
+  salaryPeriod?: number;
+  isSalaryNegotiable?: boolean;
   timezoneRange?: string;
   degreeRequirement?: string;
   benefits?: string[];
   languageRequirements?: string[];
+  startDate?: string;
+  endDate?: string;
+  autoCloseRule?: number;
+  candidatesNeededCount?: number;
+  isManuallyClosed?: boolean;
+  headcount?: number;
 }
 
 export interface RequirementArtifact {
@@ -418,6 +434,16 @@ export const hiringRequirementService = {
   async createNewVersion(id: string): Promise<{ id: string; status: string; version: number; createdAt: string }> {
     const response = await axiosClient.post<{ id: string; status: string; version: number; createdAt: string }>(`/v1/hiring-requirements/${id}/new-version`);
     return response.data;
+  },
+
+  async triggerDiscovery(id: string): Promise<TriggerDiscoveryResponse> {
+    const response = await axiosClient.post<TriggerDiscoveryResponse>(`/v1/hiring-requirements/${id}/candidate-matches/discover`);
+    return response.data;
+  },
+
+  async getDiscoveryRuns(id: string): Promise<CandidateDiscoveryRun[]> {
+    const response = await axiosClient.get<CandidateDiscoveryRun[]>(`/v1/hiring-requirements/${id}/candidate-matches/discover/runs`);
+    return response.data;
   }
 };
 
@@ -451,4 +477,22 @@ export interface CandidateMatch {
   trustLevel: number;
   breakdown: MatchBreakdown;
   traces: EvidenceTrace[];
+}
+
+export interface CandidateDiscoveryRun {
+  id: string;
+  hiringRequirementId: string;
+  triggeredById?: string;
+  startedAt: string;
+  completedAt?: string;
+  status: number; // 1 = Pending, 2 = Searching, 3 = Matching, 4 = Ranking, 5 = Completed, 6 = Failed
+  candidatesFoundCount: number;
+  matchQualitySummary?: string;
+  errorMessage?: string;
+  matches?: CandidateMatch[];
+}
+
+export interface TriggerDiscoveryResponse {
+  runId: string;
+  status: number;
 }
