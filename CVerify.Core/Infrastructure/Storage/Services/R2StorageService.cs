@@ -189,10 +189,11 @@ public class R2StorageService : IStorageService
 
         try
         {
-            if (fileStream.CanSeek && fileStream.Position > 0)
-            {
-                fileStream.Position = 0;
-            }
+            // Copy incoming non-seekable or disposable stream to local MemoryStream for safe Polly retries
+            using var seekableStream = new MemoryStream();
+            await fileStream.CopyToAsync(seekableStream, cancellationToken);
+            seekableStream.Position = 0;
+            var size = seekableStream.Length; // Get size BEFORE stream is disposed by AWS S3 client
 
             await _resiliencePipeline.ExecuteAsync(async ct =>
             {
@@ -200,8 +201,9 @@ public class R2StorageService : IStorageService
                 {
                     BucketName = bucket,
                     Key = key,
-                    InputStream = fileStream,
-                    ContentType = contentType
+                    InputStream = seekableStream,
+                    ContentType = contentType,
+                    DisablePayloadSigning = true
                 };
 
                 foreach (var item in metadata)
@@ -212,7 +214,6 @@ public class R2StorageService : IStorageService
                 await _s3Client.PutObjectAsync(request, ct);
             }, cancellationToken);
 
-            var size = fileStream.CanSeek ? fileStream.Length : 0;
             logMeta["Size"] = size;
 
             // Observability - UploadCompleted

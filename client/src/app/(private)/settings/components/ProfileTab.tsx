@@ -32,6 +32,8 @@ import {
 import { useProfile } from "@/hooks/use-profile";
 import { type UpdateProfileRequest } from "@/types/profile.types";
 import { profileApi } from "@/services/profile.service";
+import { AvatarCropperModal } from "./AvatarCropperModal";
+import { useAuthStore } from "@/features/auth/store/use-auth-store";
 
 // 1. Define schema using Zod
 const profileSchema = z.object({
@@ -95,6 +97,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [lastSelectedFile, setLastSelectedFile] = useState<File | null>(null);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+
+  // Temporary diagnostics effect to trace avatar rendering
+  useEffect(() => {
+    console.log("[Avatar Render Diagnostics] current states - avatarPreview:", avatarPreview, "user.avatarUrl:", user?.avatarUrl, "active source:", avatarPreview || user?.avatarUrl || "fallback initials");
+  }, [avatarPreview, user?.avatarUrl]);
 
   const handleUpload = async (file: File) => {
     setIsUploadingAvatar(true);
@@ -103,8 +112,10 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     // Create optimistic preview
     const previewUrl = URL.createObjectURL(file);
     setAvatarPreview(previewUrl);
+    console.log("[Avatar Upload] Created optimistic preview:", previewUrl);
 
     try {
+      console.log("[Avatar Upload] Initiating API request to R2...");
       const result = await profileApi.uploadAvatar(file, (progress) => {
         if (progress.total) {
           const percentage = Math.round((progress.loaded / progress.total) * 100);
@@ -112,12 +123,20 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         }
       });
       
+      console.log("[Avatar Upload] API Response received:", result);
+      console.log("[Avatar Upload] Returned avatar URL:", result.avatarUrl);
+
       // Update local global auth store details
       updateLocalAuthUser({
         avatarUrl: result.avatarUrl,
       });
 
+      // Log store user status to verify mutation propagation
+      const updatedUser = useAuthStore.getState().user;
+      console.log("[Avatar Upload] Global User State after mutation:", updatedUser);
+
       toast.success("Avatar updated successfully.");
+      setAvatarPreview(null); // Clear preview to fallback to newly returned signed URL
       setLastSelectedFile(null);
     } catch (error: any) {
       console.error("Failed to upload avatar:", error);
@@ -131,6 +150,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       setIsUploadingAvatar(false);
       setUploadProgress(null);
       URL.revokeObjectURL(previewUrl);
+      console.log("[Avatar Upload] Revoked optimistic preview URL:", previewUrl);
     }
   };
 
@@ -152,7 +172,43 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     }
 
     setLastSelectedFile(file);
-    handleUpload(file);
+    const objectUrl = URL.createObjectURL(file);
+    setCropImageSrc(objectUrl);
+    setIsCropModalOpen(true);
+    
+    // Reset file input so that the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleCropComplete = (croppedBlob: Blob) => {
+    setIsCropModalOpen(false);
+    
+    // Revoke the original raw image object URL immediately to prevent memory leaks
+    if (cropImageSrc) {
+      URL.revokeObjectURL(cropImageSrc);
+      setCropImageSrc(null);
+    }
+
+    const fileExt = lastSelectedFile ? lastSelectedFile.name.split('.').pop() : 'jpg';
+    const originalName = lastSelectedFile ? lastSelectedFile.name.substring(0, lastSelectedFile.name.lastIndexOf('.')) : 'avatar';
+    const croppedFile = new File(
+      [croppedBlob], 
+      `${originalName}_cropped.${fileExt}`, 
+      { type: "image/jpeg" }
+    );
+    
+    handleUpload(croppedFile);
+  };
+
+  const handleCropCancel = () => {
+    setIsCropModalOpen(false);
+    if (cropImageSrc) {
+      URL.revokeObjectURL(cropImageSrc);
+      setCropImageSrc(null);
+    }
+    setLastSelectedFile(null);
   };
 
   // Setup form methods
@@ -394,6 +450,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               <div className="flex flex-col items-center md:items-start gap-2">
                 <Label>Profile Picture</Label>
                 <Avatar
+                  key={avatarPreview || user?.avatarUrl || "default"}
                   variant="default"
                   className="w-30 h-30 select-none rounded-full"
                 >
@@ -703,6 +760,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           onReset={handleReset}
         />
       </form>
+      <AvatarCropperModal
+        isOpen={isCropModalOpen}
+        onOpenChange={setIsCropModalOpen}
+        imageSrc={cropImageSrc}
+        onCropComplete={handleCropComplete}
+        onCancel={handleCropCancel}
+      />
     </FormProvider>
   );
 };

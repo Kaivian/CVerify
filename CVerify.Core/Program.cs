@@ -275,11 +275,13 @@ builder.Services.AddScoped<IEncryptedFileStorageService, EncryptedFileStorageSer
 // Register Cloudflare R2 Object Storage Stack (IAmazonS3 + IStorageService)
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
+    Amazon.AWSConfigsS3.UseSignatureVersion4 = true;
     var config = sp.GetRequiredService<EnvConfiguration>();
     var s3Config = new AmazonS3Config
     {
         ServiceURL = config.R2.Endpoint,
-        ForcePathStyle = true // Standard S3-compatible path resolution for Cloudflare R2
+        ForcePathStyle = true, // Standard S3-compatible path resolution for Cloudflare R2
+        AuthenticationRegion = "us-east-1" // Force AWS Signature Version 4 for Cloudflare R2 compatibility
     };
     return new AmazonS3Client(config.R2.AccessKeyId, config.R2.SecretAccessKey, s3Config);
 });
