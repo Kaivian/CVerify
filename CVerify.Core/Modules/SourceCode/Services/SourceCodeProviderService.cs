@@ -18,6 +18,7 @@ using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.SourceCode.Clients;
 using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Profiles.Services;
+using CVerify.API.Modules.Shared.Domain.Enums;
 
 namespace CVerify.API.Modules.SourceCode.Services;
 
@@ -412,6 +413,21 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
             foreach (var provider in providersToSync)
             {
+                if (provider.ScopeValidationStatus == ProviderScopeStatus.ReconnectRequired || 
+                    provider.ScopeValidationStatus == ProviderScopeStatus.Revoked)
+                {
+                    _logger.LogWarning("Skipping repository synchronization for provider {AuthProviderId} because validation status is {Status}.", provider.Id, provider.ScopeValidationStatus);
+                    provider.SyncStatus = "Failed";
+                    provider.SyncError = "Synchronization skipped: Re-authorization is required. Please reconnect your account.";
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    currentProgress += progressPerProvider;
+                    status.Progress = Math.Min(currentProgress, 99.0);
+                    status.UpdatedAt = _timeProvider.GetUtcNow();
+                    await _cacheService.SetAsync(redisKey, status, TimeSpan.FromMinutes(30));
+                    continue;
+                }
+
                 provider.SyncStatus = "Syncing";
                 provider.SyncError = null;
                 await _context.SaveChangesAsync(cancellationToken);
@@ -429,12 +445,32 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                     provider.SyncStatus = "Synced";
                     provider.SyncError = null;
                     provider.LastProviderSyncAt = _timeProvider.GetUtcNow();
+                    provider.ScopeValidationStatus = ProviderScopeStatus.Valid;
                 }
                 catch (Exception providerEx)
                 {
-                    _logger.LogError(providerEx, "Failed to sync connection {AuthProviderId}", provider.Id);
+                    bool isAuthError = providerEx is InvalidOperationException && (providerEx.Message.Contains("re-authorization", StringComparison.OrdinalIgnoreCase) || providerEx.Message.Contains("credentials", StringComparison.OrdinalIgnoreCase)) ||
+                                       providerEx.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || 
+                                       providerEx.Message.Contains("401") ||
+                                       providerEx.Message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase) ||
+                                       providerEx.Message.Contains("403") ||
+                                       providerEx.Message.Contains("Bad credentials", StringComparison.OrdinalIgnoreCase) ||
+                                       providerEx.Message.Contains("credentials are missing", StringComparison.OrdinalIgnoreCase) ||
+                                       providerEx.Message.Contains("re-connect", StringComparison.OrdinalIgnoreCase);
+
+                    if (isAuthError)
+                    {
+                        _logger.LogWarning("Failed to sync connection {AuthProviderId} due to authorization/authentication error: {Message}", provider.Id, providerEx.Message);
+                    }
+                    else
+                    {
+                        _logger.LogError(providerEx, "Failed to sync connection {AuthProviderId}", provider.Id);
+                    }
+
                     provider.SyncStatus = "Failed";
                     provider.SyncError = providerEx.Message;
+                    provider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+                    await HideProviderRepositoriesAsync(provider.Id, cancellationToken);
                 }
 
                 await _context.SaveChangesAsync(cancellationToken);
@@ -485,7 +521,23 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to auto-refresh access token for provider {ProviderId}", provider.Id);
+                bool isAuthError = ex is InvalidOperationException && (ex.Message.Contains("re-authorization", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("credentials", StringComparison.OrdinalIgnoreCase)) ||
+                                   ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || 
+                                   ex.Message.Contains("401") ||
+                                   ex.Message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase) ||
+                                   ex.Message.Contains("403") ||
+                                   ex.Message.Contains("Bad credentials", StringComparison.OrdinalIgnoreCase) ||
+                                   ex.Message.Contains("credentials are missing", StringComparison.OrdinalIgnoreCase) ||
+                                   ex.Message.Contains("re-connect", StringComparison.OrdinalIgnoreCase);
+
+                if (isAuthError)
+                {
+                    _logger.LogWarning("Failed to auto-refresh access token for provider {ProviderId} due to authorization failure: {Message}", provider.Id, ex.Message);
+                }
+                else
+                {
+                    _logger.LogError(ex, "Failed to auto-refresh access token for provider {ProviderId}", provider.Id);
+                }
                 throw;
             }
         }
@@ -530,11 +582,29 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Token refresh failed for provider {ProviderName}.", provider.ProviderName);
+            bool isAuthError = ex is InvalidOperationException && (ex.Message.Contains("re-authorization", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("credentials", StringComparison.OrdinalIgnoreCase)) ||
+                               ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || 
+                               ex.Message.Contains("401") ||
+                               ex.Message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase) ||
+                               ex.Message.Contains("403") ||
+                               ex.Message.Contains("Bad credentials", StringComparison.OrdinalIgnoreCase) ||
+                               ex.Message.Contains("credentials are missing", StringComparison.OrdinalIgnoreCase) ||
+                               ex.Message.Contains("re-connect", StringComparison.OrdinalIgnoreCase);
+
+            if (isAuthError)
+            {
+                _logger.LogWarning("Token refresh failed for provider {ProviderName} due to authorization/authentication error: {Message}", provider.ProviderName, ex.Message);
+            }
+            else
+            {
+                _logger.LogError(ex, "Token refresh failed for provider {ProviderName}.", provider.ProviderName);
+            }
             
             provider.RefreshFailureCount++;
             provider.SyncStatus = "Failed";
             provider.SyncError = $"Token refresh failed: {ex.Message}. Please re-connect account.";
+            provider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+            await HideProviderRepositoriesAsync(provider.Id, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             throw;
         }
@@ -585,12 +655,12 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
         for (int page = 1; page <= maxPages; page++)
         {
-            SyncResult syncResult;
-            try
-            {
-                syncResult = await client.SyncRepositoriesAsync(decryptedToken, page, pageSize, cancellationToken);
-            }
-            catch (Exception ex) when (ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("401"))
+            SyncResult syncResult = await client.SyncRepositoriesAsync(decryptedToken, page, pageSize, cancellationToken);
+
+            if (syncResult.IsAuthError || (!string.IsNullOrEmpty(syncResult.SyncError) && 
+                (syncResult.SyncError.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || 
+                 syncResult.SyncError.Contains("401") ||
+                 syncResult.SyncError.Contains("Bad credentials", StringComparison.OrdinalIgnoreCase))))
             {
                 _logger.LogWarning("API returned Unauthorized. Attempting reactive token refresh.");
                 try
@@ -600,13 +670,29 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 }
                 catch (Exception refreshEx)
                 {
-                    _logger.LogError(refreshEx, "Reactive token refresh failed for provider {ProviderName}.", provider.ProviderName);
+                    _logger.LogWarning("Reactive token refresh failed for provider {ProviderName}: {Message}", provider.ProviderName, refreshEx.Message);
+                    provider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+                    await HideProviderRepositoriesAsync(provider.Id, cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
                     throw;
                 }
             }
 
-            if (!string.IsNullOrEmpty(syncResult.SyncError))
+            if (syncResult.IsAuthError || !string.IsNullOrEmpty(syncResult.SyncError))
             {
+                bool isAuthError = syncResult.IsAuthError || 
+                                   syncResult.SyncError?.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) == true || 
+                                   syncResult.SyncError?.Contains("401") == true ||
+                                   syncResult.SyncError?.Contains("Bad credentials", StringComparison.OrdinalIgnoreCase) == true;
+
+                if (isAuthError)
+                {
+                    provider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
+                    await HideProviderRepositoriesAsync(provider.Id, cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    throw new InvalidOperationException($"Provider synchronization failed on page {page} due to invalid or revoked credentials: {syncResult.SyncError}");
+                }
+                
                 throw new InvalidOperationException($"Provider synchronization failed on page {page}: {syncResult.SyncError}");
             }
 
@@ -781,6 +867,22 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         return (uniqueFetchedRepos.Count, isPartial);
     }
 
+
+    private async Task HideProviderRepositoriesAsync(Guid providerId, CancellationToken cancellationToken)
+    {
+        var repositories = await _context.SourceCodeRepositories
+            .Where(r => r.AuthProviderId == providerId && r.IsAccessible)
+            .ToListAsync(cancellationToken);
+
+        if (repositories.Any())
+        {
+            _logger.LogInformation("Hiding {Count} repositories for provider {ProviderId} because reconnection is required.", repositories.Count, providerId);
+            foreach (var repo in repositories)
+            {
+                repo.IsAccessible = false;
+            }
+        }
+    }
 
     public async Task<IEnumerable<string>> GetDistinctCategoriesAsync(Guid userId)
     {

@@ -192,10 +192,21 @@ public class GitHubSourceCodeClient : ISourceCodeClient
 
             return new SyncResult(orgsList, reposList, null);
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized || 
+                                              ex.StatusCode == System.Net.HttpStatusCode.Forbidden ||
+                                              ex.Message.Contains("401") || 
+                                              ex.Message.Contains("Unauthorized") || 
+                                              ex.Message.Contains("403") || 
+                                              ex.Message.Contains("Forbidden") || 
+                                              ex.Message.Contains("Bad credentials"))
+        {
+            _logger.LogWarning("GitHub API returned Unauthorized/Forbidden during synchronization: {Message}", ex.Message);
+            return new SyncResult(orgsList, reposList, ex.Message, IsAuthError: true);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error occurred during GitHub synchronization.");
-            return new SyncResult(orgsList, reposList, ex.Message);
+            return new SyncResult(orgsList, reposList, ex.Message, IsAuthError: false);
         }
     }
 
