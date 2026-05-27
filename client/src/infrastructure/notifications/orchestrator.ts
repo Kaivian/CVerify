@@ -1,4 +1,4 @@
-import { NotificationEvent, NotificationRenderer } from './types';
+import { type NotificationEvent, type NotificationRenderer } from './types';
 
 class NotificationOrchestrator {
   private renderers: Set<NotificationRenderer> = new Set();

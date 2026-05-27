@@ -1,4 +1,4 @@
-import { AxiosRequestConfig } from 'axios';
+import { type AxiosRequestConfig } from 'axios';
 import { NotificationHub } from '../notifications/orchestrator';
 
 interface QueuedItem {

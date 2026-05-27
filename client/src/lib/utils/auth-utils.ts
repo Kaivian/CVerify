@@ -1,4 +1,4 @@
-import { UserRole } from '../../types/auth.types';
+import { type UserRole } from '../../types/auth.types';
 
 /**
  * Centrally normalizes database and JWT claim roles to the frontend UserRole type.

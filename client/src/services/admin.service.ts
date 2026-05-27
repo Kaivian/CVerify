@@ -1,12 +1,12 @@
 import { axiosClient } from './axios-client';
 import {
-  UserListItem,
-  UpdateUserPayload,
-  RoleListItem,
-  CreateOrUpdateRolePayload,
-  AuditLogListItem,
-  PaginatedResult,
-  SystemPermission
+  type UserListItem,
+  type UpdateUserPayload,
+  type RoleListItem,
+  type CreateOrUpdateRolePayload,
+  type AuditLogListItem,
+  type PaginatedResult,
+  type SystemPermission
 } from '../types/admin.types';
 
 export const adminService = {

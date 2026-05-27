@@ -1,5 +1,5 @@
 import { axiosClient } from '../../../services/axios-client';
-import { LoginResponseData } from '../../../types/auth.types';
+import { type LoginResponseData } from '../../../types/auth.types';
 
 export interface SubmitClaimPayload {
   representativeFullName: string;
@@ -218,16 +218,16 @@ export const recoveryApi = {
     newRepresentativePhone: string;
     reasonForRepresentativeChange: string;
     optionalSupportingMessage?: string;
-  }): Promise<any> => {
-    const response = await axiosClient.post<any>('/auth/recovery/level2/request-rotation', payload);
+  }): Promise<unknown> => {
+    const response = await axiosClient.post<unknown>('/auth/recovery/level2/request-rotation', payload);
     return response.data;
   },
 
   /**
    * Get all rotation requests queue for manual Support review
    */
-  level2GetRequests: async (): Promise<any[]> => {
-    const response = await axiosClient.get<any[]>('/auth/recovery/level2/requests');
+  level2GetRequests: async (): Promise<unknown[]> => {
+    const response = await axiosClient.get<unknown[]>('/auth/recovery/level2/requests');
     return response.data;
   },
 
@@ -258,8 +258,8 @@ export const recoveryApi = {
   /**
    * Retrieve representative changes history for auditing
    */
-  level2GetHistory: async (organizationId: string): Promise<any[]> => {
-    const response = await axiosClient.get<any[]>(`/auth/recovery/level2/organization/${organizationId}/history`);
+  level2GetHistory: async (organizationId: string): Promise<unknown[]> => {
+    const response = await axiosClient.get<unknown[]>(`/auth/recovery/level2/organization/${organizationId}/history`);
     return response.data;
   },
 };

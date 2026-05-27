@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button, Card } from '@heroui/react';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 

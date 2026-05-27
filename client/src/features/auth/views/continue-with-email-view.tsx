@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import {
@@ -17,7 +17,6 @@ import {
 } from "@heroui/react";
 import OtpInput from "@/components/ui/otp-input";
 import { Eye, EyeOff, ShieldCheck, Mail } from "lucide-react";
-import { Suspense } from "react";
 import PasswordStrengthMeter from "../components/password-strength-meter";
 import { evaluatePasswordStrength } from "../security/password-policy";
 

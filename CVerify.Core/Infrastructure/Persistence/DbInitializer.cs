@@ -766,6 +766,157 @@ public static class DbInitializer
                 CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
             );
 
+            -- User Profile table for storing bio, location, pronouns, unique username
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id UUID PRIMARY KEY,
+                username CITEXT UNIQUE,
+                bio VARCHAR(160),
+                location VARCHAR(50),
+                phone_number VARCHAR(15),
+                birth_date TIMESTAMP WITH TIME ZONE,
+                headline VARCHAR(50),
+                company VARCHAR(50),
+                pronouns VARCHAR(20),
+                custom_pronouns VARCHAR(30),
+                public_email VARCHAR(255),
+                profile_visibility VARCHAR(20) NOT NULL DEFAULT 'public',
+                recruiter_visibility BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_user_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_username_active ON user_profiles(username) WHERE deleted_at IS NULL;
+
+            -- Career Preferences table for job hunting status, expected salary, and models
+            CREATE TABLE IF NOT EXISTS career_preferences (
+                user_id UUID PRIMARY KEY,
+                available_for_hire BOOLEAN NOT NULL DEFAULT TRUE,
+                preferred_language VARCHAR(10) NOT NULL DEFAULT 'en',
+                job_title_preferences VARCHAR(255),
+                salary_expectations DECIMAL(18,2),
+                remote_preference VARCHAR(20),
+                open_to_work_status VARCHAR(20),
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_career_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            -- Normalized User Skills
+            CREATE TABLE IF NOT EXISTS user_skills (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                skill VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_user_skills_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_user_skills_user_id ON user_skills(user_id);
+            CREATE INDEX IF NOT EXISTS idx_user_skills_name ON user_skills(skill);
+
+            -- Normalized User Preferred Locations
+            CREATE TABLE IF NOT EXISTS user_preferred_locations (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                location VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_user_preferred_locations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_user_preferred_locations_user_id ON user_preferred_locations(user_id);
+
+            -- Normalized User Employment Arrangement Preferences
+            CREATE TABLE IF NOT EXISTS user_employment_preferences (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                preference_name VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_user_employment_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_user_employment_preferences_user_id ON user_employment_preferences(user_id);
+
+            -- Social Links linked to users
+            CREATE TABLE IF NOT EXISTS social_links (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                url VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_social_links_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_social_links_user_id ON social_links(user_id);
+
+            -- Education history entry details
+            CREATE TABLE IF NOT EXISTS education_entries (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                label VARCHAR(255) NOT NULL,
+                school_name VARCHAR(255) NOT NULL,
+                degree VARCHAR(255),
+                major VARCHAR(255),
+                gpa DECIMAL(4,2),
+                gpa_scale DECIMAL(4,2),
+                description TEXT,
+                start_date TIMESTAMP WITH TIME ZONE,
+                end_date TIMESTAMP WITH TIME ZONE,
+                is_currently_studying BOOLEAN NOT NULL DEFAULT FALSE,
+                display_order INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_education_entries_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_education_entries_user_id ON education_entries(user_id);
+
+            -- Academic Achievements certificates and award distinctions
+            CREATE TABLE IF NOT EXISTS academic_achievements (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                issuer VARCHAR(255) NOT NULL,
+                issue_date TIMESTAMP WITH TIME ZONE NOT NULL,
+                description TEXT NOT NULL,
+                credential_url VARCHAR(255),
+                display_order INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_academic_achievements_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_academic_achievements_user_id ON academic_achievements(user_id);
+
+            -- Generic polymorphic uploads/attachments
+            CREATE TABLE IF NOT EXISTS profile_attachments (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                entity_type VARCHAR(50) NOT NULL,
+                entity_id UUID,
+                file_name VARCHAR(255) NOT NULL,
+                file_path VARCHAR(500) NOT NULL,
+                file_size BIGINT NOT NULL,
+                file_type VARCHAR(100) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_profile_attachments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_profile_attachments_user_id ON profile_attachments(user_id);
+            CREATE INDEX IF NOT EXISTS idx_profile_attachments_entity ON profile_attachments(entity_type, entity_id);
+
+            -- Profile activity log for event audits
+            CREATE TABLE IF NOT EXISTS profile_activity_logs (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                action_type VARCHAR(100) NOT NULL,
+                old_state_json TEXT,
+                new_state_json TEXT,
+                ip_address VARCHAR(45),
+                user_agent VARCHAR(500),
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_profile_activity_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_profile_activity_logs_user_id ON profile_activity_logs(user_id);
+
             -- Optimized Indexes
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
@@ -806,6 +957,54 @@ public static class DbInitializer
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_conversations_timestamp') THEN
                     CREATE TRIGGER tr_conversations_timestamp BEFORE UPDATE ON conversations 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_user_profiles_timestamp') THEN
+                    CREATE TRIGGER tr_user_profiles_timestamp BEFORE UPDATE ON user_profiles 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_career_preferences_timestamp') THEN
+                    CREATE TRIGGER tr_career_preferences_timestamp BEFORE UPDATE ON career_preferences 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_social_links_timestamp') THEN
+                    CREATE TRIGGER tr_social_links_timestamp BEFORE UPDATE ON social_links 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_education_entries_timestamp') THEN
+                    CREATE TRIGGER tr_education_entries_timestamp BEFORE UPDATE ON education_entries 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_academic_achievements_timestamp') THEN
+                    CREATE TRIGGER tr_academic_achievements_timestamp BEFORE UPDATE ON academic_achievements 
+                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
+                END IF;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_profile_attachments_timestamp') THEN
+                    CREATE TRIGGER tr_profile_attachments_timestamp BEFORE UPDATE ON profile_attachments 
                         FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
                 END IF;
             END $$;

@@ -17,6 +17,9 @@ using Npgsql;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using CVerify.API.Infrastructure.Diagnostics;
+using Amazon.S3;
+using CVerify.API.Application.Storage.Interfaces;
+using CVerify.API.Infrastructure.Storage.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -269,6 +272,21 @@ builder.Services.AddScoped<ICacheService, CacheService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEncryptedFileStorageService, EncryptedFileStorageService>();
 
+// Register Cloudflare R2 Object Storage Stack (IAmazonS3 + IStorageService)
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    Amazon.AWSConfigsS3.UseSignatureVersion4 = true;
+    var config = sp.GetRequiredService<EnvConfiguration>();
+    var s3Config = new AmazonS3Config
+    {
+        ServiceURL = config.R2.Endpoint,
+        ForcePathStyle = true, // Standard S3-compatible path resolution for Cloudflare R2
+        AuthenticationRegion = "us-east-1" // Force AWS Signature Version 4 for Cloudflare R2 compatibility
+    };
+    return new AmazonS3Client(config.R2.AccessKeyId, config.R2.SecretAccessKey, s3Config);
+});
+builder.Services.AddScoped<IStorageService, R2StorageService>();
+
 // Register Application Services
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -282,6 +300,13 @@ builder.Services.AddScoped<IOrganizationReclaimService, OrganizationReclaimServi
 builder.Services.AddScoped<ILevel2RecoveryService, Level2RecoveryService>();
 builder.Services.AddScoped<IPasswordPolicyService, PasswordPolicyService>();
 builder.Services.AddScoped<IOtpPolicyService, OtpPolicyService>();
+
+// Register Profile Settings Services
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IEducationService, EducationService>();
+builder.Services.AddScoped<IAchievementService, AchievementService>();
+builder.Services.AddScoped<ICareerService, CareerService>();
+builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 
 // Register AI Service
 builder.Services.AddScoped<IHmacSignatureService, HmacSignatureService>();

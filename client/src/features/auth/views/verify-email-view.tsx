@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { authApi } from '@/features/auth/services/auth.service';
 import { useAuth } from '@/features/auth/hooks/use-auth';
@@ -16,7 +16,6 @@ import {
 import {
     Card, Typography, Button, TextField, Input, toast, Spinner, Form, Label
 } from "@heroui/react";
-import { Suspense } from 'react';
 
 type VerifyState = 'pending' | 'verifying' | 'success' | 'failed' | 'expired';
 

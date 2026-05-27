@@ -7,7 +7,7 @@ import {
   FileText,
   Briefcase 
 } from 'lucide-react';
-import { NavigationNode } from '../types/navigation.types';
+import { type NavigationNode } from '../types/navigation.types';
 
 export const navigationConfig: NavigationNode[] = [
   {

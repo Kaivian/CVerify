@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '../hooks/use-auth';
-import { ResourceActionPermission } from '../../../types/auth.types';
+import { type ResourceActionPermission } from '../../../types/auth.types';
 
 interface PermissionGuardProps {
   permission: ResourceActionPermission;

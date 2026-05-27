@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Controller, Control, FieldValues, Path } from 'react-hook-form';
+import { Controller, type Control, type FieldValues, type Path } from 'react-hook-form';
 import { TextField, Label, FieldError } from '@heroui/react';
 import OtpInput from '../ui/otp-input';
 

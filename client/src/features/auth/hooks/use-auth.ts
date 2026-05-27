@@ -3,21 +3,22 @@
 import { useAuthStore } from '../store/use-auth-store';
 import {
   authApi,
-  LoginPayload,
-  RegisterPayload,
-  ResetPasswordPayload,
-  CreatePasswordPayload,
-  RegisterCompanyPayload,
-  SetupWorkspacePayload,
-  CompanyLoginPayload
+  type LoginPayload,
+  type RegisterPayload,
+  type ResetPasswordPayload,
+  type CreatePasswordPayload,
+  type RegisterCompanyPayload,
+  type SetupWorkspacePayload,
+  type CompanyLoginPayload
 } from '../services/auth.service';
-import { User, UserRole, ResourceActionPermission } from '../../../types/auth.types';
+import { type User, type UserRole, type ResourceActionPermission } from '../../../types/auth.types';
 import { useState, useCallback } from 'react';
 import { normalizeError } from '../../../services/axios-client';
 import { normalizeRole } from '../../../lib/utils/auth-utils';
 
 // Shared module-level bootstrap promise to deduplicate parallel mounts during app initialization
-let bootstrapPromise: Promise<{ authenticated: boolean; user: User | null }> | null = null;
+let bootstrapPromise: Promise<{ authenticated: boolean; user: User | null; isUnverified?: boolean; nextStep?: string }> | null = null;
+let activeAuthAbortController: AbortController | null = null;
 
 export const useAuth = () => {
   const store = useAuthStore();
@@ -185,42 +186,87 @@ export const useAuth = () => {
   };
 
   // Bootstraps local profile on app boot or token refresh, locking concurrent parallel calls
-  const initializeUserSession = useCallback(async () => {
+  const initializeUserSession = useCallback(async (forceRevalidate = false) => {
     const currentStore = useAuthStore.getState();
 
-    // If already READY, return cached session
-    if (currentStore.bootstrapState === 'READY') {
-      return { authenticated: currentStore.isAuthenticated, user: currentStore.user };
+    // Auto-recovery for stuck hydration states (e.g. from BFCache when promise is lost but store says loading)
+    if (currentStore.isLoading && !bootstrapPromise && currentStore.bootstrapState !== 'READY') {
+      console.warn('[Auth System] Detected stuck loading state without active promise. Resetting.');
+      currentStore.setLoading(false);
+      currentStore.setBootstrapState('IDLE');
     }
-    
-    // If already running (lock active), wait on the promise or return current state
-    if (currentStore.bootstrapState === 'BOOTSTRAPPING' || currentStore.bootstrapState === 'VALIDATING') {
-      if (bootstrapPromise) {
-        return bootstrapPromise;
+
+    if (!forceRevalidate) {
+      // If already READY, return cached session
+      if (currentStore.bootstrapState === 'READY') {
+        return { authenticated: currentStore.isAuthenticated, user: currentStore.user };
       }
-      // If the state is stuck in BOOTSTRAPPING/VALIDATING but we don't have an active promise,
-      // we must have lost the promise reference (e.g. during module reloads or transitions).
-      // Let's print a warning and allow a new request to recover the state.
-      console.warn('[Auth System] Session bootstrap is in VALIDATING state but bootstrapPromise is null. Re-initializing session to recover.');
+      
+      // If already running (lock active), wait on the promise or return current state
+      if (currentStore.bootstrapState === 'BOOTSTRAPPING' || currentStore.bootstrapState === 'VALIDATING') {
+        if (bootstrapPromise) {
+          return bootstrapPromise;
+        }
+        console.warn('[Auth System] Session bootstrap is in VALIDATING state but bootstrapPromise is null. Re-initializing session to recover.');
+      }
+    } else {
+      // On force revalidate, if we are already fetching, cancel the stale request explicitly.
+      if (activeAuthAbortController) {
+        console.log('[Auth System] Force revalidate requested. Cancelling stale inflight request.');
+        activeAuthAbortController.abort('Forced revalidation');
+        activeAuthAbortController = null;
+      }
     }
 
-    // Acquire lock and transition to bootstrapping
-    currentStore.setBootstrapState('BOOTSTRAPPING');
+    // Determine if we should perform a silent background revalidation
+    // Silent revalidation happens if we're forcing revalidate while already READY.
+    const isSilentRevalidation = forceRevalidate && currentStore.bootstrapState === 'READY';
 
-    bootstrapPromise = (async () => {
+    // Acquire lock and transition to bootstrapping (unless silent)
+    if (!isSilentRevalidation) {
+      currentStore.setBootstrapState('BOOTSTRAPPING');
+    }
+
+    // Create a new AbortController for this request
+    activeAuthAbortController = new AbortController();
+    const signal = activeAuthAbortController.signal;
+
+    bootstrapPromise = new Promise(async (resolve) => {
       const stateStore = useAuthStore.getState();
-      stateStore.setBootstrapState('VALIDATING');
-      stateStore.setLoading(true);
-      console.log('[Auth System] Session bootstrap validation started.');
+      if (!isSilentRevalidation) {
+        stateStore.setBootstrapState('VALIDATING');
+        stateStore.setLoading(true);
+      }
+      console.log(`[Auth System] Session validation started${isSilentRevalidation ? ' (silent)' : ''}.`);
+
+      // Timeout protection to prevent permanent deadlock
+      const timeoutId = setTimeout(() => {
+        if (activeAuthAbortController) {
+          activeAuthAbortController.abort('Timeout');
+        }
+        console.error('[Auth System] Session bootstrap timed out after 3000ms. Forcing exit.');
+        stateStore.logout(false);
+        stateStore.setInitialized(true);
+        stateStore.setBootstrapState('READY');
+        stateStore.setLoading(false);
+        bootstrapPromise = null;
+        resolve({ authenticated: false, user: null });
+      }, 3000);
+
       try {
-        const response = await authApi.fetchMe();
+        const response = await authApi.fetchMe(signal);
+        clearTimeout(timeoutId);
+        
+        // Ensure we don't proceed if the timeout already fired and cleared the promise
+        if (!bootstrapPromise && !isSilentRevalidation) return;
         
         if (response.status === 'EMAIL_VERIFY_PENDING' || response.nextStep === 'VERIFY_EMAIL') {
           stateStore.setPendingVerificationEmail(response.email);
           stateStore.setAuthStatusAndNextStep(response.status, response.nextStep);
           stateStore.logout(false);
           console.log('[Auth System] Session bootstrap complete. Status: EMAIL_VERIFY_PENDING');
-          return { authenticated: false, user: null, isUnverified: true, nextStep: response.nextStep };
+          resolve({ authenticated: false, user: null, isUnverified: true, nextStep: response.nextStep });
+          return;
         }
 
         const user: User = {
@@ -235,29 +281,50 @@ export const useAuth = () => {
 
         stateStore.login(user);
         stateStore.setAuthStatusAndNextStep(response.status, response.nextStep);
-        console.log(`[Auth System] Session bootstrap complete. User authenticated. Role: ${user.role}`);
-        return { authenticated: true, user };
+        console.log(`[Auth System] Session validation complete. User authenticated. Role: ${user.role}`);
+        resolve({ authenticated: true, user });
       } catch (err) {
+        clearTimeout(timeoutId);
+        
         interface AxiosErrorLike {
+          name?: string;
           response?: { status?: number };
           status?: number;
         }
         const error = err as AxiosErrorLike;
+        
+        // If aborted intentionally, just resolve to whatever the current state is.
+        if (error?.name === 'CanceledError' || signal.aborted) {
+          console.log('[Auth System] Request was intentionally aborted.');
+          resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
+          return;
+        }
+
+        // Ensure we don't proceed if the timeout already fired
+        if (!bootstrapPromise && !isSilentRevalidation) return;
+
         const status = error?.response?.status || error?.status;
         if (status === 401) {
-          console.log('[Auth System] Session bootstrap: No active session (unauthenticated guest).');
+          console.log('[Auth System] Session validation: No active session (unauthenticated guest).');
         } else {
-          console.warn('[Auth System] Session bootstrap validation failed. Cleaning local session.', error);
+          console.warn('[Auth System] Session validation failed. Cleaning local session.', error);
         }
         stateStore.logout(false);
-        return { authenticated: false, user: null };
+        resolve({ authenticated: false, user: null });
       } finally {
-        stateStore.setInitialized(true);
-        stateStore.setBootstrapState('READY');
-        stateStore.setLoading(false);
-        bootstrapPromise = null;
+        // Clean up the abort controller if it's the current one
+        if (activeAuthAbortController?.signal === signal) {
+          activeAuthAbortController = null;
+        }
+
+        if (bootstrapPromise) { // Only run this if not aborted by timeout
+          stateStore.setInitialized(true);
+          stateStore.setBootstrapState('READY');
+          stateStore.setLoading(false);
+          bootstrapPromise = null;
+        }
       }
-    })();
+    });
 
     return bootstrapPromise;
   }, []);

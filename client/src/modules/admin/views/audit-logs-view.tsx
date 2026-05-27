@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { adminService } from "@/services/admin.service";
-import { AuditLogListItem } from "@/types/admin.types";
+import { type AuditLogListItem } from "@/types/admin.types";
 import { Table, Button, Card, Typography } from "@heroui/react";
 import { Search, RotateCw, ShieldCheck } from "lucide-react";
 import { PaginationWrapper } from "@/components/ui/pagination-wrapper";

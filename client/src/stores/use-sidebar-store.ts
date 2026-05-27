@@ -14,7 +14,7 @@ interface SidebarState {
   initializeCollapsed: () => void;
 }
 
-export const useSidebarStore = create<SidebarState>((set, get) => ({
+export const useSidebarStore = create<SidebarState>((set) => ({
   isCollapsed: false,
   isMobileOpen: false,
   expandedGroups: {},

@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { useWatch, Control, FieldValues, Path } from 'react-hook-form';
+import { useWatch, type Control, type FieldValues, type Path } from 'react-hook-form';
 import CentralPasswordStrengthMeter from '@/features/auth/components/password-strength-meter';
 
 interface PasswordStrengthMeterProps<TFieldValues extends FieldValues = FieldValues> {
