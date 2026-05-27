@@ -130,9 +130,11 @@ export const CareerTab: React.FC<CareerTabProps> = ({
               aria-label="Available for hire toggle"
               className="cursor-pointer"
             >
-              <Switch.Control className="w-11 h-6 rounded-full bg-separator data-[selected=true]:bg-success relative flex items-center transition-all">
-                <Switch.Thumb className="w-4.5 h-4.5 bg-foreground rounded-full absolute left-0.5 data-[selected=true]:left-6 transition-all" />
-              </Switch.Control>
+              {({ isSelected }) => (
+                <Switch.Control className={`w-11 h-6 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}>
+                  <Switch.Thumb className={`w-4.5 h-4.5 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[22px]" : "left-0.5"}`} />
+                </Switch.Control>
+              )}
             </Switch>
           </Card>
         </SettingsSection>
