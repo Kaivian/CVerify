@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useForm, FormProvider, useWatch, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -28,9 +26,12 @@ import {
   Calendar,
   Spinner,
   toast,
+  Skeleton,
+  Button,
 } from "@heroui/react";
 import { useProfile } from "@/hooks/use-profile";
 import { type UpdateProfileRequest } from "@/types/profile.types";
+import { profileApi } from "@/services/profile.service";
 
 // 1. Define schema using Zod
 const profileSchema = z.object({
@@ -86,7 +87,73 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   onSaveSuccess,
 }) => {
   const { user, updateProfile: updateLocalAuthUser } = useAuth();
-  const { profile, isLoading, isUpdating, updateProfile, error: apiError } = useProfile();
+  const { profile, isLoading, isFetched, isUpdating, updateProfile, error: apiError } = useProfile();
+
+  // Avatar upload states
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [lastSelectedFile, setLastSelectedFile] = useState<File | null>(null);
+
+  const handleUpload = async (file: File) => {
+    setIsUploadingAvatar(true);
+    setUploadProgress(0);
+
+    // Create optimistic preview
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+
+    try {
+      const result = await profileApi.uploadAvatar(file, (progress) => {
+        if (progress.total) {
+          const percentage = Math.round((progress.loaded / progress.total) * 100);
+          setUploadProgress(percentage);
+        }
+      });
+      
+      // Update local global auth store details
+      updateLocalAuthUser({
+        avatarUrl: result.avatarUrl,
+      });
+
+      toast.success("Avatar updated successfully.");
+      setLastSelectedFile(null);
+    } catch (error: any) {
+      console.error("Failed to upload avatar:", error);
+      const errMsg = error.response?.data?.message || error.message || "Failed to upload avatar.";
+      
+      toast.danger(errMsg);
+      
+      // Revert optimistic preview
+      setAvatarPreview(null);
+    } finally {
+      setIsUploadingAvatar(false);
+      setUploadProgress(null);
+      URL.revokeObjectURL(previewUrl);
+    }
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (<2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.danger("File size exceeds the maximum allowed limit of 2MB.");
+      return;
+    }
+
+    // Validate MIME type
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.danger("Only JPEG, PNG, WebP, and GIF images are supported.");
+      return;
+    }
+
+    setLastSelectedFile(file);
+    handleUpload(file);
+  };
 
   // Setup form methods
   const methods = useForm<ProfileFormValues>({
@@ -206,10 +273,86 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     }
   }, [bioValue]);
 
-  if (isLoading && !profile) {
+  if (isLoading && !isFetched) {
     return (
-      <div className="flex items-center justify-center py-20 w-full h-full">
-        <Spinner size="lg" color="accent" />
+      <div className="space-y-6">
+        <SettingsSection title="General Information">
+          <Card className="flex flex-col gap-6 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-8 items-start">
+              {/* Left Column — Avatar Skeleton */}
+              <div className="flex flex-col items-center md:items-start gap-4">
+                <Skeleton className="w-30 h-30 rounded-full animate-pulse" />
+                <Skeleton className="h-8 w-28 rounded-xl animate-pulse" />
+              </div>
+
+              {/* Right Column — Form Inputs Skeletons */}
+              <div className="flex flex-col gap-6 w-full">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-20 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-12 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-4 w-20 rounded animate-pulse" />
+                  <Skeleton className="h-20 w-full rounded-xl animate-pulse" />
+                  <Skeleton className="h-3 w-16 rounded self-end animate-pulse" />
+                </div>
+              </div>
+            </div>
+
+            {/* Grid 3-column Skeletons */}
+            <div className="grid grid-cols-[180px_250px_1fr] gap-4 mb-6 items-start">
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-24 rounded animate-pulse" />
+                <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-24 rounded animate-pulse" />
+                <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-20 rounded animate-pulse" />
+                <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                <Skeleton className="h-3 w-16 rounded self-end animate-pulse" />
+              </div>
+            </div>
+
+            {/* Grid 3-column Skeletons (Pronouns, Company, Location) */}
+            <div className="grid grid-cols-[180px_300px_1fr] gap-4 items-start">
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-20 rounded animate-pulse" />
+                <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-20 rounded animate-pulse" />
+                <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-20 rounded animate-pulse" />
+                <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+              </div>
+            </div>
+          </Card>
+        </SettingsSection>
+
+        {/* Personal Links Skeleton */}
+        <SettingsSection title="Personal Links">
+          <Card className="p-6 space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-border/40">
+              <Skeleton className="h-5 w-28 rounded animate-pulse" />
+              <Skeleton className="h-8 w-24 rounded-xl animate-pulse" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+              <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+            </div>
+          </Card>
+        </SettingsSection>
       </div>
     );
   }
@@ -248,18 +391,44 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           <Card className="flex flex-col">
             <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-8 items-start">
               {/* Left Column — Avatar */}
-              <div className="flex flex-col items-start gap-2">
+              <div className="flex flex-col items-center md:items-start gap-2">
                 <Label>Profile Picture</Label>
                 <Avatar
                   variant="default"
                   className="w-30 h-30 select-none rounded-full"
                 >
-                  {user?.avatarUrl ? (
+                  {avatarPreview ? (
+                    <Avatar.Image src={avatarPreview} alt={user?.fullName} />
+                  ) : user?.avatarUrl ? (
                     <Avatar.Image src={user.avatarUrl} alt={user.fullName} />
                   ) : (
                     <Avatar.Fallback>{initials}</Avatar.Fallback>
                   )}
                 </Avatar>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleAvatarChange}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  isDisabled={isUploadingAvatar}
+                  onPress={() => fileInputRef.current?.click()}
+                  className="rounded-xl font-bold text-xs mt-2 select-none w-full"
+                >
+                  {isUploadingAvatar ? (
+                    <span className="flex items-center gap-1.5">
+                      <Spinner size="sm" color="current" />
+                      <span>{uploadProgress !== null ? `${uploadProgress}%` : "Uploading..."}</span>
+                    </span>
+                  ) : (
+                    "Change Avatar"
+                  )}
+                </Button>
               </div>
 
               {/* Right Column — Form Content */}

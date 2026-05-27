@@ -24,6 +24,7 @@ export function useEducation() {
   return {
     education,
     isLoading: !!loading.education,
+    isFetched: !!fetched.education,
     isAdding: !!loading.addEducation,
     isUpdating: !!loading.updateEducation,
     isDeleting: !!loading.deleteEducation,

@@ -4,7 +4,9 @@ import React, { useEffect } from "react";
 import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { parseDate } from "@internationalized/date";
-import { Spinner, toast } from "@heroui/react";
+import { Spinner, toast, Skeleton } from "@heroui/react";
+import { Card } from "@/components/ui/card";
+import { SettingsSection } from "./SettingsSection";
 import {
   UnsavedChangesBar,
   isDeepEqual,
@@ -69,6 +71,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
   const {
     education,
     isLoading: isEduLoading,
+    isFetched: isEduFetched,
     addEducation,
     updateEducation,
     deleteEducation,
@@ -78,6 +81,7 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
   const {
     achievements,
     isLoading: isAchLoading,
+    isFetched: isAchFetched,
     addAchievement,
     updateAchievement,
     deleteAchievement,
@@ -239,12 +243,87 @@ export const PersonalInfoTab: React.FC<PersonalInfoTabProps> = ({
     }
   };
 
-  const isFirstLoad = (isEduLoading && education.length === 0) || (isAchLoading && achievements.length === 0);
+  const isFirstLoad = (isEduLoading && !isEduFetched) || (isAchLoading && !isAchFetched);
 
   if (isFirstLoad) {
     return (
-      <div className="flex items-center justify-center py-20 w-full h-full">
-        <Spinner size="lg" color="accent" />
+      <div className="space-y-6">
+        {/* Education Section Skeleton */}
+        <SettingsSection title="Education">
+          <Card className="flex flex-col gap-6 p-6">
+            <div className="flex flex-col gap-5">
+              <div className="relative border border-border/60 bg-surface-secondary/10 rounded-2xl p-5 sm:p-6 flex flex-col gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_275px_130px_auto] gap-4 items-end">
+                  <div className="flex flex-col gap-2 w-full">
+                    <Skeleton className="h-4 w-28 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                  <div className="flex flex-col gap-2 w-full">
+                    <Skeleton className="h-4 w-24 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                  <div className="flex flex-col gap-2 w-full">
+                    <Skeleton className="h-4 w-12 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                  <Skeleton className="h-9 w-9 rounded-xl animate-pulse shrink-0" />
+                </div>
+              </div>
+            </div>
+            <div className="flex border-t border-border/40 pt-4 mt-2">
+              <Skeleton className="h-8 w-28 rounded-xl animate-pulse" />
+            </div>
+          </Card>
+        </SettingsSection>
+
+        {/* Modular Academic Achievements Section Skeleton */}
+        <SettingsSection title="Academic Achievements">
+          <Card className="flex flex-col gap-6 p-6">
+            <div className="flex flex-col gap-6">
+              <div className="relative border border-border/60 bg-surface-secondary/15 rounded-2xl p-5 sm:p-6 flex flex-col gap-6">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-border/40 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-7 w-7 rounded-lg animate-pulse" />
+                    <Skeleton className="h-4 w-28 rounded animate-pulse" />
+                  </div>
+                  <Skeleton className="h-8 w-8 rounded-xl animate-pulse" />
+                </div>
+                {/* Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-24 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-24 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-20 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-24 rounded animate-pulse" />
+                    <Skeleton className="h-10 w-full rounded-xl animate-pulse" />
+                  </div>
+                </div>
+                {/* Description */}
+                <div className="flex flex-col gap-2">
+                  <Skeleton className="h-4 w-20 rounded animate-pulse" />
+                  <Skeleton className="h-20 w-full rounded-xl animate-pulse" />
+                </div>
+                {/* Evidence dropzone */}
+                <div className="border-t border-border/40 pt-4 mt-1">
+                  <Skeleton className="h-24 w-full rounded-xl animate-pulse" />
+                </div>
+              </div>
+            </div>
+            <div className="flex border-t border-border/40 pt-4 mt-2">
+              <Skeleton className="h-8 w-32 rounded-xl animate-pulse" />
+            </div>
+          </Card>
+        </SettingsSection>
       </div>
     );
   }

@@ -22,4 +22,11 @@ public interface IProfileService
         string? ipAddress = null, 
         string? userAgent = null, 
         CancellationToken cancellationToken = default);
+
+    Task<(string SignedUrl, string ObjectKey)> UploadAvatarAsync(
+        Guid userId,
+        System.IO.Stream fileStream,
+        string fileName,
+        string contentType,
+        CancellationToken cancellationToken = default);
 }

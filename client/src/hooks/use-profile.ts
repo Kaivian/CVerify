@@ -22,6 +22,7 @@ export function useProfile() {
   return {
     profile,
     isLoading: !!loading.profile,
+    isFetched: !!fetched.profile,
     isUpdating: !!loading.updateProfile,
     isUpdatingUsername: !!loading.updateUsername,
     error,

@@ -208,3 +208,6 @@ public record AttachmentResponse(
     string FileUrl,
     DateTimeOffset CreatedAt
 );
+
+public record AvatarUploadResponse(string AvatarUrl);
+
