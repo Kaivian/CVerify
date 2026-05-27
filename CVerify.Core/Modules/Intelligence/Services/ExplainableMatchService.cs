@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.System.DTOs;
+using CVerify.API.Modules.Shared.Domain.Enums;
 
 namespace CVerify.API.Modules.Intelligence.Services;
 
@@ -18,13 +20,16 @@ public class ExplainableMatchService : IExplainableMatchService
 {
     private readonly ApplicationDbContext _context;
     private readonly ICandidateEvaluationService _evaluationService;
+    private readonly IUnifiedMatchingEngine _matchingEngine;
 
     public ExplainableMatchService(
         ApplicationDbContext context,
-        ICandidateEvaluationService evaluationService)
+        ICandidateEvaluationService evaluationService,
+        IUnifiedMatchingEngine matchingEngine)
     {
         _context = context;
         _evaluationService = evaluationService;
+        _matchingEngine = matchingEngine;
     }
 
     public async Task<MatchingEvaluation> EvaluateMatchAsync(Guid jobVacancyId, Guid candidateId)
@@ -48,79 +53,58 @@ public class ExplainableMatchService : IExplainableMatchService
             await _context.SaveChangesAsync().ConfigureAwait(false);
         }
 
-        // 1. Fetch Candidate Snapshot and Capability Projection (generate dynamically if null)
-        var snapshot = await _context.CandidateEvaluationSnapshots
-            .FirstOrDefaultAsync(s => s.CandidateId == candidateId)
-            .ConfigureAwait(false);
+        // 1. Fetch Candidate Capability Intelligence DTO
+        var intelligence = await _evaluationService.GetCapabilityIntelligenceAsync(candidateId).ConfigureAwait(false);
 
-        if (snapshot == null)
+        // 2. Build Unified Job Requirement DTO
+        var jobRequirement = new UnifiedJobRequirement
         {
-            snapshot = await _evaluationService.EvaluateAndSnapshotCandidateAsync(candidateId).ConfigureAwait(false);
-        }
-
-        var projection = await _context.CandidateCapabilityProjections
-            .FirstOrDefaultAsync(p => p.CandidateId == candidateId)
-            .ConfigureAwait(false);
-
-        var candCaps = new List<ProjectedCapabilityItem>();
-        if (projection != null && !string.IsNullOrEmpty(projection.CapabilitiesJson))
-        {
-            candCaps = JsonSerializer.Deserialize<List<ProjectedCapabilityItem>>(
-                projection.CapabilitiesJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-        }
-
-        // 2. Fetch Job vacancy target skills/requirements
-        var jobRequiredSlugs = job.Skills.Select(s => s.ToLowerInvariant().Trim()).ToList();
-
-        // 3. Compute Capability Overlap
-        var matchingCaps = candCaps
-            .Where(cc => jobRequiredSlugs.Contains(cc.Slug) || jobRequiredSlugs.Contains(cc.Name.ToLowerInvariant().Trim()))
-            .ToList();
-
-        int capabilityMatchScore = 0;
-        if (jobRequiredSlugs.Any())
-        {
-            capabilityMatchScore = (int)((double)matchingCaps.Count / jobRequiredSlugs.Count * 100);
-        }
-
-        // 4. Compute Evidence Strength
-        int evidenceStrengthScore = 0;
-        if (matchingCaps.Any())
-        {
-            var averageProficiency = matchingCaps.Average(cc => cc.Score);
-            evidenceStrengthScore = (int)Math.Clamp(averageProficiency, 0, 100);
-        }
-
-        // 5. Compute Recency Score
-        int recencyScore = 0;
-        if (matchingCaps.Any())
-        {
-            var averageRecency = matchingCaps.Average(cc => cc.Recency);
-            recencyScore = (int)(averageRecency * 100);
-        }
-
-        // 6. Fetch Trust Multiplier (from Snapshot)
-        var trustScore = (int)snapshot.IdentityTrustScore;
-
-        // 7. Calculate aggregate score
-        double aggregate = (capabilityMatchScore * 0.40) + (evidenceStrengthScore * 0.30) + (recencyScore * 0.20) + (trustScore * 0.10);
-        int finalScore = (int)Math.Clamp(aggregate, 0, 100);
-
-        var confidence = finalScore switch
-        {
-            >= 80 => "High",
-            >= 50 => "Medium",
-            _ => "Low"
+            JobOrRequirementId = job.Id,
+            Skills = job.Skills,
+            Seniority = job.Experience,
+            RequiresLeadership = job.Requirements.Any(r => r.Contains("lead", StringComparison.OrdinalIgnoreCase) || r.Contains("manage", StringComparison.OrdinalIgnoreCase)),
+            SalaryMin = null,
+            SalaryMax = null,
+            WorkplaceType = job.WorkplaceType
         };
 
+        if (job.RequirementSnapshot != null && !string.IsNullOrEmpty(job.RequirementSnapshot.CapabilitiesJson))
+        {
+            var snapshotCaps = JsonSerializer.Deserialize<List<RequirementCapabilityDto>>(
+                job.RequirementSnapshot.CapabilitiesJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+            
+            jobRequirement.Capabilities = snapshotCaps.Select(c => new RequiredCapabilityDto
+            {
+                CapabilityId = c.CapabilityId,
+                Name = c.Name,
+                Weight = c.Priority == RequirementPriority.MustHave ? 1.5f : 1.0f,
+                ExpectedProficiency = c.ExpectedProficiency
+            }).ToList();
+        }
+        else
+        {
+            // Fallback: build capabilities from simple JobVacancy.Skills list
+            jobRequirement.Capabilities = job.Skills.Select(s => new RequiredCapabilityDto
+            {
+                CapabilityId = s.ToLowerInvariant().Trim(),
+                Name = s,
+                Weight = 1.0f,
+                ExpectedProficiency = 2
+            }).ToList();
+        }
+
+        // 3. Delegate score calculation to the consolidated engine
+        var matchResult = await _matchingEngine.EvaluateMatchAsync(intelligence, jobRequirement).ConfigureAwait(false);
+
+        // 4. Save evaluation
         var evaluation = new MatchingEvaluation
         {
             Id = Guid.CreateVersion7(),
             JobVacancyId = jobVacancyId,
             CandidateId = candidateId,
-            AggregateScore = finalScore,
-            ConfidenceLevel = confidence,
+            AggregateScore = (int)matchResult.MatchScore,
+            ConfidenceLevel = matchResult.ConfidenceLevel,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -128,91 +112,37 @@ public class ExplainableMatchService : IExplainableMatchService
         _context.MatchingEvaluations.Add(evaluation);
         await _context.SaveChangesAsync().ConfigureAwait(false);
 
-        // Add factors
-        _context.MatchingFactors.Add(new MatchingFactor
+        // 5. Save matching factors
+        foreach (var factor in matchResult.Factors)
         {
-            Id = Guid.CreateVersion7(),
-            MatchingEvaluationId = evaluation.Id,
-            FactorName = "CapabilityMatch",
-            FactorScore = capabilityMatchScore,
-            Weight = 0.40
-        });
-
-        _context.MatchingFactors.Add(new MatchingFactor
-        {
-            Id = Guid.CreateVersion7(),
-            MatchingEvaluationId = evaluation.Id,
-            FactorName = "EvidenceStrength",
-            FactorScore = evidenceStrengthScore,
-            Weight = 0.30
-        });
-
-        _context.MatchingFactors.Add(new MatchingFactor
-        {
-            Id = Guid.CreateVersion7(),
-            MatchingEvaluationId = evaluation.Id,
-            FactorName = "Recency",
-            FactorScore = recencyScore,
-            Weight = 0.20
-        });
-
-        _context.MatchingFactors.Add(new MatchingFactor
-        {
-            Id = Guid.CreateVersion7(),
-            MatchingEvaluationId = evaluation.Id,
-            FactorName = "TrustFactor",
-            FactorScore = trustScore,
-            Weight = 0.10
-        });
-
-        // Add explanations
-        foreach (var cap in matchingCaps)
-        {
-            var level = cap.Score >= 80 ? "Expert" : cap.Score >= 50 ? "Intermediate" : "Working";
-            
-            var node = await _context.CapabilityNodes
-                .FirstOrDefaultAsync(n => n.Slug == cap.Slug || n.Name.ToLower() == cap.Name.ToLower())
-                .ConfigureAwait(false);
-
-            _context.MatchingExplanations.Add(new MatchingExplanation
+            _context.MatchingFactors.Add(new MatchingFactor
             {
                 Id = Guid.CreateVersion7(),
                 MatchingEvaluationId = evaluation.Id,
-                ExplanationType = "Strength",
-                CapabilityNodeId = node?.Id,
-                AssertionText = $"Candidate has verified {level}-level experience in {cap.Name}."
+                FactorName = factor.FactorName,
+                FactorScore = (int)factor.FactorScore,
+                Weight = factor.Weight
             });
         }
 
-        // Gaps
-        var candidateCapSlugs = candCaps.Select(c => c.Slug).ToList();
-        var gaps = job.Skills.Where(s => !candidateCapSlugs.Contains(s.ToLowerInvariant().Trim())).ToList();
-        foreach (var gap in gaps)
+        // 6. Save matching explanations (strengths and gaps)
+        foreach (var exp in matchResult.Explanations)
         {
             var node = await _context.CapabilityNodes
-                .FirstOrDefaultAsync(n => n.Slug == gap.ToLowerInvariant().Trim() || n.Name.ToLower() == gap.ToLowerInvariant().Trim())
+                .FirstOrDefaultAsync(n => n.Slug == exp.AssertionText || n.Name.ToLower() == exp.AssertionText.ToLower())
                 .ConfigureAwait(false);
 
             _context.MatchingExplanations.Add(new MatchingExplanation
             {
                 Id = Guid.CreateVersion7(),
                 MatchingEvaluationId = evaluation.Id,
-                ExplanationType = "Gap",
+                ExplanationType = exp.ExplanationType,
                 CapabilityNodeId = node?.Id,
-                AssertionText = $"Missing verified capability: {gap}."
+                AssertionText = exp.AssertionText
             });
         }
 
         await _context.SaveChangesAsync().ConfigureAwait(false);
         return evaluation;
-    }
-
-    private class ProjectedCapabilityItem
-    {
-        public string Slug { get; set; } = null!;
-        public string Name { get; set; } = null!;
-        public string Source { get; set; } = null!;
-        public double Score { get; set; }
-        public double Recency { get; set; }
     }
 }

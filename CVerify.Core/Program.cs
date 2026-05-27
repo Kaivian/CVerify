@@ -364,6 +364,7 @@ builder.Services.AddScoped<ICapabilityGraphService, CapabilityGraphService>();
 builder.Services.AddScoped<ITrustEngineService, TrustEngineService>();
 builder.Services.AddScoped<IExplainableMatchService, ExplainableMatchService>();
 builder.Services.AddScoped<ICandidateEvaluationService, CandidateEvaluationService>();
+builder.Services.AddScoped<IUnifiedMatchingEngine, UnifiedMatchingEngine>();
 builder.Services.AddScoped<IRepositoryIntelligencePipeline, RepositoryIntelligencePipeline>();
 builder.Services.AddScoped<IJobRankingStrategy, WeightedJobRankingStrategy>();
 builder.Services.AddScoped<IRecommendationProvider, DefaultRecommendationProvider>();
