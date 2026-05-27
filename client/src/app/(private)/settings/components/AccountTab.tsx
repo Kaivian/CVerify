@@ -12,7 +12,7 @@ import { SettingsSection } from "./SettingsSection";
 import { LinkedAccountsList } from "./LinkedAccountsList";
 import { DialogModal } from "@/components/ui/dialog-modal";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { Typography, Switch, Chip, Spinner, toast } from "@heroui/react";
+import { Typography, Switch, Chip, toast, Spinner } from "@heroui/react";
 import {
   ShieldAlert,
   Key,
@@ -22,7 +22,10 @@ import {
   ShieldX,
 } from "lucide-react";
 import { type SessionInfoData } from "@/types/auth.types";
-import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
+import {
+  UnsavedChangesBar,
+  isDeepEqual,
+} from "@/components/ui/unsaved-changes-bar";
 import { useProfile } from "@/hooks/use-profile";
 import { type UpdateProfileRequest } from "@/types/profile.types";
 import { useProfileStore } from "@/stores/use-profile-store";
@@ -105,14 +108,18 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     if (profile && !methods.formState.isDirty) {
       reset({
         username: profile.username || "",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         profileVisibility: (profile.profileVisibility as any) || "public",
         recruiterVisibility: profile.recruiterVisibility ?? true,
       });
     }
-  }, [profile, reset]);
+  }, [profile, reset, methods.formState.isDirty]);
 
   useEffect(() => {
-    const hasChanges = !isDeepEqual(currentValues, methods.formState.defaultValues);
+    const hasChanges = !isDeepEqual(
+      currentValues,
+      methods.formState.defaultValues,
+    );
     onDirtyChange(hasChanges);
   }, [currentValues, methods.formState.defaultValues, onDirtyChange]);
 
@@ -162,16 +169,26 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           profileVisibility: data.profileVisibility,
           recruiterVisibility: data.recruiterVisibility,
           socialLinks: profile?.socialLinks || [],
-          version: useProfileStore.getState().profile?.version || profile?.version || 0,
+          version:
+            useProfileStore.getState().profile?.version ||
+            profile?.version ||
+            0,
         };
         await updateProfile(request);
       }
 
       reset(data);
       onSaveSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save account settings:", error);
-      const errMsg = error.response?.data?.message || error.message || "Failed to update account settings.";
+      const axiosError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      const errMsg =
+        axiosError.response?.data?.message ||
+        axiosError.message ||
+        "Failed to update account settings.";
       toast.danger(errMsg);
     }
   };
@@ -451,8 +468,12 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                 className="cursor-pointer"
               >
                 {({ isSelected }) => (
-                  <Switch.Control className={`w-11 h-6 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}>
-                    <Switch.Thumb className={`w-4.5 h-4.5 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[22px]" : "left-0.5"}`} />
+                  <Switch.Control
+                    className={`w-11 h-6 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}
+                  >
+                    <Switch.Thumb
+                      className={`w-4.5 h-4.5 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[22px]" : "left-0.5"}`}
+                    />
                   </Switch.Control>
                 )}
               </Switch>

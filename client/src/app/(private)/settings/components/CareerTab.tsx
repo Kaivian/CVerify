@@ -7,8 +7,11 @@ import { z } from "zod";
 import { Card } from "@/components/ui/card";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
 import { SettingsSection } from "./SettingsSection";
-import { Typography, Switch, Checkbox, Spinner, toast } from "@heroui/react";
-import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
+import { Typography, Switch, Checkbox, toast, Spinner } from "@heroui/react";
+import {
+  UnsavedChangesBar,
+  isDeepEqual,
+} from "@/components/ui/unsaved-changes-bar";
 import { useCareerPreferences } from "@/hooks/use-career-preferences";
 import { type UpdateCareerPreferenceRequest } from "@/types/profile.types";
 import { useProfileStore } from "@/stores/use-profile-store";
@@ -34,7 +37,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
   onDirtyChange,
   onSaveSuccess,
 }) => {
-  const { career, isLoading, isUpdating, updateCareer } = useCareerPreferences();
+  const { career, isLoading, updateCareer } = useCareerPreferences();
 
   const methods = useForm<CareerFormValues>({
     resolver: zodResolver(careerSchema),
@@ -62,14 +65,18 @@ export const CareerTab: React.FC<CareerTabProps> = ({
       reset({
         availableForHire: career.availableForHire,
         employmentPreferences: career.employmentPreferences || [],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         preferredLanguage: (career.preferredLanguage as any) || "en",
         version: career.version || 0,
       });
     }
-  }, [career, reset]);
+  }, [career, reset, methods.formState.isDirty]);
 
   useEffect(() => {
-    const hasChanges = !isDeepEqual(currentValues, methods.formState.defaultValues);
+    const hasChanges = !isDeepEqual(
+      currentValues,
+      methods.formState.defaultValues,
+    );
     onDirtyChange(hasChanges);
   }, [currentValues, methods.formState.defaultValues, onDirtyChange]);
 
@@ -89,7 +96,11 @@ export const CareerTab: React.FC<CareerTabProps> = ({
         skills: career?.skills || [],
         preferredLocations: career?.preferredLocations || [],
         employmentPreferences: data.employmentPreferences,
-        version: useProfileStore.getState().career?.version || data.version || career?.version || 0,
+        version:
+          useProfileStore.getState().career?.version ||
+          data.version ||
+          career?.version ||
+          0,
       };
 
       const updated = await updateCareer(request);
@@ -99,9 +110,16 @@ export const CareerTab: React.FC<CareerTabProps> = ({
         version: updated.version,
       });
       onSaveSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save career preferences:", error);
-      const errMsg = error.response?.data?.message || error.message || "Failed to save career preferences.";
+      const axiosError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      const errMsg =
+        axiosError.response?.data?.message ||
+        axiosError.message ||
+        "Failed to save career preferences.";
       toast.danger(errMsg);
     }
   };
@@ -175,8 +193,12 @@ export const CareerTab: React.FC<CareerTabProps> = ({
               className="cursor-pointer"
             >
               {({ isSelected }) => (
-                <Switch.Control className={`w-11 h-6 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}>
-                  <Switch.Thumb className={`w-4.5 h-4.5 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[22px]" : "left-0.5"}`} />
+                <Switch.Control
+                  className={`w-11 h-6 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}
+                >
+                  <Switch.Thumb
+                    className={`w-4.5 h-4.5 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[22px]" : "left-0.5"}`}
+                  />
                 </Switch.Control>
               )}
             </Switch>
@@ -198,9 +220,9 @@ export const CareerTab: React.FC<CareerTabProps> = ({
 
             <div className="flex flex-col gap-3">
               {employmentOptions.map((option) => {
-                const isSelected = (currentValues.employmentPreferences || []).includes(
-                  option.value,
-                );
+                const isSelected = (
+                  currentValues.employmentPreferences || []
+                ).includes(option.value);
                 return (
                   <label
                     key={option.value}

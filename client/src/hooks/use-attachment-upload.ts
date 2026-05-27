@@ -63,8 +63,9 @@ export function useAttachmentUpload() {
       });
 
       return result;
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || 'File upload failed.';
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const errMsg = (err as any).response?.data?.message || 'File upload failed.';
       setUploads((prev) => {
         if (!prev[fileKey]) return prev;
         return {

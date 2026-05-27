@@ -4,14 +4,14 @@ import {
   Upload,
   X,
   FileText,
-  Image as ImageIcon,
+  
   CheckCircle,
   AlertCircle,
   Loader2,
   RefreshCw,
 } from "lucide-react";
-import { Button, Typography, Label, FieldError } from "@heroui/react";
-import { PersonalInfoFormValues, EvidenceFile } from "./types";
+import { Button, Typography, Label } from "@heroui/react";
+import type { PersonalInfoFormValues, EvidenceFile } from "./types";
 import { profileApi } from "@/services/profile.service";
 
 interface UploadDropzoneProps {
@@ -40,8 +40,9 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
 
   // Cleanup all timers on unmount
   useEffect(() => {
+    const activeIntervals = intervalsRef.current;
     return () => {
-      Object.values(intervalsRef.current).forEach((interval) =>
+      Object.values(activeIntervals).forEach((interval) =>
         clearInterval(interval)
       );
     };
@@ -351,6 +352,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
                     <div className="relative size-10 rounded-lg overflow-hidden border border-border/40 bg-surface flex items-center justify-center shrink-0">
                       {isImage && file.url ? (
                         // Render instant crisp high-fidelity thumbnail preview
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={file.url}
                           alt={file.name}

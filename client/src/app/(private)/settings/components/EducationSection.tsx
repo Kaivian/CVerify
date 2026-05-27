@@ -23,8 +23,8 @@ import {
 } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import { SettingsSection } from "./SettingsSection";
-import { Plus, Trash2, Edit2, Star, GraduationCap } from "lucide-react";
-import { PersonalInfoFormValues } from "./types";
+import { Plus, Trash2, Edit2 } from "lucide-react";
+import type { PersonalInfoFormValues } from "./types";
 
 // 1. Interactive Click-to-Edit Label Component (preventing focus loss)
 interface ClickToEditLabelProps {
@@ -54,7 +54,7 @@ const ClickToEditLabel: React.FC<ClickToEditLabelProps> = ({
       inputRef.current.focus();
       inputRef.current.select();
     }
-  }, [isEditing]);
+  }, [isEditing, labelValue]);
 
   const commitEdit = () => {
     const trimmed = draft.trim();
@@ -96,6 +96,79 @@ const ClickToEditLabel: React.FC<ClickToEditLabelProps> = ({
         (Click to edit)
       </span>
     </div>
+  );
+};
+
+const GPAField: React.FC<{
+  index: number;
+  control: Control<PersonalInfoFormValues>;
+  errors: FieldErrors<PersonalInfoFormValues>;
+}> = ({ index, control, errors }) => {
+  const [isSelected, setIsSelected] = React.useState(false);
+
+  return (
+    <Controller
+      control={control}
+      name={`education.${index}.gpa`}
+      render={({ field: { value, onChange } }) => (
+        <TextField
+          id={`gpa-field-${index}`}
+          className="w-full"
+          isInvalid={!!errors.education?.[index]?.gpa}
+        >
+          <Label>
+            <div className="flex justify-between">
+              GPA
+              <Switch
+                aria-label="GPA Scale"
+                isSelected={isSelected}
+                onChange={(selected) => {
+                  const oldScale = isSelected ? 10 : 4;
+                  const newScale = selected ? 10 : 4;
+                  setIsSelected(selected);
+                  if (value !== null && value !== undefined) {
+                    const converted =
+                      Math.round((value / oldScale) * newScale * 100) / 100;
+                    onChange(Math.min(converted, newScale));
+                  }
+                }}
+              >
+                <Switch.Control className="h-4">
+                  <Switch.Thumb className="h-3" />
+                </Switch.Control>
+              </Switch>
+            </div>
+          </Label>
+          <InputGroup>
+            <InputGroup.Prefix>{isSelected ? 10 : 4}</InputGroup.Prefix>
+            <InputGroup.Input
+              type="number"
+              step="0.01"
+              min="0"
+              max={isSelected ? 10 : 4}
+              placeholder={isSelected ? "e.g. 9.50" : "e.g. 3.80"}
+              value={value === null || value === undefined ? "" : value}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "") {
+                  onChange(null);
+                } else {
+                  const maxScale = isSelected ? 10 : 4;
+                  const num = Math.round(parseFloat(val) * 100) / 100;
+                  onChange(Math.min(Math.max(num, 0), maxScale));
+                }
+              }}
+              className="w-full"
+            />
+          </InputGroup>
+          {errors.education?.[index]?.gpa && (
+            <FieldError className="text-danger text-[10px] mt-1 block leading-tight">
+              {errors.education[index]?.gpa?.message}
+            </FieldError>
+          )}
+        </TextField>
+      )}
+    />
   );
 };
 
@@ -218,72 +291,7 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
           )}
         </div>
 
-        <Controller
-          control={control}
-          name={`education.${index}.gpa`}
-          render={({ field: { value, onChange } }) => {
-            const [isSelected, setIsSelected] = React.useState(false);
-
-            return (
-              <TextField
-                id={`gpa-field-${index}`}
-                className="w-full"
-                isInvalid={!!errors.education?.[index]?.gpa}
-              >
-                <Label>
-                  <div className="flex justify-between">
-                    GPA
-                    <Switch
-                      aria-label="GPA Scale"
-                      isSelected={isSelected}
-                      onChange={(selected) => {
-                        const oldScale = isSelected ? 10 : 4;
-                        const newScale = selected ? 10 : 4;
-                        setIsSelected(selected);
-                        if (value !== null && value !== undefined) {
-                          const converted =
-                            Math.round((value / oldScale) * newScale * 100) / 100;
-                          onChange(Math.min(converted, newScale));
-                        }
-                      }}
-                    >
-                      <Switch.Control className="h-4">
-                        <Switch.Thumb className="h-3" />
-                      </Switch.Control>
-                    </Switch>
-                  </div>
-                </Label>
-                <InputGroup>
-                  <InputGroup.Prefix>{isSelected ? 10 : 4}</InputGroup.Prefix>
-                  <InputGroup.Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={isSelected ? 10 : 4}
-                    placeholder={isSelected ? "e.g. 9.50" : "e.g. 3.80"}
-                    value={value === null || value === undefined ? "" : value}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "") {
-                        onChange(null);
-                      } else {
-                        const maxScale = isSelected ? 10 : 4;
-                        const num = Math.round(parseFloat(val) * 100) / 100;
-                        onChange(Math.min(Math.max(num, 0), maxScale));
-                      }
-                    }}
-                    className="w-full"
-                  />
-                </InputGroup>
-                {errors.education?.[index]?.gpa && (
-                  <FieldError className="text-danger text-[10px] mt-1 block leading-tight">
-                    {errors.education[index]?.gpa?.message}
-                  </FieldError>
-                )}
-              </TextField>
-            );
-          }}
-        />
+        <GPAField index={index} control={control} errors={errors} />
 
         {/* Remove Button */}
         {showRemove && (
