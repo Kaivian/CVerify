@@ -7,6 +7,8 @@ export interface HealthServices {
   database: ServiceStatus;
   auth: ServiceStatus;
   redis: ServiceStatus;
+  ai: ServiceStatus;
+  cloudflare: ServiceStatus;
 }
 
 /**
