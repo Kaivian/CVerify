@@ -14,7 +14,7 @@ import {
   isTrustScoreEvaluated
 } from '@/lib/ai-score-mapper';
 import { AiAssessmentTab } from './AiAssessmentTab';
-import { PublicNavigationHeader } from '@/components/ui/public-navigation-header';
+import { PublicPageShell } from '@/components/ui/public-page-shell';
 import { CandidateVerificationBadge } from '@/components/ui/cverify/verification-badges';
 import { TrustScoreDial } from '@/components/ui/cverify/trust-score-indicator';
 
@@ -143,18 +143,18 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
 
 
   return (
-    <div className="relative min-h-screen w-full bg-background text-foreground flex flex-col justify-between overflow-x-hidden antialiased">
-      {/* Grid backdrop */}
-      <div className="absolute inset-0 bg-[radial-gradient(var(--separator)_1px,transparent_1px)] bg-size-[24px_24px] pointer-events-none opacity-40" />
-
-      {/* Header */}
-      <PublicNavigationHeader />
-
-      {/* Main Content */}
-      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
-
-        {/* Sleek Document Paper Container */}
-        <div className="w-full bg-surface border border-border rounded-2xl shadow-xs p-6 sm:p-8 flex flex-col gap-8">
+    <PublicPageShell
+      guestContainerClassName="relative min-h-screen w-full bg-background text-foreground flex flex-col justify-between overflow-x-hidden antialiased"
+      guestBackdrop={<div className="absolute inset-0 bg-[radial-gradient(var(--separator)_1px,transparent_1px)] bg-size-[24px_24px] pointer-events-none opacity-40" />}
+      guestMainClassName="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6"
+      guestFooter={
+        <footer className="relative z-10 w-full max-w-7xl mx-auto px-6 h-16 flex items-center justify-center border-t border-border text-xs text-muted bg-surface/50 select-none">
+          &copy; {new Date().getFullYear()} CVerify. All rights reserved.
+        </footer>
+      }
+    >
+      {/* Sleek Document Paper Container */}
+      <div className="w-full bg-surface border border-border rounded-2xl shadow-xs p-6 sm:p-8 flex flex-col gap-8">
 
           {/* 1. Header Area */}
           <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6 pb-6 border-b border-separator">
@@ -888,12 +888,6 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
           </Tabs>
 
         </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="relative z-10 w-full max-w-7xl mx-auto px-6 h-16 flex items-center justify-center border-t border-border text-xs text-muted bg-surface/50 select-none">
-        &copy; {new Date().getFullYear()} CVerify. All rights reserved.
-      </footer>
-    </div>
-  );
-}
+      </PublicPageShell>
+    );
+  }

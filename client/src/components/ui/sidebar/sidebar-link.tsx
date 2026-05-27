@@ -4,6 +4,7 @@ import React from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Tooltip } from "@heroui/react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
+import { useAuth } from "../../../features/auth/hooks/use-auth";
 import { isActiveRoute } from "../../../lib/navigation-utils";
 import { type NavigationLinkItem } from "../../../types/navigation.types";
 
@@ -24,36 +25,16 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { setMobileOpen } = useSidebarStore();
+  const { user } = useAuth();
 
   const checkActive = () => {
-    const pathActive = isActiveRoute(pathname, item.href, item.exactMatch);
-    if (!pathActive) return false;
-
-    // Check query parameters for specific tabs (e.g. ?tab=recommended)
-    if (item.href.includes("?")) {
-      const url = new URL(item.href, "http://localhost");
-      for (const [key, value] of url.searchParams.entries()) {
-        if (searchParams?.get(key) !== value) {
-          return false;
-        }
-      }
-      return true;
+    const paramsRecord: Record<string, string> = {};
+    if (searchParams) {
+      searchParams.forEach((value, key) => {
+        paramsRecord[key] = value;
+      });
     }
-
-    // If this link has NO parameters, but the current URL does,
-    // verify if we are on a tabbed layout (like /jobs or /cv) and mismatching defaults.
-    if (searchParams && searchParams.toString()) {
-      if (item.href === "/jobs") {
-        const currentTab = searchParams.get("tab");
-        return !currentTab || currentTab === "explore";
-      }
-      if (item.href === "/cv") {
-        const currentTab = searchParams.get("tab");
-        return !currentTab || currentTab === "basic-info";
-      }
-    }
-
-    return true;
+    return isActiveRoute(pathname, item.href, item.exactMatch, item.id, user?.username, paramsRecord);
   };
 
   const active = checkActive();

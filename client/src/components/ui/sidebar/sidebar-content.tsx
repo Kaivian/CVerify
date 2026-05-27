@@ -86,7 +86,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
             if (child.id === "candidate-profile") {
               return {
                 ...child,
-                href: user?.username ? `/${user.username.toLowerCase()}` : "/settings?tab=profile",
+                href: user?.username ? `/${user.username.toLowerCase()}` : `/${user?.username || ""}`,
               };
             }
             return child;
@@ -248,14 +248,12 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         icon: ArrowLeft,
       };
 
-      // Filter out candidate, business, and intelligence/jobs/evidence dashboards to focus purely on the workspace
       const baseNodes = filteredNodes.filter(
         (node) =>
           node.id !== "candidate-section" &&
           node.id !== "business-section" &&
           node.id !== "intelligence-section" &&
-          node.id !== "jobs-section" &&
-          node.id !== "evidence-section"
+          node.id !== "jobs-section"
       );
 
       return [

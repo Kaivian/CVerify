@@ -11,7 +11,7 @@ import Link from "next/link";
 import { ImageCropperModal } from "@/components/ui/image-cropper-modal";
 import { workspaceService } from "@/features/workspace/services/workspace.service";
 import { Plus, Check, Share2 } from "lucide-react";
-import { PublicNavigationHeader } from "@/components/ui/public-navigation-header";
+import { PublicPageShell } from "@/components/ui/public-page-shell";
 import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 
 export default function PublicWorkspaceLayout({
@@ -222,15 +222,16 @@ export default function PublicWorkspaceLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-background font-outfit text-foreground pb-12 relative flex flex-col">
-      <PublicNavigationHeader />
-      {/* Visual Background Glow Container */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-accent/5 blur-[120px]" />
-        <div className="absolute top-[20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-500/5 blur-[120px]" />
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 md:px-6 pt-6 relative z-10 space-y-6 w-full flex-1">
+    <PublicPageShell
+      guestContainerClassName="min-h-screen bg-background font-outfit text-foreground pb-12 relative flex flex-col"
+      guestBackdrop={
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-accent/5 blur-[120px]" />
+          <div className="absolute top-[20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-500/5 blur-[120px]" />
+        </div>
+      }
+      guestMainClassName="max-w-6xl mx-auto px-4 md:px-6 pt-6 relative z-10 space-y-6 w-full flex-1"
+    >
         {/* Link to Private Management Dashboard (Top Left) */}
         {canManageProfile && (
           <div className="flex justify-start select-none">
@@ -442,7 +443,6 @@ export default function PublicWorkspaceLayout({
         <main className="min-w-0">
           {children}
         </main>
-      </div>
 
       {/* Hidden file inputs for uploads */}
       <input
@@ -472,6 +472,6 @@ export default function PublicWorkspaceLayout({
         isUploading={isUploading}
         uploadProgress={uploadProgress}
       />
-    </div>
+    </PublicPageShell>
   );
 }
