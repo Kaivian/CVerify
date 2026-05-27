@@ -26,6 +26,12 @@ export const routesConfig: Record<string, RouteMetadata> = {
     fallbackLabel: 'Settings',
     icon: Settings,
   },
+  '/settings/source-code-providers': {
+    path: '/settings/source-code-providers',
+    translationKey: 'common:dashboard.sourceCodeProviders',
+    fallbackLabel: 'Connected Repositories',
+    parentPath: '/settings',
+  },
   '/cv': {
     path: '/cv',
     translationKey: 'common:dashboard.cv',
@@ -43,6 +49,31 @@ export const routesConfig: Record<string, RouteMetadata> = {
     translationKey: 'common:dashboard.aiPlanner',
     fallbackLabel: 'AI Chat',
     icon: Sparkles,
+  },
+  '/jobs': {
+    path: '/jobs',
+    translationKey: 'common:dashboard.jobBoard',
+    fallbackLabel: 'Job Board',
+  },
+  '/forum': {
+    path: '/forum',
+    translationKey: 'common:dashboard.forum',
+    fallbackLabel: 'Forum',
+  },
+  '/intelligence/capability-graph': {
+    path: '/intelligence/capability-graph',
+    translationKey: 'common:dashboard.capabilityGraph',
+    fallbackLabel: 'Capability Graph',
+  },
+  '/intelligence/trust-score': {
+    path: '/intelligence/trust-score',
+    translationKey: 'common:dashboard.trustScore',
+    fallbackLabel: 'Trust Score',
+  },
+  '/intelligence/ai-analysis': {
+    path: '/intelligence/ai-analysis',
+    translationKey: 'common:dashboard.aiAnalysis',
+    fallbackLabel: 'AI Analysis',
   },
   '/business': {
     path: '/business',
@@ -97,6 +128,41 @@ const isNumeric = (str: string): boolean => {
  * Resolves a dynamic route segment into a readable string fallback.
  */
 export const getDynamicSegmentLabel = (segment: string): string => {
+  const lower = segment.toLowerCase();
+  if (lower === "jd") {
+    return "Job Descriptions";
+  }
+  if (lower === "intelligence") {
+    return "Talent Discovery";
+  }
+  if (lower === "information") {
+    return "Company Profile";
+  }
+  if (lower === "members") {
+    return "Team Members";
+  }
+  if (lower === "roles") {
+    return "Access Control";
+  }
+  if (lower === "settings") {
+    return "Workspace Settings";
+  }
+  if (lower === "billing") {
+    return "Billing & Subscription";
+  }
+  if (lower === "posts") {
+    return "Company Posts";
+  }
+  if (lower === "people") {
+    return "Members";
+  }
+  if (lower === "jobs") {
+    return "Job Board";
+  }
+  if (lower === "dashboard") {
+    return "Dashboard";
+  }
+
   if (isUUID(segment)) {
     return `Ref: ${segment.slice(0, 8)}`;
   }

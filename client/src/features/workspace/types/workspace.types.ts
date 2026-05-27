@@ -58,6 +58,8 @@ export interface WorkspaceDetails {
   facebookUrl?: string;
   twitterUrl?: string;
   taxCode?: string;
+  isVerified?: boolean;
+  verificationLevel?: number;
 }
 
 export interface PaginatedWorkspaceMembers {

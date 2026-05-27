@@ -20,6 +20,7 @@ import {
   Lock
 } from "lucide-react";
 import { SkeletonLoader } from "@/components/ui/states";
+import { TrustScoreBadge } from "@/components/ui/cverify/trust-score-indicator";
 
 export default function CandidateIntelligenceDetailPage() {
   const params = useParams();
@@ -96,10 +97,7 @@ export default function CandidateIntelligenceDetailPage() {
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-foreground">{selectedCandidate.fullName}</h2>
-            <Chip color="success" size="sm" variant="soft" className="font-semibold text-xs py-1">
-              <ShieldCheck size={12} className="inline mr-1" />
-              {selectedCandidate.trustTier}
-            </Chip>
+            <TrustScoreBadge score={selectedCandidate.trustScore} showTier tier={selectedCandidate.trustTier} />
           </div>
           <p className="text-muted text-sm font-light">
             {selectedCandidate.headline || "Verified Software Engineer"}

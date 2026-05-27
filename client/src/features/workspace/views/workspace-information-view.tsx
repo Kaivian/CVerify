@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Typography, Chip, Input, TextArea, toast } from "@heroui/react";
 import { Button } from "@/components/ui/button";
 import { getTagLabel } from "../types/workspace.types";
+import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 import {
   Building2,
   Globe,
@@ -412,10 +413,7 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
               </Button>
             )
           )}
-          <Chip color="success" variant="soft" size="sm" className="font-semibold text-xs py-1">
-            <ShieldCheck size={12} className="inline mr-1" />
-            Verified Enterprise
-          </Chip>
+          <BusinessVerificationBadge level={workspaceDetails.verificationLevel} />
         </div>
       </div>
 

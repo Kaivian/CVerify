@@ -6,7 +6,13 @@ import { useAuth } from "@/features/auth/hooks/use-auth";
 import { AuthAvatar } from "@/components/ui/auth-avatar";
 import { useThemeStore } from "@/stores/use-theme-store";
 
-export function PublicNavigationHeader() {
+interface PublicNavigationHeaderProps {
+  className?: string;
+}
+
+export function PublicNavigationHeader({ 
+  className = "sticky top-0 z-50 w-full bg-surface/80 backdrop-blur-md border-b border-border transition-colors duration-300" 
+}: PublicNavigationHeaderProps) {
   const { isAuthenticated, user } = useAuth();
   const { theme } = useThemeStore();
   
@@ -15,8 +21,8 @@ export function PublicNavigationHeader() {
   const logoSrc = isLight ? "/brand/logo&name-black.png" : "/brand/logo&name-white.png";
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-surface/80 backdrop-blur-md border-b border-border transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-6 h-18 flex items-center justify-between">
+    <header className={className}>
+      <div className="max-w-7xl mx-auto px-6 h-18 flex items-center justify-between w-full">
         <Link href="/" className="select-none rounded-md">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -53,7 +59,7 @@ export function PublicNavigationHeader() {
                 Sign In
               </Link>
               <Link href="/login" className="rounded-lg">
-                <button className="px-4 py-2 rounded-lg text-xs font-semibold bg-accent text-accent-foreground hover:opacity-90 transition-all cursor-pointer">
+                <button className="px-4 py-2 rounded-lg text-xs font-semibold bg-foreground text-background hover:opacity-90 transition-all cursor-pointer">
                   Generate Verified Profile
                 </button>
               </Link>
@@ -66,3 +72,4 @@ export function PublicNavigationHeader() {
 }
 
 export default PublicNavigationHeader;
+

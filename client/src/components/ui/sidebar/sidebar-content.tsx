@@ -77,8 +77,25 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   // Memoize filtered navigation nodes to optimize performance and prevent redundant re-renders
   const filteredNodes = useMemo(() => {
-    return filterNavigationNodes(navigationConfig, userRole, hasPermission);
-  }, [userRole, hasPermission]);
+    const nodes = filterNavigationNodes(navigationConfig, userRole, hasPermission);
+    return nodes.map((node) => {
+      if (node.type === "section" && node.children) {
+        return {
+          ...node,
+          children: node.children.map((child) => {
+            if (child.id === "candidate-profile") {
+              return {
+                ...child,
+                href: user?.username ? `/${user.username.toLowerCase()}` : "/settings?tab=profile",
+              };
+            }
+            return child;
+          }),
+        };
+      }
+      return node;
+    });
+  }, [userRole, hasPermission, user?.username]);
 
   const pathname = usePathname();
 
@@ -231,9 +248,14 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         icon: ArrowLeft,
       };
 
-      // Filter out candidate and business dashboards to focus purely on the workspace
+      // Filter out candidate, business, and intelligence/jobs/evidence dashboards to focus purely on the workspace
       const baseNodes = filteredNodes.filter(
-        (node) => node.id !== "candidate-section" && node.id !== "business-section"
+        (node) =>
+          node.id !== "candidate-section" &&
+          node.id !== "business-section" &&
+          node.id !== "intelligence-section" &&
+          node.id !== "jobs-section" &&
+          node.id !== "evidence-section"
       );
 
       return [

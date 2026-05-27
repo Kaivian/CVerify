@@ -8,6 +8,7 @@ import { Typography, Chip, Button, Tabs } from "@heroui/react";
 import { Building2, Shield, ShieldCheck, AlertTriangle, ArrowLeft, List, Key, Users, History } from "lucide-react";
 import { SkeletonLoader } from "@/components/ui/states";
 import { RolesList } from "@/features/workspace/views/roles-list";
+import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 import { RoleAssignments } from "@/features/workspace/views/role-assignments";
 import { PermissionGrid } from "@/features/workspace/views/permission-grid";
 import { RoleAuditLogs } from "@/features/workspace/views/role-audit-logs";
@@ -110,10 +111,7 @@ export default function WorkspaceRolesPage() {
           </Typography>
         </div>
         <div className="flex gap-2">
-          <Chip color="success" variant="soft" size="sm" className="font-semibold text-xs py-1">
-            <ShieldCheck size={12} className="inline mr-1" />
-            Verified Enterprise
-          </Chip>
+          <BusinessVerificationBadge level={workspaceDetails.verificationLevel} />
         </div>
       </div>
 

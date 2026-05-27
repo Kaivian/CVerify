@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Typography, Chip, Button } from "@heroui/react";
 import { AlertTriangle, Building2, ShieldCheck, ArrowLeft } from "lucide-react";
 import { SkeletonLoader } from "@/components/ui/states";
+import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 import { type HiringRequirement } from "@/services/hiring-requirement.service";
 
 // Subcomponents
@@ -119,10 +120,7 @@ export default function WorkspaceJDManagementPage() {
           >
             <ArrowLeft size={14} /> Back to Dashboard
           </Button>
-          <Chip color="success" variant="soft" size="sm" className="font-semibold text-xs py-1">
-            <ShieldCheck size={12} className="inline mr-1" />
-            Verified Enterprise
-          </Chip>
+          <BusinessVerificationBadge level={workspaceDetails.verificationLevel} />
         </div>
       </div>
 

@@ -3045,6 +3045,12 @@ public static class DbInitializer
         // Automatically apply any pending EF Core migrations to keep database schema up to date
         try
         {
+            var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+            if (global::System.Linq.Enumerable.Contains(pendingMigrations, "20260620101455_AddMetadataToJobVacancy"))
+            {
+                await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS cv_repository_mappings CASCADE;");
+                await context.Database.ExecuteSqlRawAsync("ALTER TABLE job_vacancies DROP COLUMN IF EXISTS metadata;");
+            }
             await context.Database.MigrateAsync();
         }
         catch (Exception ex)

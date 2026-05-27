@@ -5,6 +5,7 @@ import { Compass, ShieldCheck, FileCheck2, Bot, Database, Search, ArrowRight, Ch
 import Link from 'next/link';
 import { useAuth } from '../features/auth/hooks/use-auth';
 import { AuthAvatar } from '../components/ui/auth-avatar';
+import { PublicNavigationHeader } from '../components/ui/public-navigation-header';
 import { Typography } from '@heroui/react';
 import { motion } from 'framer-motion';
 import Magnet from '../components/Magnet';
@@ -171,43 +172,14 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:radial-gradient(ellipse_at_center,white_30%,transparent_95%)] pointer-events-none opacity-70" />
 
         {/* Top Header Navbar */}
-        <motion.header 
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="absolute top-0 left-0 right-0 z-50 w-full max-w-7xl mx-auto px-6 h-18 flex items-center justify-between bg-transparent"
-      >
-        <Link href="/" className="select-none">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/brand/logo&name-white.png"
-            alt="CVerify Logo"
-            className="h-8 w-auto"
-          />
-        </Link>
-
-          <div className="flex items-center gap-6">
-            {isAuthenticated ? (
-              <div className="flex items-center gap-4">
-                <Link href={`/${user?.role?.toLowerCase() || 'user'}`} className="text-xs font-semibold text-muted hover:text-foreground transition-colors">
-                  Dashboard
-                </Link>
-                <AuthAvatar />
-              </div>
-            ) : (
-              <>
-                <Link href="/login" className="text-xs font-semibold text-muted hover:text-foreground transition-colors hidden sm:block">
-                  Sign In
-                </Link>
-                <Link href="/login">
-                  <button className="px-4 py-2 rounded-lg text-xs font-semibold bg-foreground text-background hover:opacity-90 transition-all cursor-pointer">
-                    Generate Verified Profile
-                  </button>
-                </Link>
-              </>
-            )}
-          </div>
-        </motion.header>
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute top-0 left-0 right-0 z-50 w-full"
+        >
+          <PublicNavigationHeader className="w-full bg-transparent" />
+        </motion.div>
 
         <main className="relative z-10 w-full flex flex-col items-center">
 

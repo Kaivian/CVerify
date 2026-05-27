@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Typography, Chip, toast } from "@heroui/react";
+import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 import { Button } from "@/components/ui/button";
 import { useWorkspaceStore } from "@/features/workspace/store/use-workspace-store";
 import { workspaceService } from "@/features/workspace/services/workspace.service";
@@ -348,16 +349,11 @@ export default function WorkspaceJobsTab() {
                         orgName.substring(0, 1).toUpperCase()
                       )}
                     </div>
-                    <div className="pb-1 min-w-0">
+                    <div className="pb-1 min-w-0 flex flex-col gap-1 items-start">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-foreground truncate max-w-[200px]">{orgName}</span>
-                        <span className="inline-flex items-center justify-center bg-blue-500 rounded-full p-0.5 text-white size-3.5 shrink-0 select-none">
-                          <Check className="size-2" strokeWidth={5} />
-                        </span>
                       </div>
-                      <span className="text-[10px] text-muted font-semibold block uppercase tracking-wider mt-0.5">
-                        Verified Enterprise Partner
-                      </span>
+                      <BusinessVerificationBadge level={workspaceDetails.verificationLevel} />
                     </div>
                   </div>
 

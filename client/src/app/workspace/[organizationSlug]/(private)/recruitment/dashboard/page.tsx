@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Typography, Chip, Button } from "@heroui/react";
 import { Building2, LayoutDashboard, ShieldCheck, AlertTriangle, ArrowLeft } from "lucide-react";
 import { SkeletonLoader } from "@/components/ui/states";
+import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 
 export default function WorkspaceRecruitmentDashboardPage() {
   const params = useParams();
@@ -106,10 +107,7 @@ export default function WorkspaceRecruitmentDashboardPage() {
           </Typography>
         </div>
         <div className="flex gap-2">
-          <Chip color="success" variant="soft" size="sm" className="font-semibold text-xs py-1">
-            <ShieldCheck size={12} className="inline mr-1" />
-            Verified Enterprise
-          </Chip>
+          <BusinessVerificationBadge level={workspaceDetails.verificationLevel} />
         </div>
       </div>
 

@@ -14,6 +14,9 @@ import {
   isTrustScoreEvaluated
 } from '@/lib/ai-score-mapper';
 import { AiAssessmentTab } from './AiAssessmentTab';
+import { PublicNavigationHeader } from '@/components/ui/public-navigation-header';
+import { CandidateVerificationBadge } from '@/components/ui/cverify/verification-badges';
+import { TrustScoreDial } from '@/components/ui/cverify/trust-score-indicator';
 
 interface ProfileContainerProps {
   profile: PublicProfileResponse;
@@ -137,55 +140,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
         contributions: []
       }));
 
-  const renderPublicVerificationBadge = (level: any, status: any) => {
-    const numLevel = typeof level === 'string'
-      ? (level === 'AiAnalyzed' ? 1 : level === 'RepositoryLinked' ? 2 : 3)
-      : level;
-    const numStatus = typeof status === 'string'
-      ? (status === 'Verified' ? 1 : status === 'Outdated' ? 2 : status === 'Disconnected' ? 3 : 4)
-      : status;
 
-    if (numLevel === 1) { // AI Analyzed
-      if (numStatus === 2) {
-        return (
-          <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-warning/10 text-warning border border-warning/20 rounded-full">
-            AI Audited • Outdated
-          </span>
-        );
-      }
-      if (numStatus === 3) {
-        return (
-          <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-danger/10 text-danger border border-danger/20 rounded-full">
-            AI Audited • Disconnected
-          </span>
-        );
-      }
-      return (
-        <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-success/10 text-success border border-success/20 rounded-full">
-          AI Audited
-        </span>
-      );
-    }
-    if (numLevel === 2) { // Repo Linked
-      if (numStatus === 3) {
-        return (
-          <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-danger/10 text-danger border border-danger/20 rounded-full">
-            Repo Linked • Disconnected
-          </span>
-        );
-      }
-      return (
-        <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-primary/10 text-primary border border-primary/20 rounded-full">
-          Repo Linked
-        </span>
-      );
-    }
-    return (
-      <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-default/45 text-muted-foreground border border-default rounded-full">
-        Self Declared
-      </span>
-    );
-  };
 
   return (
     <div className="relative min-h-screen w-full bg-background text-foreground flex flex-col justify-between overflow-x-hidden antialiased">
@@ -193,23 +148,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
       <div className="absolute inset-0 bg-[radial-gradient(var(--separator)_1px,transparent_1px)] bg-size-[24px_24px] pointer-events-none opacity-40" />
 
       {/* Header */}
-      <header className="z-10 w-full bg-surface/85 backdrop-blur-md border-b border-border select-none sticky top-0">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
-            <div className="w-8 h-8 rounded-lg bg-foreground text-background flex items-center justify-center shadow-md font-bold">
-              <Compass size={18} />
-            </div>
-            <span className="font-extrabold text-sm tracking-tight text-foreground">
-              CVerify
-            </span>
-          </Link>
-          <Link href="/login">
-            <Button size="sm" className="font-semibold text-xs rounded-xl bg-foreground hover:bg-foreground/90 text-background transition-colors px-4 border-none h-8 min-h-8">
-              Sign In
-            </Button>
-          </Link>
-        </div>
-      </header>
+      <PublicNavigationHeader />
 
       {/* Main Content */}
       <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
@@ -245,10 +184,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground text-left">
                     {profile.fullName}
                   </h1>
-                  <span className="flex items-center gap-1 bg-success/10 text-success border border-success/20 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full select-none shrink-0" title="Verified Profile">
-                    <ShieldCheck className="size-3 text-success" />
-                    Verified
-                  </span>
+                  <CandidateVerificationBadge type="identity" />
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-0.5 text-xs text-muted font-medium select-none">
@@ -469,10 +405,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                     {/* Visual Circle Score */}
                     {isEvaluated ? (
                       <div className="flex flex-col items-center gap-1 select-none shrink-0">
-                        <div className="w-20 h-20 rounded-full border-4 border-accent text-accent flex flex-col items-center justify-center bg-surface shadow-xs">
-                          <span className="text-2xl font-black font-outfit leading-none">{normalizeScore(profile.trustScore)}</span>
-                          <span className="text-[8px] font-bold text-muted uppercase tracking-widest mt-0.5">SCORE</span>
-                        </div>
+                        <TrustScoreDial score={profile.trustScore ?? 0} />
                         <span className="text-[10px] font-bold text-success uppercase tracking-wider mt-1">AI Evaluated</span>
                       </div>
                     ) : (
@@ -521,7 +454,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                                   <h4 className="text-base font-bold text-foreground truncate">
                                     {proj.name}
                                   </h4>
-                                  {renderPublicVerificationBadge(proj.verificationLevel, proj.verificationStatus)}
+                                  <CandidateVerificationBadge type="project" level={proj.verificationLevel} status={proj.verificationStatus} />
                                 </div>
                                 {proj.role && (
                                   <p className="text-xs text-muted font-semibold">
