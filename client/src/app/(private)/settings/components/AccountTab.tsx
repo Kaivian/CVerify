@@ -25,6 +25,7 @@ import { type SessionInfoData } from "@/types/auth.types";
 import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
 import { useProfile } from "@/hooks/use-profile";
 import { type UpdateProfileRequest } from "@/types/profile.types";
+import { useProfileStore } from "@/stores/use-profile-store";
 
 // Reserved usernames
 const RESERVED_USERNAMES = [
@@ -148,6 +149,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
         data.recruiterVisibility !== profile?.recruiterVisibility
       ) {
         const request: UpdateProfileRequest = {
+          fullName: profile?.fullName || user?.fullName || null,
           bio: profile?.bio || null,
           location: profile?.location || null,
           phoneNumber: profile?.phoneNumber || null,
@@ -160,7 +162,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           profileVisibility: data.profileVisibility,
           recruiterVisibility: data.recruiterVisibility,
           socialLinks: profile?.socialLinks || [],
-          version: profile?.version || 0,
+          version: useProfileStore.getState().profile?.version || profile?.version || 0,
         };
         await updateProfile(request);
       }
