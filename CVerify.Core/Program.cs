@@ -299,6 +299,13 @@ builder.Services.AddScoped<ILevel2RecoveryService, Level2RecoveryService>();
 builder.Services.AddScoped<IPasswordPolicyService, PasswordPolicyService>();
 builder.Services.AddScoped<IOtpPolicyService, OtpPolicyService>();
 
+// Register Profile Settings Services
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IEducationService, EducationService>();
+builder.Services.AddScoped<IAchievementService, AchievementService>();
+builder.Services.AddScoped<ICareerService, CareerService>();
+builder.Services.AddScoped<IAttachmentService, AttachmentService>();
+
 // Register AI Service
 builder.Services.AddScoped<IHmacSignatureService, HmacSignatureService>();
 builder.Services.AddHttpClient("AiServiceClient", client =>

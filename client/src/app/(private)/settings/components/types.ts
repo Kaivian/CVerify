@@ -18,6 +18,7 @@ export type EvidenceFile = z.infer<typeof evidenceFileSchema>;
 
 // Education item schema with coerced numeric GPA & Scale
 export const educationEntrySchema = z.object({
+  id: z.string().optional(),
   label: z.string().min(1, "Label is required"),
   school: z
     .string()
@@ -58,6 +59,7 @@ export type EducationEntry = z.infer<typeof educationEntrySchema>;
 
 // Academic Achievement schema
 export const academicAchievementSchema = z.object({
+  id: z.string().optional(),
   title: z.string().min(1, "Title is required"),
   issuer: z.string().min(1, "Issuer/Organization is required"),
   issueDate: z.string().min(1, "Issue date is required"),

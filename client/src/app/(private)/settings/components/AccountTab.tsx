@@ -12,7 +12,7 @@ import { SettingsSection } from "./SettingsSection";
 import { LinkedAccountsList } from "./LinkedAccountsList";
 import { DialogModal } from "@/components/ui/dialog-modal";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { Typography, Switch, Chip } from "@heroui/react";
+import { Typography, Switch, Chip, Spinner, toast } from "@heroui/react";
 import {
   ShieldAlert,
   Key,
@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { type SessionInfoData } from "@/types/auth.types";
 import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
+import { useProfile } from "@/hooks/use-profile";
+import { type UpdateProfileRequest } from "@/types/profile.types";
 
 // Reserved usernames
 const RESERVED_USERNAMES = [
@@ -64,6 +66,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   onSaveSuccess,
 }) => {
   const { user, fetchSessions, revokeSession } = useAuth();
+  const { profile, isLoading, updateProfile, updateUsername } = useProfile();
 
   // Local states
   const [sessions, setSessions] = useState<SessionInfoData[]>([]);
@@ -80,7 +83,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   const methods = useForm<AccountFormValues>({
     resolver: zodResolver(accountSchema),
     defaultValues: {
-      username: "developer_dev",
+      username: "",
       profileVisibility: "public",
       recruiterVisibility: true,
     },
@@ -95,6 +98,17 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   } = methods;
 
   const currentValues = useWatch({ control: methods.control });
+
+  // Reset form when profile data loads from DB
+  useEffect(() => {
+    if (profile && !methods.formState.isDirty) {
+      reset({
+        username: profile.username || "",
+        profileVisibility: (profile.profileVisibility as any) || "public",
+        recruiterVisibility: profile.recruiterVisibility ?? true,
+      });
+    }
+  }, [profile, reset]);
 
   useEffect(() => {
     const hasChanges = !isDeepEqual(currentValues, methods.formState.defaultValues);
@@ -123,14 +137,50 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   const handleFormSubmit = async (data: AccountFormValues) => {
     try {
-      // Simulate API save delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // 1. If username changed, call updateUsername API
+      if (data.username !== profile?.username) {
+        await updateUsername(data.username);
+      }
+
+      // 2. If visibility preferences changed, call updateProfile API
+      if (
+        data.profileVisibility !== profile?.profileVisibility ||
+        data.recruiterVisibility !== profile?.recruiterVisibility
+      ) {
+        const request: UpdateProfileRequest = {
+          bio: profile?.bio || null,
+          location: profile?.location || null,
+          phoneNumber: profile?.phoneNumber || null,
+          birthDate: profile?.birthDate || null,
+          headline: profile?.headline || null,
+          company: profile?.company || null,
+          pronouns: profile?.pronouns || null,
+          customPronouns: profile?.customPronouns || null,
+          publicEmail: profile?.publicEmail || null,
+          profileVisibility: data.profileVisibility,
+          recruiterVisibility: data.recruiterVisibility,
+          socialLinks: profile?.socialLinks || [],
+          version: profile?.version || 0,
+        };
+        await updateProfile(request);
+      }
+
       reset(data);
       onSaveSuccess();
-    } catch (err) {
-      console.error("Failed to save account settings:", err);
+    } catch (error: any) {
+      console.error("Failed to save account settings:", error);
+      const errMsg = error.response?.data?.message || error.message || "Failed to update account settings.";
+      toast.danger(errMsg);
     }
   };
+
+  if (isLoading && !profile) {
+    return (
+      <div className="flex items-center justify-center py-20 w-full h-full">
+        <Spinner size="lg" color="accent" />
+      </div>
+    );
+  }
 
   // Revoke active session action
   const handleRevokeSession = async (sessionId: string) => {

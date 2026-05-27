@@ -26,7 +26,11 @@ import {
   DatePicker,
   DateField,
   Calendar,
+  Spinner,
+  toast,
 } from "@heroui/react";
+import { useProfile } from "@/hooks/use-profile";
+import { type UpdateProfileRequest } from "@/types/profile.types";
 
 // 1. Define schema using Zod
 const profileSchema = z.object({
@@ -35,20 +39,23 @@ const profileSchema = z.object({
     .min(2, "Name must be at least 2 characters")
     .max(50, "Name must be under 50 characters"),
   publicEmail: z.string(),
-  bio: z.string().max(160, "Bio must be under 160 characters").optional(),
+  bio: z.string().max(160, "Bio must be under 160 characters").optional().or(z.literal("")),
   pronouns: z.enum(["he_him", "she_her", "they_them", "prefer_not", "custom"]),
   customPronouns: z
     .string()
     .max(30, "Pronouns must be under 30 characters")
-    .optional(),
-  company: z.string().max(50, "Company must be under 50 characters").optional(),
+    .optional()
+    .or(z.literal("")),
+  company: z.string().max(50, "Company must be under 50 characters").optional().or(z.literal("")),
   location: z
     .string()
     .max(50, "Location must be under 50 characters")
-    .optional(),
+    .optional()
+    .or(z.literal("")),
   phoneNumber: z
     .string()
     .optional()
+    .or(z.literal(""))
     .refine((val) => !val || /^[0-9]{9,10}$/.test(val), {
       message: "Phone number is invalid",
     }),
@@ -64,6 +71,7 @@ const profileSchema = z.object({
       url: z.string(),
     })
   ).optional(),
+  version: z.number(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -77,29 +85,25 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   onDirtyChange,
   onSaveSuccess,
 }) => {
-  const { user, updateProfile } = useAuth();
-  const extendedUser = user as
-    | (User & { phoneNumber?: string; birthDate?: string; headline?: string })
-    | null;
+  const { user, updateProfile: updateLocalAuthUser } = useAuth();
+  const { profile, isLoading, isUpdating, updateProfile, error: apiError } = useProfile();
 
   // Setup form methods
   const methods = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
       fullName: user?.fullName || "",
-      publicEmail: user?.email || "none",
-      bio: "Software Engineer working on identity verification platforms. Building robust architectures.",
-      pronouns: "he_him",
+      publicEmail: "none",
+      bio: "",
+      pronouns: "prefer_not",
       customPronouns: "",
-      company: "CVerify Inc.",
-      location: "San Francisco, CA",
-      phoneNumber: extendedUser?.phoneNumber || "",
-      birthDate: extendedUser?.birthDate || "",
-      headline: extendedUser?.headline || "Software Engineer at CVerify",
-      socialLinks: [
-        { id: "1", url: "https://github.com/developer-cverify" },
-        { id: "2", url: "https://linkedin.com/in/cverify" },
-      ],
+      company: "",
+      location: "",
+      phoneNumber: "",
+      birthDate: "",
+      headline: "",
+      socialLinks: [],
+      version: 0,
     },
     mode: "onChange",
   });
@@ -123,27 +127,25 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     }
   }
 
-  // Reset form when user data loads
+  // Reset form when user/profile data loads
   useEffect(() => {
-    if (user && !isDirty) {
+    if (profile && !isDirty) {
       reset({
-        fullName: user.fullName || "",
-        publicEmail: user.email || "none",
-        bio: "Software Engineer working on identity verification platforms. Building robust architectures.",
-        pronouns: "he_him",
-        customPronouns: "",
-        company: "CVerify Inc.",
-        location: "San Francisco, CA",
-        phoneNumber: extendedUser?.phoneNumber || "",
-        birthDate: extendedUser?.birthDate || "",
-        headline: extendedUser?.headline || "Software Engineer at CVerify",
-        socialLinks: [
-          { id: "1", url: "https://github.com/developer-cverify" },
-          { id: "2", url: "https://linkedin.com/in/cverify" },
-        ],
+        fullName: user?.fullName || "",
+        publicEmail: profile.publicEmail || "none",
+        bio: profile.bio || "",
+        pronouns: (profile.pronouns as any) || "prefer_not",
+        customPronouns: profile.customPronouns || "",
+        company: profile.company || "",
+        location: profile.location || "",
+        phoneNumber: profile.phoneNumber || "",
+        birthDate: profile.birthDate ? profile.birthDate.split("T")[0] : "",
+        headline: profile.headline || "",
+        socialLinks: (profile.socialLinks || []).map((url, i) => ({ id: String(i + 1), url })),
+        version: profile.version || 0,
       });
     }
-  }, [user, reset, isDirty, extendedUser]);
+  }, [profile, user, reset, isDirty]);
 
   // Track dirty changes to inform parent page navigation guard
   useEffect(() => {
@@ -157,21 +159,39 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
 
   const handleFormSubmit = async (data: ProfileFormValues) => {
     try {
-      // Simulate API submit delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Update local global auth store details in-memory
-      updateProfile({
+      // Update local global auth store details in-memory for name/avatar
+      updateLocalAuthUser({
         fullName: data.fullName,
       });
 
-      console.log(data);
+      const request: UpdateProfileRequest = {
+        bio: data.bio || null,
+        location: data.location || null,
+        phoneNumber: data.phoneNumber || null,
+        birthDate: data.birthDate ? new Date(data.birthDate).toISOString() : null,
+        headline: data.headline || null,
+        company: data.company || null,
+        pronouns: data.pronouns || null,
+        customPronouns: data.customPronouns || null,
+        publicEmail: data.publicEmail === "none" ? null : data.publicEmail,
+        profileVisibility: profile?.profileVisibility || "public",
+        recruiterVisibility: profile?.recruiterVisibility ?? true,
+        socialLinks: (data.socialLinks || []).map((l) => l.url),
+        version: data.version || profile?.version || 0,
+      };
+
+      const updated = await updateProfile(request);
 
       // Synchronize/reset React Hook Form dirty values
-      reset(data);
+      reset({
+        ...data,
+        version: updated.version,
+      });
       onSaveSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save profile:", error);
+      const errorMsg = error.response?.data?.message || error.message || "Failed to update profile settings.";
+      toast.danger(errorMsg);
     }
   };
 
@@ -186,14 +206,22 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     }
   }, [bioValue]);
 
+  if (isLoading && !profile) {
+    return (
+      <div className="flex items-center justify-center py-20 w-full h-full">
+        <Spinner size="lg" color="accent" />
+      </div>
+    );
+  }
+
   // Initials for avatar fallback
   const initials = user?.fullName
     ? user.fullName
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase()
     : "U";
 
   // Dropdown options
@@ -237,7 +265,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               {/* Right Column — Form Content */}
               <div className="flex flex-col gap-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col">
+                  <div className="flex flex-col gap-1">
                     <Label htmlFor="input-type-fullname">Full Name</Label>
                     <Input
                       id="input-type-fullname"
@@ -252,7 +280,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                       placeholder="Nguyễn Văn A"
                     />
                   </div>
-                  <div className="flex flex-col text-left gap-2 w-full">
+                  <div className="flex flex-col w-full gap-2">
                     <Select
                       placeholder="Select one"
                       value={currentValues.publicEmail || "none"}
@@ -419,11 +447,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                   setValue(
                     "pronouns",
                     val as
-                      | "he_him"
-                      | "she_her"
-                      | "they_them"
-                      | "prefer_not"
-                      | "custom",
+                    | "he_him"
+                    | "she_her"
+                    | "they_them"
+                    | "prefer_not"
+                    | "custom",
                     {
                       shouldDirty: true,
                       shouldValidate: true,
