@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Auth.DTOs;
+using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.Auth.Services;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;

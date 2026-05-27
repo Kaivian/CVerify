@@ -17,6 +17,7 @@ using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Shared.Storage.Enums;
 using CVerify.API.Modules.Shared.Storage.Interfaces;
 using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.SourceCode.Entities;
 
 namespace CVerify.API.Modules.Profiles.Services;
@@ -510,7 +511,7 @@ public class ProfileService : IProfileService
             .Select(om => om.OrganizationId)
             .ToListAsync(cancellationToken);
 
-        var publishedVacancies = new List<CVerify.API.Modules.Auth.DTOs.JobVacancyDto>();
+        var publishedVacancies = new List<JobVacancyDto>();
         if (organizationIds.Any())
         {
             var vacancies = await _context.JobVacancies
@@ -532,7 +533,7 @@ public class ProfileService : IProfileService
                     }
                 }
 
-                publishedVacancies.Add(new CVerify.API.Modules.Auth.DTOs.JobVacancyDto(
+                publishedVacancies.Add(new JobVacancyDto(
                     jv.Id,
                     jv.OrganizationId,
                     jv.Title,
