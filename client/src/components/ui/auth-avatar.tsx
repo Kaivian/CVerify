@@ -31,9 +31,7 @@ export function AuthAvatar() {
   const router = useRouter();
   const { theme, setTheme } = useThemeStore();
 
-  React.useEffect(() => {
-    console.log("[Navbar Avatar Render Diagnostics] user.avatarUrl:", user?.avatarUrl);
-  }, [user?.avatarUrl]);
+
 
   React.useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
