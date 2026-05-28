@@ -99,12 +99,11 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   const pathname = usePathname();
 
-  // Resolve current organization slug:
-  // If the path is /workspace/slug/..., use slug.
-  // Otherwise, if myOrganizations exists and has entries, default to the first organization's slug.
   const currentOrgSlug = useMemo(() => {
     if (pathname?.startsWith("/workspace/")) {
-      return pathname.split("/workspace/")[1]?.split("/")[0] || "";
+      const slug = pathname.split("/workspace/")[1]?.split("/")[0] || "";
+      if (slug === "organizations") return "";
+      return slug;
     }
     return myOrganizations && myOrganizations.length > 0 ? myOrganizations[0].slug : "";
   }, [pathname, myOrganizations]);
@@ -237,7 +236,11 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   // Dynamically inject workspace links based on role sections
   const combinedNodes = useMemo(() => {
-    const isInsideWorkspace = pathname?.startsWith("/workspace/");
+    const isInsideWorkspace =
+      pathname?.startsWith("/workspace/") &&
+      currentOrgSlug !== "" &&
+      workspaceDetails?.userRole !== null &&
+      workspaceDetails?.userRole !== undefined;
 
     if (isInsideWorkspace && currentOrgSlug) {
       const backNode: NavigationNode = {
@@ -286,7 +289,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     });
 
     return mappedNodes;
-  }, [filteredNodes, myOrganizations, orgNodes, pathname, currentOrgSlug, backHref, backLabel]);
+  }, [filteredNodes, myOrganizations, orgNodes, pathname, currentOrgSlug, backHref, backLabel, workspaceDetails]);
 
   // Dedicated specialized components workspace navigation sections
   const componentSections = useMemo(() => [

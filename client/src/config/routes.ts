@@ -55,6 +55,12 @@ export const routesConfig: Record<string, RouteMetadata> = {
     translationKey: 'common:dashboard.jobBoard',
     fallbackLabel: 'Job Board',
   },
+  '/workspace/organizations': {
+    path: '/workspace/organizations',
+    translationKey: 'common:dashboard.organizations',
+    fallbackLabel: 'Organizations',
+    icon: Building2,
+  },
   '/forum': {
     path: '/forum',
     translationKey: 'common:dashboard.forum',

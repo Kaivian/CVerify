@@ -40,8 +40,8 @@ public static class PublicWorkspaceSeeder
         }
         catch (Exception ex)
         {
-            logger.LogCritical(ex, "[Seeder Safeguard Alert] Seeding blocked.");
-            throw;
+            logger.LogWarning("[Seeder Safeguard Alert] Public workspace seeding skipped: {Message}", ex.Message);
+            return;
         }
 
         // 2. Load JSON aggregate data

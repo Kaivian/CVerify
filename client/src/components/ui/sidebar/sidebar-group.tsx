@@ -64,11 +64,9 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
     (group.href ? isActiveRoute(pathname, group.href, false, group.id, user?.username, paramsRecord) : false);
   const isExpanded = !!expandedGroups[group.id];
 
-  // Auto-expand parent group on mount or pathname change if a child is active
+  // Auto-expand/collapse parent group on mount or pathname change based on active descendant
   useEffect(() => {
-    if (hasActiveDescendant) {
-      setGroupExpanded(group.id, true);
-    }
+    setGroupExpanded(group.id, hasActiveDescendant);
   }, [pathname, hasActiveDescendant, group.id, setGroupExpanded]);
 
   // Handle manual toggle and optional navigation
@@ -97,7 +95,7 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
           className="p-0 w-full"
           variant="default"
           expandedKeys={expandedKeys}
-          onExpandedChange={() => handleToggle()}
+          onExpandedChange={() => toggleGroup(group.id)}
         >
           <Accordion.Item
             key={group.id}
@@ -105,40 +103,96 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
             className="border-none p-0 m-0"
           >
             <Accordion.Heading>
-              <Accordion.Trigger
-                className={[
-                  "w-full flex items-center justify-between rounded-xl font-semibold text-muted hover:text-foreground hover:bg-surface-secondary/40 select-none cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-hidden transition-all duration-200",
-                  isMobile ? "h-12 px-3.5 text-base" : "h-10 px-4 text-sm",
-                ].join(" ")}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  {Icon && (
-                    <Icon
-                      size={20}
-                      className={[
-                        "shrink-0 transition-colors duration-200",
-                        hasActiveDescendant ? "text-accent" : "text-muted",
-                      ].join(" ")}
-                    />
-                  )}
-                  <span
+              {group.href ? (
+                <div
+                  className={[
+                    "w-full flex items-center rounded-xl font-semibold text-muted hover:bg-surface-secondary/40 select-none transition-all duration-200 group/row",
+                    isMobile ? "h-12" : "h-10",
+                  ].join(" ")}
+                >
+                  <Link
+                    href={group.href}
+                    onClick={() => {
+                      if (isMobile) {
+                        setMobileOpen(false);
+                      }
+                    }}
                     className={[
-                      "truncate font-outfit font-semibold",
-                      hasActiveDescendant
-                        ? "text-foreground font-bold"
-                        : "text-muted",
+                      "flex-1 flex items-center gap-2 min-w-0 h-full rounded-l-xl outline-hidden focus-visible:ring-2 focus-visible:ring-focus hover:text-foreground",
+                      isMobile ? "pl-3.5 pr-2 text-base" : "pl-4 pr-2 text-sm",
                     ].join(" ")}
                   >
-                    {label}
-                  </span>
+                    {Icon && (
+                      <Icon
+                        size={20}
+                        className={[
+                          "shrink-0 transition-colors duration-200",
+                          hasActiveDescendant ? "text-accent" : "text-muted group-hover/row:text-foreground",
+                        ].join(" ")}
+                      />
+                    )}
+                    <span
+                      className={[
+                        "whitespace-nowrap font-outfit font-semibold transition-colors duration-200",
+                        hasActiveDescendant
+                          ? "text-foreground font-bold"
+                          : "text-muted group-hover/row:text-foreground",
+                      ].join(" ")}
+                    >
+                      {label}
+                    </span>
+                  </Link>
+
+                  <Accordion.Trigger
+                    className={[
+                      "shrink-0 h-full flex items-center justify-center rounded-r-xl text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors duration-200 cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-focus",
+                      isMobile ? "w-12" : "w-10",
+                    ].join(" ")}
+                  >
+                    <Accordion.Indicator className="text-muted group-hover/row:text-foreground shrink-0 transition-transform duration-200 ease-out">
+                      <ChevronDown
+                        size={14}
+                        className={isExpanded ? "rotate-180" : ""}
+                      />
+                    </Accordion.Indicator>
+                  </Accordion.Trigger>
                 </div>
-                <Accordion.Indicator className="text-muted shrink-0 transition-transform duration-200 ease-out">
-                  <ChevronDown
-                    size={14}
-                    className={isExpanded ? "rotate-180" : ""}
-                  />
-                </Accordion.Indicator>
-              </Accordion.Trigger>
+              ) : (
+                <Accordion.Trigger
+                  className={[
+                    "w-full flex items-center justify-between rounded-xl font-semibold text-muted hover:text-foreground hover:bg-surface-secondary/40 select-none cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-hidden transition-all duration-200",
+                    isMobile ? "h-12 px-3.5 text-base" : "h-10 px-4 text-sm",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {Icon && (
+                      <Icon
+                        size={20}
+                        className={[
+                          "shrink-0 transition-colors duration-200",
+                          hasActiveDescendant ? "text-accent" : "text-muted",
+                        ].join(" ")}
+                      />
+                    )}
+                    <span
+                      className={[
+                        "whitespace-nowrap font-outfit font-semibold",
+                        hasActiveDescendant
+                          ? "text-foreground font-bold"
+                          : "text-muted",
+                      ].join(" ")}
+                    >
+                      {label}
+                    </span>
+                  </div>
+                  <Accordion.Indicator className="text-muted shrink-0 transition-transform duration-200 ease-out">
+                    <ChevronDown
+                      size={14}
+                      className={isExpanded ? "rotate-180" : ""}
+                    />
+                  </Accordion.Indicator>
+                </Accordion.Trigger>
+              )}
             </Accordion.Heading>
             <Accordion.Panel>
               <Accordion.Body className="p-0">
@@ -265,7 +319,7 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
                     {child.icon && (
                       <child.icon size={14} className="mr-2 shrink-0" />
                     )}
-                    <span className="truncate">
+                    <span className="whitespace-nowrap">
                       {child.label}
                     </span>
                   </Link>
