@@ -155,11 +155,11 @@ function ContinueWithEmailContent() {
   };
 
   return (
-    <Card className="w-full bg-surface border border-border p-6 shadow-xl rounded-2xl">
+    <Card className="w-full bg-surface border border-border py-6 px-12 shadow-xl rounded-2xl">
       {step === 1 ? (
         <div className="w-full flex flex-col items-center">
-          <div className="w-12 h-12 bg-surface-secondary flex items-center justify-center rounded-xl my-6">
-            <Mail className="size-6 text-foreground" />
+          <div className="w-12 h-12 bg-accent-soft flex items-center justify-center rounded-xl my-6">
+            <Mail className="size-6 text-accent" />
           </div>
 
           <div className="text-center w-full mb-6 flex flex-col items-center gap-2">
@@ -171,7 +171,7 @@ function ContinueWithEmailContent() {
             </Typography.Heading>
             <Typography className="text-sm text-muted">
               We&apos;ve sent a 6-digit verification code to{" "}
-              <span className="font-bold text-foreground/80">{email}</span>.
+              <span className="font-bold text-foreground-soft">{email}</span>.
             </Typography>
           </div>
 
@@ -195,7 +195,7 @@ function ContinueWithEmailContent() {
               fullWidth
               isPending={isOtpLoading}
               isDisabled={otpCode.length < 6 || isOtpLoading}
-              className="h-12 rounded-2xl bg-foreground text-background font-semibold"
+              className="rounded-xl"
             >
               {isOtpLoading && <Spinner color="current" size="sm" />}
               Verify code
@@ -218,11 +218,11 @@ function ContinueWithEmailContent() {
         </div>
       ) : (
         <div className="w-full flex flex-col items-center">
-          <div className="w-12 h-12 bg-surface-secondary flex items-center justify-center rounded-xl my-6">
-            <ShieldCheck className="size-6 text-foreground" />
+          <div className="w-12 h-12 bg-accent-soft flex items-center justify-center rounded-xl my-6">
+            <ShieldCheck className="size-6 text-accent" />
           </div>
 
-          <div className="text-center w-full mb-6 flex flex-col items-center gap-2">
+          <div className="text-center w-full flex flex-col items-center gap-2">
             <Typography.Heading
               level={3}
               className="text-2xl font-bold text-foreground"
@@ -244,7 +244,6 @@ function ContinueWithEmailContent() {
               </Label>
               <InputGroup>
                 <InputGroup.Input
-                  className="h-12"
                   type={isVisible ? "text" : "password"}
                   placeholder="Create password"
                   value={password}
@@ -279,7 +278,6 @@ function ContinueWithEmailContent() {
               </Label>
               <InputGroup>
                 <InputGroup.Input
-                  className="h-12"
                   type={isConfirmVisible ? "text" : "password"}
                   placeholder="Confirm your password"
                   value={confirmPassword}
@@ -316,7 +314,7 @@ function ContinueWithEmailContent() {
                 password !== confirmPassword ||
                 isPasswordLoading
               }
-              className="h-12 rounded-2xl bg-foreground text-background font-semibold"
+              className="rounded-xl"
             >
               {({ isPending }) => (
                 <>

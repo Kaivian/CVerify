@@ -190,6 +190,22 @@ export const recoveryApi = {
   },
 
   /**
+   * Reclaim Organization Recovery: Step 2: Verify OTP
+   */
+  reclaimVerifyOtp: async (payload: { taxCode: string; challengeId: string; email: string; code: string; purpose: string }): Promise<{ verificationToken: string }> => {
+    const response = await axiosClient.post<{ verificationToken: string }>(
+      `/auth/recovery/reclaim/verify-otp?taxCode=${payload.taxCode}`,
+      {
+        challengeId: payload.challengeId,
+        email: payload.email,
+        code: payload.code,
+        purpose: payload.purpose,
+      }
+    );
+    return response.data;
+  },
+
+  /**
    * Standard Corporate Recovery: Step 3: Reset password with token
    */
   orgResetPassword: async (payload: ResetOrganizationPasswordPayload): Promise<LoginResponseData> => {
@@ -260,6 +276,30 @@ export const recoveryApi = {
    */
   level2GetHistory: async (organizationId: string): Promise<unknown[]> => {
     const response = await axiosClient.get<unknown[]>(`/auth/recovery/level2/organization/${organizationId}/history`);
+    return response.data;
+  },
+
+  /**
+   * Validate whether the entered email matches the previously registered/old recovery email
+   */
+  validateRecoveryEmailOwnership: async (taxCode: string, email: string, signal?: AbortSignal): Promise<{ isDuplicate: boolean; message: string }> => {
+    const response = await axiosClient.post<{ isDuplicate: boolean; message: string }>(
+      '/auth/recovery/reclaim/validate-email-ownership',
+      { taxCode, email },
+      { signal }
+    );
+    return response.data;
+  },
+
+  /**
+   * Sends OTP for reclamation with backend validation
+   */
+  sendReclaimOtp: async (taxCode: string, email: string, signal?: AbortSignal): Promise<{ challengeId: string; email: string; cooldownSeconds: number }> => {
+    const response = await axiosClient.post<{ challengeId: string; email: string; cooldownSeconds: number }>(
+      '/auth/recovery/reclaim/send-otp',
+      { taxCode, email },
+      { signal }
+    );
     return response.data;
   },
 };

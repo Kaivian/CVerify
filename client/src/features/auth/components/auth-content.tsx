@@ -20,13 +20,6 @@ export const AuthContent: React.FC<AuthContentProps> = ({ children }) => {
         />
       </div>
 
-      {/* Protocol Tag Badge */}
-      <div className="absolute top-12 right-6 md:right-12 select-none">
-        <Typography.Heading level={6} color="muted" className="tracking-widest font-mono text-[10px] sm:text-xs">
-          PROTOCOL V1.0.0
-        </Typography.Heading>
-      </div>
-
       {/* Shared Standardized Width Content Area */}
       <div className="w-full z-10 flex justify-center mt-8 xl:mt-0">
         {children}

@@ -2,8 +2,8 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  evaluatePasswordStrength, 
+import {
+  evaluatePasswordStrength,
   passwordPoliciesRegistry,
   type PasswordRule
 } from '../security/password-policy';
@@ -20,7 +20,7 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({
   className = ''
 }) => {
   const { t } = useTranslation(['auth']);
-  
+
   if (!value) {
     return null;
   }
@@ -74,8 +74,8 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({
       </div>
 
       {/* Progress Bar Track */}
-      <div 
-        className="flex gap-1 h-1.5 w-full bg-surface-secondary rounded-full overflow-hidden"
+      <div
+        className="flex h-1 w-full"
         role="progressbar"
         aria-valuenow={evaluation.percentage}
         aria-valuemin={0}
@@ -89,15 +89,14 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({
       </div>
 
       {/* Responsive Progressive live checklist feedback */}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-muted mt-1.5 transition-all duration-200">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-muted mt-1 transition-all duration-200">
         {policy.rules.map((rule: PasswordRule) => {
           const passed = isRulePassed(rule.id);
           return (
             <span
               key={rule.id}
-              className={`flex items-center gap-1 transition-colors duration-200 ${
-                passed ? 'text-success font-medium' : 'text-muted/80'
-              }`}
+              className={`flex items-center gap-1 transition-colors duration-200 ${passed ? 'text-success' : 'text-muted'
+                }`}
             >
               <span className="font-mono">{passed ? '✓' : '○'}</span>
               <span>{t(rule.labelKey, { defaultValue: rule.defaultLabel })}</span>

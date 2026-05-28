@@ -20,15 +20,21 @@ public class RecoveryController : ControllerBase
     private readonly ICandidateRecoveryService _candidateRecoveryService;
     private readonly IOrganizationRecoveryService _organizationRecoveryService;
     private readonly IOrganizationReclaimService _organizationReclaimService;
+    private readonly IAuthService _authService;
+    private readonly Microsoft.Extensions.Logging.ILogger<RecoveryController> _logger;
 
     public RecoveryController(
         ICandidateRecoveryService candidateRecoveryService,
         IOrganizationRecoveryService organizationRecoveryService,
-        IOrganizationReclaimService organizationReclaimService)
+        IOrganizationReclaimService organizationReclaimService,
+        IAuthService authService,
+        Microsoft.Extensions.Logging.ILogger<RecoveryController> logger)
     {
         _candidateRecoveryService = candidateRecoveryService;
         _organizationRecoveryService = organizationRecoveryService;
         _organizationReclaimService = organizationReclaimService;
+        _authService = authService;
+        _logger = logger;
     }
 
     // ==========================================
@@ -188,6 +194,105 @@ public class RecoveryController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("reclaim/validate-email-ownership")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ValidateEmailOwnershipResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ValidateEmailOwnership([FromBody] ValidateEmailOwnershipRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.TaxCode) || string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new { message = "Tax Code and Email are required." });
+        }
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var emailHash = Convert.ToHexString(sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(normalizedEmail))).ToLowerInvariant();
+        _logger.LogInformation("Recovery Email Ownership Validation attempt for TaxCode: {TaxCode}, EmailHash: {EmailHash}", request.TaxCode, emailHash);
+
+        try
+        {
+            var result = await _organizationReclaimService.ValidateRecoveryEmailOwnershipAsync(request.TaxCode, request.Email, cancellationToken);
+            
+            if (result.Status == RecoveryEmailValidationStatus.OrganizationNotFound)
+            {
+                return NotFound(new { message = result.Reason });
+            }
+
+            var isDuplicate = result.Status == RecoveryEmailValidationStatus.DuplicateOldOwnerEmail;
+            return Ok(new ValidateEmailOwnershipResponse(
+                IsDuplicate: isDuplicate,
+                Message: isDuplicate 
+                    ? "This email cannot be used for account recovery. Please use a different recovery email address." 
+                    : "Email is valid for recovery."
+            ));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("reclaim/send-otp")]
+    [AllowAnonymous]
+    [EnableRateLimiting("ForgotPasswordLimit")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SendOtpResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReclaimSendOtp([FromBody] ReclaimSendOtpRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.TaxCode) || string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new { message = "Tax Code and Email are required." });
+        }
+
+        try
+        {
+            // Security: Re-run ownership validation on the server side prior to dispatch
+            var validation = await _organizationReclaimService.ValidateRecoveryEmailOwnershipAsync(request.TaxCode, request.Email, cancellationToken);
+            if (validation.Status == RecoveryEmailValidationStatus.DuplicateOldOwnerEmail)
+            {
+                return BadRequest(new { message = "This email cannot be used for account recovery. Please use a different recovery email address." });
+            }
+
+            var userAgent = Request.Headers.UserAgent.ToString();
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+            var otpRequest = new SendOtpRequest(request.Email, "Reclaim");
+            var result = await _authService.SendOtpAsync(otpRequest, userAgent, ipAddress, cancellationToken);
+
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (AuthException ex)
+        {
+            return BadRequest(new { code = ex.Code, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("reclaim/verify-otp")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VerifyOtpResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReclaimVerifyOtp([FromBody] VerifyOtpRequest request, [FromQuery] string taxCode, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _organizationReclaimService.VerifyRecoveryOtpAsync(request, taxCode, cancellationToken);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 

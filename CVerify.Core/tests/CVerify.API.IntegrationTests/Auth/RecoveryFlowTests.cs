@@ -165,4 +165,76 @@ public class RecoveryFlowTests : BaseIntegrationTest
         claimAfterSecond!.Status.Should().Be("Approved");
         claimAfterSecond.SecondReviewerBy.Should().Be("admin2@cverify.ai");
     }
+
+    [Fact]
+    public async Task ValidateEmailOwnership_Should_Return_IsDuplicate_True_If_Email_Matches_RepresentativeEmail()
+    {
+        var taxCode = "5555555555";
+        var companyName = "Test Duplicate Corp";
+        var email = "owner@duplicatecorp.com";
+        var username = "duplicate-corp";
+        
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var org = new Organization
+        {
+            TaxCode = taxCode,
+            Name = companyName,
+            Email = "company@duplicatecorp.com",
+            Username = username,
+            Status = "active",
+            VerificationLevel = 1,
+            IsVerified = true,
+            RepresentativeEmail = email, // matches the entered email
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        db.Organizations.Add(org);
+        await db.SaveChangesAsync();
+
+        var request = new ValidateEmailOwnershipRequest(taxCode, email);
+        var response = await Client.PostAsJsonAsync("/api/auth/recovery/reclaim/validate-email-ownership", request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<ValidateEmailOwnershipResponse>();
+        result.Should().NotBeNull();
+        result!.IsDuplicate.Should().BeTrue();
+        result.Message.Should().Contain("cannot be used");
+    }
+
+    [Fact]
+    public async Task ReclaimSendOtp_Should_Prevent_Send_If_Email_Matches_RepresentativeEmail()
+    {
+        var taxCode = "7777777777";
+        var companyName = "Test Reclaim Block Corp";
+        var email = "owner@reclaimblock.com";
+        var username = "reclaimblock-corp";
+        
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var org = new Organization
+        {
+            TaxCode = taxCode,
+            Name = companyName,
+            Email = "company@reclaimblock.com",
+            Username = username,
+            Status = "active",
+            VerificationLevel = 1,
+            IsVerified = true,
+            RepresentativeEmail = email, // matches the entered email
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        db.Organizations.Add(org);
+        await db.SaveChangesAsync();
+
+        var request = new ReclaimSendOtpRequest(taxCode, email);
+        var response = await Client.PostAsJsonAsync("/api/auth/recovery/reclaim/send-otp", request);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var errorMsg = await response.Content.ReadAsStringAsync();
+        errorMsg.Should().Contain("cannot be used");
+    }
 }

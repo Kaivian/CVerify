@@ -184,7 +184,7 @@ public class Level2RecoveryTests : BaseIntegrationTest
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var outboxEmails = await db.OutboxMessages.ToListAsync();
-        outboxEmails.Should().Contain(m => m.Type == "SystemNotificationEmail" && m.Payload.Contains("Vote"));
+        outboxEmails.Should().Contain(m => m.Type == "SystemNotificationEmail" && m.Payload.Contains("vote"));
     }
 
     [Fact]
