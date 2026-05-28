@@ -20,7 +20,6 @@ import {
   Chip,
   Separator,
   Tabs,
-  ScrollShadow
 } from "@heroui/react";
 import OtpInput from "@/components/ui/otp-input";
 import {
@@ -33,8 +32,6 @@ import {
   Mail,
   Lock,
   Search,
-  Award,
-  Sparkles,
   AlertTriangle,
   AlertCircle,
   RefreshCw,
@@ -103,6 +100,7 @@ export function CompanyVerificationView() {
   const {
     verifyCompanyOnboarding,
     sendOtp,
+    fetchOtpSession,
     verifyOnboardingOtp,
     verifyOnboardingGoogle,
     completeOnboarding,
@@ -174,6 +172,112 @@ export function CompanyVerificationView() {
     }, 1000);
     return () => clearInterval(interval);
   }, [cooldown]);
+
+  // Sync active OTP session state with backend
+  const syncOtpSession = useCallback(async (email: string, chalId: string) => {
+    if (!email || !chalId) return;
+    try {
+      const res = await fetchOtpSession(email, "Onboarding", chalId);
+      if (res.success && res.data) {
+        const { hasActiveOtp, status, cooldownUntil } = res.data;
+        if (hasActiveOtp && status === "ACTIVE") {
+          if (cooldownUntil) {
+            const cooldownDiff = Math.ceil((new Date(cooldownUntil).getTime() - Date.now()) / 1000);
+            setCooldown(cooldownDiff > 0 ? cooldownDiff : 0);
+          }
+          setOtpSent(true);
+        } else {
+          setChallengeId("");
+          setOtpSent(false);
+          setCooldown(0);
+          toast.warning("Active verification session has expired. Please request a new code.");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to sync OTP session with backend", err);
+    }
+  }, [fetchOtpSession]);
+
+  // State Persistence: Restore progress on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = sessionStorage.getItem("cverify_company_onboarding_state");
+    if (!saved) return;
+    try {
+      const state = JSON.parse(saved);
+      setTimeout(() => {
+        if (state.step) setStep(state.step);
+        if (state.taxCode) setTaxCode(state.taxCode);
+        if (state.companyName) setCompanyName(state.companyName);
+        if (state.verifiedCompanyInfo) setVerifiedCompanyInfo(state.verifiedCompanyInfo);
+        if (state.step1Token) setStep1Token(state.step1Token);
+        if (state.activeLinkTab) setActiveLinkTab(state.activeLinkTab);
+        if (state.ownerEmail) setOwnerEmail(state.ownerEmail);
+        if (state.otpSent) setOtpSent(state.otpSent);
+        if (state.challengeId) setChallengeId(state.challengeId);
+        if (state.step2Token) setStep2Token(state.step2Token);
+        if (state.verifiedEmail) setVerifiedEmail(state.verifiedEmail);
+        if (state.companyDisplayName) setCompanyDisplayName(state.companyDisplayName);
+        if (state.organizationUsername) setOrganizationUsername(state.organizationUsername);
+
+        // Verify restored OTP challenge state against backend
+        if (state.challengeId && state.ownerEmail) {
+          syncOtpSession(state.ownerEmail, state.challengeId);
+        }
+      }, 0);
+    } catch (e) {
+      console.error("Failed to restore onboarding state from sessionStorage", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // State Persistence: Cache wizard inputs and token states in SessionStorage on change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const state = {
+      step,
+      taxCode,
+      companyName,
+      verifiedCompanyInfo,
+      step1Token,
+      activeLinkTab,
+      ownerEmail,
+      otpSent,
+      challengeId,
+      step2Token,
+      verifiedEmail,
+      companyDisplayName,
+      organizationUsername,
+    };
+    sessionStorage.setItem("cverify_company_onboarding_state", JSON.stringify(state));
+  }, [
+    step,
+    taxCode,
+    companyName,
+    verifiedCompanyInfo,
+    step1Token,
+    activeLinkTab,
+    ownerEmail,
+    otpSent,
+    challengeId,
+    step2Token,
+    verifiedEmail,
+    companyDisplayName,
+    organizationUsername,
+  ]);
+
+  // Focus & Visibility Synchronization: regain active OTP timers and state instantly on focus regain
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && challengeId && ownerEmail && step === 2) {
+        syncOtpSession(ownerEmail, challengeId);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [challengeId, ownerEmail, step, syncOtpSession]);
 
   // Google SSO logic
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -338,13 +442,17 @@ export function CompanyVerificationView() {
   const handleSendOtp = async () => {
     if (!ownerEmail || !validateEmail(ownerEmail)) return;
     setIsLoading(true);
-    const result = await sendOtp(ownerEmail, "Onboarding");
+    
+    // Generate idempotency key for this request
+    const idempotencyKey = crypto.randomUUID();
+
+    const result = await sendOtp(ownerEmail, "Onboarding", idempotencyKey);
     setIsLoading(false);
 
     if (result.success && result.data) {
       setChallengeId(result.data.challengeId);
       setOtpSent(true);
-      setCooldown(60);
+      setCooldown(result.data.cooldownSeconds || 60);
       toast.success("Verification code dispatched", {
         description: `6-digit OTP code has been sent to ${ownerEmail}.`,
       });
@@ -527,7 +635,7 @@ export function CompanyVerificationView() {
             </Button>
           </div>
         </div>
-      </Card >
+      </Card>
     );
   }
 
@@ -548,12 +656,13 @@ export function CompanyVerificationView() {
                 <div className="flex flex-col items-center relative z-10 flex-1">
                   {/* Circle */}
                   <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 font-bold font-mono text-xs ${step > s.id
-                      ? "bg-accent border-accent text-accent-foreground"
-                      : step === s.id
-                        ? "border-accent text-accent bg-surface"
-                        : "border-border text-muted bg-surface"
-                      }`}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 font-bold font-mono text-xs ${
+                      step > s.id
+                        ? "bg-accent border-accent text-accent-foreground"
+                        : step === s.id
+                          ? "border-accent text-accent bg-surface"
+                          : "border-border text-muted bg-surface"
+                    }`}
                   >
                     {step > s.id ? (
                       <Check className="size-4 stroke-[2.5]" />
@@ -565,10 +674,11 @@ export function CompanyVerificationView() {
                   {/* Labels stacked below */}
                   <div className="flex flex-col items-center mt-3 text-center px-1">
                     <span
-                      className={`text-xs font-bold tracking-wide transition-colors whitespace-nowrap ${step >= s.id
-                        ? "text-foreground font-semibold"
-                        : "text-muted"
-                        }`}
+                      className={`text-xs font-bold tracking-wide transition-colors whitespace-nowrap ${
+                        step >= s.id
+                          ? "text-foreground font-semibold"
+                          : "text-muted"
+                      }`}
                     >
                       {s.label}
                     </span>
@@ -604,8 +714,8 @@ export function CompanyVerificationView() {
                   Register Your Company
                 </Typography.Heading>
                 <Typography className="text-xs text-muted text-center">
-                  Verify your legal Vietnamese business existence via
-                  corporate registry linkage.
+                  Verify your legal business existence via corporate registry
+                  linkage.
                 </Typography>
               </div>
             </div>
@@ -786,7 +896,9 @@ export function CompanyVerificationView() {
               className="w-full px-12 mb-6"
               variant="secondary"
               selectedKey={activeLinkTab}
-              onSelectionChange={(key) => setActiveLinkTab(key as "email" | "google")}
+              onSelectionChange={(key) =>
+                setActiveLinkTab(key as "email" | "google")
+              }
             >
               <Tabs.ListContainer>
                 <Tabs.List
@@ -881,7 +993,10 @@ export function CompanyVerificationView() {
                   <div className="flex-1 overflow-y-auto w-full px-6 pb-6 flex flex-col gap-3 items-center">
                     <Typography className="text-xs text-muted">
                       We&apos;ve sent a 6-digit verification code to{" "}
-                      <span className="font-bold text-foreground-soft">{ownerEmail}</span>.
+                      <span className="font-bold text-foreground-soft">
+                        {ownerEmail}
+                      </span>
+                      .
                     </Typography>
 
                     <div className="flex flex-col gap-3 items-center w-full shrink-0">
@@ -942,115 +1057,115 @@ export function CompanyVerificationView() {
                 </Form>
               )
             ) : // GOOGLE SSO LINK SUITE
-              verifiedEmail ? (
-                // GOOGLE SSO LINK SUITE (LINKED STATE)
-                <div className="w-full flex flex-col flex-1 overflow-hidden animate-in fade-in duration-300">
-                  <div className="flex-1 overflow-y-auto w-full px-6 pb-4 flex flex-col gap-6">
-                    <div className="flex items-center gap-3 bg-success-soft/25 p-4 rounded-xl">
-                      <div className="w-8 h-8 rounded-full bg-success text-success-foreground flex items-center justify-center">
-                        <Check className="size-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-success">
-                          Google Account Linked
-                        </h4>
-                        <p className="text-xs text-success/80 font-medium">
-                          Your identity has been successfully verified.
-                        </p>
-                      </div>
+            verifiedEmail ? (
+              // GOOGLE SSO LINK SUITE (LINKED STATE)
+              <div className="w-full flex flex-col flex-1 overflow-hidden animate-in fade-in duration-300">
+                <div className="flex-1 overflow-y-auto w-full px-6 pb-4 flex flex-col gap-6">
+                  <div className="flex items-center gap-3 bg-success-soft/25 p-4 rounded-xl">
+                    <div className="w-8 h-8 rounded-full bg-success text-success-foreground flex items-center justify-center">
+                      <Check className="size-4" />
                     </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-success">
+                        Google Account Linked
+                      </h4>
+                      <p className="text-xs text-success/80 font-medium">
+                        Your identity has been successfully verified.
+                      </p>
+                    </div>
+                  </div>
 
-                    <div className="flex gap-4 items-end">
-                      <TextField
-                        isReadOnly
-                        name="linkedGoogleEmail"
-                        type="email"
-                        className="w-full"
-                      >
-                        <Label>Linked Google Email</Label>
-                        <Input
-                          value={verifiedEmail}
-                          className="rounded-xl"
-                          readOnly
-                        />
-                      </TextField>
-
-                      <Button
-                        variant="outline"
+                  <div className="flex gap-4 items-end">
+                    <TextField
+                      isReadOnly
+                      name="linkedGoogleEmail"
+                      type="email"
+                      className="w-full"
+                    >
+                      <Label>Linked Google Email</Label>
+                      <Input
+                        value={verifiedEmail}
                         className="rounded-xl"
-                        onPress={() => {
-                          setVerifiedEmail("");
-                          setStep2Token("");
-                        }}
-                      >
-                        <RefreshCw className="size-4 mr-2" /> Link another email
-                      </Button>
-                    </div>
-                  </div>
+                        readOnly
+                      />
+                    </TextField>
 
-                  <div className="flex gap-4 px-6 py-3 border-t border-border">
                     <Button
-                      fullWidth
-                      variant="secondary"
+                      variant="outline"
                       className="rounded-xl"
-                      onPress={() => setStep(1)}
+                      onPress={() => {
+                        setVerifiedEmail("");
+                        setStep2Token("");
+                      }}
                     >
-                      Back to step 1
-                    </Button>
-                    <Button
-                      fullWidth
-                      className="rounded-xl"
-                      onPress={() => setStep(3)}
-                    >
-                      Confirm & Continue
-                      <ArrowRight className="size-4 ml-2" />
+                      <RefreshCw className="size-4 mr-2" /> Link another email
                     </Button>
                   </div>
                 </div>
-              ) : (
-                // GOOGLE SSO LINK SUITE (UNLINKED STATE)
-                <div className="w-full flex flex-col flex-1 overflow-hidden">
-                  <div className="flex-1 overflow-y-auto w-full px-18 pb-6 flex flex-col gap-6 items-center">
-                    <div className="text-center justify-center">
-                      <Typography.Heading
-                        level={3}
-                        className="text-xl font-bold text-foreground text-center justify-center"
-                      >
-                        Secure OAuth Linking
-                      </Typography.Heading>
-                      <Typography className="text-xs text-muted text-center leading-relaxed">
-                        Authenticate via Google Single Sign-On. Your Google email
-                        identity will serve as your primary owner account
-                        workspace.
-                      </Typography>
-                    </div>
 
-                    <Button
-                      variant="tertiary"
-                      fullWidth
-                      className="rounded-xl text-sm"
-                      size="lg"
-                      onPress={handleGoogleSignIn}
-                      isDisabled={isGoogleLoading || isLoading}
-                      isPending={isGoogleLoading}
-                    >
-                      {!isGoogleLoading && <Google />}
-                      Link with Google
-                    </Button>
-                  </div>
-
-                  <div className="flex gap-6 px-18 py-6 border-t border-border bg-surface shrink-0 w-full">
-                    <Button
-                      fullWidth
-                      variant="secondary"
-                      className="rounded-xl"
-                      onPress={() => setStep(1)}
-                    >
-                      Back to step 1
-                    </Button>
-                  </div>
+                <div className="flex gap-4 px-6 py-3 border-t border-border">
+                  <Button
+                    fullWidth
+                    variant="secondary"
+                    className="rounded-xl"
+                    onPress={() => setStep(1)}
+                  >
+                    Back to step 1
+                  </Button>
+                  <Button
+                    fullWidth
+                    className="rounded-xl"
+                    onPress={() => setStep(3)}
+                  >
+                    Confirm & Continue
+                    <ArrowRight className="size-4 ml-2" />
+                  </Button>
                 </div>
-              )}
+              </div>
+            ) : (
+              // GOOGLE SSO LINK SUITE (UNLINKED STATE)
+              <div className="w-full flex flex-col flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto w-full px-18 pb-6 flex flex-col gap-6 items-center">
+                  <div className="text-center justify-center">
+                    <Typography.Heading
+                      level={3}
+                      className="text-xl font-bold text-foreground text-center justify-center"
+                    >
+                      Secure OAuth Linking
+                    </Typography.Heading>
+                    <Typography className="text-xs text-muted text-center leading-relaxed">
+                      Authenticate via Google Single Sign-On. Your Google email
+                      identity will serve as your primary owner account
+                      workspace.
+                    </Typography>
+                  </div>
+
+                  <Button
+                    variant="tertiary"
+                    fullWidth
+                    className="rounded-xl text-sm"
+                    size="lg"
+                    onPress={handleGoogleSignIn}
+                    isDisabled={isGoogleLoading || isLoading}
+                    isPending={isGoogleLoading}
+                  >
+                    {!isGoogleLoading && <Google />}
+                    Link with Google
+                  </Button>
+                </div>
+
+                <div className="flex gap-6 px-18 py-6 border-t border-border bg-surface shrink-0 w-full">
+                  <Button
+                    fullWidth
+                    variant="secondary"
+                    className="rounded-xl"
+                    onPress={() => setStep(1)}
+                  >
+                    Back to step 1
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1085,7 +1200,9 @@ export function CompanyVerificationView() {
                       {verifiedEmail}
                     </span>
                   </div>
-                  <Chip color="success" variant="primary">Verified</Chip>
+                  <Chip color="success" variant="primary">
+                    Verified
+                  </Chip>
                 </div>
 
                 {/* Public Display Name */}

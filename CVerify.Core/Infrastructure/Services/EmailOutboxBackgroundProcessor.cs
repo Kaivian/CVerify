@@ -138,6 +138,7 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                                     otpPayload.Email,
                                     "Candidate User",
                                     otpPayload.Otp,
+                                    otpPayload.Template,
                                     stoppingToken).ConfigureAwait(false);
                             }
                             break;
@@ -162,7 +163,8 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
                                     orgOtpPayload.Email,
                                     orgOtpPayload.CompanyName + " Admin",
                                     orgOtpPayload.Code,
-                                    stoppingToken).ConfigureAwait(false);
+                                    templateName: null,
+                                    cancellationToken: stoppingToken).ConfigureAwait(false);
                             }
                             break;
 
@@ -219,6 +221,7 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
         public string Otp { get; set; } = null!;
         public string ChallengeId { get; set; } = null!;
         public string Purpose { get; set; } = null!;
+        public string? Template { get; set; }
     }
 
     private class CompanyVerificationPayload

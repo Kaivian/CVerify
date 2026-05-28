@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Card, Typography, Button } from "@heroui/react";
-import { AlertTriangle, ArrowLeft, RefreshCw, HelpCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react";
 
 interface RecoveryEmailBlockedStateProps {
   onUseAnotherEmail: () => void;
@@ -31,7 +31,9 @@ export function RecoveryEmailBlockedState({
             Recovery Email Blocked
           </Typography.Heading>
           <Typography className="text-xs text-muted text-center leading-relaxed">
-            This email cannot be used for account recovery. For security reasons, CVerify prohibits the reuse of recovery emails associated with previous workspace owners.
+            This email cannot be used for account recovery. For security
+            reasons, CVerify prohibits the reuse of recovery emails associated
+            with previous workspace owners.
           </Typography>
         </div>
 
@@ -43,24 +45,23 @@ export function RecoveryEmailBlockedState({
 
           <ul className="space-y-3 text-xs text-muted leading-relaxed list-disc pl-4">
             <li>
-              Please provide a **different, active corporate domain email address** that you currently control.
+              Please provide a **different, active corporate domain email
+              address** that you currently control.
             </li>
             <li>
-              The recovery email must be unique and directly associated with the new representative.
+              The recovery email must be unique and directly associated with the
+              new representative.
             </li>
             <li>
-              Workspace configurations, historical evidence logs, and dual-review procedures remain strictly active.
+              Workspace configurations, historical evidence logs, and
+              dual-review procedures remain strictly active.
             </li>
           </ul>
         </div>
 
         {/* Premium CTA Actions Hierarchy */}
-        <div className="w-full mt-6 flex gap-4 w-full">
-          <Button
-            variant="outline"
-            className="rounded-xl"
-            onPress={onBack}
-          >
+        <div className="w-full mt-6 flex gap-4">
+          <Button variant="outline" className="rounded-xl" onPress={onBack}>
             <ArrowLeft className="size-4 mr-2" />
             Go Back
           </Button>
