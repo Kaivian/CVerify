@@ -20,6 +20,9 @@ import {
   type ProjectEntryRequest,
   type ProjectEntryResponse,
   type AssessmentStageDto,
+  type RankingQueryParams,
+  type PaginatedRankingResponse,
+  type RankingStats,
 } from '../types/profile.types';
 
 export const profileApi = {
@@ -262,6 +265,33 @@ export const profileApi = {
     if (response.status === 204) {
       return null;
     }
+    return response.data;
+  },
+
+  fetchRanking: async (params: RankingQueryParams): Promise<PaginatedRankingResponse> => {
+    // Clean up arrays to match query string formatting (e.g. key=val1&key=val2)
+    const formattedParams: any = { ...params };
+    // Axios handles array serialization by default as key[]=val or key=val, let's keep it simple
+    const response = await axiosClient.get<PaginatedRankingResponse>('/v1/users/profile/ranking', { 
+      params: formattedParams,
+      // Ensure arrays are serialized as repeating query params (e.g. trustTiers=HighTrust&trustTiers=EvidenceVerified)
+      paramsSerializer: {
+        indexes: null
+      }
+    });
+    return response.data;
+  },
+
+  followUser: async (username: string): Promise<void> => {
+    await axiosClient.post(`/v1/users/profile/public/${username}/follow`);
+  },
+
+  unfollowUser: async (username: string): Promise<void> => {
+    await axiosClient.post(`/v1/users/profile/public/${username}/unfollow`);
+  },
+
+  fetchRankingStats: async (): Promise<RankingStats> => {
+    const response = await axiosClient.get<RankingStats>('/v1/users/profile/ranking/stats');
     return response.data;
   },
 };

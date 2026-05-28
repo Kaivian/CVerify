@@ -192,4 +192,71 @@ public class ProfileController : ControllerBase
             return NotFound();
         }
     }
+
+    [HttpGet("ranking")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetRanking([FromQuery] RankingQueryDto query, CancellationToken cancellationToken)
+    {
+        Guid? currentUserId = null;
+        var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userIdStr) && Guid.TryParse(userIdStr, out var parsedId))
+        {
+            currentUserId = parsedId;
+        }
+
+        var result = await _profileService.GetRankingAsync(currentUserId, query, cancellationToken);
+        return Ok(result);
+     }
+
+    [HttpGet("ranking/stats")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(RankingStatsDto))]
+    public async Task<IActionResult> GetRankingStats(CancellationToken cancellationToken)
+    {
+        var result = await _profileService.GetRankingStatsAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("public/{username}/follow")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> FollowUser(string username, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _profileService.FollowUserAsync(CurrentUserId, username, cancellationToken);
+            return NoContent();
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (BusinessRuleException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
+    }
+
+    [HttpPost("public/{username}/unfollow")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UnfollowUser(string username, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _profileService.UnfollowUserAsync(CurrentUserId, username, cancellationToken);
+            return NoContent();
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (BusinessRuleException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
+    }
 }

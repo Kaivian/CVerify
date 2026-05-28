@@ -62,6 +62,7 @@ const RESERVED_USERNAMES = [
   "settings",
   "login",
   "organizations",
+  "ranking",
 ];
 
 // 1. Zod account schema

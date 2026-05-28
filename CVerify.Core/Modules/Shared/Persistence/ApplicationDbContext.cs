@@ -163,6 +163,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<TrustCalculation> TrustCalculations => Set<TrustCalculation>();
     public DbSet<CandidateTrustProjection> CandidateTrustProjections => Set<CandidateTrustProjection>();
     public DbSet<CandidateSearchProfile> CandidateSearchProfiles => Set<CandidateSearchProfile>();
+    public DbSet<UserFollower> UserFollowers => Set<UserFollower>();
+    public DbSet<CandidateRankingProjection> CandidateRankingProjections => Set<CandidateRankingProjection>();
     public DbSet<CandidateMatchProjection> CandidateMatchProjections => Set<CandidateMatchProjection>();
     public DbSet<CandidateEvaluationSnapshot> CandidateEvaluationSnapshots => Set<CandidateEvaluationSnapshot>();
     public DbSet<CandidateCapabilityProjection> CandidateCapabilityProjections => Set<CandidateCapabilityProjection>();
@@ -472,6 +474,30 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(csp => csp.Candidate)
                   .WithOne()
                   .HasForeignKey<CandidateSearchProfile>(csp => csp.CandidateId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CandidateRankingProjection>(entity =>
+        {
+            entity.HasKey(crp => crp.CandidateId);
+            entity.HasOne(crp => crp.Candidate)
+                  .WithOne()
+                  .HasForeignKey<CandidateRankingProjection>(crp => crp.CandidateId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserFollower>(entity =>
+        {
+            entity.HasKey(uf => new { uf.FollowerId, uf.FolloweeId });
+
+            entity.HasOne(uf => uf.Follower)
+                  .WithMany()
+                  .HasForeignKey(uf => uf.FollowerId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(uf => uf.Followee)
+                  .WithMany()
+                  .HasForeignKey(uf => uf.FolloweeId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 

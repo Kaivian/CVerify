@@ -9,7 +9,7 @@ export const RESERVED_USERNAMES = new Set([
   "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
   "chat", "business", "user", "organization", "organizations", "auth", "system", "unauthorized", "company-onboarding",
   "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email", "workspace-setup",
-  "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects"
+  "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects", "ranking"
 ]);
 
 /**
@@ -92,6 +92,14 @@ export const isActiveRoute = (
   if (itemId === 'cv-preferences') {
     const isCvPage = cleanPath === '/cv' || cleanPath === '/my-cv';
     return isCvPage && searchParams?.tab === 'preferences';
+  }
+
+  // 2b. Leaderboard Group matching
+  if (itemId === 'ranking-group') {
+    return (
+      cleanPath === '/ranking' ||
+      cleanPath.startsWith('/ranking/')
+    );
   }
 
   // 3. Professional Profile matching (dynamic username check)

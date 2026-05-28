@@ -7,6 +7,7 @@ import {
   Shield, 
   FileText,
   Settings,
+  Trophy,
   type LucideIcon
 } from 'lucide-react';
 
@@ -65,6 +66,19 @@ export const routesConfig: Record<string, RouteMetadata> = {
     path: '/forum',
     translationKey: 'common:dashboard.forum',
     fallbackLabel: 'Forum',
+  },
+  '/ranking': {
+    path: '/ranking',
+    translationKey: 'common:dashboard.ranking',
+    fallbackLabel: 'Leaderboard',
+    icon: Trophy,
+  },
+  '/ranking/insights': {
+    path: '/ranking/insights',
+    translationKey: 'common:dashboard.rankingInsights',
+    fallbackLabel: 'Talent Insights',
+    icon: Sparkles,
+    parentPath: '/ranking',
   },
   '/intelligence/capability-graph': {
     path: '/intelligence/capability-graph',

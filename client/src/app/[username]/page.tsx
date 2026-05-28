@@ -11,7 +11,7 @@ const RESERVED_USERNAMES = new Set([
   "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
   "chat", "business", "user", "organization", "auth", "system", "unauthorized", "company-onboarding",
   "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email", "workspace-setup",
-  "cv"
+  "cv", "ranking"
 ]);
 
 interface PageProps {
