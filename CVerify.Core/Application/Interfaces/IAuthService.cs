@@ -25,6 +25,7 @@ public interface IAuthService
     // Challenge-based OTP contracts
     Task<SendOtpResponse> SendOtpAsync(SendOtpRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default);
     Task<VerifyOtpResponse> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default);
+    Task<OtpSessionResponse> GetActiveOtpSessionAsync(string email, string purpose, Guid challengeId, CancellationToken cancellationToken = default);
     Task<AuthResponse> CreatePasswordAsync(CreatePasswordRequest request, CancellationToken cancellationToken = default);
 
     // Company verification & workspace contracts

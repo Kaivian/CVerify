@@ -12,6 +12,8 @@ using CVerify.API.Core.Entities;
 using CVerify.API.Infrastructure.Configuration;
 using CVerify.API.Infrastructure.Persistence;
 using CVerify.API.Infrastructure.Security;
+using CVerify.API.Application.Security.OtpPolicies;
+using CVerify.API.Application.Exceptions;
 
 namespace CVerify.API.Application.Services;
 
@@ -24,6 +26,9 @@ public class OrganizationReclaimService : IOrganizationReclaimService
     private readonly TimeProvider _timeProvider;
     private readonly ICacheService _cacheService;
     private readonly ILogger<OrganizationReclaimService> _logger;
+    private readonly IOtpPolicyService _otpPolicyService;
+    private readonly IAuthService _authService;
+    private readonly IRateLimitPolicyService _rateLimitPolicyService;
 
     public OrganizationReclaimService(
         ApplicationDbContext context,
@@ -32,7 +37,10 @@ public class OrganizationReclaimService : IOrganizationReclaimService
         EnvConfiguration envConfig,
         TimeProvider timeProvider,
         ICacheService cacheService,
-        ILogger<OrganizationReclaimService> logger)
+        ILogger<OrganizationReclaimService> logger,
+        IOtpPolicyService otpPolicyService,
+        IAuthService authService,
+        IRateLimitPolicyService rateLimitPolicyService)
     {
         _context = context;
         _encryptedFileStorageService = encryptedFileStorageService;
@@ -41,6 +49,9 @@ public class OrganizationReclaimService : IOrganizationReclaimService
         _timeProvider = timeProvider;
         _cacheService = cacheService;
         _logger = logger;
+        _otpPolicyService = otpPolicyService;
+        _authService = authService;
+        _rateLimitPolicyService = rateLimitPolicyService;
     }
 
     public async Task<SubmitClaimResponse> SubmitClaimAsync(
@@ -54,9 +65,31 @@ public class OrganizationReclaimService : IOrganizationReclaimService
         var otpPayload = RecoveryTokenHelper.VerifyToken(request.EmailVerificationToken, _envConfig.Jwt.Key);
         if (otpPayload == null || 
             otpPayload["step"] != "OTP_VERIFIED" || 
-            !string.Equals(otpPayload["taxCode"], request.TaxCode, StringComparison.OrdinalIgnoreCase) || 
-            !string.Equals(otpPayload["email"], request.RecoveryEmail, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(
+                RecoveryTokenHelper.NormalizeTaxCode(otpPayload.GetValueOrDefault("taxCode", string.Empty)), 
+                RecoveryTokenHelper.NormalizeTaxCode(request.TaxCode), 
+                StringComparison.OrdinalIgnoreCase) || 
+            !string.Equals(
+                RecoveryTokenHelper.NormalizeEmail(otpPayload.GetValueOrDefault("email", string.Empty)), 
+                RecoveryTokenHelper.NormalizeEmail(request.RecoveryEmail), 
+                StringComparison.OrdinalIgnoreCase))
         {
+            _logger.LogWarning(
+                "Email OTP token verification failed. PayloadIsNull={PayloadIsNull}, TokenExists={TokenExists}, TokenLength={TokenLength}, TokenPrefix={TokenPrefix}, ExpectedTaxCode={ExpectedTaxCode}, NormalizedExpectedTaxCode={NormalizedExpectedTaxCode}, ExpectedEmail={ExpectedEmail}, NormalizedExpectedEmail={NormalizedExpectedEmail}, PayloadStep={PayloadStep}, PayloadTaxCode={PayloadTaxCode}, NormalizedPayloadTaxCode={NormalizedPayloadTaxCode}, PayloadEmail={PayloadEmail}, NormalizedPayloadEmail={NormalizedPayloadEmail}",
+                otpPayload == null,
+                !string.IsNullOrEmpty(request.EmailVerificationToken),
+                request.EmailVerificationToken?.Length ?? 0,
+                string.IsNullOrEmpty(request.EmailVerificationToken) ? "N/A" : request.EmailVerificationToken.Substring(0, Math.Min(10, request.EmailVerificationToken.Length)),
+                request.TaxCode,
+                RecoveryTokenHelper.NormalizeTaxCode(request.TaxCode),
+                request.RecoveryEmail,
+                RecoveryTokenHelper.NormalizeEmail(request.RecoveryEmail),
+                otpPayload != null && otpPayload.ContainsKey("step") ? otpPayload["step"] : "N/A",
+                otpPayload != null && otpPayload.ContainsKey("taxCode") ? otpPayload["taxCode"] : "N/A",
+                otpPayload != null && otpPayload.ContainsKey("taxCode") ? RecoveryTokenHelper.NormalizeTaxCode(otpPayload["taxCode"]) : "N/A",
+                otpPayload != null && otpPayload.ContainsKey("email") ? otpPayload["email"] : "N/A",
+                otpPayload != null && otpPayload.ContainsKey("email") ? RecoveryTokenHelper.NormalizeEmail(otpPayload["email"]) : "N/A"
+            );
             throw new InvalidOperationException("Email OTP verification token is invalid or has expired.");
         }
 
@@ -70,55 +103,188 @@ public class OrganizationReclaimService : IOrganizationReclaimService
         }
 
         // 3. Enforce 7-day cooldown block
-        var cooldownLimit = _timeProvider.GetUtcNow().AddDays(-7);
+        var cooldownDays = _rateLimitPolicyService.DisableRateLimits ? 0 : -7;
+        var cooldownLimit = _timeProvider.GetUtcNow().AddDays(cooldownDays);
         var hasRecentClaim = await _context.OrganizationRecoveryClaims
             .AnyAsync(c => c.OrganizationId == org.Id && c.CreatedAt >= cooldownLimit, cancellationToken);
 
         if (hasRecentClaim)
         {
-            throw new InvalidOperationException("A recovery claim has already been initiated for this organization in the last 7 days.");
+            if (_rateLimitPolicyService.DisableRateLimits)
+            {
+                _rateLimitPolicyService.LogBypass("Organization reclaim cooldown", "SubmitClaimAsync", org.TaxCode);
+            }
+            else
+            {
+                throw new InvalidOperationException("A recovery claim has already been initiated for this organization in the last 7 days.");
+            }
         }
 
-        // 4. Encrypt and save uploaded documents
-        var claimDocs = new List<RecoveryClaimDocument>();
+        // Generate unique Claim ID upfront for deterministic key generation
+        var claimId = Guid.CreateVersion7();
+
+        // 4. Strict upload validation before processing
         foreach (var doc in documents)
         {
-            var (storagePath, encryptionIv) = await _encryptedFileStorageService.EncryptAndSaveFileAsync(doc.fileStream, doc.fileName);
-            var claimDoc = new RecoveryClaimDocument
+            try
             {
-                StoragePath = storagePath,
-                FileName = doc.fileName,
-                ContentType = doc.contentType,
-                EncryptionIv = encryptionIv,
-                VirusScanStatus = "Pending",
-                CreatedAt = _timeProvider.GetUtcNow()
-            };
-            claimDocs.Add(claimDoc);
+                ValidateReclaimDocument(doc.fileStream, doc.fileName, doc.contentType);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new ClaimDocumentUploadException(ex.Message, ex);
+            }
         }
 
-        // 5. Create Organization Recovery Claim
-        var claim = new OrganizationRecoveryClaim
+        var uploadedObjectKeys = new List<string>();
+        var claimDocs = new List<RecoveryClaimDocument>();
+
+        try
         {
-            OrganizationId = org.Id,
-            RepresentativeFullName = request.RepresentativeFullName,
-            RepresentativePosition = request.RepresentativePosition,
-            PhoneNumber = request.PhoneNumber,
-            RecoveryEmail = request.RecoveryEmail,
-            RiskScore = 0,
-            RiskLevel = "Low",
-            SuggestedRecoveryStrategy = "OptionB",
-            Status = "Pending",
-            CreatedAt = _timeProvider.GetUtcNow(),
-            UpdatedAt = _timeProvider.GetUtcNow(),
-            Documents = claimDocs
+            // 5. Encrypt and upload documents to Cloudflare R2
+            foreach (var doc in documents)
+            {
+                var uploadResult = await _encryptedFileStorageService.EncryptAndUploadFileAsync(
+                    claimId,
+                    doc.fileStream,
+                    doc.fileName,
+                    cancellationToken);
+
+                uploadedObjectKeys.Add(uploadResult.ObjectKey);
+
+                var claimDoc = new RecoveryClaimDocument
+                {
+                    Id = Guid.CreateVersion7(),
+                    RecoveryClaimId = claimId,
+                    StoragePath = uploadResult.ObjectKey,
+                    FileName = doc.fileName,
+                    ContentType = doc.contentType,
+                    EncryptionIv = uploadResult.BaseNonceHex, // Store GCM base nonce hex
+                    VirusScanStatus = "Pending",
+                    CreatedAt = _timeProvider.GetUtcNow()
+                };
+                claimDocs.Add(claimDoc);
+
+                _logger.LogInformation(
+                    "Claim document uploaded and encrypted successfully. ClaimId={ClaimId}, ObjectKey={ObjectKey}, ContentType={ContentType}, OriginalSize={OriginalSize}, EncryptedSize={EncryptedSize}",
+                    claimId,
+                    uploadResult.ObjectKey,
+                    doc.contentType,
+                    uploadResult.OriginalSize,
+                    uploadResult.EncryptedSize
+                );
+            }
+
+            // 6. DB transaction persistence mapping (compensating transactional safety)
+            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+            var claim = new OrganizationRecoveryClaim
+            {
+                Id = claimId,
+                OrganizationId = org.Id,
+                RepresentativeFullName = request.RepresentativeFullName,
+                RepresentativePosition = request.RepresentativePosition,
+                PhoneNumber = request.PhoneNumber,
+                RecoveryEmail = request.RecoveryEmail,
+                RiskScore = 0,
+                RiskLevel = "Low",
+                SuggestedRecoveryStrategy = "OptionB",
+                Status = "Pending",
+                CreatedAt = _timeProvider.GetUtcNow(),
+                UpdatedAt = _timeProvider.GetUtcNow(),
+                Documents = claimDocs
+            };
+
+            _context.OrganizationRecoveryClaims.Add(claim);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await LogAuditEventAsync(null, "RECLAIM_CLAIM_SUBMITTED", $"Organization reclaim claim submitted for {org.Name} (Tax Code: {org.TaxCode}) by {request.RepresentativeFullName}.", ipAddress, userAgent);
+
+            await transaction.CommitAsync(cancellationToken);
+
+            return new SubmitClaimResponse(claim.Id, claim.RiskScore, claim.RiskLevel, claim.Status);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Transaction failed during reclaim submission. Executing compensating transaction to clean up uploaded R2 documents. ClaimId={ClaimId}", claimId);
+
+            // Compensating transaction: cleanup uploaded Cloudflare R2 objects to prevent orphans
+            foreach (var key in uploadedObjectKeys)
+            {
+                try
+                {
+                    await _encryptedFileStorageService.DeleteFileAsync(key, CancellationToken.None);
+                    _logger.LogInformation("Compensating transaction: Cleaned up R2 storage object key: {ObjectKey}", key);
+                }
+                catch (Exception cleanupEx)
+                {
+                    _logger.LogError(cleanupEx, "Failed to clean up orphaned R2 storage object key during rollback: {ObjectKey}", key);
+                }
+            }
+
+            if (ex is CVerifyBaseException)
+            {
+                throw;
+            }
+            throw new ClaimDocumentUploadException("An unexpected error occurred during document submission.", ex);
+        }
+    }
+
+    private void ValidateReclaimDocument(Stream fileStream, string fileName, string contentType)
+    {
+        if (fileStream == null || fileStream.Length == 0)
+        {
+            throw new ArgumentException("Uploaded file stream is empty or unreadable.");
+        }
+
+        // Whitelist MIME types
+        var allowedMimeTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "application/pdf",
+            "image/jpeg",
+            "image/png"
         };
+        if (!allowedMimeTypes.Contains(contentType))
+        {
+            throw new ArgumentException($"MIME type '{contentType}' is not permitted. Only PDF, JPG, and PNG are allowed.");
+        }
 
-        _context.OrganizationRecoveryClaims.Add(claim);
-        await _context.SaveChangesAsync(cancellationToken);
+        // Whitelist extensions
+        var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".pdf",
+            ".jpg",
+            ".jpeg",
+            ".png"
+        };
+        var ext = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(ext) || !allowedExtensions.Contains(ext))
+        {
+            throw new ArgumentException($"File extension '{ext}' is not permitted. Only .pdf, .jpg, .jpeg, and .png are allowed.");
+        }
 
-        await LogAuditEventAsync(null, "RECLAIM_CLAIM_SUBMITTED", $"Organization reclaim claim submitted for {org.Name} (Tax Code: {org.TaxCode}) by {request.RepresentativeFullName}.", ipAddress, userAgent);
+        // Double extension blocking (prevent executable masquerading e.g., license.pdf.exe)
+        var firstDotIndex = fileName.IndexOf('.');
+        if (firstDotIndex >= 0 && firstDotIndex < fileName.LastIndexOf('.'))
+        {
+            var parts = fileName.Split('.');
+            foreach (var part in parts.Skip(1))
+            {
+                var upperPart = part.ToUpperInvariant();
+                if (upperPart == "EXE" || upperPart == "BAT" || upperPart == "CMD" || upperPart == "SH" || upperPart == "JS" || upperPart == "VBS" || upperPart == "PS1")
+                {
+                    throw new ArgumentException("Files containing double extensions representing executable or script formats are strictly blocked.");
+                }
+            }
+        }
 
-        return new SubmitClaimResponse(claim.Id, claim.RiskScore, claim.RiskLevel, claim.Status);
+        // Maximum size constraint: 10MB
+        if (fileStream.Length > 10 * 1024 * 1024)
+        {
+            throw new ArgumentException("File size exceeds the maximum limit of 10MB.");
+        }
+
+        // Placeholder for future malware/virus scanning hook
     }
 
     public async Task<List<ClaimDetailsResponse>> GetPendingClaimsAsync(CancellationToken cancellationToken = default)
@@ -416,8 +582,80 @@ public class OrganizationReclaimService : IOrganizationReclaimService
 
         await LogAuditEventAsync(null, "RECLAIM_DOCUMENT_DOWNLOADED", $"Claim document {docId} downloaded by administrator {reviewerName}.", null, null);
 
-        var stream = await _encryptedFileStorageService.ReadAndDecryptFileAsync(doc.StoragePath, doc.EncryptionIv);
+        var stream = await _encryptedFileStorageService.ReadAndDecryptFileAsync(doc.StoragePath, doc.EncryptionIv, cancellationToken);
         return (stream, doc.FileName, doc.ContentType);
+    }
+
+    public async Task<VerifyOtpResponse> VerifyRecoveryOtpAsync(VerifyOtpRequest request, string taxCode, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Reclaim OTP verification requested. ChallengeId={ChallengeId}, Purpose={Purpose}", request.ChallengeId, request.Purpose);
+        
+        // Delegate core verification to the highly secure, central, and normalized AuthService
+        var otpResult = await _authService.VerifyOtpAsync(request, cancellationToken);
+        
+        // Generate the custom signed recovery verification token for Reclaim flow
+        var verifiedToken = RecoveryTokenHelper.GenerateOtpVerifiedToken(taxCode, otpResult.Email, _envConfig.Jwt.Key);
+
+        _logger.LogInformation("Reclaim OTP verified successfully. ChallengeId={ChallengeId}, VerifiedEmail={VerifiedEmail}", request.ChallengeId, otpResult.Email);
+        return new VerifyOtpResponse(request.ChallengeId, otpResult.Email, verifiedToken);
+    }
+
+    public async Task<RecoveryEmailValidationResult> ValidateRecoveryEmailOwnershipAsync(string taxCode, string email, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(taxCode) || string.IsNullOrWhiteSpace(email))
+        {
+            throw new ArgumentException("Tax Code and Email are required.");
+        }
+
+        var normalizedTax = taxCode.Trim();
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        var org = await _context.Organizations
+            .FirstOrDefaultAsync(o => o.TaxCode == normalizedTax && o.DeletedAt == null, cancellationToken);
+
+        if (org == null)
+        {
+            return new RecoveryEmailValidationResult(
+                RecoveryEmailValidationStatus.OrganizationNotFound,
+                "The requested organization was not found in the registry."
+            );
+        }
+
+        // Check 1: Check if it matches RepresentativeEmail of the organization
+        if (!string.IsNullOrEmpty(org.RepresentativeEmail) && 
+            string.Equals(org.RepresentativeEmail.Trim(), normalizedEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            return new RecoveryEmailValidationResult(
+                RecoveryEmailValidationStatus.DuplicateOldOwnerEmail,
+                "This email cannot be used for account recovery."
+            );
+        }
+
+        // Check 2: Check if it matches any active user holding organization_owner role in this organization (optimized via direct database check)
+        var isDuplicate = await _context.OrganizationAuthorities
+            .AnyAsync(oa => oa.OrganizationId == org.Id && 
+                            oa.Role == "organization_owner" && 
+                            oa.User != null && 
+                            oa.User.DeletedAt == null && 
+                            oa.User.Email.Trim().ToLower() == normalizedEmail, 
+                      cancellationToken);
+
+        if (isDuplicate)
+        {
+            return new RecoveryEmailValidationResult(
+                RecoveryEmailValidationStatus.DuplicateOldOwnerEmail,
+                "This email cannot be used for account recovery."
+            );
+        }
+
+        return new RecoveryEmailValidationResult(RecoveryEmailValidationStatus.Valid, null);
+    }
+
+    private string GenerateHmacSha256OtpHash(string plainOtp)
+    {
+        using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(_envConfig.Jwt.Key));
+        var hashBytes = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(plainOtp));
+        return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
     private async Task LogAuditEventAsync(Guid? userId, string eventType, string description, string? ipAddress, string? userAgent)

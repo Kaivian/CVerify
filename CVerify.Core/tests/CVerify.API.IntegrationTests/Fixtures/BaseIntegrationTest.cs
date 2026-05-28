@@ -70,6 +70,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("SMTP_PASSWORD", "test_pass");
         Environment.SetEnvironmentVariable("SENDGRID_API_KEY", "mock-sendgrid-api-key");
         Environment.SetEnvironmentVariable("Auth__DisableCsrf", "true");
+        Environment.SetEnvironmentVariable("DISABLE_RATE_LIMITS", "false");
 
         // Apply custom environment overrides if provided (e.g., stress test rate limit overrides)
         if (envOverrides != null)
@@ -104,6 +105,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                 { "Auth:GoogleClientId", "mock-google-client-id" },
                 { "Auth:DisableCsrf", "true" },
                 { "Jwt:Key", "super_secret_key_super_secret_key_super_secret_key_32_characters" },
+                { "Security:DisableRateLimits", "false" },
                 { "RateLimit:ForgotPasswordPermitLimit", "1000" },
                 { "RateLimit:ResetPasswordPermitLimit", "1000" },
                 { "RateLimit:ResendVerificationPermitLimit", "1000" },

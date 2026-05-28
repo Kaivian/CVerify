@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import OtpInput from "@/components/ui/otp-input";
 import { recoveryApi } from "@/features/auth/services/recovery.service";
+
 import {
   Card,
   Typography,
@@ -16,6 +17,8 @@ import {
   toast,
   Spinner,
   Description,
+  Separator,
+  Chip,
 } from "@heroui/react";
 import {
   Building2,
@@ -28,7 +31,17 @@ import {
   X,
   FileCheck2,
 } from "lucide-react";
+import { RecoveryEmailBlockedState } from "@/features/auth/components/recovery-email-blocked-state";
 import axios from "axios";
+import { normalizeError } from "@/services/axios-client";
+
+export enum ReclaimStep {
+  RepresentativeInfo = "REPRESENTATIVE_INFO",
+  EmailOwnershipBlocked = "EMAIL_OWNERSHIP_BLOCKED",
+  OtpVerification = "OTP_VERIFICATION",
+  DocumentsUpload = "DOCUMENTS_UPLOAD",
+  SuccessReceipt = "SUCCESS_RECEIPT",
+}
 
 interface Level2Request {
   requestId?: string;
@@ -48,8 +61,10 @@ export function ReclaimView() {
   const taxCode = searchParams.get("taxCode") || "";
   const companyName = searchParams.get("companyName") || "";
 
-  // Step state: 1 = Representative Info & OTP Send, 2 = Verify OTP, 3 = Legal Documents Upload, 4 = Success Receipt
-  const [step, setStep] = useState(1);
+  // Step state: strongly typed
+  const [step, setStep] = useState<ReclaimStep>(ReclaimStep.RepresentativeInfo);
+  const [isValidatingOwnership, setIsValidatingOwnership] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Form State
@@ -69,6 +84,74 @@ export function ReclaimView() {
   const [otpCode, setOtpCode] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [emailVerificationToken, setEmailVerificationToken] = useState("");
+  const [ownershipValidated, setOwnershipValidated] = useState(false);
+  const [lastValidatedEmail, setLastValidatedEmail] = useState("");
+
+  // Clean Reset Helper
+  const resetOtpFlowState = (clearEmail: boolean = false) => {
+    console.log(
+      `[ReclaimFlow] resetOtpFlowState invoked. ClearEmail: ${clearEmail}`,
+    );
+    setChallengeId("");
+    setOtpCode("");
+    setCooldown(0);
+    setOwnershipValidated(false);
+    setLastValidatedEmail("");
+    setEmailVerificationToken("");
+    if (clearEmail) {
+      setRecoveryEmail("");
+      setEmailTouched(false);
+    }
+  };
+
+  // Diagnostic Logs for step transitions
+  useEffect(() => {
+    console.log(`[ReclaimFlow] Transitioning to step: ${step}`);
+  }, [step]);
+
+  // Reset/Invalidate validation state if email input changes
+  useEffect(() => {
+    if (step !== ReclaimStep.RepresentativeInfo) {
+      return;
+    }
+    const trimmedEmail = recoveryEmail.trim().toLowerCase();
+    const trimmedLastEmail = lastValidatedEmail.trim().toLowerCase();
+    if (trimmedEmail !== trimmedLastEmail) {
+      if (ownershipValidated || challengeId || cooldown > 0) {
+        console.log(
+          `[ReclaimFlow] Email changed. trimmedEmail: "${trimmedEmail}", trimmedLastEmail: "${trimmedLastEmail}". Invalidation triggered! ownershipValidated: ${ownershipValidated}, challengeId: "${challengeId}", cooldown: ${cooldown}`,
+        );
+        setTimeout(() => {
+          setOwnershipValidated(false);
+          setChallengeId("");
+          setOtpCode("");
+          setCooldown(0);
+          setEmailVerificationToken("");
+        }, 0);
+      }
+    }
+  }, [
+    recoveryEmail,
+    lastValidatedEmail,
+    ownershipValidated,
+    challengeId,
+    cooldown,
+    step,
+  ]);
+
+  // Defensive guard to prevent premature OTP verification view rendering
+  useEffect(() => {
+    if (step === ReclaimStep.OtpVerification) {
+      if (!ownershipValidated || !challengeId) {
+        console.warn(
+          "[ReclaimFlow] Guard triggered: attempted to enter OTP verification without valid session/ownership validation. Redirecting back to RepresentativeInfo.",
+        );
+        setTimeout(() => {
+          setStep(ReclaimStep.RepresentativeInfo);
+        }, 0);
+      }
+    }
+  }, [step, ownershipValidated, challengeId]);
 
   // Document Upload State
   const [files, setFiles] = useState<File[]>([]);
@@ -87,7 +170,9 @@ export function ReclaimView() {
   );
   const [optionalMsg, setOptionalMsg] = useState("");
   const [isSubmittingLevel2, setIsSubmittingLevel2] = useState(false);
-  const [level2Request, setLevel2Request] = useState<Level2Request | null>(null);
+  const [level2Request, setLevel2Request] = useState<Level2Request | null>(
+    null,
+  );
 
   // Recovery Receipt Data
   const [receipt, setReceipt] = useState<{
@@ -96,6 +181,8 @@ export function ReclaimView() {
     riskLevel: string;
     status: string;
   } | null>(null);
+
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
 
   // Validation formulas
   const isFullNameValid = fullName.trim().length >= 3;
@@ -124,10 +211,14 @@ export function ReclaimView() {
     }
     try {
       const checkRes = await recoveryApi.level2Check(taxCode);
+      if (checkRes.currentEmail) {
+        setRegisteredEmail(checkRes.currentEmail);
+      }
       if (checkRes.isLevel2) {
         setIsLevel2(true);
         // Look up if an active rotation request already exists in system to resume tracking
-        const queue = (await recoveryApi.level2GetRequests()) as Level2Request[];
+        const queue =
+          (await recoveryApi.level2GetRequests()) as Level2Request[];
         const activeReq = queue.find(
           (r) =>
             r.organizationId &&
@@ -176,10 +267,11 @@ export function ReclaimView() {
           "Your governance rotation request has been enqueued for review and dual-approval.",
       });
     } catch (err) {
-      const errorMessage =
-        axios.isAxiosError(err) && err.response?.data?.message
-          ? err.response.data.message
-          : "Failed to initiate Representative Rotation. Please verify details.";
+      const apiErr = normalizeError(err);
+      const suffix = apiErr.correlationId
+        ? ` (Support ID: ${apiErr.correlationId})`
+        : "";
+      const errorMessage = `${apiErr.message}${suffix}`;
       toast.danger("Initiation Failed", {
         description: errorMessage,
       });
@@ -200,53 +292,168 @@ export function ReclaimView() {
   // Dispatch OTP code securely to verify corporate email domain ownership before claiming
   const handleSendOtp = async () => {
     setEmailTouched(true);
-    if (!isEmailValid) return;
+    if (!isEmailValid) {
+      console.warn(
+        "[ReclaimFlow] handleSendOtp: Invalid email address pattern.",
+      );
+      return;
+    }
 
-    setIsLoading(true);
+    const currentEmail = recoveryEmail.trim();
+
+    // Direct client check (identical check for UX convenience)
+    if (
+      registeredEmail &&
+      currentEmail.toLowerCase() === registeredEmail.trim().toLowerCase()
+    ) {
+      console.log(
+        "[ReclaimFlow] handleSendOtp client block: recoveryEmail matches registeredEmail.",
+      );
+      setStep(ReclaimStep.EmailOwnershipBlocked);
+      return;
+    }
+
+    // Scenario 2: If we already have a verified token for the SAME email, reuse it and skip verification.
+    if (
+      emailVerificationToken &&
+      currentEmail.toLowerCase() === lastValidatedEmail.trim().toLowerCase()
+    ) {
+      console.log(
+        `[ReclaimFlow] handleSendOtp: Reusing verified email token for "${currentEmail}".`,
+      );
+      setStep(ReclaimStep.DocumentsUpload);
+      return;
+    }
+
+    // Scenario 3: If we already have a valid session for the SAME email, reuse it.
+    if (
+      ownershipValidated &&
+      challengeId &&
+      currentEmail.toLowerCase() === lastValidatedEmail.trim().toLowerCase()
+    ) {
+      console.log(
+        `[ReclaimFlow] handleSendOtp: Reusing existing valid OTP session for "${currentEmail}".`,
+      );
+      setStep(ReclaimStep.OtpVerification);
+      return;
+    }
+
+    console.log(
+      `[ReclaimFlow] handleSendOtp: Dispatching OTP sequence for "${currentEmail}"...`,
+    );
+    // Abort controller for navigation cancellation support
+    const controller = new AbortController();
+
+    setIsValidatingOwnership(true);
     try {
-      const result = await recoveryApi.orgForgot(taxCode);
+      // 1. Call backend to validate recovery email ownership
+      console.log(
+        `[ReclaimFlow] Calling ValidateRecoveryEmailOwnership for "${currentEmail}"...`,
+      );
+      const checkRes = await recoveryApi.validateRecoveryEmailOwnership(
+        taxCode,
+        currentEmail,
+        controller.signal,
+      );
+
+      console.log("[ReclaimFlow] Ownership validation response:", checkRes);
+
+      if (checkRes.isDuplicate) {
+        console.log(
+          "[ReclaimFlow] Ownership validation result: duplicate detected.",
+        );
+        setStep(ReclaimStep.EmailOwnershipBlocked);
+        setIsValidatingOwnership(false);
+        // Make sure to reset session state as we enter blocked state
+        resetOtpFlowState(false); // keep the email so the user can see/edit it
+        return;
+      }
+
+      // Ownership is valid! Update states.
+      setOwnershipValidated(true);
+      setLastValidatedEmail(currentEmail);
+
+      // 2. Call re-validated backend API to send reclaim OTP
+      setIsValidatingOwnership(false);
+      setIsSendingOtp(true);
+
+      console.log(
+        `[ReclaimFlow] Requesting sendReclaimOtp for "${currentEmail}"...`,
+      );
+      const result = await recoveryApi.sendReclaimOtp(
+        taxCode,
+        currentEmail,
+        controller.signal,
+      );
+
+      console.log(
+        "[ReclaimFlow] sendReclaimOtp response success. ChallengeId:",
+        result.challengeId,
+      );
       setChallengeId(result.challengeId);
       setCooldown(result.cooldownSeconds);
-      setStep(2); // Go to OTP verification step
+      setStep(ReclaimStep.OtpVerification); // Go to OTP step
       toast.success("Security OTP sent!", {
-        description: `Verification code dispatched to the registered company recovery email ${result.maskedEmail}.`,
+        description: `Verification code dispatched to your recovery email ${currentEmail}.`,
       });
-    } catch (err) {
-      const errorMessage =
-        axios.isAxiosError(err) && err.response?.data?.message
-          ? err.response.data.message
-          : "Please verify that the Tax Code is correct and try again.";
-      toast.danger("Verification code failed to send", {
+    } catch (err: unknown) {
+      if (
+        axios.isCancel(err) ||
+        (err instanceof Error &&
+          (err.name === "CanceledError" || err.name === "AbortError"))
+      ) {
+        console.log("[ReclaimFlow] OTP sending process was aborted/cancelled.");
+        return; // Request was aborted, ignore state updates
+      }
+
+      const apiErr = normalizeError(err);
+      const suffix = apiErr.correlationId
+        ? ` (Support ID: ${apiErr.correlationId})`
+        : "";
+      const errorMessage = `${apiErr.message}${suffix}`;
+
+      console.error(
+        "[ReclaimFlow] OTP sending process failed:",
+        errorMessage,
+        err,
+      );
+      toast.danger("Action failed", {
         description: errorMessage,
       });
     } finally {
-      setIsLoading(false);
+      setIsValidatingOwnership(false);
+      setIsSendingOtp(false);
     }
   };
 
-  // Verify OTP & Generate signed verification token
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otpCode.length < 6 || !challengeId) return;
 
     setIsLoading(true);
     try {
-      const response = await recoveryApi.orgVerifyOtp({
+      const response = await recoveryApi.reclaimVerifyOtp({
         taxCode,
         challengeId,
+        email: recoveryEmail,
         code: otpCode,
+        purpose: "Reclaim",
       });
 
+      console.log(
+        `[ReclaimFlow] OTP verified. Received VerificationToken: ${response.verificationToken ? response.verificationToken.substring(0, 15) : "N/A"}...`,
+      );
       setEmailVerificationToken(response.verificationToken);
-      setStep(3); // Advance to upload step
+      setStep(ReclaimStep.DocumentsUpload); // Advance to upload step
       toast.success("OTP verified successfully!", {
         description: "Your claimant corporate identity is securely verified.",
       });
     } catch (err) {
-      const errorMessage =
-        axios.isAxiosError(err) && err.response?.data?.message
-          ? err.response.data.message
-          : "The OTP code entered is incorrect or has expired.";
+      const apiErr = normalizeError(err);
+      const suffix = apiErr.correlationId
+        ? ` (Support ID: ${apiErr.correlationId})`
+        : "";
+      const errorMessage = `${apiErr.message}${suffix}`;
       toast.danger("OTP Verification failed", {
         description: errorMessage,
       });
@@ -293,6 +500,9 @@ export function ReclaimView() {
     }
 
     setIsLoading(true);
+    console.log(
+      `[ReclaimFlow] Submitting claim. Token: ${emailVerificationToken ? emailVerificationToken.substring(0, 15) : "N/A"}..., Email: ${recoveryEmail}, TaxCode: ${taxCode}`,
+    );
     try {
       const response = await recoveryApi.submitClaim({
         representativeFullName: fullName,
@@ -305,16 +515,18 @@ export function ReclaimView() {
       });
 
       setReceipt(response);
-      setStep(4); // Display success receipt
+      setStep(ReclaimStep.SuccessReceipt); // Display success receipt
       toast.success("Disputed Reclaim Claim Submitted!", {
         description:
           "Our compliance managers have enqueued your legal business evidence for audit.",
       });
     } catch (err) {
-      const errorMessage =
-        axios.isAxiosError(err) && err.response?.data?.message
-          ? err.response.data.message
-          : "An unexpected error occurred during document submission.";
+      const apiErr = normalizeError(err);
+      const suffix = apiErr.correlationId
+        ? ` (Support ID: ${apiErr.correlationId})`
+        : "";
+      const errorMessage = `${apiErr.message}${suffix}`;
+      setUploadError(errorMessage);
       toast.danger("Failed to submit claim", {
         description: errorMessage,
       });
@@ -323,30 +535,53 @@ export function ReclaimView() {
     }
   };
 
+  // Dedicated Blocked warning screen
+  if (step === ReclaimStep.EmailOwnershipBlocked) {
+    return (
+      <RecoveryEmailBlockedState
+        onUseAnotherEmail={() => {
+          console.log(
+            "[ReclaimFlow] Blocked State: Using another email address. Resetting OTP flow and clearing email input.",
+          );
+          resetOtpFlowState(true);
+          setStep(ReclaimStep.RepresentativeInfo);
+        }}
+        onBack={() => {
+          console.log(
+            "[ReclaimFlow] Blocked State: Going back to input form. Resetting OTP flow but preserving email input.",
+          );
+          resetOtpFlowState(false);
+          setStep(ReclaimStep.RepresentativeInfo);
+        }}
+      />
+    );
+  }
+
   // STEP 4: Success Receipt
-  if (step === 4 && receipt) {
+  if (step === ReclaimStep.SuccessReceipt && receipt) {
     return (
       <Card className="w-full relative overflow-hidden max-h-[85vh] flex flex-col premium-glass border-accent/20">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-success shrink-0" />
-        <div className="flex flex-col items-center p-8 overflow-y-auto">
-          <div className="w-16 h-16 bg-success/15 flex items-center justify-center rounded-2xl mb-6 border border-success/35 animate-bounce">
-            <ShieldCheck className="size-8 text-success" />
+        <div className="flex flex-col items-center overflow-y-auto">
+          <div className="w-12 h-12 bg-success-soft flex items-center justify-center rounded-xl my-6">
+            <ShieldCheck className="size-6 text-success" />
           </div>
 
-          <Typography.Heading
-            level={3}
-            className="text-2xl font-extrabold text-foreground text-center"
-          >
-            Disputed Ownership Reclaim Registered
-          </Typography.Heading>
+          <div className="text-center w-full mb-6 px-6 font-outfit flex flex-col justify-center items-center">
+            <Typography.Heading
+              level={3}
+              className="text-2xl font-bold pb-2 text-foreground"
+            >
+              Disputed Ownership Reclaim Registered
+            </Typography.Heading>
+            <Typography className="text-xs text-muted text-center">
+              Your enterprise ownership reclaim has been registered. The
+              anti-fraud verification engine has queued your legal proofs for
+              manual auditor sign-off.
+            </Typography>
+          </div>
 
-          <Typography className="text-sm text-muted text-center mt-2 max-w-md leading-relaxed">
-            Your enterprise ownership reclaim has been registered. The
-            anti-fraud verification engine has queued your legal proofs for
-            manual auditor sign-off.
-          </Typography>
-
-          <div className="w-full mt-6 space-y-4 p-5 rounded-2xl bg-surface-secondary border border-border">
+          <div className="w-full space-y-3 p-6 rounded-2xl bg-surface-secondary border border-border">
             <div className="flex justify-between items-center text-xs">
               <span className="text-muted">Claim Reference ID</span>
               <span className="font-mono font-semibold text-foreground select-all">
@@ -354,7 +589,7 @@ export function ReclaimView() {
               </span>
             </div>
 
-            <div className="border-t border-border/60 my-2" />
+            <Separator variant="tertiary" />
 
             <div className="flex justify-between items-center text-xs">
               <span className="text-muted">Target Tax Code</span>
@@ -384,24 +619,26 @@ export function ReclaimView() {
 
             <div className="flex justify-between items-center text-xs">
               <span className="text-muted">Review Status</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-warning/15 text-warning border border-warning/20">
+              <Chip variant="soft" color="warning">
                 {receipt.status}
-              </span>
+              </Chip>
             </div>
           </div>
+          <Typography className="text-[10px] text-muted text-center leading-normal pt-3 px-6">
+            You will receive an administrative bootstrap link at{" "}
+            <strong className="text-foreground">{recoveryEmail}</strong> once
+            compliance validation is approved (typically under 24 hours).
+          </Typography>
 
-          <div className="w-full mt-8 flex flex-col gap-3">
+          <div className="w-full mt-6 flex flex-col gap-3 px-12">
             <Button
-              className="h-12 rounded-xl bg-foreground text-background font-bold w-full"
+              fullWidth
+              className="rounded-xl"
+              variant="outline"
               onPress={() => router.push("/login")}
             >
-              Return to Login
+              Back to Login
             </Button>
-            <Typography className="text-[10px] text-muted text-center leading-normal">
-              You will receive an administrative bootstrap link at{" "}
-              <strong className="text-foreground">{recoveryEmail}</strong> once
-              compliance validation is approved (typically under 24 hours).
-            </Typography>
           </div>
         </div>
       </Card>
@@ -836,15 +1073,17 @@ export function ReclaimView() {
           size="sm"
           className="text-muted text-[11px]"
           onPress={() => {
-            if (step > 1) {
-              setStep((s) => s - 1);
+            if (step === ReclaimStep.OtpVerification) {
+              setStep(ReclaimStep.RepresentativeInfo);
+            } else if (step === ReclaimStep.DocumentsUpload) {
+              setStep(ReclaimStep.RepresentativeInfo);
             } else {
               router.push("/company-verification");
             }
           }}
         >
           <ArrowLeft className="size-3.5 mr-1" />
-          {step > 1 ? "Previous" : "Cancel"}
+          {step !== ReclaimStep.RepresentativeInfo ? "Previous" : "Cancel"}
         </Button>
       </div>
 
@@ -852,12 +1091,19 @@ export function ReclaimView() {
       <div className="w-full h-1 bg-surface-secondary shrink-0">
         <div
           className="h-full bg-accent transition-all duration-300"
-          style={{ width: `${(step / 3) * 100}%` }}
+          style={{
+            width:
+              step === ReclaimStep.RepresentativeInfo
+                ? "33.3%"
+                : step === ReclaimStep.OtpVerification
+                  ? "66.6%"
+                  : "100%",
+          }}
         />
       </div>
 
       {/* STEP 1: CLAIMANT POSITION & EMAIL CHALLENGE */}
-      {step === 1 && (
+      {step === ReclaimStep.RepresentativeInfo && (
         <Form
           className="w-full flex flex-col flex-1 overflow-hidden"
           onSubmit={(e) => {
@@ -865,13 +1111,11 @@ export function ReclaimView() {
             handleSendOtp();
           }}
         >
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-            <div className="p-3 rounded-xl bg-surface-secondary border border-border mb-6 select-none text-center">
+          <div className="flex-1 overflow-y-auto px-6 space-y-6">
+            <div className="px-4 py-2 rounded-xl bg-surface-secondary border border-border">
               <Typography className="text-[11px] text-muted">
-                Target Disputed Entity
-              </Typography>
-              <Typography className="font-bold text-foreground">
-                {companyName}
+                Target Disputed Entity:{" "}
+                <span className="font-bold text-foreground">{companyName}</span>
               </Typography>
             </div>
 
@@ -949,22 +1193,34 @@ export function ReclaimView() {
               type="submit"
               fullWidth
               className="rounded-xl"
-              isDisabled={!isStep1Valid || isLoading}
-              isPending={isLoading}
+              isDisabled={
+                !isStep1Valid || isValidatingOwnership || isSendingOtp
+              }
+              isPending={isValidatingOwnership || isSendingOtp}
             >
-              {isLoading ? (
-                <Spinner color="current" size="sm" />
+              {isValidatingOwnership ? (
+                <>
+                  <Spinner color="current" size="sm" className="mr-2" />
+                  Validating email ownership...
+                </>
+              ) : isSendingOtp ? (
+                <>
+                  <Spinner color="current" size="sm" className="mr-2" />
+                  Sending secure OTP...
+                </>
               ) : (
-                <Mail className="size-4 mr-2" />
+                <>
+                  <Mail className="size-4 mr-2" />
+                  Send Email OTP Challenge
+                </>
               )}
-              Send Email OTP Challenge
             </Button>
           </div>
         </Form>
       )}
 
       {/* STEP 2: OTP VERIFICATION */}
-      {step === 2 && (
+      {step === ReclaimStep.OtpVerification && (
         <Form
           className="w-full flex flex-col flex-1 overflow-hidden"
           onSubmit={handleVerifyOtp}
@@ -977,17 +1233,22 @@ export function ReclaimView() {
             <div>
               <Typography.Heading
                 level={4}
-                className="font-bold text-center pb-2"
+                className="font-bold text-center pb-3"
               >
                 Confirm Claimant Email Ownership
               </Typography.Heading>
-              <Typography className="text-xs text-muted leading-normal text-center">
-                We sent a 6-digit OTP code to verify ownership of{" "}
-                <strong className="text-foreground">{recoveryEmail}</strong>.
+              <Typography className="text-xs text-muted text-center leading-relaxed pb-6">
+                We&apos;ve sent a 6-digit verification code to{" "}
+                <span className="font-bold text-foreground-soft">
+                  {recoveryEmail}
+                </span>
+                .<br />
                 Enter it below to unlock document uploading.
               </Typography>
             </div>
-
+            <Label className="text-xs font-semibold text-foreground/80">
+              Enter 6-Digit OTP Code
+            </Label>
             <OtpInput
               value={otpCode}
               onChange={setOtpCode}
@@ -996,18 +1257,21 @@ export function ReclaimView() {
               isDisabled={isLoading}
             />
 
-            <div className="flex flex-col items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs text-accent font-semibold"
-                isDisabled={cooldown > 0 || isLoading}
-                onPress={handleSendOtp}
-              >
-                {cooldown > 0
-                  ? `Resend OTP in ${cooldown}s`
-                  : "Resend Verification Code"}
-              </Button>
+            <div className="text-center text-xs font-semibold text-muted select-none shrink-0">
+              Didn&apos;t receive the OTP?{" "}
+              {cooldown > 0 ? (
+                <span className="text-foreground/80">
+                  Resend in {cooldown}s
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  className="text-foreground hover:underline cursor-pointer bg-transparent border-0 font-bold"
+                >
+                  Resend code
+                </button>
+              )}
             </div>
           </div>
 
@@ -1030,12 +1294,12 @@ export function ReclaimView() {
       )}
 
       {/* STEP 3: DISPUTED EVIDENCE PDF UPLOADER */}
-      {step === 3 && (
+      {step === ReclaimStep.DocumentsUpload && (
         <Form
           className="w-full flex flex-col flex-1 overflow-hidden"
           onSubmit={handleStep3Submit}
         >
-          <div className="flex-1 overflow-y-auto px-6 space-y-3 flex flex-col">
+          <div className="flex-1 overflow-y-auto px-6 space-y-3 flex flex-col pb-6">
             <div className="text-center shrink-0 mb-3">
               <Typography className="text-sm font-semibold text-center">
                 Provide Legal Business Ownership Evidence

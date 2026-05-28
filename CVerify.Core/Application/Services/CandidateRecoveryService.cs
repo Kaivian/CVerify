@@ -29,6 +29,7 @@ public class CandidateRecoveryService : ICandidateRecoveryService
     private readonly ILogger<CandidateRecoveryService> _logger;
     private readonly AuthMetrics _metrics;
     private readonly TimeProvider _timeProvider;
+    private readonly IRateLimitPolicyService _rateLimitPolicyService;
 
     public CandidateRecoveryService(
         ApplicationDbContext context,
@@ -40,7 +41,8 @@ public class CandidateRecoveryService : ICandidateRecoveryService
         EnvConfiguration envConfig,
         ILogger<CandidateRecoveryService> logger,
         AuthMetrics metrics,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IRateLimitPolicyService rateLimitPolicyService)
     {
         _context = context;
         _recoveryTokenService = recoveryTokenService;
@@ -52,6 +54,7 @@ public class CandidateRecoveryService : ICandidateRecoveryService
         _logger = logger;
         _metrics = metrics;
         _timeProvider = timeProvider;
+        _rateLimitPolicyService = rateLimitPolicyService;
     }
 
     public async Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default)
@@ -66,8 +69,15 @@ public class CandidateRecoveryService : ICandidateRecoveryService
         var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
         if (isCooldown != null)
         {
-            _logger.LogWarning("[CorrelationID: {CorrelationId}] Candidate forgot password cooldown active for {Email}.", correlationId, normalizedEmail);
-            throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery email.");
+            if (_rateLimitPolicyService.DisableRateLimits)
+            {
+                _rateLimitPolicyService.LogBypass("Candidate forgot password cooldown", "ForgotPasswordAsync", normalizedEmail);
+            }
+            else
+            {
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Candidate forgot password cooldown active for {Email}.", correlationId, normalizedEmail);
+                throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery email.");
+            }
         }
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
@@ -131,7 +141,8 @@ public class CandidateRecoveryService : ICandidateRecoveryService
             await _context.SaveChangesAsync(cancellationToken);
 
             // Set 1-minute rate limiting cooldown in Cache
-            await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromMinutes(1));
+            var cooldownTime = _rateLimitPolicyService.DisableRateLimits ? TimeSpan.Zero : TimeSpan.FromMinutes(1);
+            await _cacheService.SetAsync(cooldownKey, "active", cooldownTime);
 
             await transaction.CommitAsync(cancellationToken);
 

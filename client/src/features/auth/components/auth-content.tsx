@@ -1,7 +1,6 @@
 "use client";
 
-import React from 'react';
-import { Typography } from '@heroui/react';
+
 
 interface AuthContentProps {
   children: React.ReactNode;
@@ -18,13 +17,6 @@ export const AuthContent: React.FC<AuthContentProps> = ({ children }) => {
           alt="CVerify Logo"
           className="h-8 w-auto"
         />
-      </div>
-
-      {/* Protocol Tag Badge */}
-      <div className="absolute top-12 right-6 md:right-12 select-none">
-        <Typography.Heading level={6} color="muted" className="tracking-widest font-mono text-[10px] sm:text-xs">
-          PROTOCOL V1.0.0
-        </Typography.Heading>
       </div>
 
       {/* Shared Standardized Width Content Area */}

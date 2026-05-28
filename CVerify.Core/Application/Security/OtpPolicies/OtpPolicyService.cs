@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using CVerify.API.Application.Exceptions;
+using CVerify.API.Infrastructure.Configuration;
 
 namespace CVerify.API.Application.Security.OtpPolicies;
 
@@ -10,7 +11,7 @@ public class OtpPolicyService : IOtpPolicyService
 {
     private readonly Dictionary<string, OtpPolicyDefinition> _policies = new(StringComparer.OrdinalIgnoreCase);
 
-    public OtpPolicyService(IConfiguration configuration)
+    public OtpPolicyService(IConfiguration configuration, EnvConfiguration envConfig)
     {
         // Bind policies from configuration
         var section = configuration.GetSection("OtpPolicies");
@@ -36,7 +37,19 @@ public class OtpPolicyService : IOtpPolicyService
                 MaxRetries = 3
             };
         }
+
+        // Configuration-driven rate limiting policy overrides for local development and testing
+        if (envConfig.Security.DisableRateLimits)
+        {
+            foreach (var policy in _policies.Values)
+            {
+                policy.CooldownSeconds = 0;
+                policy.MaxRetries = 9999;
+                policy.MaxResends = 9999;
+            }
+        }
     }
+
 
     public bool Validate(string code, string policyId = "Default")
     {
@@ -103,5 +116,14 @@ public class OtpPolicyService : IOtpPolicyService
             };
             throw new OtpPolicyViolationException(validationErrors, string.Join(" ", errors));
         }
+    }
+
+    public OtpPolicyDefinition GetPolicy(string policyId = "Default")
+    {
+        if (!_policies.TryGetValue(policyId, out var policy))
+        {
+            policy = _policies["Default"];
+        }
+        return policy;
     }
 }

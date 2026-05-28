@@ -103,6 +103,13 @@ public static class EnvValidator
         config.R2.BucketName = (configuration["R2:BucketName"] ?? configuration["R2_BUCKET"])?.ResolveEnvironmentVariables()?.Trim('"')
             ?? throw new InvalidOperationException("Environment variable 'R2_BUCKET' or setting 'R2:BucketName' is missing.");
 
+        // 9. Security Settings
+        if (bool.TryParse(configuration["Security:DisableRateLimits"] ?? configuration["DISABLE_RATE_LIMITS"], out var disableRL))
+        {
+            config.Security.DisableRateLimits = disableRL;
+        }
+
         return config;
     }
 }
+

@@ -10,7 +10,14 @@ public class EnvConfiguration
     public AiSettings Ai { get; set; } = new();
     public SuperAdminSettings SuperAdmin { get; set; } = new();
     public CloudflareR2Settings R2 { get; set; } = new();
+    public SecuritySettings Security { get; set; } = new();
 }
+
+public class SecuritySettings
+{
+    public bool DisableRateLimits { get; set; } = false;
+}
+
 
 public class DatabaseSettings
 {

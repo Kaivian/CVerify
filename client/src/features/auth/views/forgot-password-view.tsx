@@ -19,11 +19,12 @@ import {
 import {
   Eye,
   EyeOff,
-  ShieldCheck,
   Mail,
   ArrowLeft,
   KeyRound,
 } from "lucide-react";
+import PasswordStrengthMeter from "../components/password-strength-meter";
+import { evaluatePasswordStrength } from "../security/password-policy";
 
 export function ForgotPasswordView() {
   const router = useRouter();
@@ -48,6 +49,8 @@ export function ForgotPasswordView() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isVisible, setIsVisible] = useState(false);
   const [isConfirmVisible, setIsConfirmVisible] = useState(false);
+
+  const isPasswordValid = evaluatePasswordStrength(password, "default").percentage === 100;
 
   const validateEmail = (val: string) => {
     return val.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
@@ -133,7 +136,7 @@ export function ForgotPasswordView() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password || password.length < 8) return;
+    if (!password || !isPasswordValid) return;
     if (password !== confirmPassword) return;
 
     setIsLoading(true);
@@ -163,7 +166,7 @@ export function ForgotPasswordView() {
   };
 
   return (
-    <Card className="w-full bg-surface border border-border p-8 shadow-xl rounded-2xl">
+    <Card className="w-full bg-surface border border-border py-12 px-18 shadow-xl rounded-2xl">
       {step === 1 && (
         <div className="w-full flex flex-col items-center">
           <div className="w-full flex justify-start mb-6">
@@ -180,11 +183,11 @@ export function ForgotPasswordView() {
             </Button>
           </div>
 
-          <div className="w-12 h-12 bg-surface-secondary flex items-center justify-center rounded-xl mb-6">
-            <KeyRound className="size-6 text-foreground" />
+          <div className="w-12 h-12 bg-accent-soft flex items-center justify-center rounded-xl my-6">
+            <KeyRound className="size-6 text-accent" />
           </div>
 
-          <div className="text-center w-full mb-8 font-outfit">
+          <div className="text-center w-full mb-8 font-outfit flex flex-col justify-center items-center">
             <Typography.Heading
               level={3}
               className="text-2xl font-bold pb-2 text-foreground"
@@ -197,7 +200,7 @@ export function ForgotPasswordView() {
           </div>
 
           <Form
-            className="w-full flex flex-col gap-4"
+            className="w-full flex flex-col gap-6"
             onSubmit={handleRequestOtp}
           >
             <TextField isRequired name="email" isInvalid={isEmailInvalid}>
@@ -206,7 +209,6 @@ export function ForgotPasswordView() {
               </Label>
               <Input
                 placeholder="Enter registered email address"
-                className="h-12"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -228,7 +230,7 @@ export function ForgotPasswordView() {
               fullWidth
               isPending={isLoading}
               isDisabled={isEmailInvalid || !email || isLoading}
-              className="h-12 rounded-xl bg-foreground text-background font-semibold mt-2 flex items-center justify-center gap-2"
+              className="rounded-xl"
             >
               {isLoading && <Spinner color="current" size="sm" />}
               Request recovery code
@@ -239,25 +241,25 @@ export function ForgotPasswordView() {
 
       {step === 2 && (
         <div className="w-full flex flex-col items-center">
-          <div className="w-12 h-12 bg-surface-secondary flex items-center justify-center rounded-xl mb-6">
-            <Mail className="size-6 text-foreground" />
+          <div className="w-12 h-12 bg-accent-soft flex items-center justify-center rounded-xl my-6">
+            <Mail className="size-6 text-accent" />
           </div>
 
-          <div className="text-center w-full mb-8 flex flex-col items-center">
+          <div className="text-center w-full mb-6 flex flex-col items-center gap-2">
             <Typography.Heading
               level={3}
-              className="text-2xl font-bold pb-2 text-foreground"
+              className="text-2xl font-bold text-foreground"
             >
               Confirm email ownership
             </Typography.Heading>
             <Typography className="text-sm text-muted">
-              We&apos;ve sent a 6-digit challenge code to{" "}
-              <span className="font-semibold text-foreground/80">{email}</span>.
+              We&apos;ve sent a 6-digit verification code to{" "}
+              <span className="font-bold text-foreground-soft">{email}</span>.
             </Typography>
           </div>
 
           <Form
-            className="w-full flex flex-col gap-5 items-center"
+            className="w-full flex flex-col gap-6 items-center px-12"
             onSubmit={handleVerifyOtp}
           >
             <div className="flex flex-col gap-2 items-center w-full">
@@ -278,7 +280,7 @@ export function ForgotPasswordView() {
               fullWidth
               isPending={isLoading}
               isDisabled={otpCode.length < 6 || isLoading}
-              className="h-12 rounded-xl bg-foreground text-background font-semibold flex items-center justify-center gap-2"
+              className="rounded-xl"
             >
               {isLoading && <Spinner color="current" size="sm" />}
               Verify code
@@ -305,25 +307,20 @@ export function ForgotPasswordView() {
 
       {step === 3 && (
         <div className="w-full flex flex-col items-center">
-          <div className="w-12 h-12 bg-surface-secondary flex items-center justify-center rounded-xl mb-6">
-            <ShieldCheck className="size-6 text-foreground" />
-          </div>
-
-          <div className="text-center w-full mb-8">
+          <div className="text-center w-full mb-6 flex flex-col items-center gap-2">
             <Typography.Heading
               level={3}
-              className="text-2xl font-bold pb-2 text-foreground"
+              className="text-2xl font-bold text-foreground"
             >
               Reset Password
             </Typography.Heading>
-            <Typography className="text-sm text-muted">
-              Establish a new secure password credential for your CVerify
-              account.
+            <Typography className="text-sm text-muted text-center">
+              Establish a new secure password for your CVerify account.
             </Typography>
           </div>
 
           <Form
-            className="w-full flex flex-col gap-5"
+            className="w-full flex flex-col gap-6"
             onSubmit={handleResetPassword}
           >
             <TextField isRequired name="password" type="password">
@@ -332,7 +329,6 @@ export function ForgotPasswordView() {
               </Label>
               <InputGroup>
                 <InputGroup.Input
-                  className="h-12"
                   type={isVisible ? "text" : "password"}
                   placeholder="Enter new password (min 8 chars)"
                   value={password}
@@ -356,6 +352,7 @@ export function ForgotPasswordView() {
                   </Button>
                 </InputGroup.Suffix>
               </InputGroup>
+              <PasswordStrengthMeter value={password} policyId="default" />
             </TextField>
 
             <TextField isRequired name="confirmPassword" type="password">
@@ -364,7 +361,6 @@ export function ForgotPasswordView() {
               </Label>
               <InputGroup>
                 <InputGroup.Input
-                  className="h-12"
                   type={isConfirmVisible ? "text" : "password"}
                   placeholder="Repeat your new password"
                   value={confirmPassword}
@@ -376,7 +372,6 @@ export function ForgotPasswordView() {
                   <Button
                     isIconOnly
                     variant="ghost"
-                    size="sm"
                     className="text-muted hover:bg-transparent"
                     onPress={() => setIsConfirmVisible(!isConfirmVisible)}
                   >
@@ -396,11 +391,11 @@ export function ForgotPasswordView() {
               isPending={isLoading}
               isDisabled={
                 !password ||
-                password.length < 8 ||
+                !isPasswordValid ||
                 password !== confirmPassword ||
                 isLoading
               }
-              className="h-12 rounded-xl bg-foreground text-background font-semibold mt-2 flex items-center justify-center gap-2"
+              className="rounded-xl"
             >
               {isLoading && <Spinner color="current" size="sm" />}
               Reset password

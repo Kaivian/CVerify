@@ -16,6 +16,7 @@ using CVerify.API.Application.Interfaces;
 using CVerify.API.Application.Security.PasswordPolicies;
 using CVerify.API.Application.Security.OtpPolicies;
 using CVerify.API.Core.Entities;
+using CVerify.API.Core.Enums;
 using CVerify.API.Infrastructure.Configuration;
 using CVerify.API.Infrastructure.Diagnostics;
 using CVerify.API.Infrastructure.Persistence;
@@ -46,6 +47,7 @@ public class AuthService : IAuthService
     private readonly IPasswordPolicyService _passwordPolicyService;
     private readonly IOtpPolicyService _otpPolicyService;
     private readonly IStorageService _storageService;
+    private readonly IRateLimitPolicyService _rateLimitPolicyService;
 
     public AuthService(
         ApplicationDbContext context,
@@ -62,7 +64,8 @@ public class AuthService : IAuthService
         IIdentityStateResolver identityStateResolver,
         IPasswordPolicyService passwordPolicyService,
         IOtpPolicyService otpPolicyService,
-        IStorageService storageService)
+        IStorageService storageService,
+        IRateLimitPolicyService rateLimitPolicyService)
     {
         _context = context;
         _tokenService = tokenService;
@@ -79,7 +82,9 @@ public class AuthService : IAuthService
         _passwordPolicyService = passwordPolicyService;
         _otpPolicyService = otpPolicyService;
         _storageService = storageService;
+        _rateLimitPolicyService = rateLimitPolicyService;
     }
+
 
     private async Task<string?> GetSignedAvatarUrlAsync(string? avatarUrl, CancellationToken cancellationToken = default)
     {
@@ -877,8 +882,15 @@ public class AuthService : IAuthService
         var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
         if (isCooldown != null)
         {
-            _logger.LogWarning("[CorrelationID: {CorrelationId}] Cooldown active for {Email}.", correlationId, normalizedEmail);
-            throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another verification email.");
+            if (_rateLimitPolicyService.DisableRateLimits)
+            {
+                _rateLimitPolicyService.LogBypass("Verification email cooldown", "ResendVerificationEmailAsync", normalizedEmail);
+            }
+            else
+            {
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Cooldown active for {Email}.", correlationId, normalizedEmail);
+                throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another verification email.");
+            }
         }
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
@@ -958,7 +970,8 @@ public class AuthService : IAuthService
             await _context.SaveChangesAsync(cancellationToken);
 
             // Set 1-minute rate limiting cooldown in Redis
-            await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromMinutes(1));
+            var cooldownTime = _rateLimitPolicyService.DisableRateLimits ? TimeSpan.Zero : TimeSpan.FromMinutes(1);
+            await _cacheService.SetAsync(cooldownKey, "active", cooldownTime);
 
             await transaction.CommitAsync(cancellationToken);
 
@@ -989,8 +1002,15 @@ public class AuthService : IAuthService
         var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
         if (isCooldown != null)
         {
-            _logger.LogWarning("[CorrelationID: {CorrelationId}] Forgot password cooldown active for {Email}.", correlationId, normalizedEmail);
-            throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery email.");
+            if (_rateLimitPolicyService.DisableRateLimits)
+            {
+                _rateLimitPolicyService.LogBypass("Forgot password cooldown", "ForgotPasswordAsync", normalizedEmail);
+            }
+            else
+            {
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Forgot password cooldown active for {Email}.", correlationId, normalizedEmail);
+                throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another recovery email.");
+            }
         }
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
@@ -1069,7 +1089,8 @@ public class AuthService : IAuthService
             await _context.SaveChangesAsync(cancellationToken);
 
             // Set 1-minute rate limiting cooldown in Redis
-            await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromMinutes(1));
+            var cooldownTime = _rateLimitPolicyService.DisableRateLimits ? TimeSpan.Zero : TimeSpan.FromMinutes(1);
+            await _cacheService.SetAsync(cooldownKey, "active", cooldownTime);
 
             await transaction.CommitAsync(cancellationToken);
 
@@ -1426,129 +1447,362 @@ public class AuthService : IAuthService
 
     public async Task<SendOtpResponse> SendOtpAsync(SendOtpRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
     {
+        var correlationId = Guid.NewGuid().ToString("N");
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
+        
+        _logger.LogInformation("[CorrelationID: {CorrelationId}] [IP: {IpAddress}] SendOtpAsync requested for email: {Email}, purpose: {Purpose}.", 
+            correlationId, ipAddress, normalizedEmail, request.Purpose);
+
         if (IsDisposableEmail(normalizedEmail))
         {
+            _logger.LogWarning("[CorrelationID: {CorrelationId}] Disposable email address rejected: {Email}.", correlationId, normalizedEmail);
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Disposable email addresses are not permitted.");
         }
 
-        var cooldownKey = $"cooldown:otp:{normalizedEmail}:{request.Purpose}";
-        var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
-        if (isCooldown != null)
+        // 1. Idempotency Support for Resend/Send APIs (Network retries prevention)
+        string? idempotencyKey = _httpContextAccessor.HttpContext?.Request.Headers["X-Idempotency-Key"].ToString();
+        if (!string.IsNullOrEmpty(idempotencyKey))
         {
-            throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another OTP.");
+            var cacheKey = $"idempotency:send-otp:{idempotencyKey}";
+            var cachedResponse = await _cacheService.GetAsync<SendOtpResponse>(cacheKey);
+            if (cachedResponse != null)
+            {
+                _logger.LogInformation("[CorrelationID: {CorrelationId}] Idempotent request found for key: {Key}. Returning cached response.", correlationId, idempotencyKey);
+                return cachedResponse;
+            }
         }
 
-        var plainOtp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-        var otpHash = GenerateHmacSha256OtpHash(plainOtp);
+        var policy = _otpPolicyService.GetPolicy(request.Purpose);
 
-        var challengeId = Guid.CreateVersion7();
-        var expiresAt = _timeProvider.GetUtcNow().AddMinutes(5);
-
-        var verification = new OtpVerification
+        // 2. Global Rate Limiting Throttling (IP + Email + Purpose)
+        var ipRateKey = $"rate:otp:ip:{ipAddress}";
+        var ipCount = await _cacheService.GetAsync<int?>(ipRateKey) ?? 0;
+        var maxIpCount = _rateLimitPolicyService.DisableRateLimits ? 99999 : 10;
+        if (ipCount >= maxIpCount)
         {
-            ChallengeId = challengeId,
-            Email = normalizedEmail,
-            OtpHash = otpHash,
-            Purpose = request.Purpose,
-            ExpiresAt = expiresAt,
-            CreatedAt = _timeProvider.GetUtcNow(),
-            LastSentAt = _timeProvider.GetUtcNow()
-        };
-
-        _context.OtpVerifications.Add(verification);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // Outbox Pattern Integration
-        var payloadObj = new
+            _logger.LogWarning("[CorrelationID: {CorrelationId}] [IP: {IpAddress}] IP OTP request limit exceeded.", correlationId, ipAddress);
+            throw new AuthException(AuthErrorCodes.RateLimitExceeded, "Too many OTP requests from this IP. Please try again in an hour.");
+        }
+        if (_rateLimitPolicyService.DisableRateLimits && ipCount > 0)
         {
-            Email = normalizedEmail,
-            Otp = plainOtp,
-            ChallengeId = challengeId,
-            Purpose = request.Purpose
-        };
+            _rateLimitPolicyService.LogBypass("IP OTP generation limit", "SendOtpAsync", ipAddress);
+        }
 
-        var outboxMessage = new OutboxMessage
+        var emailRateKey = $"rate:otp:email:{normalizedEmail}:{request.Purpose}";
+        var emailCount = await _cacheService.GetAsync<int?>(emailRateKey) ?? 0;
+        var maxEmailCount = _rateLimitPolicyService.DisableRateLimits ? 99999 : 5;
+        if (emailCount >= maxEmailCount)
         {
-            Type = "EmailOtpVerification",
-            Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-            CreatedAt = _timeProvider.GetUtcNow()
-        };
+            _logger.LogWarning("[CorrelationID: {CorrelationId}] Email OTP request limit exceeded for: {Email}.", correlationId, normalizedEmail);
+            throw new AuthException(AuthErrorCodes.RateLimitExceeded, "Too many OTP requests for this email. Please try again in 15 minutes.");
+        }
+        if (_rateLimitPolicyService.DisableRateLimits && emailCount > 0)
+        {
+            _rateLimitPolicyService.LogBypass("Email OTP generation limit", "SendOtpAsync", normalizedEmail);
+        }
 
-        _context.OutboxMessages.Add(outboxMessage);
-        await _context.SaveChangesAsync(cancellationToken);
+        // 3. Distributed Concurrency Lock on Email
+        var lockKey = $"lock:otp:generate:{normalizedEmail}";
+        var lockValue = Guid.NewGuid().ToString("N");
+        var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(5));
+        if (!acquired)
+        {
+            _logger.LogWarning("[CorrelationID: {CorrelationId}] Concurrency conflict: duplicate OTP request for email: {Email}.", correlationId, normalizedEmail);
+            throw new AuthException(AuthErrorCodes.ConcurrencyConflict, "A request is already in progress for this email.");
+        }
 
-        await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromSeconds(60));
-        await LogAuditEventAsync(null, "OTP_SENT", $"OTP challenge {challengeId} sent to {normalizedEmail} for {request.Purpose}.");
+        try
+        {
+            // Query for existing ACTIVE OTP challenge for the same email and purpose
+            var utcNow = _timeProvider.GetUtcNow();
+            var verification = await _context.OtpVerifications
+                .Where(v => v.Email == normalizedEmail && v.Purpose == request.Purpose && v.Status == OtpSessionStatus.ACTIVE)
+                .FirstOrDefaultAsync(cancellationToken);
 
-        return new SendOtpResponse(challengeId, normalizedEmail, 60);
+            // Timezone safe cooldown & expiration calculations using UTC
+            var plainOtp = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+            var otpHash = GenerateHmacSha256OtpHash(plainOtp);
+            Guid challengeId;
+
+            if (verification != null)
+            {
+                // Check if cooldown is still active from database
+                if (verification.CooldownUntil.HasValue && verification.CooldownUntil.Value > utcNow)
+                {
+                    if (_rateLimitPolicyService.DisableRateLimits)
+                    {
+                        _rateLimitPolicyService.LogBypass("OTP resend cooldown", "SendOtpAsync", normalizedEmail);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("[CorrelationID: {CorrelationId}] Cooldown active for: {Email}. Cooldown until: {Cooldown}.", 
+                            correlationId, normalizedEmail, verification.CooldownUntil.Value);
+                        throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another OTP.");
+                    }
+                }
+
+                // Check for max resends
+                if (verification.ResendCount >= policy.MaxResends)
+                {
+                    verification.Status = OtpSessionStatus.INVALIDATED;
+                    verification.InvalidatedAt = utcNow;
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _logger.LogWarning("[CorrelationID: {CorrelationId}] Max resend limit reached for: {Email}. Session invalidated.", correlationId, normalizedEmail);
+                    throw new AuthException(AuthErrorCodes.TooManyResends, "Too many OTP resends. This session has been blocked.");
+                }
+
+                // Reuse the same challenge details, incrementing resend but NOT resetting attempts
+                challengeId = verification.ChallengeId;
+                verification.OtpHash = otpHash;
+                verification.ExpiresAt = utcNow.AddSeconds(policy.ExpirationSeconds);
+                verification.CooldownUntil = utcNow.AddSeconds(policy.CooldownSeconds);
+                verification.ResendCount += 1;
+                verification.LastSentAt = utcNow;
+                verification.LastResentAt = utcNow;
+
+                _logger.LogInformation("[CorrelationID: {CorrelationId}] Reusing active challenge session: {ChallengeId}. Resend count: {Count}.", 
+                    correlationId, challengeId, verification.ResendCount);
+            }
+            else
+            {
+                // Create a fresh challenge session
+                challengeId = Guid.CreateVersion7();
+                verification = new OtpVerification
+                {
+                    ChallengeId = challengeId,
+                    Email = normalizedEmail,
+                    OtpHash = otpHash,
+                    Purpose = request.Purpose,
+                    ExpiresAt = utcNow.AddSeconds(policy.ExpirationSeconds),
+                    CooldownUntil = utcNow.AddSeconds(policy.CooldownSeconds),
+                    CreatedAt = utcNow,
+                    LastSentAt = utcNow,
+                    Status = OtpSessionStatus.ACTIVE,
+                    Attempts = 0,
+                    ResendCount = 0
+                };
+                _context.OtpVerifications.Add(verification);
+                _logger.LogInformation("[CorrelationID: {CorrelationId}] Created new challenge session: {ChallengeId}.", correlationId, challengeId);
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            // Record incremented rate limits
+            await _cacheService.SetAsync(ipRateKey, (int?)(ipCount + 1), TimeSpan.FromHours(1));
+            await _cacheService.SetAsync(emailRateKey, (int?)(emailCount + 1), TimeSpan.FromMinutes(15));
+
+            // Outbox Pattern Integration with template parameter mapping
+            var payloadObj = new
+            {
+                Email = normalizedEmail,
+                Otp = plainOtp,
+                ChallengeId = challengeId,
+                Purpose = request.Purpose,
+                Template = policy.EmailTemplate
+            };
+
+            var outboxMessage = new OutboxMessage
+            {
+                Type = "EmailOtpVerification",
+                Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
+                CreatedAt = utcNow
+            };
+
+            _context.OutboxMessages.Add(outboxMessage);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var sendResponse = new SendOtpResponse(challengeId, normalizedEmail, policy.CooldownSeconds);
+
+            // Cache for idempotency protection
+            if (!string.IsNullOrEmpty(idempotencyKey))
+            {
+                await _cacheService.SetAsync($"idempotency:send-otp:{idempotencyKey}", sendResponse, TimeSpan.FromSeconds(30));
+            }
+
+            await LogAuditEventAsync(null, "OTP_SENT", $"OTP challenge {challengeId} sent to {normalizedEmail} for {request.Purpose}. CorrelationId: {correlationId}");
+
+            return sendResponse;
+        }
+        finally
+        {
+            await _cacheService.ReleaseLockAsync(lockKey, lockValue);
+        }
     }
 
     public async Task<VerifyOtpResponse> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default)
     {
-        _otpPolicyService.ValidateAndThrow(request.Code, "Default");
+        var correlationId = Guid.NewGuid().ToString("N");
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
+        var policy = _otpPolicyService.GetPolicy(request.Purpose);
+
+        _logger.LogInformation("[CorrelationID: {CorrelationId}] VerifyOtpAsync requested for challenge: {ChallengeId}, email: {Email}, purpose: {Purpose}.", 
+            correlationId, request.ChallengeId, normalizedEmail, request.Purpose);
+
+        _otpPolicyService.ValidateAndThrow(request.Code, request.Purpose);
 
         var superAdminEmail = _envConfig.SuperAdmin.Email;
         bool isSuperAdmin = string.Equals(normalizedEmail, superAdminEmail, StringComparison.OrdinalIgnoreCase);
 
         if (isSuperAdmin)
         {
-            _logger.LogInformation("Super Admin OTP verification bypassed for {Email}.", normalizedEmail);
+            _logger.LogInformation("[CorrelationID: {CorrelationId}] Super Admin OTP verification bypassed for {Email}.", correlationId, normalizedEmail);
             var adminSetupToken = Guid.NewGuid().ToString("N");
             await _cacheService.SetAsync($"setup:token:{normalizedEmail}:{request.ChallengeId}", adminSetupToken, TimeSpan.FromMinutes(10));
 
-            await LogAuditEventAsync(null, "OTP_BYPASSED", $"Super Admin OTP verified/bypassed for challenge {request.ChallengeId} on {normalizedEmail}.");
+            await LogAuditEventAsync(null, "OTP_BYPASSED", $"Super Admin OTP verified/bypassed for challenge {request.ChallengeId} on {normalizedEmail}. CorrelationId: {correlationId}");
             return new VerifyOtpResponse(request.ChallengeId, normalizedEmail, adminSetupToken);
         }
 
+        // Distributed Concurrency Lock on email verification to avoid simultaneous double clicks
+        var lockKey = $"lock:otp:verify:{normalizedEmail}";
+        var lockValue = Guid.NewGuid().ToString("N");
+        var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(5));
+        if (!acquired)
+        {
+            _logger.LogWarning("[CorrelationID: {CorrelationId}] Concurrency conflict: simultaneous verification request for email: {Email}.", correlationId, normalizedEmail);
+            throw new AuthException(AuthErrorCodes.ConcurrencyConflict, "A verification request is already in progress for this email.");
+        }
+
+        try
+        {
+            var verification = await _context.OtpVerifications
+                .Where(v => v.ChallengeId == request.ChallengeId && v.Email == normalizedEmail && v.Purpose == request.Purpose)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (verification == null)
+            {
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Verification failed: unknown challenge {ChallengeId} for {Email}.", correlationId, request.ChallengeId, normalizedEmail);
+                await LogAuditEventAsync(null, "OTP_FAILED", $"OTP verification failed: unknown challenge {request.ChallengeId} for {normalizedEmail}. CorrelationId: {correlationId}");
+                throw new AuthException(AuthErrorCodes.InvalidToken, "The OTP challenge is invalid or does not match.");
+            }
+
+            var utcNow = _timeProvider.GetUtcNow();
+
+            // Validate explicit state structures
+            if (verification.Status == OtpSessionStatus.VERIFIED || verification.ConsumedAt != null)
+            {
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Verification failed: OTP already consumed/verified. ChallengeId: {ChallengeId}.", correlationId, request.ChallengeId);
+                throw new AuthException(AuthErrorCodes.TokenAlreadyConsumed, "This OTP has already been verified.");
+            }
+
+            if (verification.Status == OtpSessionStatus.LOCKED || verification.Attempts >= policy.MaxRetries)
+            {
+                if (_rateLimitPolicyService.DisableRateLimits)
+                {
+                    _rateLimitPolicyService.LogBypass("OTP verification lockout", "VerifyOtpAsync", normalizedEmail);
+                }
+                else
+                {
+                    verification.Status = OtpSessionStatus.LOCKED;
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _logger.LogWarning("[CorrelationID: {CorrelationId}] Abuse block triggered: too many attempts for challenge {ChallengeId}.", correlationId, request.ChallengeId);
+                    await LogAuditEventAsync(null, "SuspiciousActivity", $"Abuse block triggered for challenge {request.ChallengeId} (too many attempts). CorrelationId: {correlationId}");
+                    throw new AuthException(AuthErrorCodes.SuspiciousActivity, "Too many failed attempts. This OTP has been blocked.");
+                }
+            }
+
+            if (verification.Status == OtpSessionStatus.EXPIRED || verification.ExpiresAt <= utcNow)
+            {
+                verification.Status = OtpSessionStatus.EXPIRED;
+                await _context.SaveChangesAsync(cancellationToken);
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Verification failed: OTP expired. ChallengeId: {ChallengeId}.", correlationId, request.ChallengeId);
+                throw new AuthException(AuthErrorCodes.ExpiredToken, "This OTP has expired.");
+            }
+
+            if (verification.Status == OtpSessionStatus.INVALIDATED || verification.InvalidatedAt != null)
+            {
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] Verification failed: session invalidated. ChallengeId: {ChallengeId}.", correlationId, request.ChallengeId);
+                throw new AuthException(AuthErrorCodes.InvalidToken, "This OTP session has been invalidated.");
+            }
+
+            var inputHash = GenerateHmacSha256OtpHash(request.Code);
+            bool matches = ConstantTimeEquals(verification.OtpHash, inputHash);
+
+            verification.Attempts += 1;
+            verification.LastAttemptAt = utcNow;
+
+            if (!matches)
+            {
+                if (verification.Attempts >= policy.MaxRetries)
+                {
+                    if (_rateLimitPolicyService.DisableRateLimits)
+                    {
+                        _rateLimitPolicyService.LogBypass("OTP verification attempts limit", "VerifyOtpAsync", normalizedEmail);
+                    }
+                    else
+                    {
+                        verification.Status = OtpSessionStatus.LOCKED;
+                    }
+                }
+                await _context.SaveChangesAsync(cancellationToken);
+                _logger.LogWarning("[CorrelationID: {CorrelationId}] OTP code mismatch for challenge {ChallengeId}. Total attempts: {Attempts}.", correlationId, request.ChallengeId, verification.Attempts);
+                await LogAuditEventAsync(null, "OTP_FAILED", $"OTP verification failed for challenge {request.ChallengeId} on {normalizedEmail}. Attempts: {verification.Attempts}. CorrelationId: {correlationId}");
+                
+                if (verification.Status == OtpSessionStatus.LOCKED && !_rateLimitPolicyService.DisableRateLimits)
+                {
+                    throw new AuthException(AuthErrorCodes.SuspiciousActivity, "Too many failed attempts. This OTP has been blocked.");
+                }
+                throw new AuthException(AuthErrorCodes.InvalidCredentials, "The OTP entered is incorrect.");
+            }
+
+            // Success Transition
+            verification.Status = OtpSessionStatus.VERIFIED;
+            verification.ConsumedAt = utcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var tempSetupToken = Guid.NewGuid().ToString("N");
+            await _cacheService.SetAsync($"setup:token:{normalizedEmail}:{request.ChallengeId}", tempSetupToken, TimeSpan.FromMinutes(10));
+
+            _logger.LogInformation("[CorrelationID: {CorrelationId}] OTP verified successfully for challenge: {ChallengeId}.", correlationId, request.ChallengeId);
+            await LogAuditEventAsync(null, "OTP_VERIFIED", $"OTP verified successfully for challenge {request.ChallengeId} on {normalizedEmail}. CorrelationId: {correlationId}");
+            return new VerifyOtpResponse(request.ChallengeId, normalizedEmail, tempSetupToken);
+        }
+        finally
+        {
+            await _cacheService.ReleaseLockAsync(lockKey, lockValue);
+        }
+    }
+
+    public async Task<OtpSessionResponse> GetActiveOtpSessionAsync(string email, string purpose, Guid challengeId, CancellationToken cancellationToken = default)
+    {
+        var correlationId = Guid.NewGuid().ToString("N");
+        var normalizedEmail = NormalizeEmailPolicy(email);
+
+        _logger.LogInformation("[CorrelationID: {CorrelationId}] GetActiveOtpSessionAsync requested for email: {Email}, purpose: {Purpose}, challengeId: {ChallengeId}.", 
+            correlationId, normalizedEmail, purpose, challengeId);
+
         var verification = await _context.OtpVerifications
-            .Where(v => v.ChallengeId == request.ChallengeId && v.Email == normalizedEmail && v.Purpose == request.Purpose)
+            .Where(v => v.ChallengeId == challengeId && v.Email == normalizedEmail && v.Purpose == purpose)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (verification == null)
         {
-            await LogAuditEventAsync(null, "OTP_FAILED", $"OTP verification failed: unknown challenge {request.ChallengeId} for {normalizedEmail}.");
-            throw new AuthException(AuthErrorCodes.InvalidToken, "The OTP challenge is invalid or does not match.");
+            _logger.LogWarning("[CorrelationID: {CorrelationId}] Active session check: no session found for challenge: {ChallengeId}.", correlationId, challengeId);
+            throw new AuthException(AuthErrorCodes.InvalidToken, "No active session found for this challenge.");
         }
 
-        if (verification.ConsumedAt != null)
+        var utcNow = _timeProvider.GetUtcNow();
+
+        // Expire state check
+        if (verification.Status == OtpSessionStatus.ACTIVE && verification.ExpiresAt <= utcNow)
         {
-            throw new AuthException(AuthErrorCodes.TokenAlreadyConsumed, "This OTP has already been verified.");
-        }
-
-        if (verification.ExpiresAt <= _timeProvider.GetUtcNow())
-        {
-            throw new AuthException(AuthErrorCodes.ExpiredToken, "This OTP has expired.");
-        }
-
-        if (verification.Attempts >= 5)
-        {
-            await LogAuditEventAsync(null, "SuspiciousActivity", $"Abuse block triggered for challenge {request.ChallengeId} (too many attempts).");
-            throw new AuthException(AuthErrorCodes.SuspiciousActivity, "Too many failed attempts. This OTP has been blocked.");
-        }
-
-        var inputHash = GenerateHmacSha256OtpHash(request.Code);
-        bool matches = ConstantTimeEquals(verification.OtpHash, inputHash);
-
-        verification.Attempts += 1;
-        verification.LastAttemptAt = _timeProvider.GetUtcNow();
-
-        if (!matches)
-        {
+            verification.Status = OtpSessionStatus.EXPIRED;
             await _context.SaveChangesAsync(cancellationToken);
-            await LogAuditEventAsync(null, "OTP_FAILED", $"OTP verification failed for challenge {request.ChallengeId} on {normalizedEmail}.");
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "The OTP entered is incorrect.");
+            _logger.LogInformation("[CorrelationID: {CorrelationId}] Active session check: session {ChallengeId} has expired. Updated status to EXPIRED.", correlationId, challengeId);
         }
 
-        verification.ConsumedAt = _timeProvider.GetUtcNow();
-        await _context.SaveChangesAsync(cancellationToken);
+        var hasActive = verification.Status == OtpSessionStatus.ACTIVE;
+        var maskedEmail = MaskEmail(normalizedEmail);
 
-        var tempSetupToken = Guid.NewGuid().ToString("N");
-        await _cacheService.SetAsync($"setup:token:{normalizedEmail}:{request.ChallengeId}", tempSetupToken, TimeSpan.FromMinutes(10));
-
-        await LogAuditEventAsync(null, "OTP_VERIFIED", $"OTP verified successfully for challenge {request.ChallengeId} on {normalizedEmail}.");
-        return new VerifyOtpResponse(request.ChallengeId, normalizedEmail, tempSetupToken);
+        return new OtpSessionResponse(
+            HasActiveOtp: hasActive,
+            ChallengeId: verification.ChallengeId,
+            Purpose: verification.Purpose,
+            ExpiresAt: verification.ExpiresAt,
+            CooldownUntil: verification.CooldownUntil,
+            MaskedEmail: maskedEmail,
+            Status: verification.Status.ToString()
+        );
     }
 
     public async Task<AuthResponse> CreatePasswordAsync(CreatePasswordRequest request, CancellationToken cancellationToken = default)
@@ -2641,6 +2895,17 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
         await LogAuditEventAsync(userId, "SESSION_REVOKED", $"Session {sessionId} successfully revoked by owner.");
         return true;
+    }
+
+    private string MaskEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return string.Empty;
+        var parts = email.Split('@');
+        if (parts.Length != 2) return email;
+        var local = parts[0];
+        var domain = parts[1];
+        if (local.Length <= 2) return $"*@{domain}";
+        return $"{local[0]}***{local[^1]}@{domain}";
     }
 }
 

@@ -165,4 +165,116 @@ public class RecoveryFlowTests : BaseIntegrationTest
         claimAfterSecond!.Status.Should().Be("Approved");
         claimAfterSecond.SecondReviewerBy.Should().Be("admin2@cverify.ai");
     }
+
+    [Fact]
+    public async Task ValidateEmailOwnership_Should_Return_IsDuplicate_True_If_Email_Matches_RepresentativeEmail()
+    {
+        var taxCode = "5555555555";
+        var companyName = "Test Duplicate Corp";
+        var email = "owner@duplicatecorp.com";
+        var username = "duplicate-corp";
+        
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var org = new Organization
+        {
+            TaxCode = taxCode,
+            Name = companyName,
+            Email = "company@duplicatecorp.com",
+            Username = username,
+            Status = "active",
+            VerificationLevel = 1,
+            IsVerified = true,
+            RepresentativeEmail = email, // matches the entered email
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        db.Organizations.Add(org);
+        await db.SaveChangesAsync();
+
+        var request = new ValidateEmailOwnershipRequest(taxCode, email);
+        var response = await Client.PostAsJsonAsync("/api/auth/recovery/reclaim/validate-email-ownership", request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<ValidateEmailOwnershipResponse>();
+        result.Should().NotBeNull();
+        result!.IsDuplicate.Should().BeTrue();
+        result.Message.Should().Contain("cannot be used");
+    }
+
+    [Fact]
+    public async Task ReclaimSendOtp_Should_Prevent_Send_If_Email_Matches_RepresentativeEmail()
+    {
+        var taxCode = "7777777777";
+        var companyName = "Test Reclaim Block Corp";
+        var email = "owner@reclaimblock.com";
+        var username = "reclaimblock-corp";
+        
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var org = new Organization
+        {
+            TaxCode = taxCode,
+            Name = companyName,
+            Email = "company@reclaimblock.com",
+            Username = username,
+            Status = "active",
+            VerificationLevel = 1,
+            IsVerified = true,
+            RepresentativeEmail = email, // matches the entered email
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        db.Organizations.Add(org);
+        await db.SaveChangesAsync();
+
+        var request = new ReclaimSendOtpRequest(taxCode, email);
+        var response = await Client.PostAsJsonAsync("/api/auth/recovery/reclaim/send-otp", request);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var errorMsg = await response.Content.ReadAsStringAsync();
+        errorMsg.Should().Contain("cannot be used");
+    }
+
+    [Fact]
+    public async Task SubmitClaim_With_Email_Normalization_Should_Succeed()
+    {
+        var taxCode = "1234512345";
+        var companyName = "Test Normalization Corp";
+        var normalizedEmail = "ownername@gmail.com";
+        var rawEmailInRequest = " owner.name+reclaim@gmail.com ";
+        var username = "normalization-corp";
+        
+        var org = await SeedOrganizationAsync(taxCode, companyName, normalizedEmail, username);
+
+        // Generate valid OTP verification token using the normalized email format
+        using var scope = Factory.Services.CreateScope();
+        var config = scope.ServiceProvider.GetRequiredService<CVerify.API.Infrastructure.Configuration.EnvConfiguration>();
+        
+        var token = RecoveryTokenHelper.GenerateOtpVerifiedToken(taxCode, normalizedEmail, config.Jwt.Key);
+
+        // Submit claim with non-normalized recovery email containing dots and + subaddressing
+        var boundary = $"----Boundary{Guid.NewGuid():N}";
+        using var content = new MultipartFormDataContent(boundary);
+        content.Add(new StringContent(companyName), "CompanyName");
+        content.Add(new StringContent(taxCode), "TaxCode");
+        content.Add(new StringContent("John Doe"), "RepresentativeFullName");
+        content.Add(new StringContent("CEO"), "RepresentativePosition");
+        content.Add(new StringContent("+84901234567"), "PhoneNumber");
+        content.Add(new StringContent(rawEmailInRequest), "RecoveryEmail");
+        content.Add(new StringContent(token), "EmailVerificationToken");
+
+        var fileContent = new ByteArrayContent(Encoding.UTF8.GetBytes("Mock License Content"));
+        fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("application/pdf");
+        content.Add(fileContent, "documents", "license.pdf");
+
+        var response = await Client.PostAsync("/api/auth/recovery/reclaim/submit-claim", content);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<SubmitClaimResponse>();
+        result.Should().NotBeNull();
+        result!.Status.Should().Be("Pending");
+    }
 }
