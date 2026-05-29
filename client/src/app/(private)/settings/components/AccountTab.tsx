@@ -5,14 +5,28 @@ import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
-import { FormInput } from "@/components/forms/form-input";
 import { SettingsSection } from "./SettingsSection";
 import { LinkedAccountsList } from "./LinkedAccountsList";
-import { DialogModal } from "@/components/ui/dialog-modal";
+import { SignInMethod } from "./SignInMethod";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { Typography, Switch, Chip, toast, Spinner } from "@heroui/react";
+import {
+  Typography,
+  Switch,
+  Chip,
+  toast,
+  Spinner,
+  TextField,
+  Label,
+  InputGroup,
+  Description,
+  Select,
+  ListBox,
+  Tooltip,
+  Button,
+  Separator,
+  Modal,
+} from "@heroui/react";
 import {
   ShieldAlert,
   Key,
@@ -20,6 +34,8 @@ import {
   Trash2,
   AlertTriangle,
   ShieldX,
+  Info,
+  X,
 } from "lucide-react";
 import { type SessionInfoData } from "@/types/auth.types";
 import {
@@ -56,6 +72,7 @@ const accountSchema = z.object({
     ),
   profileVisibility: z.enum(["public", "members", "private"]),
   recruiterVisibility: z.boolean(),
+  aiTalentDiscovery: z.enum(["enabled", "limited", "disabled"]),
 });
 
 type AccountFormValues = z.infer<typeof accountSchema>;
@@ -82,6 +99,9 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false);
+  const [sessionToRevoke, setSessionToRevoke] =
+    useState<SessionInfoData | null>(null);
 
   // Form methods setup
   const methods = useForm<AccountFormValues>({
@@ -90,6 +110,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
       username: "",
       profileVisibility: "public",
       recruiterVisibility: true,
+      aiTalentDiscovery: "disabled",
     },
     mode: "onChange",
   });
@@ -111,6 +132,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         profileVisibility: (profile.profileVisibility as any) || "public",
         recruiterVisibility: profile.recruiterVisibility ?? true,
+        aiTalentDiscovery: "disabled",
       });
     }
   }, [profile, reset, methods.formState.isDirty]);
@@ -234,8 +256,14 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   const visibilityOptions = [
     { value: "public", label: "Public" },
-    { value: "members", label: "Members Only" },
+    { value: "connections", label: "Connections Only" },
     { value: "private", label: "Private" },
+  ];
+
+  const AITalentDiscoveryOptions = [
+    { value: "enabled", label: "Enabled" },
+    { value: "limited", label: "Limited" },
+    { value: "disabled", label: "Disabled" },
   ];
 
   // Simulating check for organization ownership restrictions
@@ -246,39 +274,127 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   return (
     <FormProvider {...methods}>
-      <form
-        onSubmit={handleSubmit(handleFormSubmit)}
-        className="space-y-10 pb-20"
-      >
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
         {/* Username section */}
         <SettingsSection
-          title="Profile Path & Username"
-          description="Customize your public username. This affects your unique URL signature used for shareable identity verification."
+          title="Username & Profile Privacy"
+          description="Customize your public username and control who can view your profile."
         >
           <Card className="text-left gap-4 flex flex-col">
-            <div className="flex flex-col gap-1.5 w-full md:max-w-md">
-              <FormInput
-                name="username"
-                label="Username"
-                placeholder="lowercase_username"
-                autoComplete="off"
-              />
-              {!errors.username && (
-                <div className="flex flex-col gap-1 pl-1 select-none">
-                  <Typography
-                    type="body-xs"
-                    className="text-muted text-[10.5px] font-semibold mt-0.5"
-                  >
-                    Your public profile link will be:
-                  </Typography>
-                  <Typography
-                    type="body-xs"
-                    className="text-accent font-bold font-mono text-[10px] break-all"
-                  >
-                    cverify.com/{currentValues.username || "username"}
-                  </Typography>
-                </div>
-              )}
+            <div className="flex gap-3 w-full">
+              <div className="flex flex-col gap-2 w-full">
+                <TextField
+                  className="w-full"
+                  value={currentValues.username}
+                  name="username"
+                >
+                  <Label>Username</Label>
+                  <InputGroup>
+                    <InputGroup.Input maxLength={25} />
+                  </InputGroup>
+                </TextField>
+                <Description>
+                  Your public profile link will be:{" "}
+                  <span className="font-bold text-foreground">
+                    cverify.com/
+                    {currentValues.username || "username"}
+                  </span>
+                </Description>
+              </div>
+              <div className="w-full flex gap-2">
+                <Select
+                  className="w-9/20"
+                  value={currentValues.profileVisibility || "public"}
+                  onChange={(val) =>
+                    setValue(
+                      "profileVisibility",
+                      val as "public" | "members" | "private",
+                      { shouldDirty: true },
+                    )
+                  }
+                >
+                  <Tooltip delay={0}>
+                    <div className="w-full flex items-center gap-1">
+                      <Label>Profile Visibility</Label>
+                      <Button
+                        isIconOnly
+                        variant="ghost"
+                        className="rounded-full h-5 w-5"
+                      >
+                        <Info />
+                      </Button>
+                    </div>
+                    <Tooltip.Content showArrow>
+                      Control who can view your public profile page and verified
+                      credentials.
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {visibilityOptions.map((option) => (
+                        <ListBox.Item
+                          key={option.value}
+                          id={option.value}
+                          textValue={option.label}
+                        >
+                          {option.label}
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+                <Select
+                  className="w-11/20"
+                  value={currentValues.aiTalentDiscovery || "disabled"}
+                  onChange={(val) =>
+                    setValue(
+                      "aiTalentDiscovery",
+                      val as "enabled" | "limited" | "disabled",
+                      { shouldDirty: true },
+                    )
+                  }
+                >
+                  <Tooltip delay={0}>
+                    <div className="w-full flex items-center gap-1">
+                      <Label>AI Talent Discovery</Label>
+                      <Button
+                        isIconOnly
+                        variant="ghost"
+                        className="rounded-full h-5 w-5"
+                      >
+                        <Info />
+                      </Button>
+                    </div>
+                    <Tooltip.Content showArrow>
+                      Control whether recruiter AI systems can analyze and rank
+                      your profile for talent discovery and job matching.
+                    </Tooltip.Content>
+                  </Tooltip>
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {AITalentDiscoveryOptions.map((option) => (
+                        <ListBox.Item
+                          key={option.value}
+                          id={option.value}
+                          textValue={option.label}
+                        >
+                          {option.label}
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
             </div>
           </Card>
         </SettingsSection>
@@ -293,34 +409,16 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           </Card>
         </SettingsSection>
 
-        {/* Security / Password section */}
+        {/* Sign in methods section */}
         <SettingsSection
-          title="Security Credentials"
-          description="Manage passwords and cryptographic identity verification credentials."
+          title="Sign in methods"
+          description="Manage authentication methods used to access your CVerify workspace."
         >
-          <Card className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-6 text-left">
-            <div className="flex flex-col gap-0.5 max-w-md select-none">
-              <div className="flex items-center gap-2">
-                <Typography
-                  type="body-sm"
-                  className="font-bold text-foreground font-outfit"
-                >
-                  Password Auth
-                </Typography>
-                <Key size={14} className="text-accent shrink-0" />
-              </div>
-              <Typography type="body-xs" className="text-muted leading-relaxed">
-                Update or set a robust password to ensure security when logging
-                in outside OAuth single sign-on flows.
-              </Typography>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setIsPasswordModalOpen(true)}
-              className="rounded-xl border-separator font-bold text-xs h-9 px-4 shrink-0 select-none"
-            >
-              Change Password
-            </Button>
+          <Card>
+            <SignInMethod
+              onChangePassword={() => setIsPasswordModalOpen(true)}
+              userEmail={user?.email || undefined}
+            />
           </Card>
         </SettingsSection>
 
@@ -329,75 +427,96 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           title="Active Devices & Sessions"
           description="View active sessions logged into your account. You can revoke older or unrecognized sessions here."
         >
-          <Card className="text-left flex flex-col gap-4">
-            <Typography
-              type="body-sm"
-              className="font-bold text-foreground font-outfit select-none"
-            >
-              Login Sessions
-            </Typography>
-
+          <Card>
             {loadingSessions ? (
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-6">
                 {[1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="h-14 w-full rounded-xl bg-surface-secondary animate-pulse"
-                  />
+                  <div key={i} className="flex flex-col gap-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 w-full">
+                        <div className="w-10 h-10 rounded-xl bg-surface-secondary animate-pulse shrink-0" />
+                        <div className="flex flex-col gap-2 w-1/3">
+                          <div className="h-4 bg-surface-secondary rounded animate-pulse" />
+                          <div className="h-3 bg-surface-secondary rounded w-2/3 animate-pulse" />
+                        </div>
+                      </div>
+                      <div className="h-9 w-20 bg-surface-secondary rounded-xl animate-pulse shrink-0" />
+                    </div>
+                    {i === 2 ? null : <Separator />}
+                  </div>
                 ))}
               </div>
             ) : sessions.length > 0 ? (
-              <div className="divide-y divide-separator/60 border border-separator/85 rounded-xl bg-field-background/50 overflow-hidden">
-                {sessions.map((session) => (
-                  <div
-                    key={session.sessionId}
-                    className="flex items-center justify-between gap-4 p-4 hover:bg-surface-secondary/10 transition-all"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-surface-secondary flex items-center justify-center border border-separator/40 shrink-0 text-muted">
-                        <Laptop size={18} />
-                      </div>
-                      <div className="flex flex-col min-w-0 select-none">
-                        <div className="flex items-center gap-2">
-                          <Typography
-                            type="body-sm"
-                            className="font-bold text-foreground font-outfit"
-                          >
-                            {session.deviceName || "Desktop Web browser"}
-                          </Typography>
-                          {session.isCurrent && (
-                            <Chip
-                              size="sm"
-                              color="accent"
-                              variant="soft"
-                              className="h-4.5 px-1.5 text-[9px] font-extrabold uppercase tracking-wider font-outfit"
+              <div className="flex flex-col gap-6">
+                {sessions.map((session, index) => {
+                  const isLast = index === sessions.length - 1;
+                  return (
+                    <div
+                      key={session.sessionId}
+                      className="flex flex-col gap-6"
+                    >
+                      <div className="flex flex-row items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 flex items-center justify-center text-foreground/80">
+                            <Laptop className="size-6" />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-center gap-2 justify-start">
+                              <Typography.Heading level={6}>
+                                {session.deviceName || "Desktop Web browser"}
+                              </Typography.Heading>
+                              {session.isCurrent && (
+                                <Chip
+                                  size="sm"
+                                  color="accent"
+                                  variant="soft"
+                                  className="h-4.5 px-1.5 text-[9px] font-extrabold uppercase tracking-wider font-outfit"
+                                >
+                                  Current
+                                </Chip>
+                              )}
+                            </div>
+                            <Typography
+                              type="body-xs"
+                              className="text-muted text-[10px] font-sans truncate mt-0.5"
                             >
-                              Current
-                            </Chip>
+                              IP: {session.ipAddress || "Unknown IP"} • OS:{" "}
+                              {session.userAgent || "Web Session"}
+                            </Typography>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center shrink-0">
+                          {!session.isCurrent && (
+                            <Button
+                              variant="outline"
+                              isPending={revokingId === session.sessionId}
+                              onClick={() => {
+                                setSessionToRevoke(session);
+                                setIsRevokeModalOpen(true);
+                              }}
+                              className="rounded-xl"
+                            >
+                              {({ isPending }) => (
+                                <>
+                                  {isPending ? (
+                                    <>
+                                      <Spinner color="current" size="sm" />
+                                      Revoking...
+                                    </>
+                                  ) : (
+                                    "Revoke"
+                                  )}
+                                </>
+                              )}
+                            </Button>
                           )}
                         </div>
-                        <Typography
-                          type="body-xs"
-                          className="text-muted text-[11px] font-sans truncate mt-0.5"
-                        >
-                          IP: {session.ipAddress || "Unknown IP"} • OS:{" "}
-                          {session.userAgent || "Web Session"}
-                        </Typography>
                       </div>
+                      {isLast ? null : <Separator />}
                     </div>
-
-                    {!session.isCurrent && (
-                      <Button
-                        variant="outline"
-                        isLoading={revokingId === session.sessionId}
-                        onClick={() => handleRevokeSession(session.sessionId)}
-                        className="h-8 rounded-lg border-separator font-bold text-[10.5px] hover:border-danger hover:bg-danger-soft text-foreground hover:text-danger select-none shrink-0"
-                      >
-                        Revoke
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 px-4 rounded-xl border border-dashed border-separator/80 bg-surface-secondary/40 select-none text-center">
@@ -419,130 +538,61 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           </Card>
         </SettingsSection>
 
-        {/* Privacy controls section */}
-        <SettingsSection
-          title="Privacy Settings"
-          description="Control what information is visible on your profile and manage recruiter indexing permissions."
-        >
-          <Card className="text-left flex flex-col gap-6">
-            <div className="flex flex-col gap-1.5 w-full md:max-w-md">
-              <SelectDropdown
-                label="Profile Visibility"
-                value={currentValues.profileVisibility || "public"}
-                onChange={(val: string) =>
-                  setValue(
-                    "profileVisibility",
-                    val as "public" | "members" | "private",
-                    { shouldDirty: true },
-                  )
-                }
-                options={visibilityOptions}
-                placeholder="Select visibility"
-              />
-            </div>
-
-            <div className="border-t border-separator/60 my-1" />
-
-            <div className="flex items-center justify-between gap-6 select-none">
-              <div className="flex flex-col gap-0.5">
-                <Typography
-                  type="body-sm"
-                  className="font-bold text-foreground font-outfit"
-                >
-                  Recruiter Indexing & Discovery
-                </Typography>
-                <Typography type="body-xs" className="text-muted max-w-md">
-                  Allow corporate recruiter dashboards to query, scan, and
-                  discover your verified identity profile for active matching
-                  job posts.
-                </Typography>
-              </div>
-              <Switch
-                isSelected={currentValues.recruiterVisibility ?? true}
-                onChange={(isSelected: boolean) => {
-                  setValue("recruiterVisibility", isSelected, {
-                    shouldDirty: true,
-                  });
-                }}
-                aria-label="Recruiter visibility toggle"
-                className="cursor-pointer"
-              >
-                {({ isSelected }) => (
-                  <Switch.Control
-                    className={`w-11 h-6 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}
-                  >
-                    <Switch.Thumb
-                      className={`w-4.5 h-4.5 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[22px]" : "left-0.5"}`}
-                    />
-                  </Switch.Control>
-                )}
-              </Switch>
-            </div>
-          </Card>
-        </SettingsSection>
-
         {/* Danger zone section */}
         <SettingsSection
           title="Danger Zone"
           description="Actions here are completely destructive and permanent. Double-check all considerations before executing."
         >
-          <Card className="border border-danger/40 bg-danger/5 dark:bg-danger/2 p-6 flex flex-col gap-5 text-left relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-danger/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-            <div className="flex flex-col gap-1 select-none">
-              <div className="flex items-center gap-2">
-                <Typography
-                  type="body-sm"
-                  className="font-extrabold text-danger font-outfit text-xs uppercase tracking-wider"
-                >
-                  Delete Account
-                </Typography>
-                <ShieldX
-                  size={14}
-                  className="text-danger shrink-0 animate-pulse"
-                />
-              </div>
-              <Typography
-                type="body-xs"
-                className="text-muted max-w-xl leading-relaxed mt-0.5"
-              >
-                Once deleted, your verified credentials, credentials trail,
-                logs, and profile records will be permanently erased. This
-                cannot be reversed.
-              </Typography>
-            </div>
-
-            {hasOrganizationOwnership && (
-              <div className="flex items-start gap-2.5 p-3 rounded-xl border border-warning/30 bg-warning/10 dark:bg-warning/2 text-warning max-w-xl select-none animate-fade-in">
-                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
-                <div className="flex flex-col gap-0.5">
+          <Card className="border-danger-soft">
+            <div className="flex flex-col gap-6 w-full">
+              {hasOrganizationOwnership && (
+                <div className="flex items-center gap-3 p-4 rounded-xl border border-warning-soft bg-warning-soft text-warning">
+                  <AlertTriangle size={32} />
+                  <div className="flex flex-col gap-1">
+                    <Typography.Heading
+                      level={6}
+                      className="font-bold font-outfit uppercase tracking-wider text-warning"
+                    >
+                      Organization Ownership Restriction
+                    </Typography.Heading>
+                    <Typography
+                      type="body-xs"
+                      className="text-muted text-xs leading-relaxed"
+                    >
+                      You currently have active organization ownership roles.
+                      You must transfer organization ownership to a verified
+                      partner before you can delete this account.
+                    </Typography>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-6 justify-between items-center w-full">
+                <div className="flex flex-col justify-between">
                   <Typography
-                    type="body-xs"
-                    className="font-bold font-outfit uppercase tracking-wider text-[10px] text-warning"
+                    type="body-sm"
+                    className="font-extrabold text-danger font-outfit text-xs uppercase tracking-wider"
                   >
-                    Organization Ownership Restriction
+                    Delete Account
                   </Typography>
                   <Typography
                     type="body-xs"
-                    className="text-muted text-[10.5px] leading-relaxed"
+                    className="text-muted max-w-xl leading-relaxed mt-0.5"
                   >
-                    You currently have active organization ownership roles. You
-                    must transfer organization ownership to a verified partner
-                    before you can delete this account.
+                    Once deleted, your verified credentials, credentials trail,
+                    logs, and profile records will be permanently erased. This
+                    cannot be reversed.
                   </Typography>
                 </div>
+                <Button
+                  variant="danger"
+                  isDisabled={hasOrganizationOwnership}
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="font-bold text-xs h-9.5 px-4 rounded-xl flex items-center gap-1.5 select-none"
+                >
+                  <Trash2 size={13} />
+                  <span>Delete Account</span>
+                </Button>
               </div>
-            )}
-
-            <div className="flex shrink-0">
-              <Button
-                variant="danger"
-                disabled={hasOrganizationOwnership}
-                onClick={() => setIsDeleteModalOpen(true)}
-                className="font-bold text-xs h-9.5 px-4 rounded-xl flex items-center gap-1.5 select-none"
-              >
-                <Trash2 size={13} />
-                <span>Delete Account</span>
-              </Button>
             </div>
           </Card>
         </SettingsSection>
@@ -554,111 +604,225 @@ export const AccountTab: React.FC<AccountTabProps> = ({
         />
 
         {/* 1. Reset Password Mock Confirmation Modal */}
-        <DialogModal
+        <Modal.Backdrop
           isOpen={isPasswordModalOpen}
           onOpenChange={setIsPasswordModalOpen}
-          title="Password Reset Request"
-          footer={
-            <Button
-              variant="solid"
-              onClick={() => setIsPasswordModalOpen(false)}
-              className="rounded-xl font-bold text-xs h-9 px-4 select-none"
-            >
-              Understood
-            </Button>
-          }
+          className="bg-background/80 backdrop-blur-sm animate-in fade-in duration-200"
         >
-          <div className="flex flex-col gap-3 py-1 select-none">
-            <div className="flex items-center gap-3 text-accent bg-accent/10 rounded-xl p-3.5 border border-accent/20">
-              <ShieldAlert size={20} className="shrink-0" />
-              <Typography type="body-xs" className="font-bold leading-normal">
-                For security, password modifications must be processed via email
-                token authorization.
-              </Typography>
-            </div>
-            <Typography
-              type="body-xs"
-              className="text-muted leading-relaxed font-medium font-sans"
-            >
-              We have dispatched a secure password modification link directly to
-              your primary verified email address (
-              <strong>{user?.email}</strong>). Click the link inside the email
-              to complete the setup.
-            </Typography>
-          </div>
-        </DialogModal>
+          <Modal.Container size="md">
+            <Modal.Dialog className="w-full max-w-2xl bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left relative focus-visible:outline-hidden focus:outline-hidden">
+              <Modal.CloseTrigger
+                aria-label="Close dialog"
+                className="absolute right-4 top-4 p-1 rounded-full hover:bg-surface-secondary text-muted hover:text-foreground cursor-pointer transition-colors"
+              >
+                <X size={15} />
+              </Modal.CloseTrigger>
+              <Modal.Header className="mb-4">
+                <Modal.Heading className="outline-hidden">
+                  <span className="font-display font-extrabold text-foreground text-xl">
+                    Password Reset Request
+                  </span>
+                </Modal.Heading>
+              </Modal.Header>
+              <Modal.Body className="space-y-4 py-2 text-sm leading-relaxed text-muted-foreground select-text">
+                <div className="flex flex-col gap-3 py-1 select-none">
+                  <div className="flex items-center gap-3 text-accent bg-accent/10 rounded-xl p-3.5 border border-accent/20">
+                    <ShieldAlert size={20} className="shrink-0" />
+                    <Typography
+                      type="body-xs"
+                      className="font-bold leading-normal"
+                    >
+                      For security, password modifications must be processed via
+                      email token authorization.
+                    </Typography>
+                  </div>
+                  <Typography
+                    type="body-xs"
+                    className="text-muted leading-relaxed font-medium font-sans"
+                  >
+                    We have dispatched a secure password modification link
+                    directly to your primary verified email address (
+                    <strong>{user?.email}</strong>). Click the link inside the
+                    email to complete the setup.
+                  </Typography>
+                </div>
+              </Modal.Body>
+              <Modal.Footer className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator">
+                <Button
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="rounded-xl font-bold text-xs h-9 px-4 select-none"
+                >
+                  Understood
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
 
-        {/* 2. Destructive Account Delete Confirmation Modal */}
-        <DialogModal
+        {/* 2. Confirm Revoke Session Modal */}
+        <Modal.Backdrop
+          isOpen={isRevokeModalOpen}
+          onOpenChange={setIsRevokeModalOpen}
+          className="bg-background/80 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <Modal.Container size="md">
+            <Modal.Dialog className="w-full max-w-lg bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left relative focus-visible:outline-hidden focus:outline-hidden">
+              <Modal.CloseTrigger
+                aria-label="Close dialog"
+                className="absolute right-4 top-4 p-1 rounded-full hover:bg-surface-secondary text-muted hover:text-foreground cursor-pointer transition-colors"
+              >
+                <X size={15} />
+              </Modal.CloseTrigger>
+              <Modal.Header className="mb-4">
+                <Modal.Heading className="outline-hidden">
+                  <span className="font-display font-extrabold text-foreground text-xl">
+                    Revoke Active Session
+                  </span>
+                </Modal.Heading>
+              </Modal.Header>
+              <Modal.Body className="space-y-4 py-2 text-sm leading-relaxed text-muted-foreground select-text">
+                <div className="flex flex-col gap-3 py-1 select-none">
+                  <div className="flex items-center gap-3 text-warning bg-warning/10 rounded-xl p-3.5 border border-warning/20">
+                    <AlertTriangle
+                      size={20}
+                      className="shrink-0 text-warning"
+                    />
+                    <Typography
+                      type="body-xs"
+                      className="font-bold leading-normal text-warning"
+                    >
+                      Confirm Session Revocation
+                    </Typography>
+                  </div>
+                  <Typography
+                    type="body-xs"
+                    className="text-muted leading-relaxed font-medium font-sans"
+                  >
+                    Are you sure you want to revoke the session for device{" "}
+                    <strong>
+                      {sessionToRevoke?.deviceName || "Desktop Web browser"}
+                    </strong>{" "}
+                    (IP: {sessionToRevoke?.ipAddress || "Unknown"})? This device
+                    will be immediately signed out of your CVerify workspace.
+                  </Typography>
+                </div>
+              </Modal.Body>
+              <Modal.Footer className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsRevokeModalOpen(false)}
+                  className="rounded-xl font-bold text-xs h-9 px-4 select-none"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    setIsRevokeModalOpen(false);
+                    toast.success("Session revocation request simulated.");
+                  }}
+                  className="rounded-xl font-bold text-xs h-9 px-4 select-none"
+                >
+                  Revoke Session
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+
+        {/* 3. Destructive Account Delete Confirmation Modal */}
+        <Modal.Backdrop
           isOpen={isDeleteModalOpen}
           onOpenChange={setIsDeleteModalOpen}
-          title="Permanently Delete Account"
-          footer={
-            <div className="flex items-center gap-2.5 w-full justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setIsDeleteModalOpen(false)}
-                disabled={isDeleting}
-                className="rounded-xl font-bold text-xs h-9 px-4 select-none"
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                disabled={deleteConfirmationText !== "DELETE" || isDeleting}
-                isLoading={isDeleting}
-                onClick={handleDeleteAccount}
-                className="rounded-xl font-bold text-xs h-9 px-4 flex items-center gap-1.5 select-none"
-              >
-                <Trash2 size={13} />
-                <span>Permanently Erase</span>
-              </Button>
-            </div>
-          }
+          className="bg-background/80 backdrop-blur-sm animate-in fade-in duration-200"
         >
-          <div className="flex flex-col gap-4 py-1 select-none text-left">
-            <div className="flex items-start gap-3 text-danger bg-danger/10 rounded-xl p-3.5 border border-danger/20">
-              <AlertTriangle
-                size={20}
-                className="shrink-0 mt-0.5 animate-bounce"
-              />
-              <div className="flex flex-col gap-0.5">
-                <Typography
-                  type="body-xs"
-                  className="font-bold text-danger leading-normal"
-                >
-                  Warning: This action is completely irreversible.
-                </Typography>
-                <Typography
-                  type="body-xs"
-                  className="text-danger leading-relaxed mt-0.5 font-sans"
-                >
-                  All active verified credential claims, audit history logs,
-                  portfolio layouts, and login authorizations will be
-                  permanently destroyed.
-                </Typography>
-              </div>
-            </div>
+          <Modal.Container size="md">
+            <Modal.Dialog className="w-full max-w-2xl bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left relative focus-visible:outline-hidden focus:outline-hidden">
+              <Modal.CloseTrigger
+                aria-label="Close dialog"
+                className="absolute right-4 top-4 p-1 rounded-full hover:bg-surface-secondary text-muted hover:text-foreground cursor-pointer transition-colors"
+              >
+                <X size={15} />
+              </Modal.CloseTrigger>
+              <Modal.Header className="mb-4">
+                <Modal.Heading className="outline-hidden">
+                  <span className="font-display font-extrabold text-foreground text-xl">
+                    Permanently Delete Account
+                  </span>
+                </Modal.Heading>
+              </Modal.Header>
+              <Modal.Body className="space-y-4 py-2 text-sm leading-relaxed text-muted-foreground select-text">
+                <div className="flex flex-col gap-4 py-1 select-none text-left">
+                  <div className="flex items-start gap-3 text-danger bg-danger/10 rounded-xl p-3.5 border border-danger/20">
+                    <AlertTriangle
+                      size={20}
+                      className="shrink-0 mt-0.5 animate-bounce"
+                    />
+                    <div className="flex flex-col gap-0.5">
+                      <Typography
+                        type="body-xs"
+                        className="font-bold text-danger leading-normal"
+                      >
+                        Warning: This action is completely irreversible.
+                      </Typography>
+                      <Typography
+                        type="body-xs"
+                        className="text-danger leading-relaxed mt-0.5 font-sans"
+                      >
+                        All active verified credential claims, audit history
+                        logs, portfolio layouts, and login authorizations will
+                        be permanently destroyed.
+                      </Typography>
+                    </div>
+                  </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-foreground/90 text-xs font-semibold">
-                To confirm deletion, please type{" "}
-                <span className="font-bold text-danger font-mono bg-danger-soft border border-danger/20 rounded px-1.5 py-0.5 select-all">
-                  DELETE
-                </span>{" "}
-                below:
-              </label>
-              <input
-                type="text"
-                placeholder="Type DELETE"
-                value={deleteConfirmationText}
-                onChange={(e) => setDeleteConfirmationText(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-field-border focus:border-danger focus:ring-danger bg-field text-foreground text-xs font-semibold focus:outline-hidden cursor-pointer hover:border-border transition-all select-none focus-visible:ring-2 font-sans"
-                autoComplete="off"
-              />
-            </div>
-          </div>
-        </DialogModal>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-foreground/90 text-xs font-semibold">
+                      To confirm deletion, please type your username{" "}
+                      <span className="font-bold text-danger font-mono bg-danger-soft border border-danger/20 rounded px-1.5 py-0.5 select-all">
+                        {profile?.username || "username"}
+                      </span>{" "}
+                      below:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Type your username"
+                      value={deleteConfirmationText}
+                      onChange={(e) =>
+                        setDeleteConfirmationText(e.target.value)
+                      }
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-field-border focus:border-danger focus:ring-danger bg-field text-foreground text-xs font-semibold focus:outline-hidden cursor-pointer hover:border-border transition-all select-none focus-visible:ring-2 font-sans"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+              </Modal.Body>
+              <Modal.Footer className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="rounded-xl font-bold text-xs h-9 px-4 select-none"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  isDisabled={
+                    deleteConfirmationText !== (profile?.username || "")
+                  }
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    toast.success("Account deletion simulated.");
+                  }}
+                  className="rounded-xl font-bold text-xs h-9 px-4 flex items-center gap-1.5 select-none"
+                >
+                  <Trash2 size={13} />
+                  <span>Permanently Erase</span>
+                </Button>
+              </Modal.Footer>
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
       </form>
     </FormProvider>
   );

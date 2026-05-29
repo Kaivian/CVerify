@@ -91,7 +91,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col h-full w-full text-left relative overflow-hidden">
       {/* Header and Title */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-1">
         <div className="flex flex-col text-left">
           <Typography.Heading level={2} className="font-extrabold">
             Account Settings
@@ -106,7 +106,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Right column: Dynamic active tab description */}
-        <div className="flex flex-col items-end text-right max-w-sm p-4 rounded-2xl transition-all duration-300">
+        <div className="flex flex-col items-end text-right max-w-sm rounded-2xl transition-all duration-300">
           <Typography
             type="body-xs"
             className="text-accent font-extrabold uppercase tracking-widest"
@@ -182,7 +182,7 @@ export default function SettingsPage() {
             })}
           </Tabs.List>
         </Tabs.ListContainer>
-        <main className="w-full flex-1 min-h-0 overflow-y-auto pr-2 flex flex-col">
+        <main className="w-full flex-1 min-h-0 overflow-y-auto flex flex-col">
           <Tabs.Panel id="profile" className="p-0">
             {activeTab === "profile" && (
               <ProfileTab
@@ -274,7 +274,6 @@ export default function SettingsPage() {
           </AlertDialog.Dialog>
         </AlertDialog.Container>
       </AlertDialog.Backdrop>
-
     </div>
   );
 }
