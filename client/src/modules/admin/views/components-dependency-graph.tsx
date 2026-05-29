@@ -11,13 +11,13 @@ import {
   MarkerType,
   Handle,
   Position,
-  NodeProps,
-  Edge
+  type NodeProps,
+  type Edge
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { getComponentRegistry } from "../../../components/registry";
 import { useComponentSystemStore } from "../../../stores/use-component-system-store";
-import { ComponentNode as RegistryNode } from "../../../components/registry/types";
+import type { ComponentNode as RegistryNode } from "../../../components/registry/types";
 
 // ============================================================================
 // 1. Custom Node Rendering Component
@@ -28,7 +28,7 @@ interface CustomNodeData extends Record<string, unknown> {
   onSelect: (id: string) => void;
 }
 
-const CustomComponentNode: React.FC<NodeProps> = ({ data, id }) => {
+const CustomComponentNode: React.FC<NodeProps> = ({ data }) => {
   const customData = data as unknown as CustomNodeData;
   const item = customData.node;
   const isSelected = customData.active;

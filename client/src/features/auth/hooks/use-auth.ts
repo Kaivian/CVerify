@@ -9,7 +9,8 @@ import {
   type CreatePasswordPayload,
   type RegisterCompanyPayload,
   type SetupWorkspacePayload,
-  type CompanyLoginPayload
+  type CompanyLoginPayload,
+  type ChangePasswordPayload
 } from '../services/auth.service';
 import { type User, type UserRole, type ResourceActionPermission } from '../../../types/auth.types';
 import { useState, useCallback } from 'react';
@@ -620,6 +621,119 @@ export const useAuth = () => {
     }
   }, [setLoading, login, setAuthStatusAndNextStep]);
 
+  // Delete account action
+  const deleteAccount = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.deleteAccount();
+      logout(false);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading, logout]);
+
+  // Change password action
+  const changePassword = useCallback(async (payload: ChangePasswordPayload) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.changePassword(payload);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Fetch linked providers action
+  const fetchLinkedProviders = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.fetchLinkedProviders();
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Link Google Account action
+  const linkGoogleAccount = useCallback(async (idToken: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.linkGoogleAccount(idToken);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Unlink provider action
+  const unlinkProvider = useCallback(async (providerName: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.unlinkProvider(providerName);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Validate scopes action
+  const validateScopes = useCallback(async (providerName: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.validateScopes(providerName);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Forgot password action
+  const forgotPassword = useCallback(async (email: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.forgotPassword({ email });
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
   return {
     // Zustand States
     user: storeUser,
@@ -651,6 +765,15 @@ export const useAuth = () => {
     companyLogin,
     fetchSessions,
     revokeSession,
+    
+    // OAuth provider integration actions
+    deleteAccount,
+    fetchLinkedProviders,
+    unlinkProvider,
+    validateScopes,
+    forgotPassword,
+    changePassword,
+    linkGoogleAccount,
     
     // Unified Onboarding flow
     verifyCompanyOnboarding,

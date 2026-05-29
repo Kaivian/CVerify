@@ -38,9 +38,13 @@ public record UpdateProfileRequest(
 
     [Required]
     [MaxLength(20)]
-    string ProfileVisibility, // "public" or "private"
+    string ProfileVisibility, // "public" or "private" or "connections"
 
     bool RecruiterVisibility,
+
+    [Required]
+    [MaxLength(20)]
+    string AiTalentDiscovery,
 
     List<string>? SocialLinks,
 
@@ -63,6 +67,7 @@ public record ProfileResponse(
     string? PublicEmail,
     string ProfileVisibility,
     bool RecruiterVisibility,
+    string AiTalentDiscovery,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     uint Version,

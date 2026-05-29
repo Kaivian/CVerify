@@ -68,6 +68,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<AuthProvider> AuthProviders => Set<AuthProvider>();
+    public DbSet<OAuthCredential> OAuthCredentials => Set<OAuthCredential>();
     public DbSet<PasswordCredential> PasswordCredentials => Set<PasswordCredential>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrganizationAuthority> OrganizationAuthorities => Set<OrganizationAuthority>();
@@ -371,6 +372,17 @@ public class ApplicationDbContext : DbContext
                   .IsUnique()
                   .HasFilter("deleted_at IS NULL")
                   .HasDatabaseName("idx_auth_providers_user_type_active");
+        });
+
+        // OAuthCredential configurations
+        modelBuilder.Entity<OAuthCredential>(entity =>
+        {
+            entity.ToTable("oauth_credentials");
+            entity.HasKey(oc => oc.AuthProviderId);
+            entity.HasOne(oc => oc.AuthProvider)
+                  .WithOne(ap => ap.OAuthCredential)
+                  .HasForeignKey<OAuthCredential>(oc => oc.AuthProviderId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // PasswordCredential configurations

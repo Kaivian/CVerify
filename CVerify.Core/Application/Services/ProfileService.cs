@@ -56,6 +56,7 @@ public class ProfileService : IProfileService
                 UserId = userId,
                 ProfileVisibility = "public",
                 RecruiterVisibility = true,
+                AiTalentDiscovery = "disabled",
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -117,6 +118,7 @@ public class ProfileService : IProfileService
         profile.PublicEmail = request.PublicEmail;
         profile.ProfileVisibility = request.ProfileVisibility;
         profile.RecruiterVisibility = request.RecruiterVisibility;
+        profile.AiTalentDiscovery = request.AiTalentDiscovery;
         profile.UpdatedAt = DateTimeOffset.UtcNow;
 
         // Sync Social Links (Delete existing and insert new is safest)
@@ -258,6 +260,7 @@ public class ProfileService : IProfileService
             profile.PublicEmail,
             profile.ProfileVisibility,
             profile.RecruiterVisibility,
+            profile.AiTalentDiscovery,
             profile.CreatedAt,
             profile.UpdatedAt,
             profile.Version,

@@ -1,10 +1,10 @@
 "use client";
 
-import React, { Component, ErrorInfo, ReactNode, useState } from "react";
+import React, { Component, useState, type ErrorInfo, type ReactNode } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { OtpInput } from "../ui/otp-input";
-import { AlertCircle, RotateCcw, Smartphone, Tablet, Monitor } from "lucide-react";
+import { AlertCircle, RotateCcw, Smartphone } from "lucide-react";
 
 // ============================================================================
 // 1. Safe Error Boundary for Live Component Sandbox Previews
@@ -70,10 +70,7 @@ const MockSandboxProviders: React.FC<{ children: ReactNode }> = ({ children }) =
 // ============================================================================
 // 3. Interactive Mock Previews definitions
 // ============================================================================
-interface PreviewProps {
-  componentId: string;
-  theme: "light" | "dark" | "high-contrast";
-}
+
 
 const ButtonPreview: React.FC = () => {
   const [clickCount, setClickCount] = useState(0);

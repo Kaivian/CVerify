@@ -1,18 +1,22 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { getComponentNodes } from "../../../components/registry";
 import { PreviewSandbox } from "../../../components/registry/preview-sandbox";
-import { useComponentSystemStore, ExplorerView, PreviewTheme, PreviewDevice } from "../../../stores/use-component-system-store";
+import {
+  useComponentSystemStore,
+  type ExplorerView,
+  type PreviewTheme,
+  type PreviewDevice
+} from "../../../stores/use-component-system-store";
+import type { ComponentNode } from "../../../components/registry/types";
 import { useSearchParams } from "next/navigation";
 import {
   Search,
-  SlidersHorizontal,
   ChevronRight,
-  ExternalLink,
   Code,
   Network,
   X,
@@ -127,7 +131,7 @@ export const ComponentsSystemView: React.FC = () => {
       // Category filter (Overview matches everything, otherwise matches category mapping)
       if (activeView !== "overview" && activeView !== "graph" && activeView !== "analytics" && activeView !== "settings") {
         // Map ExplorerView (plural atoms) to category (singular atom)
-        const singularCategory = activeView.replace(/s$/, "") as any;
+        const singularCategory = activeView.replace(/s$/, "") as ComponentNode["category"];
         if (node.category !== singularCategory) return false;
       }
 

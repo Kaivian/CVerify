@@ -52,6 +52,12 @@ public static class EnvValidator
         config.Auth.GoogleClientId = (configuration["Auth:GoogleClientId"] ?? configuration["GOOGLE_CLIENT_ID"])?.ResolveEnvironmentVariables()
             ?? throw new InvalidOperationException("Environment variable 'GOOGLE_CLIENT_ID' or setting 'Auth:GoogleClientId' is missing.");
         
+        config.Auth.GoogleClientSecret = (configuration["Auth:GoogleClientSecret"] ?? configuration["GOOGLE_CLIENT_SECRET"])?.ResolveEnvironmentVariables();
+        config.Auth.GithubClientId = (configuration["Auth:GithubClientId"] ?? configuration["GITHUB_CLIENT_ID"])?.ResolveEnvironmentVariables();
+        config.Auth.GithubClientSecret = (configuration["Auth:GithubClientSecret"] ?? configuration["GITHUB_CLIENT_SECRET"])?.ResolveEnvironmentVariables();
+        config.Auth.GitlabClientId = (configuration["Auth:GitlabClientId"] ?? configuration["GITLAB_CLIENT_ID"])?.ResolveEnvironmentVariables();
+        config.Auth.GitlabClientSecret = (configuration["Auth:GitlabClientSecret"] ?? configuration["GITLAB_CLIENT_SECRET"])?.ResolveEnvironmentVariables();
+
         if (bool.TryParse(configuration["Auth:DisableCsrf"], out var disableCsrf))
         {
             config.Auth.DisableCsrf = disableCsrf;
@@ -108,6 +114,8 @@ public static class EnvValidator
         {
             config.Security.DisableRateLimits = disableRL;
         }
+
+        config.Security.TokenEncryptionKey = (configuration["Security:TokenEncryptionKey"] ?? configuration["TOKEN_ENCRYPTION_KEY"])?.ResolveEnvironmentVariables();
 
         return config;
     }

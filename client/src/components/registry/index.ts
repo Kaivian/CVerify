@@ -1,7 +1,7 @@
 import { atomComponents } from "./atoms";
 import { moleculeComponents } from "./molecules";
 import { organismComponents } from "./organisms";
-import { ComponentNode, ComponentEdge, ComponentRegistry } from "./types";
+import type { ComponentNode, ComponentEdge, ComponentRegistry } from "./types";
 
 /**
  * Aggregates all registered visual component metadata nodes dynamically.

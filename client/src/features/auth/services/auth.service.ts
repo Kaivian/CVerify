@@ -299,4 +299,67 @@ export const authApi = {
     });
     return response.data;
   },
+
+  /**
+   * Fetch OAuth providers and their connection state
+   */
+  fetchLinkedProviders: async (): Promise<LinkedProvider[]> => {
+    const response = await axiosClient.get<LinkedProvider[]>('/auth/providers');
+    return response.data;
+  },
+
+  /**
+   * Unlink an OAuth provider from user account
+   */
+  unlinkProvider: async (providerName: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.delete<{ success: boolean; message: string }>(`/auth/providers/${providerName}`);
+    return response.data;
+  },
+
+  /**
+   * Permanently delete the user account
+   */
+  deleteAccount: async (): Promise<{ message: string }> => {
+    const response = await axiosClient.delete<{ message: string }>('/auth/me');
+    return response.data;
+  },
+
+  /**
+   * Validate scope permissions for a provider
+   */
+  validateScopes: async (providerName: string): Promise<{ valid: boolean }> => {
+    const response = await axiosClient.post<{ valid: boolean }>(`/auth/providers/${providerName}/validate-scopes`);
+    return response.data;
+  },
+
+  /**
+   * Link Google OAuth account to currently authenticated session using ID Token
+   */
+  linkGoogleAccount: async (idToken: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/providers/google', { idToken });
+    return response.data;
+  },
+
+  /**
+   * Change password for the active authenticated user
+   */
+  changePassword: async (payload: ChangePasswordPayload): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/change-password', payload);
+    return response.data;
+  },
 };
+
+export interface ChangePasswordPayload {
+  currentPassword?: string;
+  newPassword?: string;
+  confirmNewPassword?: string;
+}
+
+export interface LinkedProvider {
+  providerName: string;
+  providerEmail: string | null;
+  providerUsername: string | null;
+  connected: boolean;
+  scopeValidationStatus: string;
+  grantedScopes: string | null;
+}

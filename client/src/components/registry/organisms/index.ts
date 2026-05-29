@@ -1,4 +1,4 @@
-import { ComponentNode } from "../types";
+import type { ComponentNode } from "../types";
 
 export const organismComponents: ComponentNode[] = [
   {

@@ -61,6 +61,17 @@ export default function SettingsPage() {
     };
   }, [isFormDirty]);
 
+  // 2. Check for tab=account in query parameters safely on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      if (tab === "account" || tab === "profile" || tab === "personal-info" || tab === "career") {
+        setActiveTab(tab as TabId);
+      }
+    }
+  }, []);
+
   // 2. Tab switching guard logic
   const handleTabClick = (tabId: TabId) => {
     if (tabId === activeTab) return;

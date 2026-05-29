@@ -23,15 +23,17 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     if (!pathname) return;
 
+    let target: WorkspaceType = "ADMIN";
     if (pathname.startsWith("/admin/components")) {
-      setActiveWorkspaceState("COMPONENTS");
+      target = "COMPONENTS";
     } else if (pathname.startsWith("/admin/audit-logs")) {
-      setActiveWorkspaceState("AUDIT");
-    } else if (pathname.startsWith("/admin")) {
-      setActiveWorkspaceState("ADMIN");
-    } else {
-      setActiveWorkspaceState("ADMIN");
+      target = "AUDIT";
     }
+
+    // Set state asynchronously to avoid cascading synchronous renders warning
+    Promise.resolve().then(() => {
+      setActiveWorkspaceState(target);
+    });
   }, [pathname]);
 
   return (
