@@ -739,6 +739,7 @@ public class ProfileService : IProfileService
                 "SELECT provider_avatar_url AS \"Value\" FROM auth_providers WHERE user_id = {0} AND LOWER(provider_name) = {1} AND deleted_at IS NULL LIMIT 1",
                 userId,
                 canonicalName)
+            .OrderBy(v => v)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (string.IsNullOrEmpty(providerAvatarUrl))

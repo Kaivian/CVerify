@@ -1973,6 +1973,7 @@ public class ApplicationDbContext : DbContext
         var jsonContainment = $"[{{\"email\": \"{normalized}\"}}]";
         return await Users
             .FromSqlRaw("SELECT * FROM users WHERE email = {0} OR (linked_emails IS NOT NULL AND linked_emails @> {1}::jsonb)", normalized, jsonContainment)
+            .OrderBy(u => u.Id)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -1989,6 +1990,7 @@ public class ApplicationDbContext : DbContext
         var jsonContainment = $"[{{\"email\": \"{normalized}\", \"is_verified\": true}}]";
         return await Users
             .FromSqlRaw("SELECT * FROM users WHERE email = {0} OR (linked_emails IS NOT NULL AND linked_emails @> {1}::jsonb)", normalized, jsonContainment)
+            .OrderBy(u => u.Id)
             .FirstOrDefaultAsync(cancellationToken);
     }
 

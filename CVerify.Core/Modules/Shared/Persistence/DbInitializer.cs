@@ -2986,7 +2986,7 @@ public static class DbInitializer
                 SELECT COUNT(*)::int AS ""Value""
                 FROM pg_type 
                 WHERE typname = 'user_status'
-            ").FirstOrDefaultAsync();
+            ").SingleOrDefaultAsync();
 
             if (typeExists > 0)
             {
@@ -3082,7 +3082,7 @@ public static class DbInitializer
         {
             var storedEnv = await context.Database.SqlQueryRaw<string>(@"
                 SELECT value AS ""Value"" FROM system_metadata WHERE key = 'database_environment'
-            ").FirstOrDefaultAsync();
+            ").SingleOrDefaultAsync();
 
             var currentEnv = resolvedEnv?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 

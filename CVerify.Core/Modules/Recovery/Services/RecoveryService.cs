@@ -578,6 +578,7 @@ public class RecoveryService : IRecoveryService
     {
         var claim = await _context.OrganizationRecoveryClaims
             .FromSqlRaw("SELECT * FROM organization_recovery_claims WHERE documents @> {0}::jsonb", $"[{{\"id\":\"{docId}\"}}]")
+            .OrderBy(c => c.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
         var doc = claim?.Documents?.FirstOrDefault(d => d.Id == docId);
