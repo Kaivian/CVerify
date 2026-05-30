@@ -16,11 +16,14 @@ import {
   Chip,
   Spinner,
   Checkbox,
+  CheckboxGroup,
   Accordion,
   toast,
   Skeleton,
   SearchField,
-  Label
+  Label,
+  TagGroup,
+  Tag
 } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import {
@@ -55,10 +58,10 @@ const CATEGORIES = [
 ];
 
 const TRUST_TIERS = [
-  { value: "HighTrust", label: "High Trust (Score >= 85)" },
-  { value: "EvidenceVerified", label: "Evidence Verified (Score >= 60)" },
-  { value: "BasicVerified", label: "Basic Verified (Score >= 30)" },
-  { value: "Unverified", label: "Unverified (Score < 30)" }
+  { value: "HighTrust", label: "High Trust", subLabel: "(Score >= 85)" },
+  { value: "EvidenceVerified", label: "Evidence Verified", subLabel: "(Score >= 60)" },
+  { value: "BasicVerified", label: "Basic Verified", subLabel: "(Score >= 30)" },
+  { value: "Unverified", label: "Unverified", subLabel: "(Score < 30)" }
 ];
 
 const EXPERIENCE_LEVELS = [
@@ -127,31 +130,31 @@ export function RankingView() {
     availableForHire?: boolean | null;
   }) => {
     const params = new URLSearchParams();
-    
+
     const cat = updates.category !== undefined ? updates.category : selectedCategories.join(",");
     if (cat && cat !== "Global") params.set("category", cat);
-    
+
     const s = updates.search !== undefined ? updates.search : search;
     if (s) params.set("search", s);
-    
+
     const loc = updates.location !== undefined ? updates.location : location;
     if (loc) params.set("location", loc);
-    
+
     const p = updates.page !== undefined ? updates.page : page;
     if (p && p > 1) params.set("page", String(p));
-    
+
     const trust = updates.trustTiers !== undefined ? updates.trustTiers : selectedTrustTiers;
     trust.forEach(t => params.append("trustTiers", t));
-    
+
     const exp = updates.experienceLevels !== undefined ? updates.experienceLevels : selectedExperienceLevels;
     exp.forEach(e => params.append("experienceLevels", e));
-    
+
     const sks = updates.skills !== undefined ? updates.skills : selectedSkills;
     sks.forEach(sk => params.append("skills", sk));
-    
+
     const hire = updates.availableForHire !== undefined ? updates.availableForHire : availableForHire;
     if (hire !== null && hire !== undefined) params.set("availableForHire", String(hire));
-    
+
     router.push(`${pathname}?${params.toString()}`);
   }, [router, pathname, selectedCategories, search, location, page, selectedTrustTiers, selectedExperienceLevels, selectedSkills, availableForHire]);
 
@@ -398,17 +401,17 @@ export function RankingView() {
       const isSecond = rank === 2;
       const isThird = rank === 3;
 
-      const rankBadgeColor = isFirst 
-        ? "bg-warning text-warning-foreground border-warning/30" 
-        : isSecond 
-          ? "bg-slate-300 text-slate-900 border-slate-400/30" 
+      const rankBadgeColor = isFirst
+        ? "bg-warning text-warning-foreground border-warning/30"
+        : isSecond
+          ? "bg-slate-300 text-slate-900 border-slate-400/30"
           : "bg-amber-700 text-amber-50 border-amber-800/30";
 
       const heightClass = isFirst ? "h-36" : isSecond ? "h-28" : "h-24";
-      const borderClass = isFirst 
-        ? "border-warning/30 shadow-warning/5" 
-        : isSecond 
-          ? "border-slate-400/20 shadow-slate-400/5" 
+      const borderClass = isFirst
+        ? "border-warning/30 shadow-warning/5"
+        : isSecond
+          ? "border-slate-400/20 shadow-slate-400/5"
           : "border-amber-800/20 shadow-amber-800/5";
 
       return (
@@ -433,9 +436,9 @@ export function RankingView() {
                 {rank}
               </span>
             </div>
-            
+
             <div className="flex flex-col items-center min-w-0 w-full">
-              <span 
+              <span
                 className={`font-black text-foreground hover:text-accent cursor-pointer truncate w-full text-xs md:text-sm`}
                 onClick={() => router.push(`/${candidate.username || candidate.candidateId}`)}
               >
@@ -592,22 +595,45 @@ export function RankingView() {
                   </Accordion.Heading>
                   <Accordion.Panel>
                     <Accordion.Body className="flex flex-col gap-2 pt-2 pb-4">
-                      {CATEGORIES.map((cat) => (
-                        <Checkbox
-                          key={cat.value}
-                          isSelected={selectedCategories.includes(cat.value)}
-                          onChange={(isSelected) => {
-                            const newCats = isSelected 
-                              ? [...selectedCategories.filter(c => c !== "Global"), cat.value] 
-                              : selectedCategories.filter((c) => c !== cat.value);
-                            const finalCats = newCats.length === 0 ? ["Global"] : newCats;
-                            pushFiltersToUrl({ category: finalCats.join(",") });
-                          }}
-                          className="text-xs font-medium cursor-pointer"
-                        >
-                          {cat.label}
-                        </Checkbox>
-                      ))}
+                      <CheckboxGroup
+                        value={selectedCategories}
+                        onChange={(newValues) => {
+                          const hadGlobal = selectedCategories.includes("Global");
+                          const hasGlobal = newValues.includes("Global");
+                          let finalCats: string[] = [];
+
+                          if (hasGlobal && !hadGlobal) {
+                            finalCats = ["Global"];
+                          } else if (hasGlobal && newValues.length > 1) {
+                            finalCats = newValues.filter((c) => c !== "Global");
+                          } else {
+                            finalCats = newValues;
+                          }
+
+                          if (finalCats.length === 0) {
+                            finalCats = ["Global"];
+                          }
+
+                          pushFiltersToUrl({ category: finalCats.join(",") });
+                        }}
+                      >
+                        <div className="flex flex-col gap-2">
+                          {CATEGORIES.map((cat) => (
+                            <Checkbox
+                              key={cat.value}
+                              value={cat.value}
+                              className="text-xs font-medium cursor-pointer"
+                            >
+                              <Checkbox.Content>
+                                <Checkbox.Control className="border-2 border-border data-[selected=true]:bg-accent data-[selected=true]:border-accent rounded size-4 before:rounded">
+                                  <Checkbox.Indicator className="text-accent-foreground size-3" />
+                                </Checkbox.Control>
+                                {cat.label}
+                              </Checkbox.Content>
+                            </Checkbox>
+                          ))}
+                        </div>
+                      </CheckboxGroup>
                     </Accordion.Body>
                   </Accordion.Panel>
                 </Accordion.Item>
@@ -622,21 +648,32 @@ export function RankingView() {
                   </Accordion.Heading>
                   <Accordion.Panel>
                     <Accordion.Body className="flex flex-col gap-2 pt-2 pb-4">
-                      {TRUST_TIERS.map((tier) => (
-                        <Checkbox
-                          key={tier.value}
-                          isSelected={selectedTrustTiers.includes(tier.value)}
-                          onChange={(isSelected) => {
-                            const newTiers = isSelected 
-                              ? [...selectedTrustTiers, tier.value] 
-                              : selectedTrustTiers.filter((t) => t !== tier.value);
-                            pushFiltersToUrl({ trustTiers: newTiers, page: 1 });
-                          }}
-                          className="text-xs font-medium cursor-pointer"
-                        >
-                          {tier.label}
-                        </Checkbox>
-                      ))}
+                      <CheckboxGroup
+                        value={selectedTrustTiers}
+                        onChange={(newTiers) => {
+                          pushFiltersToUrl({ trustTiers: newTiers, page: 1 });
+                        }}
+                      >
+                        <div className="flex flex-col gap-2">
+                          {TRUST_TIERS.map((tier) => (
+                            <Checkbox
+                              key={tier.value}
+                              value={tier.value}
+                              className="text-xs font-medium cursor-pointer"
+                            >
+                              <Checkbox.Content>
+                                <Checkbox.Control className="border-2 border-border data-[selected=true]:bg-accent data-[selected=true]:border-accent rounded size-4 before:rounded mt-0.5">
+                                  <Checkbox.Indicator className="text-accent-foreground size-3" />
+                                </Checkbox.Control>
+                                <div className="flex flex-col text-left">
+                                  <span>{tier.label}</span>
+                                  <span className="text-[10px] text-muted-foreground font-normal leading-none">{tier.subLabel}</span>
+                                </div>
+                              </Checkbox.Content>
+                            </Checkbox>
+                          ))}
+                        </div>
+                      </CheckboxGroup>
                     </Accordion.Body>
                   </Accordion.Panel>
                 </Accordion.Item>
@@ -651,21 +688,29 @@ export function RankingView() {
                   </Accordion.Heading>
                   <Accordion.Panel>
                     <Accordion.Body className="flex flex-col gap-2 pt-2 pb-4">
-                      {EXPERIENCE_LEVELS.map((level) => (
-                        <Checkbox
-                          key={level.value}
-                          isSelected={selectedExperienceLevels.includes(level.value)}
-                          onChange={(isSelected) => {
-                            const newLevels = isSelected 
-                              ? [...selectedExperienceLevels, level.value] 
-                              : selectedExperienceLevels.filter((l) => l !== level.value);
-                            pushFiltersToUrl({ experienceLevels: newLevels, page: 1 });
-                          }}
-                          className="text-xs font-medium cursor-pointer"
-                        >
-                          {level.label}
-                        </Checkbox>
-                      ))}
+                      <CheckboxGroup
+                        value={selectedExperienceLevels}
+                        onChange={(newLevels) => {
+                          pushFiltersToUrl({ experienceLevels: newLevels, page: 1 });
+                        }}
+                      >
+                        <div className="flex flex-col gap-2">
+                          {EXPERIENCE_LEVELS.map((level) => (
+                            <Checkbox
+                              key={level.value}
+                              value={level.value}
+                              className="text-xs font-medium cursor-pointer"
+                            >
+                              <Checkbox.Content>
+                                <Checkbox.Control className="border-2 border-border data-[selected=true]:bg-accent data-[selected=true]:border-accent rounded size-4 before:rounded">
+                                  <Checkbox.Indicator className="text-accent-foreground size-3" />
+                                </Checkbox.Control>
+                                {level.label}
+                              </Checkbox.Content>
+                            </Checkbox>
+                          ))}
+                        </div>
+                      </CheckboxGroup>
                     </Accordion.Body>
                   </Accordion.Panel>
                 </Accordion.Item>
@@ -704,46 +749,44 @@ export function RankingView() {
                         </Button>
                       </div>
 
-                      {selectedSkills.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {selectedSkills.map((s) => (
-                            <Chip
-                              key={s}
-                              size="sm"
-                              className="bg-accent/15 text-accent border border-accent/25 hover:bg-accent/25 cursor-pointer font-bold flex items-center gap-1"
-                            >
-                              <Chip.Label>{s}</Chip.Label>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveSkill(s);
-                                }}
-                                className="hover:opacity-85 cursor-pointer p-0.5 text-xs font-semibold text-accent"
-                              >
-                                &times;
-                              </button>
-                            </Chip>
-                          ))}
-                        </div>
+                      {selectedSkills.filter((s) => !POPULAR_SKILLS.includes(s)).length > 0 && (
+                        <TagGroup
+                          aria-label="Selected Skills"
+                          onRemove={(keys) => {
+                            const newSkills = selectedSkills.filter(s => !keys.has(s));
+                            pushFiltersToUrl({ skills: newSkills, page: 1 });
+                          }}
+                        >
+                          <TagGroup.List className="flex flex-wrap gap-1.5">
+                            {selectedSkills.filter((s) => !POPULAR_SKILLS.includes(s)).map((s) => (
+                              <Tag key={s} id={s} textValue={s}>
+                                {s}
+                              </Tag>
+                            ))}
+                          </TagGroup.List>
+                        </TagGroup>
                       )}
 
-                      <div className="flex flex-wrap gap-1 border-t border-border/20 pt-2">
-                        {POPULAR_SKILLS.map((skill) => {
-                          const isSelected = selectedSkills.includes(skill);
-                          return (
-                            <button
-                              key={skill}
-                              onClick={() => handlePopularSkillToggle(skill)}
-                              className={`text-[10px] font-bold select-none cursor-pointer px-2 py-0.5 rounded-md border transition-all duration-200 ${isSelected
-                                  ? "bg-accent/10 text-accent border-accent/35"
-                                  : "bg-surface-secondary text-muted-foreground border-border/40 hover:text-foreground hover:bg-surface-tertiary"
-                                }`}
-                            >
-                              {skill}
-                            </button>
-                          );
-                        })}
+                      <div className="border-t border-border/20 pt-2">
+                        <TagGroup
+                          aria-label="Popular Skills"
+                          selectionMode="multiple"
+                          selectedKeys={new Set(selectedSkills.filter(s => POPULAR_SKILLS.includes(s)))}
+                          onSelectionChange={(keys) => {
+                            if (keys === "all") return;
+                            const popularSelected = Array.from(keys) as string[];
+                            const customSelected = selectedSkills.filter(s => !POPULAR_SKILLS.includes(s));
+                            pushFiltersToUrl({ skills: [...customSelected, ...popularSelected], page: 1 });
+                          }}
+                        >
+                          <TagGroup.List className="flex flex-wrap gap-1">
+                            {POPULAR_SKILLS.map((skill) => (
+                              <Tag key={skill} id={skill} textValue={skill}>
+                                {skill}
+                              </Tag>
+                            ))}
+                          </TagGroup.List>
+                        </TagGroup>
                       </div>
                     </Accordion.Body>
                   </Accordion.Panel>
@@ -772,7 +815,7 @@ export function RankingView() {
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                               setLocation(e.target.value);
                             }}
-                            className="w-full text-xs font-semibold rounded-lg border border-border bg-field-background pl-2 h-9"
+                            className="pl-2 text-xs font-semibold"
                           />
                         </InputGroup>
                       </div>
@@ -785,7 +828,12 @@ export function RankingView() {
                         }}
                         className="text-xs font-medium cursor-pointer"
                       >
-                        Active For Hire
+                        <Checkbox.Content>
+                          <Checkbox.Control className="border-2 border-border data-[selected=true]:bg-accent data-[selected=true]:border-accent rounded size-4 before:rounded">
+                            <Checkbox.Indicator className="text-accent-foreground size-3" />
+                          </Checkbox.Control>
+                          Active For Hire
+                        </Checkbox.Content>
                       </Checkbox>
                     </Accordion.Body>
                   </Accordion.Panel>
@@ -804,8 +852,8 @@ export function RankingView() {
                 {CATEGORIES.find((c) => c.value === category)?.label}
               </span>
               <span className="text-[11px] text-muted-foreground mt-0.5">
-                Showing {page === 1 && ["Global", "TopContributors", "TopVerified", "HighestTrust", "TopAi"].includes(category) && candidates.length >= 3 
-                  ? `3 on podium, ${candidates.length - 3} rows` 
+                Showing {page === 1 && ["Global", "TopContributors", "TopVerified", "HighestTrust", "TopAi"].includes(category) && candidates.length >= 3
+                  ? `3 on podium, ${candidates.length - 3} rows`
                   : `${candidates.length}`} of {totalCount} matching candidates
               </span>
             </div>
@@ -840,8 +888,8 @@ export function RankingView() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {(page === 1 && ["Global", "TopContributors", "TopVerified", "HighestTrust", "TopAi"].includes(category) && candidates.length >= 3 
-                ? candidates.slice(3) 
+              {(page === 1 && ["Global", "TopContributors", "TopVerified", "HighestTrust", "TopAi"].includes(category) && candidates.length >= 3
+                ? candidates.slice(3)
                 : candidates
               ).map((candidate) => {
                 return (
@@ -969,8 +1017,8 @@ export function RankingView() {
                           <Button
                             size="sm"
                             className={`w-full font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 h-8 cursor-pointer ${candidate.isFollowedByCurrentUser
-                                ? "bg-surface-secondary text-foreground hover:bg-surface-tertiary border border-border"
-                                : "bg-accent text-accent-foreground hover:opacity-90"
+                              ? "bg-surface-secondary text-foreground hover:bg-surface-tertiary border border-border"
+                              : "bg-accent text-accent-foreground hover:opacity-90"
                               }`}
                             isDisabled={followLoading[candidate.candidateId]}
                             onClick={() => handleFollowToggle(candidate)}

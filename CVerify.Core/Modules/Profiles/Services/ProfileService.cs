@@ -903,18 +903,18 @@ public class ProfileService : IProfileService
             );
         }
 
-        // 6. Apply Skills filter (matches in TopCapabilitiesJson)
+        // Fetch all matching projections
+        var items = await dbQuery.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        // 6. Apply Skills filter in-memory (matches in TopCapabilitiesJson)
         if (query.Skills != null && query.Skills.Any())
         {
             foreach (var skill in query.Skills)
             {
                 var skillLower = skill.ToLower();
-                dbQuery = dbQuery.Where(p => p.TopCapabilitiesJson != null && p.TopCapabilitiesJson.ToLower().Contains(skillLower));
+                items = items.Where(p => p.TopCapabilitiesJson != null && p.TopCapabilitiesJson.ToLower().Contains(skillLower)).ToList();
             }
         }
-
-        // Fetch all matching projections
-        var items = await dbQuery.ToListAsync(cancellationToken).ConfigureAwait(false);
 
         // 7. Dynamic follows state for current user
         var followedUserIds = new HashSet<Guid>();
