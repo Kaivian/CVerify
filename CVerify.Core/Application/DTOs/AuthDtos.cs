@@ -86,9 +86,9 @@ public class ResetPasswordRequest
     }
 }
 
-public record AuthResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep);
+public record AuthResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null);
 
-public record UserProfileResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep);
+public record UserProfileResponse(Guid Id, string Email, string FullName, string? AvatarUrl, IEnumerable<string> Roles, IEnumerable<string> Permissions, bool IsEmailVerified, string Status, string NextStep, DateTimeOffset? PasswordChangedAt = null);
 
 public record GoogleLoginRequest(
     [Required]

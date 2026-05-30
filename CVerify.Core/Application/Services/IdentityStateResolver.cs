@@ -10,6 +10,7 @@ using CVerify.API.Core.Enums;
 using CVerify.API.Core.Entities;
 using CVerify.API.Infrastructure.Persistence;
 using CVerify.API.Infrastructure.Configuration;
+using CVerify.API.Infrastructure.Security;
 
 namespace CVerify.API.Application.Services;
 
@@ -72,7 +73,18 @@ public class IdentityStateResolver : IIdentityStateResolver
     {
         var user = await _context.Users
             .Include(u => u.AuthProviders)
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail && le.IsVerified), cancellationToken);
+
+        if (user == null && normalizedEmail.EndsWith("@gmail.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var fallbackEmail = LegacyEmailCompatibilityHelper.ApplyOldGmailNormalization(normalizedEmail);
+            if (fallbackEmail != normalizedEmail)
+            {
+                user = await _context.Users
+                    .Include(u => u.AuthProviders)
+                    .FirstOrDefaultAsync(u => u.Email == fallbackEmail || u.LinkedEmails.Any(le => le.Email == fallbackEmail && le.IsVerified), cancellationToken);
+            }
+        }
 
         var superAdminEmail = _envConfig.SuperAdmin.Email;
         bool isSuperAdmin = string.Equals(normalizedEmail, superAdminEmail, StringComparison.OrdinalIgnoreCase);
@@ -112,24 +124,6 @@ public class IdentityStateResolver : IIdentityStateResolver
     private static string NormalizeEmail(string email)
     {
         if (string.IsNullOrWhiteSpace(email)) return string.Empty;
-
-        var trimmed = email.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
-        var parts = trimmed.Split('@');
-        if (parts.Length != 2) return trimmed;
-
-        var local = parts[0];
-        var domain = parts[1];
-
-        if (domain == "gmail.com")
-        {
-            var plusIndex = local.IndexOf('+');
-            if (plusIndex >= 0)
-            {
-                local = local[..plusIndex];
-            }
-            local = local.Replace(".", "");
-        }
-
-        return $"{local}@{domain}";
+        return email.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
     }
 }

@@ -55,6 +55,7 @@ public class AuthService : IAuthService
     private readonly IOtpPolicyService _otpPolicyService;
     private readonly IStorageService _storageService;
     private readonly IRateLimitPolicyService _rateLimitPolicyService;
+    private readonly IGoogleTokenValidator _googleTokenValidator;
 
     public AuthService(
         ApplicationDbContext context,
@@ -72,7 +73,8 @@ public class AuthService : IAuthService
         IPasswordPolicyService passwordPolicyService,
         IOtpPolicyService otpPolicyService,
         IStorageService storageService,
-        IRateLimitPolicyService rateLimitPolicyService)
+        IRateLimitPolicyService rateLimitPolicyService,
+        IGoogleTokenValidator googleTokenValidator)
     {
         _context = context;
         _tokenService = tokenService;
@@ -90,6 +92,7 @@ public class AuthService : IAuthService
         _otpPolicyService = otpPolicyService;
         _storageService = storageService;
         _rateLimitPolicyService = rateLimitPolicyService;
+        _googleTokenValidator = googleTokenValidator;
     }
 
 
@@ -115,13 +118,21 @@ public class AuthService : IAuthService
     private async Task<AuthResponse> CreateAuthResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
     {
         var signedAvatar = await GetSignedAvatarUrlAsync(user.AvatarUrl, cancellationToken);
-        return new AuthResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep);
+        var passwordChangedAt = await _context.PasswordCredentials
+            .Where(pc => pc.UserId == user.Id && pc.IsActive && pc.DeletedAt == null)
+            .Select(pc => (DateTimeOffset?)pc.PasswordChangedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        return new AuthResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt);
     }
 
     private async Task<UserProfileResponse> CreateUserProfileResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
     {
         var signedAvatar = await GetSignedAvatarUrlAsync(user.AvatarUrl, cancellationToken);
-        return new UserProfileResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep);
+        var passwordChangedAt = await _context.PasswordCredentials
+            .Where(pc => pc.UserId == user.Id && pc.IsActive && pc.DeletedAt == null)
+            .Select(pc => (DateTimeOffset?)pc.PasswordChangedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        return new UserProfileResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt);
     }
 
     /// <summary>
@@ -133,7 +144,17 @@ public class AuthService : IAuthService
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
 
         var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail && le.IsVerified));
+
+        if (user == null && normalizedEmail.EndsWith("@gmail.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var fallbackEmail = LegacyEmailCompatibilityHelper.ApplyOldGmailNormalization(normalizedEmail);
+            if (fallbackEmail != normalizedEmail)
+            {
+                user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Email == fallbackEmail || u.LinkedEmails.Any(le => le.Email == fallbackEmail && le.IsVerified));
+            }
+        }
 
         if (user == null)
         {
@@ -213,7 +234,7 @@ public class AuthService : IAuthService
                 ExpirationTimeClockTolerance = TimeSpan.FromMinutes(5)
             };
 
-            var payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+            var payload = await _googleTokenValidator.ValidateAsync(request.IdToken, settings);
             if (payload == null)
             {
                 _metrics.RecordLoginFailed();
@@ -225,10 +246,22 @@ public class AuthService : IAuthService
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
+                // 1. Look up by Provider ID (Subject) first
                 var user = await _context.Users
                     .Include(u => u.Roles)
                     .Include(u => u.AuthProviders)
-                    .FirstOrDefaultAsync(u => u.Email == email);
+                    .Include(u => u.LinkedEmails)
+                    .FirstOrDefaultAsync(u => u.AuthProviders.Any(ap => ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject && ap.DeletedAt == null));
+
+                // 2. Fall back to email matching if not resolved by Provider ID
+                if (user == null)
+                {
+                    user = await _context.Users
+                        .Include(u => u.Roles)
+                        .Include(u => u.AuthProviders)
+                        .Include(u => u.LinkedEmails)
+                        .FirstOrDefaultAsync(u => u.Email == email || u.LinkedEmails.Any(le => le.Email == email && le.IsVerified));
+                }
 
                 var superAdminEmail = _envConfig.SuperAdmin.Email;
                 bool isSuperAdmin = string.Equals(email, superAdminEmail, StringComparison.OrdinalIgnoreCase);
@@ -264,6 +297,7 @@ public class AuthService : IAuthService
                         UserId = user.Id,
                         ProviderName = "Google",
                         ProviderKey = payload.Subject,
+                        ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject,
                         CreatedAt = _timeProvider.GetUtcNow()
                     };
                     _context.AuthProviders.Add(googleProvider);
@@ -299,8 +333,8 @@ public class AuthService : IAuthService
                     user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
                     await _context.SaveChangesAsync();
 
-                    // Dynamically map AuthProvider link if not present
-                    var googleProvider = user.AuthProviders.FirstOrDefault(ap => ap.ProviderName == "Google");
+                    // Dynamically map AuthProvider link if not present or needs email update
+                    var googleProvider = user.AuthProviders.FirstOrDefault(ap => ap.ProviderName.ToLower() == "google" && ap.DeletedAt == null);
                     if (googleProvider == null)
                     {
                         googleProvider = new AuthProvider
@@ -308,18 +342,28 @@ public class AuthService : IAuthService
                             UserId = user.Id,
                             ProviderName = "Google",
                             ProviderKey = payload.Subject,
+                            ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject,
                             CreatedAt = _timeProvider.GetUtcNow()
                         };
                         _context.AuthProviders.Add(googleProvider);
                         await _context.SaveChangesAsync();
                         await LogAuditEventAsync(user.Id, "PROVIDER_LINKED", $"Dynamically mapped Google provider link for existing user {user.Email}.");
                     }
+                    else if (googleProvider.ProviderAccountId != payload.Email)
+                    {
+                        googleProvider.ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject;
+                        await _context.SaveChangesAsync();
+                    }
                 }
 
                 await transaction.CommitAsync();
 
                 // Invalidate identity state cache when provider topology changes
-                await _identityStateResolver.InvalidateCacheAsync(email);
+                await _identityStateResolver.InvalidateCacheAsync(user.Email);
+                if (user.Email != email)
+                {
+                    await _identityStateResolver.InvalidateCacheAsync(email);
+                }
 
                 var roles = await _identityRepository.GetUserRolesAsync(user.Id);
                 var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
@@ -644,11 +688,13 @@ public class AuthService : IAuthService
 
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
 
-        var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
+        var existingUser = await _context.Users
+            .Include(u => u.LinkedEmails)
+            .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail), cancellationToken);
         if (existingUser != null)
         {
-            // Idempotency: If pending verification, rotate verification token and send a new link
-            if (existingUser.Status == UserStatus.EMAIL_VERIFY_PENDING)
+            // Idempotency: If pending verification and matches the primary email, rotate verification token and send a new link
+            if (existingUser.Email == normalizedEmail && existingUser.Status == UserStatus.EMAIL_VERIFY_PENDING)
             {
                 _logger.LogWarning("[CorrelationID: {CorrelationId}] User registration is duplicate but pending email verification. Rotating verification token.", correlationId);
                 var resendRequest = new ResendVerificationRequest(request.Email);
@@ -751,10 +797,12 @@ public class AuthService : IAuthService
             await transaction.RollbackAsync(cancellationToken);
 
             // Fetch the existing user that just got created in the concurrent transaction
-            var concurrentUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
+            var concurrentUser = await _context.Users
+                .Include(u => u.LinkedEmails)
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail), cancellationToken);
             if (concurrentUser != null)
             {
-                if (concurrentUser.Status == UserStatus.EMAIL_VERIFY_PENDING)
+                if (concurrentUser.Email == normalizedEmail && concurrentUser.Status == UserStatus.EMAIL_VERIFY_PENDING)
                 {
                     var resendRequest = new ResendVerificationRequest(request.Email);
                     await ResendVerificationEmailAsync(resendRequest, cancellationToken);
@@ -1375,21 +1423,7 @@ public class AuthService : IAuthService
     private string NormalizeEmailPolicy(string email)
     {
         if (string.IsNullOrWhiteSpace(email)) return string.Empty;
-        var trimmed = email.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
-        var parts = trimmed.Split('@');
-        if (parts.Length != 2) return trimmed;
-        var local = parts[0];
-        var domain = parts[1];
-        if (domain == "gmail.com")
-        {
-            var plusIndex = local.IndexOf('+');
-            if (plusIndex >= 0)
-            {
-                local = local.Substring(0, plusIndex);
-            }
-            local = local.Replace(".", "");
-        }
-        return $"{local}@{domain}";
+        return email.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
     }
 
     private bool IsDisposableEmail(string email)
@@ -2482,7 +2516,7 @@ public class AuthService : IAuthService
             ExpirationTimeClockTolerance = TimeSpan.FromMinutes(5)
         };
 
-        var payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+        var payload = await _googleTokenValidator.ValidateAsync(request.IdToken, settings);
         if (payload == null)
         {
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Google ID token validation failed.");
@@ -2561,7 +2595,8 @@ public class AuthService : IAuthService
                 .Include(u => u.Roles)
                 .Include(u => u.AuthProviders)
                 .Include(u => u.PasswordCredentials)
-                .FirstOrDefaultAsync(u => u.Email == email && u.DeletedAt == null, cancellationToken);
+                .Include(u => u.LinkedEmails)
+                .FirstOrDefaultAsync(u => (u.Email == email || u.LinkedEmails.Any(le => le.Email == email && le.IsVerified)) && u.DeletedAt == null, cancellationToken);
 
             var defaultRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "USER", cancellationToken);
             if (defaultRole == null)
@@ -3219,6 +3254,12 @@ public class AuthService : IAuthService
 
         await _passwordPolicyService.ValidateAndThrowAsync(request.NewPassword, "Default");
 
+        var newHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
+        // Update primary User entity password hash to ensure login flows utilize the new credentials
+        user.PasswordHash = newHash;
+        user.UpdatedAt = _timeProvider.GetUtcNow();
+
         // Deactivate active credentials
         foreach (var cred in user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null))
         {
@@ -3233,7 +3274,7 @@ public class AuthService : IAuthService
         {
             Id = Guid.CreateVersion7(),
             UserId = user.Id,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword),
+            PasswordHash = newHash,
             IsActive = true,
             PasswordChangedAt = _timeProvider.GetUtcNow(),
             CreatedAt = _timeProvider.GetUtcNow(),

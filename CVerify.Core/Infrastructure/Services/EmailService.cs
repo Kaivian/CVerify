@@ -231,6 +231,7 @@ public class EmailService : IEmailService
             "Login2FaEmail.html" => "Your 2FA Login Code - CVerify",
             "CompanyOwnerVerificationEmail.html" => "Verify Your Business Ownership - CVerify",
             "SecurityActionEmail.html" => "Verify Security Action - CVerify",
+            "PasswordRecoveryEmail.html" => "Password Recovery Verification - CVerify",
             _ => "Your Verification Code - CVerify"
         };
 

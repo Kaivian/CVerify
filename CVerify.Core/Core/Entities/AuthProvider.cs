@@ -27,6 +27,12 @@ public class AuthProvider
     [MaxLength(100)]
     public string? ProviderAccountId { get; set; }
 
+    [MaxLength(255)]
+    public string? ProviderUsername { get; set; }
+
+    [MaxLength(500)]
+    public string? ProviderAvatarUrl { get; set; }
+
     [MaxLength(500)]
     public string? GrantedScopes { get; set; }
 

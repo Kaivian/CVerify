@@ -21,7 +21,7 @@ public class ApplicationDbContext : DbContext
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
         {
-            if (pgEx.ConstraintName?.Contains("users_email") == true || pgEx.Message.Contains("users") || pgEx.Detail?.Contains("email") == true)
+            if (pgEx.ConstraintName?.Contains("users_email") == true || pgEx.ConstraintName?.Contains("user_emails_email") == true || pgEx.Message.Contains("users") || pgEx.Detail?.Contains("email") == true)
             {
                 throw new DuplicateEmailException("A user with this email address already exists.", ex);
             }
@@ -38,7 +38,7 @@ public class ApplicationDbContext : DbContext
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
         {
-            if (pgEx.ConstraintName?.Contains("users_email") == true || pgEx.Message.Contains("users") || pgEx.Detail?.Contains("email") == true)
+            if (pgEx.ConstraintName?.Contains("users_email") == true || pgEx.ConstraintName?.Contains("user_emails_email") == true || pgEx.Message.Contains("users") || pgEx.Detail?.Contains("email") == true)
             {
                 throw new DuplicateEmailException("A user with this email address already exists.", ex);
             }
@@ -86,6 +86,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RepresentativeRotationRequest> RepresentativeRotationRequests => Set<RepresentativeRotationRequest>();
     public DbSet<RepresentativeApprovalVote> RepresentativeApprovalVotes => Set<RepresentativeApprovalVote>();
     public DbSet<RepresentativeAuthorityHistory> RepresentativeAuthorityHistories => Set<RepresentativeAuthorityHistory>();
+    public DbSet<UserEmail> UserEmails => Set<UserEmail>();
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
@@ -142,6 +143,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<RepresentativeRotationRequest>().Property(r => r.Id).ValueGeneratedNever();
         modelBuilder.Entity<RepresentativeApprovalVote>().Property(v => v.Id).ValueGeneratedNever();
         modelBuilder.Entity<RepresentativeAuthorityHistory>().Property(h => h.Id).ValueGeneratedNever();
+        modelBuilder.Entity<UserEmail>().Property(ue => ue.Id).ValueGeneratedNever();
 
         // Enable PostgreSQL Extensions
         modelBuilder.HasPostgresExtension("citext");
@@ -701,6 +703,17 @@ public class ApplicationDbContext : DbContext
                   .HasForeignKey(pal => pal.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(pal => pal.UserId).HasDatabaseName("idx_profile_activity_logs_user_id");
+        });
+
+        // UserEmail configurations
+        modelBuilder.Entity<UserEmail>(entity =>
+        {
+            entity.ToTable("user_emails");
+            entity.HasOne(ue => ue.User)
+                  .WithMany(u => u.LinkedEmails)
+                  .HasForeignKey(ue => ue.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(ue => ue.Email).IsUnique();
         });
     }
 }
