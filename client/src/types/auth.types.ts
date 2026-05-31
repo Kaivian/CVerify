@@ -12,6 +12,7 @@ export interface User {
   avatarUrl?: string;
   isEmailVerified?: boolean;
   passwordChangedAt?: string;
+  hasPassword?: boolean;
 }
 
 export type BootstrapState = 'IDLE' | 'BOOTSTRAPPING' | 'VALIDATING' | 'READY';
@@ -45,6 +46,7 @@ export interface LoginResponseData {
   status: string;
   nextStep: string;
   passwordChangedAt?: string;
+  hasPassword?: boolean;
 }
 
 export interface UserProfileResponseData {
@@ -58,6 +60,7 @@ export interface UserProfileResponseData {
   status: string;
   nextStep: string;
   passwordChangedAt?: string;
+  hasPassword?: boolean;
 }
 
 export interface AuthSuccessResponse {
@@ -120,6 +123,29 @@ export interface LinkedEmail {
   email: string;
   isPrimary: boolean;
   isVerified: boolean;
+}
+
+export interface LinkedProviderConnection {
+  id: string;
+  providerName: string;
+  providerEmail: string | null;
+  providerUsername: string | null;
+  providerDisplayName: string | null;
+  providerAvatarUrl: string | null;
+  providerProfileUrl: string | null;
+  connected: boolean;
+  scopeValidationStatus: string;
+  grantedScopes: string | null;
+}
+
+export interface PendingLinkDetailsResponseData {
+  id: string;
+  providerName: string;
+  providerEmail: string | null;
+  providerUsername: string | null;
+  providerDisplayName: string | null;
+  providerAvatarUrl: string | null;
+  providerProfileUrl: string | null;
 }
 
 

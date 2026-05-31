@@ -313,14 +313,31 @@ public class AuthController : ControllerBase
 
     [HttpGet("connect/{providerName}")]
     [Authorize]
-    public IActionResult ConnectProvider(string providerName)
+    public async Task<IActionResult> ConnectProvider(string providerName)
     {
         var envConfig = HttpContext.RequestServices.GetRequiredService<EnvConfiguration>();
+        var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
         var canonicalName = providerName.ToLowerInvariant();
 
         if (canonicalName != ProviderGitHub && canonicalName != ProviderGitLab && canonicalName != ProviderGoogle)
         {
             return BadRequest(new { message = $"Unsupported provider: {providerName}" });
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        if (canonicalName == ProviderGitHub || canonicalName == ProviderGitLab)
+        {
+            var activeCount = await dbContext.AuthProviders
+                .CountAsync(ap => ap.UserId == userId && ap.ProviderName.ToLower() == canonicalName.ToLower() && ap.DeletedAt == null);
+            if (activeCount >= 3)
+            {
+                return BadRequest(new { message = $"Maximum limit of 3 linked accounts reached for provider {providerName}." });
+            }
         }
 
         var state = Guid.NewGuid().ToString("N");
@@ -346,7 +363,7 @@ public class AuthController : ControllerBase
             {
                 return BadRequest(new { message = "GitHub Client ID is not configured." });
             }
-            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org&state={state}";
+            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org&state={state}&prompt=select_account";
         }
         else if (canonicalName == ProviderGitLab)
         {
@@ -397,6 +414,17 @@ public class AuthController : ControllerBase
         }
 
         var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+        if (canonicalName == ProviderGitHub || canonicalName == ProviderGitLab)
+        {
+            var activeCount = await dbContext.AuthProviders
+                .CountAsync(ap => ap.UserId == userId && ap.ProviderName.ToLower() == canonicalName.ToLower() && ap.DeletedAt == null, cancellationToken);
+            if (activeCount >= 3)
+            {
+                return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=limit_reached");
+            }
+        }
+
         var timeProvider = HttpContext.RequestServices.GetRequiredService<TimeProvider>();
         var httpClientFactory = HttpContext.RequestServices.GetRequiredService<IHttpClientFactory>();
 
@@ -414,6 +442,8 @@ public class AuthController : ControllerBase
         string? providerEmail = null;
         string? providerUsername = null;
         string? providerAvatarUrl = null;
+        string? providerDisplayName = null;
+        string? providerProfileUrl = null;
 
         try
         {
@@ -470,6 +500,8 @@ public class AuthController : ControllerBase
                 providerUsername = profileData.ContainsKey("login") ? profileData["login"]?.ToString() : null;
                 providerEmail = profileData.ContainsKey("email") ? profileData["email"]?.ToString() : null;
                 providerAvatarUrl = profileData.ContainsKey("avatar_url") ? profileData["avatar_url"]?.ToString() : null;
+                providerDisplayName = profileData.ContainsKey("name") ? profileData["name"]?.ToString() : null;
+                providerProfileUrl = profileData.ContainsKey("html_url") ? profileData["html_url"]?.ToString() : $"https://github.com/{providerUsername}";
             }
             else if (canonicalName == "gitlab")
             {
@@ -522,6 +554,9 @@ public class AuthController : ControllerBase
                 providerKey = profileData["id"].ToString() ?? "";
                 providerUsername = profileData.ContainsKey("username") ? profileData["username"]?.ToString() : null;
                 providerEmail = profileData.ContainsKey("email") ? profileData["email"]?.ToString() : null;
+                providerDisplayName = profileData.ContainsKey("name") ? profileData["name"]?.ToString() : null;
+                providerProfileUrl = profileData.ContainsKey("web_url") ? profileData["web_url"]?.ToString() : $"https://gitlab.com/{providerUsername}";
+                providerAvatarUrl = profileData.ContainsKey("avatar_url") ? profileData["avatar_url"]?.ToString() : null;
             }
             else // google
             {
@@ -579,7 +614,7 @@ public class AuthController : ControllerBase
 
         // Check if provider accounts are already linked to someone else
         var duplicateProvider = await dbContext.AuthProviders
-            .FirstOrDefaultAsync(ap => ap.ProviderName == canonicalName && ap.ProviderKey == providerKey && ap.UserId != userId && ap.DeletedAt == null, cancellationToken);
+            .FirstOrDefaultAsync(ap => ap.ProviderName.ToLower() == canonicalName.ToLower() && ap.ProviderKey == providerKey && ap.UserId != userId && ap.DeletedAt == null, cancellationToken);
 
         if (duplicateProvider != null)
         {
@@ -596,76 +631,114 @@ public class AuthController : ControllerBase
         var encryptedRefresh = !string.IsNullOrEmpty(refreshToken) ? EncryptionHelper.Encrypt(refreshToken, envConfig.Security.TokenEncryptionKey) : null;
         var expiryTime = expiresIn.HasValue ? timeProvider.GetUtcNow().AddSeconds(expiresIn.Value) : (DateTimeOffset?)null;
 
-        var existingProvider = await dbContext.AuthProviders
-            .Include(ap => ap.OAuthCredential)
-            .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName == canonicalName && ap.DeletedAt == null, cancellationToken);
-
-        if (existingProvider != null)
+        if (canonicalName == ProviderGitHub || canonicalName == ProviderGitLab)
         {
-            existingProvider.ProviderKey = providerKey;
-            existingProvider.ProviderAccountId = providerEmail ?? providerUsername ?? providerKey;
-            existingProvider.ProviderUsername = providerUsername;
-            existingProvider.ProviderAvatarUrl = providerAvatarUrl;
-            existingProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
-            existingProvider.LastScopeValidationAt = timeProvider.GetUtcNow();
-            existingProvider.LastProviderSyncAt = timeProvider.GetUtcNow();
-            existingProvider.LastSuccessfulRefreshAt = timeProvider.GetUtcNow();
-            existingProvider.RefreshFailureCount = 0;
+            var existingPending = await dbContext.PendingAuthProviders
+                .Where(pap => pap.UserId == userId && pap.ProviderName.ToLower() == canonicalName.ToLower() && pap.ProviderKey == providerKey)
+                .ToListAsync(cancellationToken);
+            if (existingPending.Any())
+            {
+                dbContext.PendingAuthProviders.RemoveRange(existingPending);
+            }
 
-            if (existingProvider.OAuthCredential != null)
+            var pendingId = Guid.CreateVersion7();
+            var pending = new PendingAuthProvider
             {
-                existingProvider.OAuthCredential.EncryptedAccessToken = encryptedAccess;
-                existingProvider.OAuthCredential.EncryptedRefreshToken = encryptedRefresh;
-                existingProvider.OAuthCredential.ExpiresAt = expiryTime;
-                existingProvider.OAuthCredential.UpdatedAt = timeProvider.GetUtcNow();
-            }
-            else
-            {
-                existingProvider.OAuthCredential = new OAuthCredential
-                {
-                    AuthProviderId = existingProvider.Id,
-                    EncryptedAccessToken = encryptedAccess,
-                    EncryptedRefreshToken = encryptedRefresh,
-                    ExpiresAt = expiryTime,
-                    UpdatedAt = timeProvider.GetUtcNow()
-                };
-            }
-        }
-        else
-        {
-            var newProvider = new AuthProvider
-            {
-                Id = Guid.CreateVersion7(),
+                Id = pendingId,
                 UserId = userId,
                 ProviderName = canonicalName,
                 ProviderKey = providerKey,
                 ProviderAccountId = providerEmail ?? providerUsername ?? providerKey,
                 ProviderUsername = providerUsername,
+                ProviderDisplayName = providerDisplayName ?? providerUsername ?? providerKey,
                 ProviderAvatarUrl = providerAvatarUrl,
-                ScopeValidationStatus = ProviderScopeStatus.Valid,
-                LastScopeValidationAt = timeProvider.GetUtcNow(),
-                LastProviderSyncAt = timeProvider.GetUtcNow(),
-                LastSuccessfulRefreshAt = timeProvider.GetUtcNow(),
+                ProviderProfileUrl = providerProfileUrl,
+                EncryptedAccessToken = encryptedAccess,
+                EncryptedRefreshToken = encryptedRefresh,
+                ExpiresAt = timeProvider.GetUtcNow().AddMinutes(10),
                 CreatedAt = timeProvider.GetUtcNow()
             };
 
-            var credential = new OAuthCredential
-            {
-                AuthProviderId = newProvider.Id,
-                EncryptedAccessToken = encryptedAccess,
-                EncryptedRefreshToken = encryptedRefresh,
-                ExpiresAt = expiryTime,
-                UpdatedAt = timeProvider.GetUtcNow()
-            };
+            dbContext.PendingAuthProviders.Add(pending);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-            newProvider.OAuthCredential = credential;
-            dbContext.AuthProviders.Add(newProvider);
+            _logger.LogInformation("PROVIDER_LINK_INITIATED: Pending link created for user {UserId}, provider {ProviderName}, pendingId {PendingId}", userId, canonicalName, pendingId);
+
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&link_pending_id={pendingId}");
         }
+        else
+        {
+            var existingProvider = await dbContext.AuthProviders
+                .Include(ap => ap.OAuthCredential)
+                .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName.ToLower() == canonicalName.ToLower() && ap.DeletedAt == null, cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await _identityStateResolver.InvalidateCacheAsync(User.FindFirst(ClaimTypes.Email)?.Value ?? "");
+            if (existingProvider != null)
+            {
+                existingProvider.ProviderKey = providerKey;
+                existingProvider.ProviderAccountId = providerEmail ?? providerUsername ?? providerKey;
+                existingProvider.ProviderUsername = providerUsername;
+                existingProvider.ProviderAvatarUrl = providerAvatarUrl;
+                existingProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
+                existingProvider.LastScopeValidationAt = timeProvider.GetUtcNow();
+                existingProvider.LastProviderSyncAt = timeProvider.GetUtcNow();
+                existingProvider.LastSuccessfulRefreshAt = timeProvider.GetUtcNow();
+                existingProvider.RefreshFailureCount = 0;
 
-        return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&link_success=true&provider={canonicalName}");
+                if (existingProvider.OAuthCredential != null)
+                {
+                    existingProvider.OAuthCredential.EncryptedAccessToken = encryptedAccess;
+                    existingProvider.OAuthCredential.EncryptedRefreshToken = encryptedRefresh;
+                    existingProvider.OAuthCredential.ExpiresAt = expiryTime;
+                    existingProvider.OAuthCredential.UpdatedAt = timeProvider.GetUtcNow();
+                }
+                else
+                {
+                    existingProvider.OAuthCredential = new OAuthCredential
+                    {
+                        AuthProviderId = existingProvider.Id,
+                        EncryptedAccessToken = encryptedAccess,
+                        EncryptedRefreshToken = encryptedRefresh,
+                        ExpiresAt = expiryTime,
+                        UpdatedAt = timeProvider.GetUtcNow()
+                    };
+                }
+            }
+            else
+            {
+                var newProvider = new AuthProvider
+                {
+                    Id = Guid.CreateVersion7(),
+                    UserId = userId,
+                    ProviderName = canonicalName,
+                    ProviderKey = providerKey,
+                    ProviderAccountId = providerEmail ?? providerUsername ?? providerKey,
+                    ProviderUsername = providerUsername,
+                    ProviderAvatarUrl = providerAvatarUrl,
+                    ScopeValidationStatus = ProviderScopeStatus.Valid,
+                    LastScopeValidationAt = timeProvider.GetUtcNow(),
+                    LastProviderSyncAt = timeProvider.GetUtcNow(),
+                    LastSuccessfulRefreshAt = timeProvider.GetUtcNow(),
+                    CreatedAt = timeProvider.GetUtcNow()
+                };
+
+                var credential = new OAuthCredential
+                {
+                    AuthProviderId = newProvider.Id,
+                    EncryptedAccessToken = encryptedAccess,
+                    EncryptedRefreshToken = encryptedRefresh,
+                    ExpiresAt = expiryTime,
+                    UpdatedAt = timeProvider.GetUtcNow()
+                };
+
+                newProvider.OAuthCredential = credential;
+                dbContext.AuthProviders.Add(newProvider);
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await _identityStateResolver.InvalidateCacheAsync(User.FindFirst(ClaimTypes.Email)?.Value ?? "");
+
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&link_success=true&provider={canonicalName}");
+        }
         }
         catch (Exception ex)
         {
@@ -718,6 +791,7 @@ public class AuthController : ControllerBase
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DisconnectGithub(CancellationToken cancellationToken)
     {
@@ -728,6 +802,14 @@ public class AuthController : ControllerBase
         }
 
         var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+        var activeCount = await dbContext.AuthProviders
+            .CountAsync(ap => ap.UserId == userId && ap.ProviderName == ProviderGitHub && ap.DeletedAt == null, cancellationToken);
+        if (activeCount > 1)
+        {
+            return BadRequest(new { message = "Multiple GitHub accounts exist. Please specify a connection ID." });
+        }
+
         var provider = await dbContext.AuthProviders
             .Include(ap => ap.OAuthCredential)
             .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName == ProviderGitHub && ap.DeletedAt == null, cancellationToken);
@@ -753,6 +835,97 @@ public class AuthController : ControllerBase
         _logger.LogInformation("PROVIDER_UNLINKED: GitHub account successfully unlinked for user {UserId}", userId);
 
         return Ok(new { success = true, message = "GitHub account successfully disconnected." });
+    }
+
+    [HttpGet("providers/pending/{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PendingLinkDetailsResponse))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> GetPendingLinkDetails(Guid id)
+    {
+        try
+        {
+            var result = await _authService.GetPendingLinkDetailsAsync(id);
+            return Ok(result);
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (BusinessRuleException ex) when (ex.ErrorCode == "LINK_EXPIRED")
+        {
+            return StatusCode(StatusCodes.Status410Gone, new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("providers/confirm/{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> ConfirmLink(Guid id)
+    {
+        try
+        {
+            var result = await _authService.ConfirmLinkAsync(id);
+            return Ok(new { success = result, message = "Provider account successfully linked." });
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (BusinessRuleException ex) when (ex.ErrorCode == "LINK_EXPIRED")
+        {
+            return StatusCode(StatusCodes.Status410Gone, new { message = ex.Message });
+        }
+        catch (BusinessRuleException ex)
+        {
+            return BadRequest(new { code = ex.ErrorCode, message = ex.Message });
+        }
+        catch (AuthException ex)
+        {
+            return BadRequest(new { code = ex.Code, message = ex.Message });
+        }
+    }
+
+    [HttpGet("providers/connections")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<LinkedProviderConnectionDto>))]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetLinkedConnections()
+    {
+        var result = await _authService.GetLinkedConnectionsAsync();
+        return Ok(result);
+    }
+
+
+
+    [HttpDelete("providers/connections/{id:guid}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UnlinkProviderConnection(Guid id)
+    {
+        try
+        {
+            var result = await _authService.UnlinkProviderConnectionAsync(id);
+            return Ok(new { success = result, message = "Connection successfully unlinked." });
+        }
+        catch (ResourceNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("send-otp")]
@@ -1023,6 +1196,20 @@ public class AuthController : ControllerBase
             return Ok(new { message = "Session revoked successfully" });
         }
         return BadRequest(new { message = "Failed to revoke session" });
+    }
+
+    [HttpDelete("sessions")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RevokeOtherSessions(CancellationToken cancellationToken)
+    {
+        var result = await _authService.RevokeAllOtherSessionsAsync(cancellationToken);
+        if (result)
+        {
+            return Ok(new { message = "All other sessions revoked successfully" });
+        }
+        return BadRequest(new { message = "Failed to revoke other sessions" });
     }
 
     [HttpGet("emails")]

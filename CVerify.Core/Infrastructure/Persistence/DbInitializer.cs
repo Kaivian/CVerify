@@ -66,6 +66,7 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS organization_members CASCADE;
                 DROP TABLE IF EXISTS organizations CASCADE;
                 DROP TABLE IF EXISTS password_credentials CASCADE;
+                DROP TABLE IF EXISTS pending_auth_providers CASCADE;
                 DROP TABLE IF EXISTS auth_providers CASCADE;
                 DROP TABLE IF EXISTS user_emails CASCADE;
                 DROP TABLE IF EXISTS users CASCADE;
@@ -172,7 +173,29 @@ public static class DbInitializer
                 CONSTRAINT fk_auth_providers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_key_active ON auth_providers(provider_name, provider_key) WHERE deleted_at IS NULL;
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_providers_user_type_active ON auth_providers(user_id, provider_name) WHERE deleted_at IS NULL;
+            
+            DROP INDEX IF EXISTS idx_auth_providers_user_type_active;
+            CREATE UNIQUE INDEX idx_auth_providers_user_type_active ON auth_providers(user_id, provider_name) WHERE deleted_at IS NULL AND provider_name = 'google';
+            CREATE INDEX IF NOT EXISTS idx_auth_providers_user_type_lookup ON auth_providers(user_id, provider_name) WHERE deleted_at IS NULL;
+
+            -- Stores pending authorization provider links (expires in 10 minutes)
+            CREATE TABLE IF NOT EXISTS pending_auth_providers (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                provider_name VARCHAR(50) NOT NULL,
+                provider_key VARCHAR(255) NOT NULL,
+                provider_account_id VARCHAR(100),
+                provider_username VARCHAR(255),
+                provider_display_name VARCHAR(255),
+                provider_avatar_url VARCHAR(500),
+                provider_profile_url VARCHAR(500),
+                encrypted_access_token VARCHAR(1000) NOT NULL,
+                encrypted_refresh_token VARCHAR(1000),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_pending_auth_providers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_pending_auth_providers_expiry ON pending_auth_providers(expires_at);
 
             -- Stores encrypted OAuth credentials separated from provider metadata
             CREATE TABLE IF NOT EXISTS oauth_credentials (
@@ -743,6 +766,25 @@ public static class DbInitializer
                 ) THEN
                     ALTER TABLE auth_providers ADD COLUMN last_provider_sync_at TIMESTAMP WITH TIME ZONE;
                 END IF;
+
+                -- Safely provision provider_display_name column if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'provider_display_name'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN provider_display_name VARCHAR(255);
+                END IF;
+
+                -- Safely provision provider_profile_url column if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'auth_providers' AND column_name = 'provider_profile_url'
+                ) THEN
+                    ALTER TABLE auth_providers ADD COLUMN provider_profile_url VARCHAR(500);
+                END IF;
+
             END $$;
 
             -- Granular permissions using a hierarchical naming convention

@@ -63,6 +63,7 @@ export const useAuth = () => {
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
         passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
 
       login(user);
@@ -99,6 +100,7 @@ export const useAuth = () => {
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
         passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
 
       login(user);
@@ -148,6 +150,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
 
       login(user);
@@ -177,6 +181,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
 
       login(user);
@@ -296,6 +302,7 @@ export const useAuth = () => {
           permissions: response.permissions,
           isEmailVerified: response.isEmailVerified,
           passwordChangedAt: response.passwordChangedAt,
+          hasPassword: response.hasPassword,
         };
 
         stateStore.login(user);
@@ -423,6 +430,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
       login(user);
       setAuthStatusAndNextStep(response.status, response.nextStep);
@@ -481,6 +490,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
       login(user);
       setAuthStatusAndNextStep(response.status, response.nextStep);
@@ -507,6 +518,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
       login(user);
       setAuthStatusAndNextStep(response.status, response.nextStep);
@@ -533,10 +546,23 @@ export const useAuth = () => {
   const revokeSession = useCallback(async (sessionId: string) => {
     try {
       await authApi.revokeSession(sessionId);
-      return true;
+      return { success: true };
     } catch (err: unknown) {
-      console.error('Failed to revoke session:', err);
-      return false;
+      const parsedError = normalizeError(err);
+      console.error('Failed to revoke session:', parsedError);
+      return { success: false, error: parsedError.message };
+    }
+  }, []);
+
+  // Revoke All Other Sessions
+  const revokeOtherSessions = useCallback(async () => {
+    try {
+      await authApi.revokeOtherSessions();
+      return { success: true };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      console.error('Failed to revoke other sessions:', parsedError);
+      return { success: false, error: parsedError.message };
     }
   }, []);
 
@@ -611,6 +637,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
       login(user);
       setAuthStatusAndNextStep(response.status, response.nextStep);
@@ -865,6 +893,72 @@ export const useAuth = () => {
     }
   }, [setLoading]);
 
+  // Fetch active connections
+  const fetchConnections = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const data = await authApi.fetchConnections();
+      setLoading(false);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Fetch pending link details
+  const fetchPendingLinkDetails = useCallback(async (id: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const data = await authApi.fetchPendingLinkDetails(id);
+      setLoading(false);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Confirm pending link
+  const confirmLink = useCallback(async (id: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const data = await authApi.confirmLink(id);
+      setLoading(false);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+
+
+  // Unlink specific connection
+  const unlinkConnection = useCallback(async (id: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const data = await authApi.unlinkConnection(id);
+      setLoading(false);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
   return {
     // Zustand States
     user: storeUser,
@@ -883,7 +977,7 @@ export const useAuth = () => {
     resetPassword: resetPasswordUser,
     initializeSession: initializeUserSession,
     updateProfile: updateUserStore,
-
+ 
     // New actions
     sendOtp,
     fetchOtpSession,
@@ -896,6 +990,7 @@ export const useAuth = () => {
     companyLogin,
     fetchSessions,
     revokeSession,
+    revokeOtherSessions,
     
     // OAuth provider integration actions
     deleteAccount,
@@ -917,6 +1012,12 @@ export const useAuth = () => {
     verifyLinkEmailOtp,
     makeEmailPrimary,
     deleteLinkedEmail,
+
+    // Multi-account OAuth actions
+    fetchConnections,
+    fetchPendingLinkDetails,
+    confirmLink,
+    unlinkConnection,
 
     // Unified Onboarding flow
     verifyCompanyOnboarding,

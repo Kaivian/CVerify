@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CVerify.API.Core.Entities;
 
-public class AuthProvider
+public class PendingAuthProvider
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.None)]
@@ -30,32 +30,25 @@ public class AuthProvider
     [MaxLength(255)]
     public string? ProviderUsername { get; set; }
 
-    [MaxLength(500)]
-    public string? ProviderAvatarUrl { get; set; }
-
     [MaxLength(255)]
     public string? ProviderDisplayName { get; set; }
 
     [MaxLength(500)]
-    public string? ProviderProfileUrl { get; set; }
+    public string? ProviderAvatarUrl { get; set; }
 
     [MaxLength(500)]
-    public string? GrantedScopes { get; set; }
-
-    public DateTimeOffset? LastScopeValidationAt { get; set; }
+    public string? ProviderProfileUrl { get; set; }
 
     [Required]
-    public CVerify.API.Core.Enums.ProviderScopeStatus ScopeValidationStatus { get; set; } = CVerify.API.Core.Enums.ProviderScopeStatus.Valid;
+    [MaxLength(1000)]
+    public string EncryptedAccessToken { get; set; } = null!;
 
-    public DateTimeOffset? LastSuccessfulRefreshAt { get; set; }
+    [MaxLength(1000)]
+    public string? EncryptedRefreshToken { get; set; }
 
-    public int RefreshFailureCount { get; set; } = 0;
+    [Required]
+    public DateTimeOffset ExpiresAt { get; set; }
 
-    public DateTimeOffset? LastProviderSyncAt { get; set; }
-
-    public virtual OAuthCredential? OAuthCredential { get; set; }
-
+    [Required]
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-
-    public DateTimeOffset? DeletedAt { get; set; }
 }

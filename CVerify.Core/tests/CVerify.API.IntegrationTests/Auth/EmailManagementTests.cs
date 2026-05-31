@@ -260,6 +260,7 @@ public class EmailManagementTests : BaseIntegrationTest
             {
                 Subject = googleSubject,
                 Email = secondaryEmail,
+                EmailVerified = true,
                 Name = "Google Test User",
                 Picture = "http://avatar.url"
             });
@@ -272,6 +273,16 @@ public class EmailManagementTests : BaseIntegrationTest
             });
         });
         var customClient = customFactory.CreateClient();
+
+        // Clear password hash to allow auto-linking (simulates non-credential-secured profile)
+        using (var initScope = customFactory.Services.CreateScope())
+        {
+            var initDb = initScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var dbUser = await initDb.Users.FirstOrDefaultAsync(u => u.Email == primaryEmail);
+            dbUser.Should().NotBeNull();
+            dbUser!.PasswordHash = null;
+            await initDb.SaveChangesAsync();
+        }
 
         // 4. Call google login API
         var googleLoginResponse = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "dummy-token"));
@@ -306,6 +317,7 @@ public class EmailManagementTests : BaseIntegrationTest
             {
                 Subject = googleSubject,
                 Email = primaryEmail,
+                EmailVerified = true,
                 Name = "Google Test User",
                 Picture = "http://avatar.url"
             });
@@ -318,6 +330,24 @@ public class EmailManagementTests : BaseIntegrationTest
             });
         });
         var customClient = customFactory.CreateClient();
+
+        // Seed linked Google provider to simulate already connected account
+        using (var initScope = customFactory.Services.CreateScope())
+        {
+            var initDb = initScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var dbUser = await initDb.Users.FirstOrDefaultAsync(u => u.Email == primaryEmail);
+            dbUser.Should().NotBeNull();
+            initDb.AuthProviders.Add(new AuthProvider
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = dbUser!.Id,
+                ProviderName = "Google",
+                ProviderKey = googleSubject,
+                ProviderAccountId = primaryEmail,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await initDb.SaveChangesAsync();
+        }
 
         // First login: maps Google provider with primary email
         var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "dummy"));
@@ -339,6 +369,7 @@ public class EmailManagementTests : BaseIntegrationTest
             {
                 Subject = googleSubject,
                 Email = updatedEmail,
+                EmailVerified = true,
                 Name = "Google Test User",
                 Picture = "http://avatar.url"
             });

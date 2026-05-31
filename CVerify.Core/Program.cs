@@ -367,6 +367,7 @@ builder.Services.AddHostedService<EmailOutboxBackgroundProcessor>();
 builder.Services.AddHostedService<TokenCleanupBackgroundJob>();
 builder.Services.AddHostedService<RecoveryClaimBackgroundWorker>();
 builder.Services.AddHostedService<OtpCleanupBackgroundWorker>();
+builder.Services.AddHostedService<PendingLinkCleanupService>();
 
 
 // Configure JWT Authentication

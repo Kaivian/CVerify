@@ -1,5 +1,5 @@
 using CVerify.API.Application.Interfaces;
-using System.IdentityModel.Tokens.Jwt; using System.Security.Claims; using System.Security.Cryptography; using System.Text; using Microsoft.IdentityModel.Tokens; using CVerify.API.Core.Entities; using CVerify.API.Application.Interfaces; using CVerify.API.Infrastructure.Configuration;  namespace CVerify.API.Infrastructure.Services;  public class TokenService : ITokenService {     private readonly EnvConfiguration _config;     private readonly IHttpContextAccessor _httpContextAccessor;      public TokenService(EnvConfiguration config, IHttpContextAccessor httpContextAccessor)     {         _config = config;         _httpContextAccessor = httpContextAccessor;     }      public string GenerateJwtToken(User user, IEnumerable<string> roles, IEnumerable<string> permissions, Guid? organizationId = null, string? organizationSlug = null)
+using System.IdentityModel.Tokens.Jwt; using System.Security.Claims; using System.Security.Cryptography; using System.Text; using Microsoft.IdentityModel.Tokens; using CVerify.API.Core.Entities; using CVerify.API.Application.Interfaces; using CVerify.API.Infrastructure.Configuration;  namespace CVerify.API.Infrastructure.Services;  public class TokenService : ITokenService {     private readonly EnvConfiguration _config;     private readonly IHttpContextAccessor _httpContextAccessor;      public TokenService(EnvConfiguration config, IHttpContextAccessor httpContextAccessor)     {         _config = config;         _httpContextAccessor = httpContextAccessor;     }     public string GenerateJwtToken(User user, IEnumerable<string> roles, IEnumerable<string> permissions, Guid? organizationId = null, string? organizationSlug = null, Guid? sessionId = null)
     {
         var claims = new List<Claim>
         {
@@ -11,6 +11,11 @@ using System.IdentityModel.Tokens.Jwt; using System.Security.Claims; using Syste
             new("session_version", user.SessionVersion.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        if (sessionId.HasValue)
+        {
+            claims.Add(new("sid", sessionId.Value.ToString()));
+        }
 
         if (organizationId.HasValue)
         {
