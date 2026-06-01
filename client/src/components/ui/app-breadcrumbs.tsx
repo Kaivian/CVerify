@@ -24,8 +24,8 @@ const isRouteExist = (href: string): boolean => {
   }
 
   // 1. Workspace routes checking
-  // Matches exact valid pages. Intermediate paths like /workspace/[org]/recruitment or /workspace/[org]/recruitment/jd/[id] are NOT valid.
-  const workspaceRegex = /^\/workspace\/([^/]+)(?:\/(billing|information|members|roles|settings|jobs|people|posts|intelligence))?$/i;
+  // Matches exact valid pages.
+  const workspaceRegex = /^\/workspace\/([^/]+)(?:\/(billing|information|members|roles|settings|jobs|people|posts|intelligence|dashboard|listings|bookings|revenue|customers|analytics))?$/i;
   
   if (workspaceRegex.test(path)) {
     return true;
@@ -60,7 +60,6 @@ export const AppBreadcrumbs: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
-  const isBusiness = user?.role === "BUSINESS";
 
   if (!pathname) return null;
 
@@ -77,11 +76,18 @@ export const AppBreadcrumbs: React.FC = () => {
 
   for (let index = 0; index < segments.length; index++) {
     const segment = segments[index];
-    if (segment === "workspace" && isBusiness) {
+    
+    // Skip "workspace" segment
+    if (segment === "workspace") {
+      continue;
+    }
+    
+    // Skip the dynamic organization slug that follows "workspace"
+    if (index > 0 && segments[index - 1] === "workspace") {
       continue;
     }
 
-    // Construct cumulative URL path up to current index from the original segments array
+    // Construct cumulative URL path up to current index from original segments
     const href = "/" + segments.slice(0, index + 1).join("/");
     const metadata = getRouteMetadata(href);
 

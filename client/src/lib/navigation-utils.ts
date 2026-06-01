@@ -30,7 +30,15 @@ export const isActiveRoute = (
 
   // Helper check for root and normalization
   const cleanPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
-  const cleanHref = href.endsWith('/') && href.length > 1 ? href.slice(0, -1) : href;
+  let cleanHref = href.endsWith('/') && href.length > 1 ? href.slice(0, -1) : href;
+
+  if (cleanHref.includes("[slug]") || cleanHref.includes(":slug")) {
+    const pathSegments = cleanPath.split("/");
+    if (pathSegments[1] === "workspace" && pathSegments[2]) {
+      const actualSlug = pathSegments[2];
+      cleanHref = cleanHref.replace(/\[slug\]/g, actualSlug).replace(/:slug/g, actualSlug);
+    }
+  }
 
   // 1. Dashboard matching
   if (itemId === 'candidate-dashboard' || cleanHref === '/user' || cleanHref === '/dashboard') {
