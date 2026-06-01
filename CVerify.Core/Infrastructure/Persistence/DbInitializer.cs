@@ -101,6 +101,7 @@ public static class DbInitializer
                         'ACTIVE',
                         'SUSPENDED',
                         'BANNED',
+                        'DELETION_PENDING',
                         'DELETED'
                     );
                 END IF;
@@ -134,11 +135,12 @@ public static class DbInitializer
                 last_failed_at TIMESTAMP WITH TIME ZONE,
                 lock_until TIMESTAMP WITH TIME ZONE,
                 session_version INTEGER NOT NULL DEFAULT 1,
+                is_legal_hold BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_active ON users(email) WHERE deleted_at IS NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_active ON users(email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');
 
             -- Stores linked secondary emails
             CREATE TABLE IF NOT EXISTS user_emails (
@@ -508,6 +510,15 @@ public static class DbInitializer
                     ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 1;
                 END IF;
 
+                -- Safely provision is_legal_hold column if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'is_legal_hold'
+                ) THEN
+                    ALTER TABLE users ADD COLUMN is_legal_hold BOOLEAN NOT NULL DEFAULT FALSE;
+                END IF;
+
                 -- Safely provision failed_attempts column if missing
                 IF NOT EXISTS (
                     SELECT 1 
@@ -569,6 +580,17 @@ public static class DbInitializer
                     WHERE table_name = 'users' AND column_name = 'avatar_url'
                 ) THEN
                     ALTER TABLE users ADD COLUMN avatar_url TEXT;
+                END IF;
+
+                -- Safely provision anonymized_actor_hash column to audit_logs if missing
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_logs'
+                ) AND NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'audit_logs' AND column_name = 'anonymized_actor_hash'
+                ) THEN
+                    ALTER TABLE audit_logs ADD COLUMN anonymized_actor_hash VARCHAR(64);
                 END IF;
 
                 -- Safely provision assigned_at column to role_permissions junction table if missing
@@ -950,6 +972,7 @@ public static class DbInitializer
                 event_type VARCHAR(100) NOT NULL,
                 description TEXT NOT NULL,
                 ip_address VARCHAR(45),
+                anonymized_actor_hash VARCHAR(64),
                 user_agent VARCHAR(500),
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -1331,6 +1354,27 @@ public static class DbInitializer
 
         var superAdminEmail = Environment.GetEnvironmentVariable("SUPER_ADMIN_EMAIL")?.Trim().ToLowerInvariant() ?? "admin@system.com";
         var superAdminPassword = Environment.GetEnvironmentVariable("SUPER_ADMIN_PASSWORD")?.Trim() ?? "SuperAdminPassword123";
+
+        // Safely alter user_status enum to add DELETION_PENDING for backward compatibility
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync("ALTER TYPE user_status ADD VALUE IF NOT EXISTS 'DELETION_PENDING';");
+        }
+        catch (Exception)
+        {
+            // Ignore if type doesn't exist yet (first-time boot runs the script to create it with DELETION_PENDING)
+        }
+
+        // Apply updated idx_users_email_active unique index constraint to existing databases
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS idx_users_email_active;");
+            await context.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX idx_users_email_active ON users(email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');");
+        }
+        catch (Exception)
+        {
+            // Ignore index creation conflicts
+        }
 
         await context.Database.ExecuteSqlRawAsync(sql,
             new Npgsql.NpgsqlParameter("@adminEmail", superAdminEmail),

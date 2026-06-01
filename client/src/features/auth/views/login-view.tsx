@@ -80,6 +80,14 @@ function LoginContent() {
             return;
           }
 
+          if (result.isDeletionPending && result.reactivationToken) {
+            toast.warning("Account Deactivated", {
+              description: "Your account is currently scheduled for permanent deletion. You can restore it here.",
+            });
+            router.push(`/auth/reactivate?token=${result.reactivationToken}`);
+            return;
+          }
+
           if (result.user) {
             toast.success("Welcome to CVerify!", {
               description: "Successfully logged in via Google SSO.",
@@ -262,6 +270,15 @@ function LoginContent() {
         router.push("/verify-email");
         return;
       }
+
+      if (result.isDeletionPending && result.reactivationToken) {
+        toast.warning("Account Deactivated", {
+          description: "Your account is currently scheduled for permanent deletion. You can restore it here.",
+        });
+        router.push(`/auth/reactivate?token=${result.reactivationToken}`);
+        return;
+      }
+
       toast.success("Welcome back!", {
         description: "Successfully logged in.",
       });

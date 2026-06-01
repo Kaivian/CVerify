@@ -54,6 +54,13 @@ export const useAuth = () => {
         return { success: true, isUnverified: true, nextStep: response.nextStep, email: response.email };
       }
 
+      if (response.status === 'DELETION_PENDING' || response.nextStep?.startsWith('REACTIVATE:')) {
+        setAuthStatusAndNextStep(response.status, response.nextStep);
+        setLoading(false);
+        const reactivationToken = response.nextStep.split(':')[1] || '';
+        return { success: true, isDeletionPending: true, nextStep: 'DELETION_PENDING', reactivationToken };
+      }
+
       const user: User = {
         id: response.id,
         email: response.email,
@@ -89,6 +96,13 @@ export const useAuth = () => {
         setAuthStatusAndNextStep(response.status, response.nextStep);
         setLoading(false);
         return { success: true, isUnverified: true, nextStep: response.nextStep, email: response.email };
+      }
+
+      if (response.status === 'DELETION_PENDING' || response.nextStep?.startsWith('REACTIVATE:')) {
+        setAuthStatusAndNextStep(response.status, response.nextStep);
+        setLoading(false);
+        const reactivationToken = response.nextStep.split(':')[1] || '';
+        return { success: true, isDeletionPending: true, nextStep: 'DELETION_PENDING', reactivationToken };
       }
 
       const user: User = {

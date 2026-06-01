@@ -27,6 +27,7 @@ import {
   Separator,
   Modal,
   FieldError,
+  Checkbox,
 } from "@heroui/react";
 import {
   ShieldAlert,
@@ -35,6 +36,10 @@ import {
   AlertTriangle,
   Info,
   X,
+  CheckCircle2,
+  ArrowRight,
+  Mail,
+  KeyRound,
 } from "lucide-react";
 import { type SessionInfoData } from "@/types/auth.types";
 import {
@@ -45,6 +50,10 @@ import { useProfile } from "@/hooks/use-profile";
 import { type UpdateProfileRequest } from "@/types/profile.types";
 import { useProfileStore } from "@/stores/use-profile-store";
 import { ConfirmationModal } from "./ConfirmationModal";
+import { useRouter, useSearchParams } from "next/navigation";
+import { authApi } from "@/features/auth/services/auth.service";
+import { OtpInput } from "@/components/ui/otp-input";
+import { SelectDropdown } from "@/components/ui/select-dropdown";
 
 // Reserved usernames
 const RESERVED_USERNAMES = [
@@ -93,9 +102,14 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     revokeOtherSessions,
     deleteAccount,
     initializeSession,
+    fetchLinkedEmails,
   } = useAuth();
   const { profile, isLoading, updateProfile, updateUsername, refreshProfile } =
     useProfile();
+
+  // Deletion verified email recovery states
+  const [linkedEmails, setLinkedEmails] = useState<{ email: string; isVerified: boolean; isPrimary: boolean }[]>([]);
+  const [selectedOtpEmail, setSelectedOtpEmail] = useState<string>("");
 
   // Local states
   const [sessions, setSessions] = useState<SessionInfoData[]>([]);
@@ -119,6 +133,84 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   const [isBulkRevokeModalOpen, setIsBulkRevokeModalOpen] = useState(false);
   const [sessionToRevoke, setSessionToRevoke] =
     useState<SessionInfoData | null>(null);
+
+  // Deletion wizard states
+  const [deletionStep, setDeletionStep] = useState<number>(1);
+  const [deletionRequirements, setDeletionRequirements] = useState<{
+    requiresPassword: boolean;
+    requiresOAuthReauth: boolean;
+    linkedOAuthProvider: string | null;
+  } | null>(null);
+  const [deletionPassword, setDeletionPassword] = useState("");
+  const [deletionAuthToken, setDeletionAuthToken] = useState("");
+  const [deletionOtpCode, setDeletionOtpCode] = useState("");
+  const [deletionOtpChallengeId, setDeletionOtpChallengeId] = useState<string | null>(null);
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [blockingOrganizations, setBlockingOrganizations] = useState<any[]>([]);
+  const [agreeToTerms, setAgreeToTerms] = useState({
+    hideProfile: false,
+    gracePeriod: false,
+    auditAnonymize: false,
+  });
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const loadDeletionRequirements = useCallback(async () => {
+    try {
+      const reqs = await authApi.getDeletionRequirements();
+      setDeletionRequirements(reqs);
+    } catch (err) {
+      console.error("Failed to load deletion requirements:", err);
+      toast.danger("Failed to load account deletion requirements. Please try again.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setOtpCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [otpCooldown]);
+
+  useEffect(() => {
+    const reauthSuccess = searchParams.get("reauth_success");
+    const deletionToken = searchParams.get("deletion_authorize_token");
+    const error = searchParams.get("error");
+    
+    if (reauthSuccess === "true" && deletionToken) {
+      setDeletionAuthToken(deletionToken);
+      loadDeletionRequirements();
+      setIsDeleteModalOpen(true);
+      setDeletionStep(3);
+      setAgreeToTerms({
+        hideProfile: true,
+        gracePeriod: true,
+        auditAnonymize: true,
+      });
+
+      const params = new URLSearchParams(window.location.search);
+      params.delete("reauth_success");
+      params.delete("deletion_authorize_token");
+      params.delete("tab");
+      const cleanSearch = params.toString() ? `?${params.toString()}` : "";
+      window.history.replaceState(null, "", window.location.pathname + cleanSearch);
+      
+      toast.success("OAuth re-authentication verified successfully.");
+    } else if (error === "reauth_failed") {
+      const details = searchParams.get("details");
+      toast.danger(`Re-authentication failed: ${details || "Access Denied"}`);
+      const params = new URLSearchParams(window.location.search);
+      params.delete("error");
+      params.delete("details");
+      params.delete("tab");
+      const cleanSearch = params.toString() ? `?${params.toString()}` : "";
+      window.history.replaceState(null, "", window.location.pathname + cleanSearch);
+    }
+  }, [searchParams, loadDeletionRequirements]);
 
   // New Username Change modal state
   const [isUsernameConfirmOpen, setIsUsernameConfirmOpen] = useState(false);
@@ -351,23 +443,88 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   // Delete account action
   const handleDeleteAccount = async () => {
-    if (deleteConfirmationText !== (profile?.username || "")) return;
+    if (deleteConfirmationText !== "delete my account") return;
     setIsDeleting(true);
     try {
-      const response = await deleteAccount();
+      const payload = {
+        password: deletionRequirements?.requiresPassword ? deletionPassword : undefined,
+        deletionAuthorizeToken: deletionAuthToken || undefined,
+        fallbackOtpCode: deletionRequirements?.requiresOAuthReauth && isOtpSent ? deletionOtpCode : undefined,
+        fallbackOtpChallengeId: deletionRequirements?.requiresOAuthReauth && isOtpSent ? (deletionOtpChallengeId ? deletionOtpChallengeId : undefined) : undefined,
+        confirmationPhrase: deleteConfirmationText,
+      };
+
+      const response = await authApi.initiateDeletionRequest(payload);
       if (response.success) {
         setIsDeleteModalOpen(false);
-        toast.success("Account successfully deleted.");
+        toast.success("Account successfully scheduled for deletion. Active sessions invalidated.");
         window.location.assign("/login");
       } else {
-        toast.danger(response.error?.message || "Failed to delete account.");
-        setIsDeleting(false);
+        if (response.errorCode === "ORGANIZATION_OWNER_PREVENT_DELETE" && response.blockingOrganizations) {
+          setBlockingOrganizations(response.blockingOrganizations);
+          setDeletionStep(1); // Force to Step 1 to show remediation cards
+          toast.danger("Cannot delete account: You own active organizations.");
+        } else {
+          toast.danger(response.message || "Failed to delete account.");
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete account:", err);
-      toast.danger("An error occurred during account deletion.");
+      const errMsg = err.response?.data?.message || "An error occurred during account deletion.";
+      toast.danger(errMsg);
+    } finally {
       setIsDeleting(false);
     }
+  };
+
+  const loadLinkedEmails = useCallback(async () => {
+    try {
+      const res = await fetchLinkedEmails();
+      if (res.success && res.data) {
+        const verified = res.data.filter((e: any) => e.isVerified);
+        setLinkedEmails(verified);
+        if (verified.length > 0) {
+          const primary = verified.find((e: any) => e.isPrimary);
+          setSelectedOtpEmail(primary ? primary.email : verified[0].email);
+        } else if (user?.email) {
+          setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
+          setSelectedOtpEmail(user.email);
+        }
+      } else if (user?.email) {
+        setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
+        setSelectedOtpEmail(user.email);
+      }
+    } catch (err) {
+      console.error("Failed to load linked emails:", err);
+      if (user?.email) {
+        setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
+        setSelectedOtpEmail(user.email);
+      }
+    }
+  }, [fetchLinkedEmails, user]);
+
+  const handleSendFallbackOtp = async () => {
+    setIsSendingOtp(true);
+    try {
+      const targetEmail = selectedOtpEmail || user?.email || "";
+      const response = await authApi.sendFallbackOtp(targetEmail);
+      setDeletionOtpChallengeId(response.challengeId);
+      setIsOtpSent(true);
+      setOtpCooldown(response.cooldownSeconds);
+      toast.success(`Email OTP code sent to ${targetEmail}.`);
+    } catch (err: any) {
+      console.error("Failed to send fallback OTP:", err);
+      const errMsg = err.response?.data?.message || "Failed to send fallback OTP code.";
+      toast.danger(errMsg);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleOAuthReauth = () => {
+    const provider = deletionRequirements?.linkedOAuthProvider || "google";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+    window.location.assign(`${apiUrl}/users/me/connect-reauth/${provider}`);
   };
 
   const visibilityOptions = [
@@ -755,8 +912,22 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                 </div>
                 <Button
                   variant="danger"
-                  isDisabled={hasOrganizationOwnership}
-                  onClick={() => setIsDeleteModalOpen(true)}
+                  onClick={() => {
+                    setDeletionStep(1);
+                    setBlockingOrganizations([]);
+                    setDeletionPassword("");
+                    setDeletionOtpCode("");
+                    setIsOtpSent(false);
+                    setDeleteConfirmationText("");
+                    setAgreeToTerms({
+                      hideProfile: false,
+                      gracePeriod: false,
+                      auditAnonymize: false,
+                    });
+                    setIsDeleteModalOpen(true);
+                    loadDeletionRequirements();
+                    loadLinkedEmails();
+                  }}
                   className="font-bold text-xs h-9.5 px-4 rounded-xl flex items-center gap-1.5 select-none"
                 >
                   <Trash2 size={13} />
@@ -962,7 +1133,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           </Modal.Container>
         </Modal.Backdrop>
 
-        {/* 3. Destructive Account Delete Confirmation Modal */}
+        {/* 3. Destructive Account Delete Confirmation Modal (3-Step Wizard) */}
         <Modal.Backdrop
           isOpen={isDeleteModalOpen}
           onOpenChange={setIsDeleteModalOpen}
@@ -984,70 +1155,365 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                 </Modal.Heading>
               </Modal.Header>
               <Modal.Body>
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-start gap-3 text-danger bg-danger-soft border border-danger-soft rounded-xl p-4">
-                    <AlertTriangle size={20} />
-                    <div className="flex flex-col gap-0.5">
-                      <Typography
-                        type="body-xs"
-                        className="font-bold text-danger leading-normal"
-                      >
-                        Warning: This action is completely irreversible.
-                      </Typography>
-                      <Typography
-                        type="body-xs"
-                        className="text-danger leading-relaxed"
-                      >
-                        All active verified credential claims, audit history
-                        logs, portfolio layouts, and login authorizations will
-                        be permanently destroyed.
-                      </Typography>
-                    </div>
+                {/* Step indicator */}
+                <div className="flex items-center justify-between px-1 mb-6 select-none">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${deletionStep >= 1 ? 'bg-accent text-accent-foreground' : 'bg-surface-secondary text-muted'}`}>1</div>
+                    <span className={`text-xs font-bold ${deletionStep >= 1 ? 'text-foreground' : 'text-muted'}`}>Understand</span>
                   </div>
-
-                  <TextField className="w-full">
-                    <Label>
-                      To confirm deletion, please type your username{" "}
-                      <span className="font-bold text-danger font-mono bg-danger-soft border border-danger-soft rounded-md px-1 select-all">
-                        {profile?.username || "username"}
-                      </span>{" "}
-                      below:
-                    </Label>
-                    <InputGroup>
-                      <InputGroup.Input
-                        type="text"
-                        placeholder="Type your username"
-                        value={deleteConfirmationText}
-                        onChange={(e) =>
-                          setDeleteConfirmationText(e.target.value)
-                        }
-                        autoComplete="off"
-                      />
-                    </InputGroup>
-                  </TextField>
+                  <div className="h-px bg-separator flex-1 mx-2" />
+                  <div className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${deletionStep >= 2 ? 'bg-accent text-accent-foreground' : 'bg-surface-secondary text-muted'}`}>2</div>
+                    <span className={`text-xs font-bold ${deletionStep >= 2 ? 'text-foreground' : 'text-muted'}`}>Verify</span>
+                  </div>
+                  <div className="h-px bg-separator flex-1 mx-2" />
+                  <div className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${deletionStep >= 3 ? 'bg-accent text-accent-foreground' : 'bg-surface-secondary text-muted'}`}>3</div>
+                    <span className={`text-xs font-bold ${deletionStep >= 3 ? 'text-foreground' : 'text-muted'}`}>Confirm</span>
+                  </div>
                 </div>
+
+                {/* Step 1 Content: Agreements & Org Remediation */}
+                {deletionStep === 1 && (
+                  <div className="flex flex-col gap-4">
+                    {blockingOrganizations.length > 0 ? (
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-start gap-3 p-4 rounded-xl border border-danger bg-danger-soft text-danger">
+                          <AlertTriangle size={24} className="shrink-0 mt-0.5" />
+                          <div className="flex flex-col gap-1">
+                            <Typography.Heading level={6} className="font-bold text-danger">
+                              Organization Ownership Restriction
+                            </Typography.Heading>
+                            <Typography type="body-xs" className="text-danger leading-relaxed">
+                              You cannot delete your account because you are the owner of active organizations. You must transfer ownership to a verified partner or delete the organizations first.
+                            </Typography>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3">
+                          {blockingOrganizations.map((org) => (
+                            <div key={org.id} className="flex items-center justify-between p-4 rounded-xl border border-separator bg-surface-secondary/40">
+                              <div className="flex flex-col gap-0.5">
+                                <Typography className="font-bold text-sm text-foreground">{org.name}</Typography>
+                                <Typography type="body-xs" className="text-muted text-xs">@{org.username} • {org.memberCount} members</Typography>
+                              </div>
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setIsDeleteModalOpen(false);
+                                  router.push("/settings");
+                                }}
+                                className="text-xs rounded-xl"
+                              >
+                                Manage Ownership
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-start gap-3 text-danger bg-danger-soft border border-danger-soft rounded-xl p-4">
+                          <AlertTriangle size={20} className="shrink-0 mt-0.5" />
+                          <div className="flex flex-col gap-0.5">
+                            <Typography type="body-xs" className="font-bold text-danger leading-normal">
+                              Warning: This action is completely irreversible.
+                            </Typography>
+                            <Typography type="body-xs" className="text-danger leading-relaxed">
+                              All active verified credential claims, audit history logs, portfolio layouts, and login authorizations will be permanently destroyed.
+                            </Typography>
+                          </div>
+                        </div>
+
+                        <Typography type="body-xs" className="text-muted leading-relaxed mt-2">
+                          To proceed, please review and agree to the following terms:
+                        </Typography>
+
+                        <div className="flex flex-col gap-3 py-2">
+                          <label className="flex items-start gap-3 cursor-pointer select-none group py-0.5">
+                            <Checkbox
+                              isSelected={agreeToTerms.hideProfile}
+                              onChange={(checked: boolean) =>
+                                setAgreeToTerms((prev) => ({
+                                  ...prev,
+                                  hideProfile: checked,
+                                }))
+                              }
+                              aria-label="I understand my profile page and credentials will be hidden immediately."
+                              className="cursor-pointer mt-0.5"
+                            >
+                              <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                                <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                                  <svg
+                                    className="w-2.5 h-2.5 fill-none stroke-current stroke-3"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                </Checkbox.Indicator>
+                              </Checkbox.Control>
+                            </Checkbox>
+                            <span className="text-sm text-muted">I understand my profile page and credentials will be hidden immediately.</span>
+                          </label>
+                          <label className="flex items-start gap-3 cursor-pointer select-none group py-0.5">
+                            <Checkbox
+                              isSelected={agreeToTerms.gracePeriod}
+                              onChange={(checked: boolean) =>
+                                setAgreeToTerms((prev) => ({
+                                  ...prev,
+                                  gracePeriod: checked,
+                                }))
+                              }
+                              aria-label="I understand my account will enter a 14-day deactivation period where I can reactivate it."
+                              className="cursor-pointer mt-0.5"
+                            >
+                              <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                                <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                                  <svg
+                                    className="w-2.5 h-2.5 fill-none stroke-current stroke-3"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                </Checkbox.Indicator>
+                              </Checkbox.Control>
+                            </Checkbox>
+                            <span className="text-sm text-muted">I understand my account will enter a 14-day deactivation period where I can reactivate it.</span>
+                          </label>
+                          <label className="flex items-start gap-3 cursor-pointer select-none group py-0.5">
+                            <Checkbox
+                              isSelected={agreeToTerms.auditAnonymize}
+                              onChange={(checked: boolean) =>
+                                setAgreeToTerms((prev) => ({
+                                  ...prev,
+                                  auditAnonymize: checked,
+                                }))
+                              }
+                              aria-label="I understand after 14 days, my account is permanently purged and forensic logs anonymized."
+                              className="cursor-pointer mt-0.5"
+                            >
+                              <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                                <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                                  <svg
+                                    className="w-2.5 h-2.5 fill-none stroke-current stroke-3"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                </Checkbox.Indicator>
+                              </Checkbox.Control>
+                            </Checkbox>
+                            <span className="text-sm text-muted">I understand after 14 days, my account is permanently purged and forensic logs anonymized.</span>
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 2 Content: Verification */}
+                {deletionStep === 2 && deletionRequirements && (
+                  <div className="flex flex-col gap-4 py-2">
+                    {deletionRequirements.requiresPassword && (
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start gap-3 p-3 rounded-xl border border-separator bg-surface-secondary/20">
+                          <KeyRound className="size-5 text-accent mt-0.5 shrink-0" />
+                          <Typography type="body-xs" className="text-muted leading-relaxed">
+                            For security, please verify your identity by entering your account password.
+                          </Typography>
+                        </div>
+                        <TextField className="w-full">
+                          <Label>Password</Label>
+                          <InputGroup>
+                            <InputGroup.Input
+                              type="password"
+                              placeholder="••••••••"
+                              value={deletionPassword}
+                              onChange={(e) => setDeletionPassword(e.target.value)}
+                            />
+                          </InputGroup>
+                        </TextField>
+                      </div>
+                    )}
+
+                    {deletionRequirements.requiresOAuthReauth && (
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-start gap-3 p-3.5 rounded-xl border border-separator bg-surface-secondary/20">
+                          <Mail className="size-5 text-accent mt-0.5 shrink-0" />
+                          <Typography type="body-xs" className="text-muted leading-relaxed">
+                            For security, we must verify your identity. Select a linked verified email address to receive your one-time passcode (OTP).
+                          </Typography>
+                        </div>
+
+                        {!isOtpSent && !isSendingOtp && (
+                          <div className="flex flex-col gap-4 py-2">
+                            {linkedEmails.length >= 1 ? (
+                              <SelectDropdown
+                                label="Verification Destination"
+                                value={selectedOtpEmail}
+                                onChange={(val) => setSelectedOtpEmail(val)}
+                                options={linkedEmails.map((emailObj) => ({
+                                  value: emailObj.email,
+                                  label: emailObj.email,
+                                }))}
+                                placeholder="Select verification destination"
+                              />
+                            ) : (
+                              <Card className="p-3.5 flex flex-col gap-1 border border-separator/80 bg-surface-secondary/20">
+                                <Typography type="body-xs" className="text-muted font-semibold uppercase tracking-wider text-[9px] font-outfit">
+                                  Verification Destination
+                                </Typography>
+                                <Typography className="text-sm font-bold text-foreground font-sans">
+                                  {selectedOtpEmail || user?.email}
+                                </Typography>
+                              </Card>
+                            )}
+
+                            <Button
+                              onClick={handleSendFallbackOtp}
+                              className="w-full font-bold text-xs h-10 px-4 rounded-xl flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors select-none mt-2"
+                            >
+                              <Mail className="size-4" />
+                              Send Verification Code
+                            </Button>
+                          </div>
+                        )}
+
+                        {isSendingOtp && !isOtpSent && (
+                          <div className="flex flex-col items-center justify-center py-8 gap-3">
+                            <Spinner size="md" color="accent" />
+                            <Typography type="body-xs" className="text-muted text-xs">
+                              Sending verification code to {selectedOtpEmail || user?.email}...
+                            </Typography>
+                          </div>
+                        )}
+
+                        {isOtpSent && (
+                          <div className="flex flex-col gap-4 items-center py-2 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex flex-col gap-1 text-center">
+                              <Typography type="body-xs" className="font-bold text-foreground">Verify OTP Code</Typography>
+                              <Typography type="body-xs" className="text-muted text-[11px]">We sent a code to {selectedOtpEmail}.</Typography>
+                            </div>
+
+                            <OtpInput
+                              value={deletionOtpCode}
+                              onChange={(val) => setDeletionOtpCode(val)}
+                              length={6}
+                            />
+
+                            <div className="mt-2 text-center">
+                              {otpCooldown > 0 ? (
+                                <Typography type="body-xs" className="text-muted text-xs">
+                                  Resend code in {otpCooldown}s
+                                </Typography>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  isDisabled={isSendingOtp}
+                                  onClick={handleSendFallbackOtp}
+                                  className="text-accent font-bold text-xs"
+                                >
+                                  Resend verification email
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 3 Content: Confirmation phrase */}
+                {deletionStep === 3 && (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start gap-3 text-warning bg-warning/5 border border-warning/15 rounded-xl p-4">
+                      <CheckCircle2 size={20} className="text-warning shrink-0 mt-0.5" />
+                      <div className="flex flex-col gap-0.5">
+                        <Typography type="body-xs" className="font-bold text-warning leading-normal">
+                          Final Confirmation: Double Consent Required
+                        </Typography>
+                        <Typography type="body-xs" className="text-muted text-xs leading-relaxed">
+                          Your account will be placed in a 14-day deactivation grace period. Type the phrase <strong>delete my account</strong> below to confirm.
+                        </Typography>
+                      </div>
+                    </div>
+
+                    <TextField className="w-full">
+                      <Label>
+                        Please type <span className="font-bold text-danger font-mono bg-danger-soft border border-danger-soft rounded-md px-1 select-all">delete my account</span> below:
+                      </Label>
+                      <InputGroup>
+                        <InputGroup.Input
+                          type="text"
+                          placeholder="delete my account"
+                          value={deleteConfirmationText}
+                          onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                          autoComplete="off"
+                        />
+                      </InputGroup>
+                    </TextField>
+                  </div>
+                )}
               </Modal.Body>
               <Modal.Footer className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator">
                 <Button
                   variant="outline"
                   onClick={() => setIsDeleteModalOpen(false)}
-                  className="rounded-xl"
+                  className="rounded-xl text-xs font-bold"
                 >
                   Cancel
                 </Button>
-                <Button
-                  variant="danger"
-                  isDisabled={
-                    isDeleting ||
-                    deleteConfirmationText !== (profile?.username || "")
-                  }
-                  isPending={isDeleting}
-                  onClick={handleDeleteAccount}
-                  className="rounded-xl"
-                >
-                  <Trash2 />
-                  Permanently Erase
-                </Button>
+
+                {deletionStep === 1 && (
+                  <Button
+                    variant="danger"
+                    isDisabled={
+                      blockingOrganizations.length > 0 ||
+                      !agreeToTerms.hideProfile ||
+                      !agreeToTerms.gracePeriod ||
+                      !agreeToTerms.auditAnonymize
+                    }
+                    onClick={() => {
+                      setDeletionStep(2);
+                      if (deletionRequirements?.requiresOAuthReauth && !isOtpSent) {
+                        handleSendFallbackOtp();
+                      }
+                    }}
+                    className="rounded-xl text-xs font-bold"
+                  >
+                    Continue to Verification
+                    <ArrowRight size={13} className="ml-1" />
+                  </Button>
+                )}
+
+                {deletionStep === 2 && (
+                  <Button
+                    variant="danger"
+                    isDisabled={
+                      (deletionRequirements?.requiresPassword && !deletionPassword) ||
+                      (deletionRequirements?.requiresOAuthReauth && (!isOtpSent || deletionOtpCode.length !== 6))
+                    }
+                    onClick={() => setDeletionStep(3)}
+                    className="rounded-xl text-xs font-bold"
+                  >
+                    Continue to Confirm
+                    <ArrowRight size={13} className="ml-1" />
+                  </Button>
+                )}
+
+                {deletionStep === 3 && (
+                  <Button
+                    variant="danger"
+                    isDisabled={isDeleting || deleteConfirmationText !== "delete my account"}
+                    isPending={isDeleting}
+                    onClick={handleDeleteAccount}
+                    className="rounded-xl text-xs font-bold"
+                  >
+                    <Trash2 size={13} />
+                    Permanently Erase
+                  </Button>
+                )}
               </Modal.Footer>
             </Modal.Dialog>
           </Modal.Container>

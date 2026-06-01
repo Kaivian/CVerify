@@ -148,4 +148,34 @@ export interface PendingLinkDetailsResponseData {
   providerProfileUrl: string | null;
 }
 
+export interface DeletionRequirementsDto {
+  requiresPassword: boolean;
+  requiresOAuthReauth: boolean;
+  linkedOAuthProvider: string | null;
+}
 
+export interface InitiateDeletionRequest {
+  password?: string;
+  deletionAuthorizeToken?: string;
+  fallbackOtpCode?: string;
+  fallbackOtpChallengeId?: string;
+  confirmationPhrase: string;
+}
+
+export interface BlockingOrganizationDto {
+  id: string;
+  name: string;
+  username: string;
+  memberCount: number;
+}
+
+export interface DeletionInitiationResponse {
+  success: boolean;
+  errorCode: string | null;
+  message: string | null;
+  blockingOrganizations: BlockingOrganizationDto[] | null;
+}
+
+export interface ReactivateRequest {
+  reactivationToken: string;
+}

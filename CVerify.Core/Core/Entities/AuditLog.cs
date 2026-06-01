@@ -25,6 +25,9 @@ public class AuditLog
     [MaxLength(45)]
     public string? IpAddress { get; set; }
 
+    [MaxLength(64)]
+    public string? AnonymizedActorHash { get; set; }
+
     [MaxLength(500)]
     public string? UserAgent { get; set; }
 

@@ -173,6 +173,23 @@ public class AuthService : IAuthService
             return null;
         }
 
+        if (user.Status == UserStatus.DELETION_PENDING)
+        {
+            if (!VerifyPassword(user, user.PasswordHash, request.Password))
+            {
+                _metrics.RecordLoginFailed();
+                await LogAuditEventAsync(user.Id, "USER_LOGIN_FAILED_CREDENTIALS", $"Invalid password login attempt for deactivated user {user.Email}.");
+                return null;
+            }
+
+            var userRoles = await _identityRepository.GetUserRolesAsync(user.Id);
+            var userPermissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
+            var reactivationToken = Guid.NewGuid().ToString("N");
+            await _cacheService.SetAsync($"reactivate:token:{reactivationToken}", user.Id.ToString(), TimeSpan.FromMinutes(10));
+
+            return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, userRoles, userPermissions, user.EmailVerifiedAt.HasValue, "DELETION_PENDING", $"REACTIVATE:{reactivationToken}", null, !string.IsNullOrEmpty(user.PasswordHash));
+        }
+
         if (_accountService.IsAccountDisabled(user))
         {
             _metrics.RecordLoginFailed();
@@ -375,6 +392,16 @@ public class AuthService : IAuthService
                 }
                 else
                 {
+                    if (user.Status == UserStatus.DELETION_PENDING)
+                    {
+                        var userRoles = await _identityRepository.GetUserRolesAsync(user.Id);
+                        var userPermissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
+                        var reactivationToken = Guid.NewGuid().ToString("N");
+                        await _cacheService.SetAsync($"reactivate:token:{reactivationToken}", user.Id.ToString(), TimeSpan.FromMinutes(10));
+
+                        return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, userRoles, userPermissions, user.EmailVerifiedAt.HasValue, "DELETION_PENDING", $"REACTIVATE:{reactivationToken}", null, !string.IsNullOrEmpty(user.PasswordHash));
+                    }
+
                     if (_accountService.IsAccountDisabled(user))
                     {
                         _metrics.RecordLoginFailed();
@@ -459,6 +486,18 @@ public class AuthService : IAuthService
                 await LogAuditEventAsync(user.Id, "USER_GOOGLE_LOGIN_SUCCESS", $"User {user.Email} logged in successfully via Google OAuth.");
 
                 return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD");
+            }
+            catch (AuthException ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogWarning(ex, "[CorrelationID: {CorrelationId}] Google login transaction blocked: {Message}", correlationId, ex.Message);
+                throw;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogWarning(ex, "[CorrelationID: {CorrelationId}] Google login transaction unauthorized: {Message}", correlationId, ex.Message);
+                throw;
             }
             catch (Exception ex)
             {
@@ -1409,7 +1448,7 @@ public class AuthService : IAuthService
             throw new BusinessRuleException("ORGANIZATION_OWNER_PREVENT_DELETE", "Cannot delete account because you are the owner of one or more active organizations. Transfer ownership or delete the organizations first.");
         }
 
-        // Perform soft deletion
+        // Perform soft deletion (setting DELETED directly for legacy test compatibility)
         user.DeletedAt = _timeProvider.GetUtcNow();
         user.Status = UserStatus.DELETED;
 
@@ -1451,6 +1490,7 @@ public class AuthService : IAuthService
         // Clean up cache
         await _cacheService.RemoveAsync($"auth:user:{userId}:roles");
         await _cacheService.RemoveAsync($"auth:user:{userId}:permissions");
+        await _cacheService.RemoveAsync($"auth:user:{userId}:session_version");
 
         // Structured security audit log
         _logger.LogWarning("SECURITY AUDIT: User account {UserId} ({Email}) was soft-deleted.", userId, user.Email);
@@ -1463,6 +1503,499 @@ public class AuthService : IAuthService
         _tokenService.RemoveTokenFromCookie("refresh_token");
 
         return true;
+    }
+
+    public async Task<DeletionRequirementsDto> GetDeletionRequirementsAsync(Guid userId)
+    {
+        var user = await _context.Users
+            .Include(u => u.AuthProviders)
+            .Include(u => u.PasswordCredentials)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+            
+        if (user == null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
+        }
+
+        var requiresPassword = !string.IsNullOrEmpty(user.PasswordHash) || user.PasswordCredentials.Any(pc => pc.DeletedAt == null && pc.IsActive);
+        var activeProviders = user.AuthProviders.Where(ap => ap.DeletedAt == null).ToList();
+        var requiresOAuthReauth = !requiresPassword && activeProviders.Any();
+        var linkedProvider = activeProviders.FirstOrDefault()?.ProviderName;
+
+        return new DeletionRequirementsDto(requiresPassword, requiresOAuthReauth, linkedProvider);
+    }
+
+    public async Task<DeletionInitiationResponse> InitiateDeletionAsync(Guid userId, InitiateDeletionRequest request)
+    {
+        var user = await _context.Users
+            .Include(u => u.AuthProviders)
+            .Include(u => u.PasswordCredentials)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null || user.DeletedAt != null)
+        {
+            return new DeletionInitiationResponse(false, "USER_NOT_FOUND", "User not found.");
+        }
+
+        if (user.IsLegalHold)
+        {
+            return new DeletionInitiationResponse(false, "LEGAL_HOLD_PREVENT_DELETE", "Cannot delete account due to a legal/compliance hold.");
+        }
+
+        if (string.IsNullOrEmpty(request.ConfirmationPhrase) || !string.Equals(request.ConfirmationPhrase.Trim(), "delete my account", StringComparison.OrdinalIgnoreCase))
+        {
+            return new DeletionInitiationResponse(false, "INVALID_CONFIRMATION_PHRASE", "You must type the exact confirmation phrase.");
+        }
+
+        // Concurrency Lock
+        var lockKey = $"lock:delete:{user.Email}";
+        var lockValue = Guid.NewGuid().ToString("N");
+        var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
+        if (!acquired)
+        {
+            return new DeletionInitiationResponse(false, "CONCURRENCY_CONFLICT", "A deletion request is already being processed.");
+        }
+
+        try
+        {
+            // Organization Ownership check
+            var ownedOrgs = await _context.OrganizationAuthorities
+                .Include(oa => oa.Organization)
+                .Where(oa => oa.UserId == userId && oa.Role == "organization_owner" && oa.Organization.DeletedAt == null)
+                .Select(oa => oa.Organization)
+                .ToListAsync();
+
+            if (ownedOrgs.Any())
+            {
+                var blockingOrgs = new List<BlockingOrganizationDto>();
+                foreach (var org in ownedOrgs)
+                {
+                    var memberCount = await _context.OrganizationAuthorities.CountAsync(oa => oa.OrganizationId == org.Id && oa.Organization.DeletedAt == null);
+                    blockingOrgs.Add(new BlockingOrganizationDto(org.Id, org.Name, org.Username, memberCount));
+                }
+                return new DeletionInitiationResponse(false, "ORGANIZATION_OWNER_PREVENT_DELETE", "Cannot delete account because you own active organizations.", blockingOrgs);
+            }
+
+            // Re-authentication verification
+            var requirements = await GetDeletionRequirementsAsync(userId);
+            if (requirements.RequiresPassword)
+            {
+                if (string.IsNullOrEmpty(request.Password))
+                {
+                    return new DeletionInitiationResponse(false, "PASSWORD_REQUIRED", "Password is required for identity verification.");
+                }
+                bool isPasswordValid = false;
+                if (!string.IsNullOrEmpty(user.PasswordHash))
+                {
+                    isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+                }
+                if (!isPasswordValid)
+                {
+                    var activeCred = user.PasswordCredentials.FirstOrDefault(pc => pc.DeletedAt == null && pc.IsActive);
+                    if (activeCred != null)
+                    {
+                        isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, activeCred.PasswordHash);
+                    }
+                }
+                if (!isPasswordValid)
+                {
+                    return new DeletionInitiationResponse(false, "INVALID_PASSWORD", "The password you entered is incorrect.");
+                }
+            }
+            else if (requirements.RequiresOAuthReauth)
+            {
+                bool isReauthValid = false;
+                if (!string.IsNullOrEmpty(request.DeletionAuthorizeToken))
+                {
+                    var tokenCacheKey = $"reauth:deletion-token:{userId}";
+                    var storedToken = await _cacheService.GetAsync<string>(tokenCacheKey);
+                    if (!string.IsNullOrEmpty(storedToken) && storedToken == request.DeletionAuthorizeToken)
+                    {
+                        isReauthValid = true;
+                        await _cacheService.RemoveAsync(tokenCacheKey);
+                    }
+                }
+                if (!isReauthValid && !string.IsNullOrEmpty(request.FallbackOtpCode) && request.FallbackOtpChallengeId.HasValue)
+                {
+                    try
+                    {
+                        var verifyRequest = new VerifyOtpRequest(request.FallbackOtpChallengeId.Value, user.Email, request.FallbackOtpCode, "ACCOUNT_DELETION");
+                        await VerifyOtpAsync(verifyRequest, default);
+                        isReauthValid = true;
+                    }
+                    catch
+                    {
+                        isReauthValid = false;
+                    }
+                }
+
+                if (!isReauthValid)
+                {
+                    return new DeletionInitiationResponse(false, "REAUTHENTICATION_REQUIRED", "Re-authentication or OTP verification is required.");
+                }
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                user.TransitionTo(UserStatus.DELETION_PENDING);
+                user.DeletedAt = _timeProvider.GetUtcNow();
+                user.SessionVersion++;
+
+                var activeProviders = await _context.AuthProviders
+                    .Where(ap => ap.UserId == userId && ap.DeletedAt == null)
+                    .ToListAsync();
+                foreach (var ap in activeProviders)
+                {
+                    ap.DeletedAt = _timeProvider.GetUtcNow();
+                }
+
+                var refreshTokens = await _context.RefreshTokens.Where(t => t.UserId == userId).ToListAsync();
+                foreach (var token in refreshTokens)
+                {
+                    token.RevokedAt = _timeProvider.GetUtcNow();
+                }
+
+                var verificationTokens = await _context.VerificationTokens.Where(t => t.UserId == userId && t.ConsumedAt == null).ToListAsync();
+                foreach (var vt in verificationTokens)
+                {
+                    vt.ConsumedAt = _timeProvider.GetUtcNow();
+                }
+
+                var resetTokens = await _context.ResetPasswordTokens.Where(t => t.UserId == userId && t.ConsumedAt == null).ToListAsync();
+                foreach (var rt in resetTokens)
+                {
+                    rt.ConsumedAt = _timeProvider.GetUtcNow();
+                }
+
+                await _cacheService.RemoveAsync($"auth:user:{userId}:roles");
+                await _cacheService.RemoveAsync($"auth:user:{userId}:permissions");
+                await _cacheService.RemoveAsync($"auth:user:{userId}:session_version");
+
+                var reactivateDeadline = user.DeletedAt.Value.AddDays(14);
+                var payloadObj = new
+                {
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    ReactivateDeadline = reactivateDeadline,
+                    CorrelationId = Guid.NewGuid().ToString("N")
+                };
+                var outboxMessage = new OutboxMessage
+                {
+                    Type = "AccountDeletionInitiated",
+                    Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
+                    CreatedAt = _timeProvider.GetUtcNow()
+                };
+                _context.OutboxMessages.Add(outboxMessage);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogWarning("SECURITY AUDIT: User account {UserId} ({Email}) deactivation/deletion initiated.", userId, user.Email);
+                await LogAuditEventAsync(userId, "USER_DELETED_INITIATED", $"User account {user.Email} deactivation/deletion initiated. Scheduled purge on {reactivateDeadline:yyyy-MM-dd HH:mm} UTC.");
+
+                _tokenService.RemoveTokenFromCookie("access_token");
+                _tokenService.RemoveTokenFromCookie("refresh_token");
+
+                return new DeletionInitiationResponse(true, null, "Account deactivation initiated. Your account will be purged in 14 days.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Transaction failed for initiating account deletion for user {UserId}", userId);
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+        finally
+        {
+            await _cacheService.ReleaseLockAsync(lockKey, lockValue);
+        }
+    }
+
+    public async Task<AuthResponse?> ReactivateAccountAsync(string reactivationToken, CancellationToken cancellationToken = default)
+    {
+        var tokenCacheKey = $"reactivate:token:{reactivationToken}";
+        var userIdStr = await _cacheService.GetAsync<string>(tokenCacheKey);
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+        {
+            _logger.LogWarning("Invalid or expired reactivation token.");
+            return null;
+        }
+        await _cacheService.RemoveAsync(tokenCacheKey);
+
+        var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null || user.Status != UserStatus.DELETION_PENDING)
+        {
+            _logger.LogWarning("Reactivation failed: user not found or not pending deletion.");
+            return null;
+        }
+
+        using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            user.TransitionTo(UserStatus.ACTIVE);
+            user.DeletedAt = null;
+            user.SessionVersion++;
+
+            var softDeletedProviders = await _context.AuthProviders
+                .IgnoreQueryFilters()
+                .Where(ap => ap.UserId == userId && ap.DeletedAt != null)
+                .ToListAsync(cancellationToken);
+            foreach (var ap in softDeletedProviders)
+            {
+                ap.DeletedAt = null;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            _logger.LogInformation("SECURITY AUDIT: User account {UserId} ({Email}) has reactivated their account.", userId, user.Email);
+            await LogAuditEventAsync(userId, "USER_DELETED_CANCELLED", $"User account {user.Email} deactivation cancelled. Account reactivated.");
+
+            var roles = await _identityRepository.GetUserRolesAsync(user.Id);
+            var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
+
+            await CacheUserAuthDataAsync(user.Id, roles, permissions);
+
+            var sessionId = Guid.CreateVersion7();
+            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
+            var refreshTokenStr = _tokenService.GenerateRefreshToken();
+
+            await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
+
+            var refreshExpiry = DateTime.UtcNow.AddHours(24);
+            _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
+            _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, refreshExpiry);
+
+            return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reactivate user account {UserId}", userId);
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<string> GetOAuthReauthUrlAsync(Guid userId, string providerName, string baseUri)
+    {
+        var canonicalName = providerName.ToLowerInvariant();
+        if (canonicalName != "github" && canonicalName != "gitlab" && canonicalName != "google")
+        {
+            throw new BusinessRuleException("INVALID_PROVIDER", $"Unsupported provider: {providerName}");
+        }
+
+        var state = Guid.NewGuid().ToString("N");
+        var cacheKey = $"reauth:state:{userId}:{canonicalName}";
+        await _cacheService.SetAsync(cacheKey, state, TimeSpan.FromMinutes(5));
+
+        var combinedState = $"{userId}:{state}";
+        var callbackUri = $"{baseUri.TrimEnd('/')}/api/users/me/callback-reauth/{canonicalName}";
+
+        string redirectUrl;
+        if (canonicalName == "github")
+        {
+            var clientId = _envConfig.Auth.GithubClientId;
+            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org&state={combinedState}&prompt=consent";
+        }
+        else if (canonicalName == "gitlab")
+        {
+            var clientId = _envConfig.Auth.GitlabClientId;
+            redirectUrl = $"https://gitlab.com/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&response_type=code&state={combinedState}&scope=read_api%20read_repository";
+        }
+        else // google
+        {
+            var clientId = _envConfig.Auth.GoogleClientId;
+            redirectUrl = $"https://accounts.google.com/o/oauth2/v2/auth?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&response_type=code&scope=openid%20email%20profile&state={combinedState}&prompt=select_account";
+        }
+
+        return redirectUrl;
+    }
+
+    public async Task<string> ProcessOAuthReauthCallbackAsync(string providerName, string code, string state, CancellationToken cancellationToken)
+    {
+        var canonicalName = providerName.ToLowerInvariant();
+        var parts = state.Split(':');
+        if (parts.Length != 2 || !Guid.TryParse(parts[0], out var userId))
+        {
+            throw new AuthException(AuthErrorCodes.InvalidToken, "State parameter is malformed.");
+        }
+        var stateToken = parts[1];
+
+        var cacheKey = $"reauth:state:{userId}:{canonicalName}";
+        var storedState = await _cacheService.GetAsync<string>(cacheKey);
+        if (string.IsNullOrEmpty(storedState) || storedState != stateToken)
+        {
+            throw new AuthException(AuthErrorCodes.InvalidToken, "State parameter mismatch or expired.");
+        }
+        await _cacheService.RemoveAsync(cacheKey);
+
+        var user = await _context.Users
+            .Include(u => u.AuthProviders)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user == null || user.DeletedAt != null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
+        }
+
+        var activeProvider = user.AuthProviders
+            .FirstOrDefault(ap => ap.ProviderName.ToLower() == canonicalName && ap.DeletedAt == null);
+        if (activeProvider == null)
+        {
+            throw new BusinessRuleException("PROVIDER_NOT_LINKED", "This login provider is not active for this account.");
+        }
+
+        string providerKey = "";
+        var baseUri = string.IsNullOrEmpty(_envConfig.Auth.BackendUrl) 
+            ? $"{_httpContextAccessor.HttpContext?.Request.Scheme}://{_httpContextAccessor.HttpContext?.Request.Host}" 
+            : _envConfig.Auth.BackendUrl.TrimEnd('/');
+        var callbackUri = $"{baseUri}/api/users/me/callback-reauth/{canonicalName}";
+
+        var httpClient = _httpClientFactory.CreateClient();
+
+        if (canonicalName == "github")
+        {
+            var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                { "client_id", _envConfig.Auth.GithubClientId ?? "" },
+                { "client_secret", _envConfig.Auth.GithubClientSecret ?? "" },
+                { "code", code },
+                { "redirect_uri", callbackUri }
+            });
+            var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://github.com/login/oauth/access_token") { Content = content };
+            tokenRequest.Headers.Accept.ParseAdd("application/json");
+
+            var tokenResponse = await httpClient.SendAsync(tokenRequest, cancellationToken);
+            if (!tokenResponse.IsSuccessStatusCode) throw new AuthException(AuthErrorCodes.InvalidToken, "OAuth token exchange failed.");
+
+            var jsonStr = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+            var tokenData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jsonStr);
+            var accessToken = tokenData?["access_token"]?.ToString();
+
+            var profileRequest = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/user");
+            profileRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            profileRequest.Headers.UserAgent.ParseAdd("CVerify-Core");
+
+            var profileResponse = await httpClient.SendAsync(profileRequest, cancellationToken);
+            if (!profileResponse.IsSuccessStatusCode) throw new AuthException(AuthErrorCodes.InvalidToken, "Failed to retrieve provider profile.");
+
+            var profileJson = await profileResponse.Content.ReadAsStringAsync(cancellationToken);
+            var profileData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(profileJson);
+            providerKey = profileData?["id"]?.ToString() ?? "";
+        }
+        else if (canonicalName == "gitlab")
+        {
+            var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                { "client_id", _envConfig.Auth.GitlabClientId ?? "" },
+                { "client_secret", _envConfig.Auth.GitlabClientSecret ?? "" },
+                { "code", code },
+                { "grant_type", "authorization_code" },
+                { "redirect_uri", callbackUri }
+            });
+            var tokenResponse = await httpClient.PostAsync("https://gitlab.com/oauth/token", content, cancellationToken);
+            if (!tokenResponse.IsSuccessStatusCode) throw new AuthException(AuthErrorCodes.InvalidToken, "OAuth token exchange failed.");
+
+            var jsonStr = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+            var tokenData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jsonStr);
+            var accessToken = tokenData?["access_token"]?.ToString();
+
+            var profileRequest = new HttpRequestMessage(HttpMethod.Get, "https://gitlab.com/api/v4/user");
+            profileRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            var profileResponse = await httpClient.SendAsync(profileRequest, cancellationToken);
+            if (!profileResponse.IsSuccessStatusCode) throw new AuthException(AuthErrorCodes.InvalidToken, "Failed to retrieve provider profile.");
+
+            var profileJson = await profileResponse.Content.ReadAsStringAsync(cancellationToken);
+            var profileData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(profileJson);
+            providerKey = profileData?["id"]?.ToString() ?? "";
+        }
+        else if (canonicalName == "google")
+        {
+            var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                { "client_id", _envConfig.Auth.GoogleClientId ?? "" },
+                { "client_secret", _envConfig.Auth.GoogleClientSecret ?? "" },
+                { "code", code },
+                { "grant_type", "authorization_code" },
+                { "redirect_uri", callbackUri }
+            });
+            var tokenResponse = await httpClient.PostAsync("https://oauth2.googleapis.com/token", content, cancellationToken);
+            if (!tokenResponse.IsSuccessStatusCode) throw new AuthException(AuthErrorCodes.InvalidToken, "OAuth token exchange failed.");
+
+            var jsonStr = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+            var tokenData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jsonStr);
+            var accessToken = tokenData?["access_token"]?.ToString();
+
+            var profileResponse = await httpClient.GetAsync($"https://www.googleapis.com/oauth2/v3/userinfo?access_token={accessToken}", cancellationToken);
+            if (!profileResponse.IsSuccessStatusCode) throw new AuthException(AuthErrorCodes.InvalidToken, "Failed to retrieve provider profile.");
+
+            var profileJson = await profileResponse.Content.ReadAsStringAsync(cancellationToken);
+            var profileData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(profileJson);
+            providerKey = profileData?["sub"]?.ToString() ?? "";
+        }
+
+        if (string.IsNullOrEmpty(providerKey) || providerKey != activeProvider.ProviderKey)
+        {
+            throw new AuthException(AuthErrorCodes.InvalidToken, "The re-authenticated provider account does not match this CVerify profile.");
+        }
+
+        var deletionAuthToken = Guid.NewGuid().ToString("N");
+        var tokenCacheKey = $"reauth:deletion-token:{userId}";
+        await _cacheService.SetAsync(tokenCacheKey, deletionAuthToken, TimeSpan.FromMinutes(5));
+
+        return deletionAuthToken;
+    }
+
+    public async Task<SendOtpResponse> InitiateFallbackOtpAsync(Guid userId, FallbackOtpRequest request, CancellationToken cancellationToken)
+    {
+        var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null || user.DeletedAt != null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
+        }
+
+        var primaryEmail = user.Email.Trim().ToLowerInvariant();
+        var normalizedTarget = request.Email.Trim().ToLowerInvariant();
+
+        var linkedEmails = await _context.UserEmails
+            .Where(le => le.UserId == userId && le.IsVerified)
+            .Select(le => le.Email)
+            .ToListAsync(cancellationToken);
+
+        bool isValidDestination = string.Equals(primaryEmail, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
+                                  linkedEmails.Any(le => string.Equals(le.Trim().ToLowerInvariant(), normalizedTarget, StringComparison.OrdinalIgnoreCase));
+
+        if (!isValidDestination)
+        {
+            throw new InvalidOperationException("The requested email is not a verified email address linked to this account.");
+        }
+
+        // Verification Security Notification: If using a secondary email, dispatch warning to primary email
+        if (!string.Equals(primaryEmail, normalizedTarget, StringComparison.OrdinalIgnoreCase))
+        {
+            var alertPayload = new
+            {
+                Email = user.Email,
+                Subject = "Security Alert: Account Deletion OTP Requested",
+                Body = $"A one-time passcode was requested to authorize the deletion of your CVerify account. The code was dispatched to your linked secondary address: {normalizedTarget}. If you did not authorize this, please immediately secure your account credentials."
+            };
+
+            var outboxMessage = new OutboxMessage
+            {
+                Type = "SecurityAlertNotice",
+                Payload = System.Text.Json.JsonSerializer.Serialize(alertPayload),
+                CreatedAt = _timeProvider.GetUtcNow()
+            };
+
+            _context.OutboxMessages.Add(outboxMessage);
+        }
+
+        var ipAddress = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var userAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString() ?? "CVerify-Client";
+
+        var sendRequest = new SendOtpRequest(normalizedTarget, "ACCOUNT_DELETION");
+        return await SendOtpAsync(sendRequest, userAgent, ipAddress, cancellationToken);
     }
 
     private async Task LogAuditEventAsync(Guid? userId, string eventType, string description)

@@ -313,6 +313,40 @@ public class EmailService : IEmailService
         await _emailSender.SendEmailAsync(message, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task SendSecurityAlertEmailAsync(
+        string toEmail,
+        string alertSubject,
+        string alertBody,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(toEmail);
+        ArgumentException.ThrowIfNullOrWhiteSpace(alertSubject);
+        ArgumentException.ThrowIfNullOrWhiteSpace(alertBody);
+
+        var correlationId = Guid.NewGuid().ToString("N");
+
+        var htmlBody = $@"
+            <div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 10px;'>
+                <h2 style='color: #dc3545;'>{alertSubject}</h2>
+                <p style='font-size: 14px; line-height: 1.6; color: #333;'>{alertBody}</p>
+                <hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;' />
+                <p style='font-size: 11px; color: #888;'>This is an automated security notification from CVerify. If you did not request this, please secure your account immediately.</p>
+            </div>";
+
+        var message = new EmailMessage(
+            ToEmail: toEmail,
+            ToName: "CVerify User",
+            Subject: alertSubject + " - CVerify",
+            HtmlContent: htmlBody,
+            PlainTextContent: alertBody,
+            CorrelationId: correlationId,
+            Category: EmailCategory.Security
+        );
+
+        await _emailSender.SendEmailAsync(message, cancellationToken).ConfigureAwait(false);
+    }
+
     private static string ComputeSha256(string rawData)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawData));

@@ -207,6 +207,129 @@ public class AuthController : ControllerBase
         throw new BusinessRuleException("ACCOUNT_DELETION_FAILED", "Account deletion failed.");
     }
 
+    [HttpGet("/api/users/me/deletion-requirements")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeletionRequirementsDto))]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetDeletionRequirements()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+        var requirements = await _authService.GetDeletionRequirementsAsync(userId);
+        return Ok(requirements);
+    }
+
+    [HttpPost("/api/users/me/delete-request")]
+    [Authorize]
+    [EnableRateLimiting("ResetPasswordLimit")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(DeletionInitiationResponse))]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> InitiateDeletion([FromBody] InitiateDeletionRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+        var response = await _authService.InitiateDeletionAsync(userId, request);
+        if (response.Success)
+        {
+            return Ok(response);
+        }
+        return BadRequest(response);
+    }
+
+    [HttpPost("/api/users/me/fallback-otp")]
+    [Authorize]
+    [EnableRateLimiting("ForgotPasswordLimit")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SendOtpResponse))]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> InitiateFallbackOtp([FromBody] FallbackOtpRequest request)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+        var response = await _authService.InitiateFallbackOtpAsync(userId, request, HttpContext.RequestAborted);
+        return Ok(response);
+    }
+
+    [HttpGet("/api/users/me/connect-reauth/{providerName}")]
+    [Authorize]
+    [EnableRateLimiting("ForgotPasswordLimit")]
+    public async Task<IActionResult> ConnectReauth(string providerName)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+        var envConfig = HttpContext.RequestServices.GetRequiredService<EnvConfiguration>();
+        var baseUri = string.IsNullOrEmpty(envConfig.Auth.BackendUrl) 
+            ? $"{Request.Scheme}://{Request.Host}" 
+            : envConfig.Auth.BackendUrl.TrimEnd('/');
+
+        try
+        {
+            var redirectUrl = await _authService.GetOAuthReauthUrlAsync(userId, providerName, baseUri);
+            return Redirect(redirectUrl);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("/api/users/me/callback-reauth/{providerName}")]
+    [AllowAnonymous]
+    [EnableRateLimiting("ForgotPasswordLimit")]
+    public async Task<IActionResult> OAuthReauthCallback(string providerName, [FromQuery] string code, [FromQuery] string state, CancellationToken cancellationToken)
+    {
+        var envConfig = HttpContext.RequestServices.GetRequiredService<EnvConfiguration>();
+        var parts = state.Split(':');
+        if (parts.Length != 2 || !Guid.TryParse(parts[0], out var userId))
+        {
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=state_mismatch");
+        }
+
+        try
+        {
+            var deletionAuthToken = await _authService.ProcessOAuthReauthCallbackAsync(providerName, code, state, cancellationToken);
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&reauth_success=true&deletion_authorize_token={deletionAuthToken}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "OAuth re-authentication callback failed.");
+            return Redirect($"{envConfig.Auth.FrontendUrl}/settings?tab=account&error=reauth_failed&details={Uri.EscapeDataString(ex.Message)}");
+        }
+    }
+
+    [HttpPost("reactivate")]
+    [AllowAnonymous]
+    [EnableRateLimiting("ResetPasswordLimit")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AuthResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReactivateAccount([FromBody] ReactivateRequest request)
+    {
+        if (string.IsNullOrEmpty(request.ReactivationToken))
+        {
+            return BadRequest(new { message = "Reactivation token is required." });
+        }
+        var response = await _authService.ReactivateAccountAsync(request.ReactivationToken, HttpContext.RequestAborted);
+        if (response != null)
+        {
+            return Ok(response);
+        }
+        return BadRequest(new { message = "Failed to reactivate account. Token may be expired or invalid." });
+    }
+
     [HttpGet("providers")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<LinkedProviderDto>))]

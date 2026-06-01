@@ -17,6 +17,7 @@ public class SecuritySettings
 {
     public bool DisableRateLimits { get; set; } = false;
     public string? TokenEncryptionKey { get; set; }
+    public string? ServerSalt { get; set; }
 }
 
 
