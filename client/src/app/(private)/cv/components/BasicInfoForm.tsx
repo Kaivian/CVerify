@@ -257,17 +257,15 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
               />
               {latestAssessment && (latestAssessment.summaryHeadline || (latestAssessment.careerLevelLabel && latestAssessment.primaryTendency)) && (
                 <Dropdown>
-                  <Dropdown.Trigger>
-                    <Button
-                      size="md"
-                      variant="secondary"
-                      className="rounded-xl border border-border/30 h-10 shrink-0 font-bold text-xs flex items-center gap-1.5"
-                      type="button"
-                    >
-                      <Sparkles className="size-3.5 text-primary animate-pulse" />
-                      <span>AI Suggestions</span>
-                    </Button>
-                  </Dropdown.Trigger>
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    className="rounded-xl border border-border/30 h-10 shrink-0 font-bold text-xs flex items-center gap-1.5"
+                    type="button"
+                  >
+                    <Sparkles className="size-3.5 text-primary animate-pulse" />
+                    <span>AI Suggestions</span>
+                  </Button>
                   <Dropdown.Popover
                     placement="bottom end"
                     className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[240px] outline-hidden z-50 font-outfit"

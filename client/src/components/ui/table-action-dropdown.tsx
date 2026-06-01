@@ -69,18 +69,16 @@ export const TableActionDropdown: React.FC<TableActionDropdownProps> = ({
   return (
     <>
       <Dropdown>
-        <Dropdown.Trigger>
-          <HeroButton
-            ref={triggerRef}
-            isIconOnly
-            variant="outline"
-            size="sm"
-            aria-label={triggerAriaLabel}
-            className="h-8 w-8 min-w-8 rounded-lg bg-transparent hover:bg-surface-secondary/60 text-muted hover:text-foreground cursor-pointer focus-ring transition-all duration-150 flex items-center justify-center"
-          >
-            <MoreHorizontal size={15} />
-          </HeroButton>
-        </Dropdown.Trigger>
+        <HeroButton
+          ref={triggerRef}
+          isIconOnly
+          variant="outline"
+          size="sm"
+          aria-label={triggerAriaLabel}
+          className="h-8 w-8 min-w-8 rounded-lg bg-transparent hover:bg-surface-secondary/60 text-muted hover:text-foreground cursor-pointer focus-ring transition-all duration-150 flex items-center justify-center"
+        >
+          <MoreHorizontal size={15} />
+        </HeroButton>
         <Dropdown.Popover
           placement={align === 'end' ? 'bottom end' : 'bottom start'}
           className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] outline-hidden animate-in fade-in duration-100 z-50 font-outfit"
