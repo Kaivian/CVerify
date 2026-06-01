@@ -397,17 +397,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             _context.Organizations.Add(org);
             await _context.SaveChangesAsync(cancellationToken);
 
-            var workspace = new Workspace
-            {
-                OrganizationId = org.Id,
-                DisplayName = org.Name,
-                Slug = org.Username,
-                Status = "active",
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.Workspaces.Add(workspace);
-            await _context.SaveChangesAsync(cancellationToken);
+
 
             var credential = new OrganizationCredential
             {
@@ -580,17 +570,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             _context.Organizations.Add(org);
             await _context.SaveChangesAsync(cancellationToken);
 
-            var workspace = new Workspace
-            {
-                OrganizationId = org.Id,
-                DisplayName = org.Name,
-                Slug = org.Username,
-                Status = "active",
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.Workspaces.Add(workspace);
-            await _context.SaveChangesAsync(cancellationToken);
+
 
             var credential = new OrganizationCredential
             {

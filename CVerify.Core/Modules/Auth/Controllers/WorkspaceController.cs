@@ -1423,4 +1423,97 @@ public class WorkspaceController : ControllerBase
 
         return Ok(dtoList);
     }
+
+    [HttpPost("/api/organizations/{organizationSlug}/workspaces")]
+    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(WorkspaceDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateWorkspace(
+        string organizationSlug,
+        [FromBody] CreateWorkspaceRequestDto dto,
+        CancellationToken cancellationToken)
+    {
+        if (dto == null || string.IsNullOrWhiteSpace(dto.DisplayName) || string.IsNullOrWhiteSpace(dto.Slug))
+        {
+            return BadRequest("Display name and Slug are required.");
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var org = await _context.Organizations
+            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
+
+        if (org == null)
+        {
+            return NotFound(new { message = "Organization not found" });
+        }
+
+        var actorTypeClaim = User.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+
+        if (isBusiness)
+        {
+            if (org.Id != userId)
+            {
+                return Forbid();
+            }
+        }
+        else
+        {
+            var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.EditProfile, cancellationToken: cancellationToken);
+            if (!isAuthorized)
+            {
+                return Forbid();
+            }
+        }
+
+        var normalizedSlug = dto.Slug.Trim().ToLowerInvariant();
+        if (!System.Text.RegularExpressions.Regex.IsMatch(normalizedSlug, @"^[a-z0-9-]{3,50}$"))
+        {
+            return BadRequest("Workspace slug must be 3-50 alphanumeric or dash characters.");
+        }
+
+        var existingWorkspace = await _context.Workspaces
+            .FirstOrDefaultAsync(w => w.OrganizationId == org.Id && w.Slug == normalizedSlug && w.DeletedAt == null, cancellationToken);
+        if (existingWorkspace != null)
+        {
+            return BadRequest("Workspace slug is already taken under this organization.");
+        }
+
+        var workspace = new Workspace
+        {
+            Id = Guid.CreateVersion7(),
+            OrganizationId = org.Id,
+            DisplayName = dto.DisplayName.Trim(),
+            Slug = normalizedSlug,
+            Status = "active",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        _context.Workspaces.Add(workspace);
+
+        if (!isBusiness)
+        {
+            var wsMember = new WorkspaceMember
+            {
+                Id = Guid.CreateVersion7(),
+                WorkspaceId = workspace.Id,
+                UserId = userId,
+                Role = "workspace_admin",
+                JoinedAt = DateTimeOffset.UtcNow
+            };
+            _context.WorkspaceMembers.Add(wsMember);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return CreatedAtAction(nameof(GetWorkspaceDetails), new { organizationSlug = org.Username }, new WorkspaceDto(workspace.Id, workspace.DisplayName, workspace.Slug));
+    }
 }

@@ -192,3 +192,8 @@ public record PaginatedOrganizationsResponseDto(
     int PageSize
 );
 
+public record CreateWorkspaceRequestDto(
+    string DisplayName,
+    string Slug
+);
+
