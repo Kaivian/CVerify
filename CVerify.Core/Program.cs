@@ -1,27 +1,49 @@
-using Microsoft.EntityFrameworkCore;
-using CVerify.API.Infrastructure.Persistence;
-using CVerify.API.Application.Interfaces;
-using CVerify.API.Application.Services;
-using CVerify.API.Application.Security.PasswordPolicies;
-using CVerify.API.Application.Security.OtpPolicies;
-using CVerify.API.Infrastructure.Services;
-using CVerify.API.Infrastructure.Configuration;
-using CVerify.API.Core.Entities;
-using CVerify.API.API.Extensions;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using StackExchange.Redis;
-using Microsoft.OpenApi;
-using Npgsql;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
-using CVerify.API.Infrastructure.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using Amazon.S3;
-using CVerify.API.Application.Storage.Interfaces;
-using CVerify.API.Infrastructure.Storage.Services;
+using Npgsql;
+using StackExchange.Redis;
+using CVerify.API.Modules.Admin.Hubs;
+using CVerify.API.Modules.Admin.Services;
+using CVerify.API.Modules.AiChat.Entities;
+using CVerify.API.Modules.Auth.BackgroundWorkers;
+using CVerify.API.Modules.Auth.Middleware;
+using CVerify.API.Modules.Auth.Services;
+using CVerify.API.Modules.Auth.Services.OtpPolicies;
+using CVerify.API.Modules.Auth.Services.PasswordPolicies;
+using CVerify.API.Modules.Profiles.Services;
+using CVerify.API.Modules.Recovery.BackgroundWorkers;
+using CVerify.API.Modules.Recovery.Services;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Diagnostics;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Shared.Email.BackgroundWorkers;
+using CVerify.API.Modules.Shared.Exceptions;
+using CVerify.API.Modules.Shared.Exceptions.Catalogs;
+using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.Security;
+using CVerify.API.Modules.Shared.Storage.Interfaces;
+using CVerify.API.Modules.Shared.Storage.Services;
+using CVerify.API.Modules.Shared.System.DTOs;
+using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.Shared.Email;
+using CVerify.API.Modules.Shared.Security.Authorization;
+using CVerify.API.Modules.Shared.System.BackgroundWorkers;
+
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseDefaultServiceProvider((context, options) =>
+{
+    options.ValidateOnBuild = true;
+    options.ValidateScopes = true;
+});
 
 // 1. Load .env file (Development only or based on preference)
 string? envPath = null;
@@ -149,21 +171,21 @@ builder.Services.AddControllers()
                 }
             }
 
-            var correlationId = CVerify.API.Infrastructure.Diagnostics.AsyncLocalCorrelationScope.CurrentCorrelationId 
+            var correlationId = AsyncLocalCorrelationScope.CurrentCorrelationId 
                                 ?? context.HttpContext.TraceIdentifier;
 
-            var responsePayload = new CVerify.API.Application.DTOs.ApiErrorResponse
+            var responsePayload = new ApiErrorResponse
             {
                 Status = Microsoft.AspNetCore.Http.StatusCodes.Status400BadRequest,
-                Code = CVerify.API.Application.Exceptions.Catalogs.SystemErrorCatalog.ValidationError,
-                Category = CVerify.API.Application.Exceptions.ErrorCategory.VALIDATION.ToString(),
+                Code = SystemErrorCatalog.ValidationError,
+                Category = ErrorCategory.VALIDATION.ToString(),
                 Severity = "Error",
                 MessageKey = "system.toast.error.validation",
                 Message = "Please check the form fields for errors.",
                 Retryable = false,
                 Errors = errors,
                 CorrelationId = correlationId,
-                UxSemantics = new CVerify.API.Application.DTOs.UxSemantics("Inline", "None", string.Empty, string.Empty)
+                UxSemantics = new UxSemantics("Inline", "None", string.Empty, string.Empty)
             };
 
             return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(responsePayload)
@@ -440,12 +462,12 @@ app.UseCors("AllowFrontend");
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseRateLimiter();
 app.UseAuthentication();
-app.UseMiddleware<CVerify.API.API.Middleware.SessionValidationMiddleware>();
+app.UseMiddleware<CVerify.API.Modules.Auth.Middleware.SessionValidationMiddleware>();
 app.UseAuthorization();
 
 
 app.MapHealthChecks("/health");
 app.MapControllers();
-app.MapHub<CVerify.API.API.Hubs.AdminHub>("/hubs/admin");
+app.MapHub<CVerify.API.Modules.Admin.Hubs.AdminHub>("/hubs/admin");
 
 app.Run();

@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using CVerify.API.Application.Interfaces;
-using CVerify.API.IntegrationTests.Fixtures;
 using VerifyXunit;
 using Xunit;
+using CVerify.API.IntegrationTests.Fixtures;
+using CVerify.API.Modules.Shared.Email.Services;
 
 namespace CVerify.API.IntegrationTests.Snapshots;
 

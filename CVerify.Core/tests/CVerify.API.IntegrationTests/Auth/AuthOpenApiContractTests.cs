@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using FluentAssertions;
-using CVerify.API.IntegrationTests.Fixtures;
 using Xunit;
+using CVerify.API.IntegrationTests.Fixtures;
 
 namespace CVerify.API.IntegrationTests.Auth;
 

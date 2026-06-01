@@ -7,12 +7,16 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Respawn;
 using StackExchange.Redis;
-using Microsoft.Extensions.Hosting;
-using CVerify.API.Application.Interfaces;
-using CVerify.API.Infrastructure.Services;
 using Xunit;
+using CVerify.API.Modules.Auth.BackgroundWorkers;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Email.BackgroundWorkers;
+using CVerify.API.Modules.Shared.Email.Services;
+using CVerify.API.Modules.Shared.System.BackgroundWorkers;
+
 
 namespace CVerify.API.IntegrationTests.Fixtures;
 

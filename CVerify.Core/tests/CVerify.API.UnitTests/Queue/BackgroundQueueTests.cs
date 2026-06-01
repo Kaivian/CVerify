@@ -1,18 +1,19 @@
-﻿using System;
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using FluentAssertions;
 using Moq;
-using CVerify.API.Application.DTOs;
-using CVerify.API.Application.Interfaces;
-using CVerify.API.Infrastructure.Configuration;
-using CVerify.API.Infrastructure.Services;
 using Xunit;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Email.DTOs;
+using CVerify.API.Modules.Shared.Email.Services;
 
 namespace CVerify.API.UnitTests.Queue;
 

@@ -1,9 +1,10 @@
-﻿using System.Collections.Concurrent;
+
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using CVerify.API.Application.DTOs;
-using CVerify.API.Application.Interfaces;
+using CVerify.API.Modules.Shared.Email.DTOs;
+using CVerify.API.Modules.Shared.Email.Services;
 
 namespace CVerify.API.IntegrationTests.Fixtures;
 

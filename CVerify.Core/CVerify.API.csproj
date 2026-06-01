@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -65,7 +65,7 @@
 
     <!-- Copy physical email templates to output folder during builds -->
     <ItemGroup>
-        <None Update="Infrastructure\EmailTemplates\*.html">
+        <None Update="Modules\Shared\Email\Templates\*.html">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>

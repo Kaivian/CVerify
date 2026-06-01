@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Security.Cryptography;
 using System.Text;
-using CVerify.API.Core.Entities;
+using CVerify.API.Modules.Auth.Entities;
+using CVerify.API.Modules.Shared.Domain.Entities;
 
 namespace CVerify.API.IntegrationTests.Helpers;
 
