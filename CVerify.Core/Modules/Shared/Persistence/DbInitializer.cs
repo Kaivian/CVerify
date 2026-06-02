@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore.Storage;
 using CVerify.API.Modules.AiChat.Entities;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Exceptions.Catalogs;
+using CVerify.API.Modules.Shared.Security;
+using CVerify.API.Modules.Profiles.Entities;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
@@ -15,7 +17,7 @@ namespace CVerify.API.Modules.Shared.Persistence;
 /// </summary>
 public static class DbInitializer
 {
-    public static async Task InitializeAsync(ApplicationDbContext context)
+    public static async Task InitializeAsync(ApplicationDbContext context, IUsernameService? usernameService = null)
     {
         if (context == null)
         {
@@ -110,6 +112,36 @@ public static class DbInitializer
                 END IF;
             END $$;
 
+            -- Safely provision columns to existing tables for backward-compatibility prior to table/index definition
+            DO $$
+            BEGIN
+                -- If users exists but lacks username/last_username_change_at, add them
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'username') THEN
+                        ALTER TABLE users ADD COLUMN username CITEXT;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'last_username_change_at') THEN
+                        ALTER TABLE users ADD COLUMN last_username_change_at TIMESTAMP WITH TIME ZONE;
+                    END IF;
+                END IF;
+
+                -- If organizations exists but lacks username, add it with a non-null default
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'organizations') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'username') THEN
+                        ALTER TABLE organizations ADD COLUMN username VARCHAR(100);
+                        UPDATE organizations SET username = 'org-' || substring(id::text, 1, 8) WHERE username IS NULL;
+                        ALTER TABLE organizations ALTER COLUMN username SET NOT NULL;
+                    END IF;
+                END IF;
+
+                -- If user_profiles exists but lacks username, add it
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_profiles') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_profiles' AND column_name = 'username') THEN
+                        ALTER TABLE user_profiles ADD COLUMN username CITEXT;
+                    END IF;
+                END IF;
+            END $$;
+
             -- Stores user roles for the Role-Based Access Control (RBAC) system
             CREATE TABLE IF NOT EXISTS roles (
                 id UUID PRIMARY KEY,
@@ -127,6 +159,8 @@ public static class DbInitializer
             CREATE TABLE IF NOT EXISTS users (
                 id UUID PRIMARY KEY,
                 email CITEXT NOT NULL,
+                username CITEXT,
+                last_username_change_at TIMESTAMP WITH TIME ZONE,
                 password_hash TEXT,
                 full_name VARCHAR(255) NOT NULL,
                 avatar_url TEXT,
@@ -144,6 +178,7 @@ public static class DbInitializer
                 deleted_at TIMESTAMP WITH TIME ZONE
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_active ON users(email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_active ON users(username) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');
 
             -- Stores linked secondary emails
             CREATE TABLE IF NOT EXISTS user_emails (
@@ -710,6 +745,26 @@ public static class DbInitializer
                         ALTER TABLE user_profiles ADD COLUMN ai_talent_discovery VARCHAR(20) NOT NULL DEFAULT 'disabled';
                     END IF;
                 END IF;
+
+                 -- Safely provision username column to users if missing
+                 IF NOT EXISTS (
+                     SELECT 1 
+                     FROM information_schema.columns 
+                     WHERE table_name = 'users' AND column_name = 'username'
+                 ) THEN
+                     ALTER TABLE users ADD COLUMN username CITEXT;
+                 END IF;
+
+                 -- Safely provision last_username_change_at column to users if missing
+                 IF NOT EXISTS (
+                     SELECT 1 
+                     FROM information_schema.columns 
+                     WHERE table_name = 'users' AND column_name = 'last_username_change_at'
+                 ) THEN
+                     ALTER TABLE users ADD COLUMN last_username_change_at TIMESTAMP WITH TIME ZONE;
+                 END IF;
+
+                 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_active ON users(username) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');
 
                 -- Safely provision provider_account_id column to auth_providers if missing
                 IF NOT EXISTS (
@@ -1508,6 +1563,10 @@ public static class DbInitializer
 
         // One-time compatibility migration for Google OAuth users created under the old normalization rules
         await MigrateLegacyGoogleEmailsAsync(context);
+
+        // One-time compatibility migration to generate unique usernames for legacy users
+        var serviceToUse = usernameService ?? new UsernameService(context, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<UsernameService>.Instance);
+        await MigrateLegacyUsernamesAsync(context, serviceToUse);
     }
 
     private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)
@@ -1543,5 +1602,61 @@ public static class DbInitializer
         {
             await context.SaveChangesAsync();
         }
+    }
+
+    private static async Task MigrateLegacyUsernamesAsync(ApplicationDbContext context, IUsernameService usernameService)
+    {
+        var usersToMigrate = await context.Users
+            .Where(u => u.Username == null || u.Username == "")
+            .ToListAsync();
+
+        if (!usersToMigrate.Any())
+        {
+            return;
+        }
+
+        foreach (var user in usersToMigrate)
+        {
+            // First check if there is a legacy username in user_profiles
+            var legacyProfileUsername = await context.UserProfiles
+                .Where(up => up.UserId == user.Id && up.Username != null && up.Username != "")
+                .Select(up => up.Username)
+                .FirstOrDefaultAsync();
+
+            string baseCandidate = !string.IsNullOrEmpty(legacyProfileUsername)
+                ? usernameService.Normalize(legacyProfileUsername)
+                : usernameService.GenerateBaseUsername(user.Email);
+
+            // Generate unique username using standard sequential suffix check
+            var uniqueUsername = await usernameService.GenerateUniqueUsernameAsync(baseCandidate);
+
+            user.Username = uniqueUsername;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            // Sync with profile
+            var profile = await context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == user.Id);
+            if (profile != null)
+            {
+                profile.Username = uniqueUsername;
+                profile.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                // Auto-provision profile if missing
+                profile = new UserProfile
+                {
+                    UserId = user.Id,
+                    Username = uniqueUsername,
+                    ProfileVisibility = "public",
+                    RecruiterVisibility = true,
+                    AiTalentDiscovery = "disabled",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                };
+                context.UserProfiles.Add(profile);
+            }
+        }
+
+        await context.SaveChangesAsync();
     }
 }

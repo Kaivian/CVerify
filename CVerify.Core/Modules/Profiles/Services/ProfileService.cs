@@ -13,6 +13,7 @@ using CVerify.API.Modules.Shared.Diagnostics;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Shared.Storage.Enums;
 using CVerify.API.Modules.Shared.Storage.Interfaces;
 using CVerify.API.Modules.Shared.System.Services;
@@ -24,17 +25,23 @@ public class ProfileService : IProfileService
     private readonly ApplicationDbContext _context;
     private readonly ICacheService _cacheService;
     private readonly IStorageService _storageService;
+    private readonly IUsernameService _usernameService;
+    private readonly TimeProvider _timeProvider;
     private readonly IAppLogger _logger;
 
     public ProfileService(
         ApplicationDbContext context,
         ICacheService cacheService,
         IStorageService storageService,
+        IUsernameService usernameService,
+        TimeProvider timeProvider,
         IAppLogger logger)
     {
         _context = context;
         _cacheService = cacheService;
         _storageService = storageService;
+        _usernameService = usernameService;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -47,8 +54,8 @@ public class ProfileService : IProfileService
         if (profile == null)
         {
             // Auto-provision if user exists but profile is missing
-            var userExists = await _context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
-            if (!userExists)
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+            if (user == null)
             {
                 throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "User not found.");
             }
@@ -56,6 +63,7 @@ public class ProfileService : IProfileService
             profile = new UserProfile
             {
                 UserId = userId,
+                Username = user.Username,
                 ProfileVisibility = "public",
                 RecruiterVisibility = true,
                 AiTalentDiscovery = "disabled",
@@ -65,7 +73,7 @@ public class ProfileService : IProfileService
 
             _context.UserProfiles.Add(profile);
             await _context.SaveChangesAsync(cancellationToken);
-            await _context.Entry(profile).Reference(p => p.User).LoadAsync(cancellationToken);
+            profile.User = user;
         }
 
         var socialLinks = await _context.SocialLinks
@@ -183,7 +191,10 @@ public class ProfileService : IProfileService
         string? userAgent = null, 
         CancellationToken cancellationToken = default)
     {
+        _usernameService.ValidateUsername(newUsername);
+
         var profile = await _context.UserProfiles
+            .Include(up => up.User)
             .FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
 
         if (profile == null)
@@ -191,31 +202,32 @@ public class ProfileService : IProfileService
             throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
         }
 
-        newUsername = newUsername.Trim();
+        newUsername = _usernameService.Normalize(newUsername);
 
-        // 1. Case-insensitive conflict check
-        // Because of the 'citext' type on Postgres username, a normal comparison works, but EF Core ILIKE is safest
-        var isTaken = await _context.UserProfiles
-            .AnyAsync(up => up.UserId != userId && up.Username == newUsername, cancellationToken);
+        // 1. Username Change Cooldown check (30 days)
+        await _usernameService.CheckChangeCooldownAsync(userId, cancellationToken);
+
+        // 2. Case-insensitive conflict check
+        var isTaken = await _context.Users
+            .AnyAsync(u => u.Id != userId && u.Username == newUsername, cancellationToken);
 
         if (isTaken)
         {
             throw new ProfileException(ProfileErrorCodes.UsernameAlreadyExists, $"The username '{newUsername}' is already taken.");
         }
 
-        // 2. Username Change Cooldown check (30 days)
-        var cooldownKey = $"username_cooldown:{userId}";
-        var hasCooldown = await _cacheService.ExistsAsync(cooldownKey);
-        if (hasCooldown)
-        {
-            throw new ProfileException(ProfileErrorCodes.UsernameCooldownActive, "You can only update your username once every 30 days.");
-        }
-
         var oldStateJson = JsonSerializer.Serialize(new { profile.Username });
         var newStateJson = JsonSerializer.Serialize(new { Username = newUsername });
 
         profile.Username = newUsername;
-        profile.UpdatedAt = DateTimeOffset.UtcNow;
+        profile.UpdatedAt = _timeProvider.GetUtcNow();
+
+        if (profile.User != null)
+        {
+            profile.User.Username = newUsername;
+            profile.User.LastUsernameChangeAt = _timeProvider.GetUtcNow();
+            profile.User.UpdatedAt = _timeProvider.GetUtcNow();
+        }
 
         // Log the state transition
         var log = new ProfileActivityLog
@@ -227,12 +239,9 @@ public class ProfileService : IProfileService
             NewStateJson = newStateJson,
             IpAddress = ipAddress,
             UserAgent = userAgent,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = _timeProvider.GetUtcNow()
         };
         _context.ProfileActivityLogs.Add(log);
-
-        // Set cooldown in cache for 30 days
-        await _cacheService.SetAsync(cooldownKey, true, TimeSpan.FromDays(30));
 
         try
         {
@@ -245,11 +254,80 @@ public class ProfileService : IProfileService
         }
     }
 
+    public async Task<PublicProfileResponse> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
+        }
+
+        var normalizedUsername = _usernameService.Normalize(username);
+
+        var profile = await _context.UserProfiles
+            .Include(up => up.User)
+            .FirstOrDefaultAsync(up => up.User.Username == normalizedUsername, cancellationToken);
+
+        if (profile == null)
+        {
+            throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
+        }
+
+        // Visibility settings of "private" or "connections" return 404 Not Found for public lookup
+        if (string.Equals(profile.ProfileVisibility, "private", StringComparison.OrdinalIgnoreCase) || 
+            string.Equals(profile.ProfileVisibility, "connections", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
+        }
+
+        var socialLinks = await _context.SocialLinks
+            .Where(sl => sl.UserId == profile.UserId)
+            .Select(sl => sl.Url)
+            .ToListAsync(cancellationToken);
+
+        var signedAvatarUrl = await GetSignedAvatarUrlAsync(profile.User?.AvatarUrl, cancellationToken);
+
+        return new PublicProfileResponse(
+            profile.UserId,
+            profile.Username ?? profile.User?.Username ?? string.Empty,
+            profile.User?.FullName ?? string.Empty,
+            signedAvatarUrl,
+            profile.Bio,
+            profile.Headline,
+            profile.Company,
+            profile.Location,
+            socialLinks
+        );
+    }
+
+    private async Task<string?> GetSignedAvatarUrlAsync(string? avatarUrl, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(avatarUrl))
+        {
+            return null;
+        }
+
+        if (avatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+            avatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return avatarUrl;
+        }
+
+        try
+        {
+            return await _storageService.GetSignedUrlAsync(avatarUrl, TimeSpan.FromHours(24), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.Log(LogLevel.Warning, "Profile", $"Failed to sign avatar URL: {avatarUrl}", ex);
+            return null;
+        }
+    }
+
     private static ProfileResponse MapToResponse(UserProfile profile, List<string> socialLinks)
     {
         return new ProfileResponse(
             profile.UserId,
-            profile.Username,
+            profile.Username ?? profile.User?.Username,
             profile.User?.FullName,
             profile.Bio,
             profile.Location,

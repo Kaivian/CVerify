@@ -49,24 +49,18 @@ public class Level2RecoveryTests : BaseIntegrationTest
         };
         db.Organizations.Add(org);
 
-        var adminUser = new User
-        {
-            Email = $"admin@{taxCode}.com",
-            FullName = "Org Admin One",
-            Status = UserStatus.ACTIVE,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var adminUser = new UserBuilder()
+            .WithEmail($"admin@{taxCode}.com")
+            .WithFullName("Org Admin One")
+            .WithStatus(UserStatus.ACTIVE)
+            .Build();
         db.Users.Add(adminUser);
 
-        var memberUser = new User
-        {
-            Email = $"member@{taxCode}.com",
-            FullName = "Org Workspace Member",
-            Status = UserStatus.ACTIVE,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var memberUser = new UserBuilder()
+            .WithEmail($"member@{taxCode}.com")
+            .WithFullName("Org Workspace Member")
+            .WithStatus(UserStatus.ACTIVE)
+            .Build();
         db.Users.Add(memberUser);
 
         await db.SaveChangesAsync();

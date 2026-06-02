@@ -369,7 +369,7 @@ public class OrganizationRecoveryService : IOrganizationRecoveryService
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Business password reset successfully. Auto-login bypassed.", correlationId);
             _metrics.RecordPasswordReset();
 
-            return new AuthResponse(org.Id, org.Email, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "LOGIN");
+            return new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "LOGIN");
         }
         catch (DbUpdateConcurrencyException ex)
         {

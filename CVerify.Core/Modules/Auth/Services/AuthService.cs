@@ -59,7 +59,8 @@ public class AuthService : IAuthService
     private readonly IStorageService _storageService;
     private readonly IRateLimitPolicyService _rateLimitPolicyService;
     private readonly IGoogleTokenValidator _googleTokenValidator;
-
+    private readonly IUsernameService _usernameService;
+ 
     public AuthService(
         ApplicationDbContext context,
         ITokenService tokenService,
@@ -77,7 +78,8 @@ public class AuthService : IAuthService
         IOtpPolicyService otpPolicyService,
         IStorageService storageService,
         IRateLimitPolicyService rateLimitPolicyService,
-        IGoogleTokenValidator googleTokenValidator)
+        IGoogleTokenValidator googleTokenValidator,
+        IUsernameService usernameService)
     {
         _context = context;
         _tokenService = tokenService;
@@ -96,6 +98,7 @@ public class AuthService : IAuthService
         _storageService = storageService;
         _rateLimitPolicyService = rateLimitPolicyService;
         _googleTokenValidator = googleTokenValidator;
+        _usernameService = usernameService;
     }
 
 
@@ -130,7 +133,7 @@ public class AuthService : IAuthService
         {
             passwordChangedAt = user.CreatedAt;
         }
-        return new AuthResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt, hasPassword);
+        return new AuthResponse(user.Id, user.Email, user.Username, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt, hasPassword);
     }
 
     private async Task<UserProfileResponse> CreateUserProfileResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
@@ -145,7 +148,7 @@ public class AuthService : IAuthService
         {
             passwordChangedAt = user.CreatedAt;
         }
-        return new UserProfileResponse(user.Id, user.Email, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt, hasPassword);
+        return new UserProfileResponse(user.Id, user.Email, user.Username, user.FullName, signedAvatar, roles, permissions, isEmailVerified, status, nextStep, passwordChangedAt, hasPassword);
     }
 
     /// <summary>
@@ -190,7 +193,7 @@ public class AuthService : IAuthService
             var reactivationToken = Guid.NewGuid().ToString("N");
             await _cacheService.SetAsync($"reactivate:token:{reactivationToken}", user.Id.ToString(), TimeSpan.FromMinutes(10));
 
-            return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, userRoles, userPermissions, user.EmailVerifiedAt.HasValue, "DELETION_PENDING", $"REACTIVATE:{reactivationToken}", null, !string.IsNullOrEmpty(user.PasswordHash));
+            return new AuthResponse(user.Id, user.Email, user.Username, user.FullName, user.AvatarUrl, userRoles, userPermissions, user.EmailVerifiedAt.HasValue, "DELETION_PENDING", $"REACTIVATE:{reactivationToken}", null, !string.IsNullOrEmpty(user.PasswordHash));
         }
 
         if (_accountService.IsAccountDisabled(user))
@@ -376,7 +379,8 @@ public class AuthService : IAuthService
                     };
 
                     _context.Users.Add(user);
-                    await _context.SaveChangesAsync();
+                    await _usernameService.RunWithUsernameRetryAsync(user, email, async () => 
+                        await _context.SaveChangesAsync(), cancellationToken: default);
 
                     // Create Google Provider row
                     var googleProvider = new AuthProvider
@@ -402,7 +406,7 @@ public class AuthService : IAuthService
                         var reactivationToken = Guid.NewGuid().ToString("N");
                         await _cacheService.SetAsync($"reactivate:token:{reactivationToken}", user.Id.ToString(), TimeSpan.FromMinutes(10));
 
-                        return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, userRoles, userPermissions, user.EmailVerifiedAt.HasValue, "DELETION_PENDING", $"REACTIVATE:{reactivationToken}", null, !string.IsNullOrEmpty(user.PasswordHash));
+                        return new AuthResponse(user.Id, user.Email, user.Username, user.FullName, user.AvatarUrl, userRoles, userPermissions, user.EmailVerifiedAt.HasValue, "DELETION_PENDING", $"REACTIVATE:{reactivationToken}", null, !string.IsNullOrEmpty(user.PasswordHash));
                     }
 
                     if (_accountService.IsAccountDisabled(user))
@@ -873,7 +877,8 @@ public class AuthService : IAuthService
             };
 
             _context.Users.Add(newUser);
-            await _context.SaveChangesAsync(cancellationToken);
+            await _usernameService.RunWithUsernameRetryAsync(newUser, normalizedEmail, async () => 
+                await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
 
             // Generate secure URL-safe verification token
             var plainToken = EmailTokenGenerator.GenerateSecureToken();
@@ -2546,7 +2551,8 @@ public class AuthService : IAuthService
                     Roles = new List<Role> { userRole }
                 };
                 _context.Users.Add(user);
-                await _context.SaveChangesAsync(cancellationToken);
+                await _usernameService.RunWithUsernameRetryAsync(user, normalizedEmail, async () => 
+                    await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
             }
             else
             {
@@ -2558,8 +2564,18 @@ public class AuthService : IAuthService
                 user.EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime;
                 user.TransitionTo(UserStatus.ACTIVE);
                 user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-                await _context.SaveChangesAsync(cancellationToken);
+
+                if (string.IsNullOrEmpty(user.Username))
+                {
+                    await _usernameService.RunWithUsernameRetryAsync(user, normalizedEmail, async () => 
+                        await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
             }
+
 
             // Provider mapping
             var provider = user.AuthProviders.FirstOrDefault(ap => ap.ProviderName == "Password");
@@ -2823,7 +2839,16 @@ public class AuthService : IAuthService
                     Roles = new List<Role> { ownerRole }
                 };
                 _context.Users.Add(user);
-                await _context.SaveChangesAsync(cancellationToken);
+                await _usernameService.RunWithUsernameRetryAsync(user, normalizedEmail, async () =>
+                    await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(user.Username))
+                {
+                    await _usernameService.RunWithUsernameRetryAsync(user, normalizedEmail, async () =>
+                        await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
+                }
             }
 
             // Create Password linkage
@@ -2925,7 +2950,7 @@ public class AuthService : IAuthService
             _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, DateTime.UtcNow.AddHours(24));
 
             await LogAuditEventAsync(user.Id, "ORGANIZATION_CREATED", $"Workspace organization '{normalizedUsername}' registered successfully.");
-            return new AuthResponse(org.Id, org.Email, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
+            return new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
         }
         catch (Exception ex)
         {
@@ -3267,7 +3292,8 @@ public class AuthService : IAuthService
                 user.PasswordHash = passwordHash;
 
                 _context.Users.Add(user);
-                await _context.SaveChangesAsync(cancellationToken);
+                await _usernameService.RunWithUsernameRetryAsync(user, email, async () =>
+                    await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
             }
             else
             {
@@ -3276,7 +3302,16 @@ public class AuthService : IAuthService
                 user.TransitionTo(UserStatus.ACTIVE);
                 user.EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime;
                 user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-                await _context.SaveChangesAsync(cancellationToken);
+                
+                if (string.IsNullOrEmpty(user.Username))
+                {
+                    await _usernameService.RunWithUsernameRetryAsync(user, email, async () =>
+                        await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
             }
 
             // Map Password Auth Provider (always created/updated because a password is set)
@@ -3425,7 +3460,7 @@ public class AuthService : IAuthService
 
             await LogAuditEventAsync(user.Id, "ORGANIZATION_CREATED", $"Workspace organization '{normalizedSlug}' registered successfully.");
             
-            var authResponse = new AuthResponse(org.Id, org.Email, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
+            var authResponse = new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
 
             // Cache for idempotency keys
             if (!string.IsNullOrEmpty(idempotencyKey))
@@ -3531,7 +3566,7 @@ public class AuthService : IAuthService
         _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, DateTime.UtcNow.AddHours(24));
 
         await LogAuditEventAsync(user.Id, "USER_LOGIN_SUCCESS", $"Logged in successfully via workspace organization {normalizedUsername}.");
-        return new AuthResponse(org.Id, org.Email, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
+        return new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
     }
 
     // --- ACTIVE SESSIONS & REVOCATIONS ---

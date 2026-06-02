@@ -220,7 +220,7 @@ public class CandidateRecoveryService : ICandidateRecoveryService
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Candidate password reset successfully and user {UserId} auto-logged in.", correlationId, user.Id);
             _metrics.RecordPasswordReset();
 
-            return new AuthResponse(user.Id, user.Email, user.FullName, user.AvatarUrl, roles, permissions, true, "ACTIVE", "DASHBOARD");
+            return new AuthResponse(user.Id, user.Email, user.Username, user.FullName, user.AvatarUrl, roles, permissions, true, "ACTIVE", "DASHBOARD");
         }
         catch (DbUpdateConcurrencyException ex)
         {
