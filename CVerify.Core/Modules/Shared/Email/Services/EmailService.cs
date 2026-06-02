@@ -525,9 +525,9 @@ public class EmailService : IEmailService
         var message = new EmailMessage(
             ToEmail: toEmail,
             ToName: profile.DisplayName ?? fullName,
-            Subject: $"Workspace Activated: {companyName} - CVerify",
+            Subject: $"Company Activated: {companyName} - CVerify",
             HtmlContent: htmlBody,
-            PlainTextContent: $"{greeting} Congratulations! The verified organization workspace for {companyName} has been fully activated. Access it here: {workspaceUrl}",
+            PlainTextContent: $"{greeting} Congratulations! The verified company organization for {companyName} has been fully activated. Access it here: {workspaceUrl}",
             CorrelationId: correlationId,
             Category: EmailCategory.Notification
         );
