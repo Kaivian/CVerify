@@ -34,7 +34,7 @@ export const isActiveRoute = (
 
   if (cleanHref.includes("[slug]") || cleanHref.includes(":slug")) {
     const pathSegments = cleanPath.split("/");
-    if (pathSegments[1] === "workspace" && pathSegments[2]) {
+    if (pathSegments[1] === "business" && pathSegments[2]) {
       const actualSlug = pathSegments[2];
       cleanHref = cleanHref.replace(/\[slug\]/g, actualSlug).replace(/:slug/g, actualSlug);
     }
@@ -189,7 +189,7 @@ export const isActiveRoute = (
 
   // 12. Organizations matching
   if (itemId === 'organizations' || cleanHref === '/workspace/organizations') {
-    return cleanPath === '/workspace/organizations' || cleanPath.startsWith('/workspace/');
+    return cleanPath === '/workspace/organizations' || cleanPath.startsWith('/business/');
   }
 
   if (exact) {

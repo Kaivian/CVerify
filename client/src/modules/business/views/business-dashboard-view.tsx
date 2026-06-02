@@ -46,7 +46,7 @@ export function BusinessDashboardView() {
 
   const handleOpenWorkspace = (workspaceId: string) => {
     setActiveWorkspaceId(workspaceId);
-    router.push(`/workspace/${organizationSlug}/recruitment/dashboard`);
+    router.push(`/business/${organizationSlug}/recruitment/dashboard`);
   };
 
   if (isDetailsLoading) {
@@ -211,28 +211,28 @@ export function BusinessDashboardView() {
             </Typography>
             <div className="flex flex-col gap-2.5">
               <Button
-                onClick={() => router.push(`/workspace/${organizationSlug}/intelligence`)}
+                onClick={() => router.push(`/business/${organizationSlug}/intelligence`)}
                 className="w-full justify-start text-xs font-bold h-10 px-3 bg-surface-secondary/40 hover:bg-surface-secondary/80 border border-border text-foreground rounded-xl flex items-center gap-2.5 cursor-pointer text-left"
               >
                 <Compass size={16} className="text-accent shrink-0" />
                 Global Candidate Search
               </Button>
               <Button
-                onClick={() => router.push(`/workspace/${organizationSlug}/billing`)}
+                onClick={() => router.push(`/business/${organizationSlug}/billing`)}
                 className="w-full justify-start text-xs font-bold h-10 px-3 bg-surface-secondary/40 hover:bg-surface-secondary/80 border border-border text-foreground rounded-xl flex items-center gap-2.5 cursor-pointer text-left"
               >
                 <CreditCard size={16} className="text-accent shrink-0" />
                 Subscription & Billing
               </Button>
               <Button
-                onClick={() => router.push(`/workspace/${organizationSlug}/verification`)}
+                onClick={() => router.push(`/business/${organizationSlug}/verification`)}
                 className="w-full justify-start text-xs font-bold h-10 px-3 bg-surface-secondary/40 hover:bg-surface-secondary/80 border border-border text-foreground rounded-xl flex items-center gap-2.5 cursor-pointer text-left"
               >
                 <ShieldCheck size={16} className="text-accent shrink-0" />
                 Legal Verification Status
               </Button>
               <Button
-                onClick={() => router.push(`/workspace/${organizationSlug}/settings`)}
+                onClick={() => router.push(`/business/${organizationSlug}/settings`)}
                 className="w-full justify-start text-xs font-bold h-10 px-3 bg-surface-secondary/40 hover:bg-surface-secondary/80 border border-border text-foreground rounded-xl flex items-center gap-2.5 cursor-pointer text-left"
               >
                 <Settings size={16} className="text-accent shrink-0" />

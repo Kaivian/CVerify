@@ -28,7 +28,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       target = "COMPONENTS";
     } else if (pathname.startsWith("/admin/audit-logs")) {
       target = "AUDIT";
-    } else if (pathname.startsWith("/workspace/")) {
+    } else if (pathname.startsWith("/business/")) {
       target = "ORGANIZATION";
     }
 

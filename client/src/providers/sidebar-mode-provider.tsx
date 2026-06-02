@@ -20,7 +20,7 @@ export const SidebarModeProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setSidebarModeState(mode);
   };
 
-  // Synchronize based on global route sections outside /workspace/
+  // Synchronize based on global route sections outside /business/
   useEffect(() => {
     if (!pathname) return;
 

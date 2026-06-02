@@ -128,53 +128,53 @@ export const routesConfig: Record<string, RouteMetadata> = {
     icon: FileText,
     parentPath: '/admin',
   },
-  '/workspace/[organizationSlug]/dashboard': {
-    path: '/workspace/[organizationSlug]/dashboard',
+  '/business/[organizationSlug]/dashboard': {
+    path: '/business/[organizationSlug]/dashboard',
     translationKey: 'common:dashboard.businessDashboard',
     fallbackLabel: 'Dashboard',
   },
-  '/workspace/[organizationSlug]/listings': {
-    path: '/workspace/[organizationSlug]/listings',
+  '/business/[organizationSlug]/listings': {
+    path: '/business/[organizationSlug]/listings',
     translationKey: 'common:dashboard.listings',
     fallbackLabel: 'Listings',
   },
-  '/workspace/[organizationSlug]/bookings': {
-    path: '/workspace/[organizationSlug]/bookings',
+  '/business/[organizationSlug]/bookings': {
+    path: '/business/[organizationSlug]/bookings',
     translationKey: 'common:dashboard.bookings',
     fallbackLabel: 'Bookings',
   },
-  '/workspace/[organizationSlug]/revenue': {
-    path: '/workspace/[organizationSlug]/revenue',
+  '/business/[organizationSlug]/revenue': {
+    path: '/business/[organizationSlug]/revenue',
     translationKey: 'common:dashboard.revenue',
     fallbackLabel: 'Revenue',
   },
-  '/workspace/[organizationSlug]/customers': {
-    path: '/workspace/[organizationSlug]/customers',
+  '/business/[organizationSlug]/customers': {
+    path: '/business/[organizationSlug]/customers',
     translationKey: 'common:dashboard.customers',
     fallbackLabel: 'Customers',
   },
-  '/workspace/[organizationSlug]/analytics': {
-    path: '/workspace/[organizationSlug]/analytics',
+  '/business/[organizationSlug]/analytics': {
+    path: '/business/[organizationSlug]/analytics',
     translationKey: 'common:dashboard.analytics',
     fallbackLabel: 'Analytics',
   },
-  '/workspace/[organizationSlug]/members': {
-    path: '/workspace/[organizationSlug]/members',
+  '/business/[organizationSlug]/members': {
+    path: '/business/[organizationSlug]/members',
     translationKey: 'common:dashboard.members',
     fallbackLabel: 'Team Members',
   },
-  '/workspace/[organizationSlug]/roles': {
-    path: '/workspace/[organizationSlug]/roles',
+  '/business/[organizationSlug]/roles': {
+    path: '/business/[organizationSlug]/roles',
     translationKey: 'common:dashboard.roles',
     fallbackLabel: 'Access Control',
   },
-  '/workspace/[organizationSlug]/billing': {
-    path: '/workspace/[organizationSlug]/billing',
+  '/business/[organizationSlug]/billing': {
+    path: '/business/[organizationSlug]/billing',
     translationKey: 'common:dashboard.billing',
     fallbackLabel: 'Billing & Subscription',
   },
-  '/workspace/[organizationSlug]/settings': {
-    path: '/workspace/[organizationSlug]/settings',
+  '/business/[organizationSlug]/settings': {
+    path: '/business/[organizationSlug]/settings',
     translationKey: 'common:dashboard.settings',
     fallbackLabel: 'Workspace Settings',
   },
