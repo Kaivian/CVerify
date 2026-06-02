@@ -1,7 +1,18 @@
 import { axiosClient } from '@/services/axios-client';
-import { type WorkspaceDetails, type PaginatedWorkspaceMembers, type LinkedOrganization, type Post, type Job, type OrganizationListItem, type OrganizationStats, type PaginatedOrganizations } from '../types/workspace.types';
+import { type WorkspaceDetails, type PaginatedWorkspaceMembers, type LinkedOrganization, type LinkedWorkspace, type Post, type Job, type OrganizationListItem, type OrganizationStats, type PaginatedOrganizations } from '../types/workspace.types';
 
 export const workspaceService = {
+  async createWorkspace(
+    organizationSlug: string,
+    workspace: { displayName: string; slug: string }
+  ): Promise<LinkedWorkspace> {
+    const response = await axiosClient.post<LinkedWorkspace>(
+      `/organizations/${organizationSlug}/workspaces`,
+      workspace
+    );
+    return response.data;
+  },
+
   async getUserOrganizations(): Promise<LinkedOrganization[]> {
     const response = await axiosClient.get<LinkedOrganization[]>('/workspace/my-organizations');
     return response.data;

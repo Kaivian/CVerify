@@ -3,6 +3,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWorkspaceStore } from "@/features/workspace/store/use-workspace-store";
+import { useActiveWorkspace } from "@/features/workspace/hooks/use-active-workspace";
+import { CreateWorkspaceModal } from "@/features/workspace/components/create-workspace-modal";
+import SelectDropdown from "@/components/ui/select-dropdown";
 import { Card } from "@/components/ui/card";
 import { Typography, Chip, Button } from "@heroui/react";
 import { AlertTriangle, Building2, ShieldCheck, ArrowLeft } from "lucide-react";
@@ -26,7 +29,14 @@ export default function WorkspaceJDManagementPage() {
   const isDetailsLoading = useWorkspaceStore((s) => s.loading[organizationSlug]);
   const detailsError = useWorkspaceStore((s) => s.errors[organizationSlug]);
 
-  const workspaceId = workspaceDetails?.workspaces?.[0]?.id;
+  const { activeWorkspaceId, setActiveWorkspaceId, workspaces } = useActiveWorkspace(organizationSlug);
+  const workspaceId = activeWorkspaceId;
+  const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = useState(false);
+
+  const workspaceOptions = workspaces.map((w) => ({
+    value: w.id,
+    label: w.displayName,
+  }));
 
   // View state: list, wizard, detail, taxonomy
   const [pageMode, setPageMode] = useState<"list" | "wizard" | "detail" | "taxonomy">("list");
@@ -51,7 +61,7 @@ export default function WorkspaceJDManagementPage() {
     );
   }
 
-  if (detailsError || !workspaceDetails || !workspaceId) {
+  if (detailsError || !workspaceDetails) {
     return (
       <div className="max-w-xl mx-auto py-20 font-outfit text-foreground select-none">
         <Card className="p-8 border border-border bg-surface text-center">
@@ -64,6 +74,50 @@ export default function WorkspaceJDManagementPage() {
           <Typography type="body-xs" className="text-muted leading-relaxed mb-6 font-medium">
             {detailsError || "Organization workspace not found."}
           </Typography>
+        </Card>
+      </div>
+    );
+  }
+
+  // Premium empty state if zero workspaces exist
+  if (!isDetailsLoading && workspaces.length === 0) {
+    return (
+      <div className="max-w-xl mx-auto py-20 font-outfit text-foreground select-none">
+        <Card className="p-8 border border-border bg-surface text-center">
+          <div className="size-16 rounded-2xl bg-accent/10 flex items-center justify-center border border-accent/20 mx-auto mb-5 text-accent">
+            <Building2 size={28} />
+          </div>
+          <Typography type="h4" className="font-bold text-foreground mb-2">
+            No Operational Workspaces Found
+          </Typography>
+          <Typography type="body-xs" className="text-muted leading-relaxed mb-6 font-medium">
+            To begin posting job listings, screening developers, and using intake tools, you must first create an operational environment.
+          </Typography>
+          <Button
+            onClick={() => setIsCreateWorkspaceModalOpen(true)}
+            className="bg-foreground text-background font-semibold rounded-xl px-6 py-2.5 cursor-pointer"
+          >
+            Create First Workspace
+          </Button>
+
+          <CreateWorkspaceModal
+            isOpen={isCreateWorkspaceModalOpen}
+            onOpenChange={setIsCreateWorkspaceModalOpen}
+            organizationSlug={organizationSlug}
+            onSuccess={() => {
+              fetchWorkspace(organizationSlug);
+            }}
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  if (!workspaceId) {
+    return (
+      <div className="max-w-xl mx-auto py-20 font-outfit text-foreground select-none">
+        <Card className="p-8 border border-border bg-surface text-center animate-pulse">
+          <Typography type="body-xs" className="text-muted">Resolving active workspace context...</Typography>
         </Card>
       </div>
     );
@@ -100,17 +154,32 @@ export default function WorkspaceJDManagementPage() {
     <div className="space-y-6 font-outfit max-w-7xl mx-auto text-foreground p-4 md:p-6">
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-surface border border-border/60 text-foreground select-none">
-        <div className="space-y-1">
-          <Typography
-            type="h2"
-            className="text-2xl font-bold flex items-center gap-2 text-foreground"
-          >
-            <Building2 size={24} className="text-accent" />
-            {workspaceDetails.organizationName}
-          </Typography>
-          <Typography type="body-xs" className="text-muted font-light mt-0.5 font-medium">
-            Workspace context: <span className="font-mono text-accent">@{workspaceDetails.organizationSlug}</span> &bull; My Role: <span className="font-semibold text-foreground">{workspaceDetails.userRole}</span>
-          </Typography>
+        <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <div className="space-y-1">
+            <Typography
+              type="h2"
+              className="text-2xl font-bold flex items-center gap-2 text-foreground"
+            >
+              <Building2 size={24} className="text-accent" />
+              {workspaceDetails.organizationName}
+            </Typography>
+            <Typography type="body-xs" className="text-muted mt-0.5 font-medium">
+              Workspace context: <span className="font-mono text-accent">@{workspaceDetails.organizationSlug}</span> &bull; My Role: <span className="font-semibold text-foreground">{workspaceDetails.userRole}</span>
+            </Typography>
+          </div>
+          {workspaces.length > 0 && (
+            <div className="flex items-center gap-2.5">
+              <span className="text-[10px] font-bold text-muted uppercase tracking-wider">Workspace:</span>
+              <div className="w-48">
+                <SelectDropdown
+                  value={activeWorkspaceId || ""}
+                  onChange={setActiveWorkspaceId}
+                  options={workspaceOptions}
+                  placeholder="Select Workspace"
+                />
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2.5">
           <Button

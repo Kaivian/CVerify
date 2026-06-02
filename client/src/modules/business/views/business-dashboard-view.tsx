@@ -1,13 +1,77 @@
 "use client";
 
 import React from 'react';
+import { useParams } from 'next/navigation';
+import { useWorkspaceStore } from '@/features/workspace/store/use-workspace-store';
+import { CreateWorkspaceModal } from '@/features/workspace/components/create-workspace-modal';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Building2, TrendingUp, HandCoins, Globe, Plus, Settings } from 'lucide-react';
-import { Typography } from '@heroui/react';
+import { Typography, Spinner } from '@heroui/react';
 import { TableActionDropdown } from '@/components/ui/table-action-dropdown';
 
 export function BusinessDashboardView() {
+  const params = useParams();
+  const organizationSlug = typeof params?.organizationSlug === 'string' ? params.organizationSlug : '';
+
+  const fetchWorkspace = useWorkspaceStore((s) => s.fetchWorkspace);
+  const workspaceDetails = useWorkspaceStore((s) => s.workspaces[organizationSlug]);
+  const isDetailsLoading = useWorkspaceStore((s) => s.loading[organizationSlug]);
+
+  const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (organizationSlug) {
+      fetchWorkspace(organizationSlug);
+    }
+  }, [organizationSlug, fetchWorkspace]);
+
+  const workspaces = workspaceDetails?.workspaces || [];
+
+  if (isDetailsLoading) {
+    return (
+      <div className="space-y-6 max-w-7xl mx-auto p-4 font-outfit text-foreground select-none">
+        <div className="h-10 w-48 bg-separator/50 animate-pulse rounded-lg mb-4" />
+        <Card className="p-8 border border-border bg-surface text-center">
+          <Spinner size="lg" color="current" />
+        </Card>
+      </div>
+    );
+  }
+
+  if (workspaceDetails && workspaces.length === 0) {
+    return (
+      <div className="space-y-6 font-outfit max-w-xl mx-auto py-20 text-foreground select-none">
+        <Card className="p-8 border border-border bg-surface text-center">
+          <div className="size-16 rounded-2xl bg-accent/10 flex items-center justify-center border border-accent/20 mx-auto mb-5 text-accent">
+            <Building2 size={28} />
+          </div>
+          <Typography type="h4" className="font-bold text-foreground mb-2">
+            Welcome to CVerify
+          </Typography>
+          <Typography type="body-xs" className="text-muted leading-relaxed mb-6 font-medium">
+            To begin posting job listings, screening developers, and using intake tools, you must first create an operational environment.
+          </Typography>
+          <Button
+            onClick={() => setIsCreateWorkspaceModalOpen(true)}
+            className="bg-foreground text-background font-semibold rounded-xl px-6 py-2.5 cursor-pointer border-none"
+          >
+            Create First Workspace
+          </Button>
+
+          <CreateWorkspaceModal
+            isOpen={isCreateWorkspaceModalOpen}
+            onOpenChange={setIsCreateWorkspaceModalOpen}
+            organizationSlug={organizationSlug}
+            onSuccess={() => {
+              fetchWorkspace(organizationSlug);
+            }}
+          />
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 font-outfit">
       

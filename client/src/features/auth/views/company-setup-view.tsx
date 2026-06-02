@@ -1,28 +1,28 @@
-"use client";
+'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import {
-    Card, Typography, Button, TextField,
-    Input, Form, Label, toast, Spinner, InputGroup
-} from "@heroui/react";
+  Card, Typography, Button, TextField,
+  Input, Form, Label, toast, Spinner, InputGroup
+} from '@heroui/react';
 import { LayoutTemplate, Sparkles, Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthMeter from '../components/password-strength-meter';
 import { evaluatePasswordStrength } from '../security/password-policy';
 
-function WorkspaceSetupContent() {
+function CompanySetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { setupWorkspace } = useAuth();
+  const { setupWorkspace } = useAuth(); // The API action in useAuth still maps to setupWorkspace on the backend, which we keep unchanged for endpoint/auth helper compatibility.
 
   const email = searchParams.get('email') || '';
   const verificationToken = searchParams.get('token') || '';
 
   // State values
-  const [workspaceName, setWorkspaceName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [companyHandle, setCompanyHandle] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isVisible, setIsVisible] = useState(false);
   const [isConfirmVisible, setIsConfirmVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,8 +33,8 @@ function WorkspaceSetupContent() {
   // Route entry parameter validation
   useEffect(() => {
     if (!verificationToken || !email) {
-      toast.danger("Access Denied", {
-        description: "Invalid or missing workspace setup session."
+      toast.danger('Access Denied', {
+        description: 'Invalid or missing company setup session.',
       });
       router.replace('/company-verification');
     }
@@ -52,13 +52,13 @@ function WorkspaceSetupContent() {
     const candidates = new Set<string>();
     if (domain && domain !== 'gmail' && domain !== 'yahoo' && domain !== 'outlook') {
       candidates.add(domain);
-      candidates.add(`${domain}_workspace`);
+      candidates.add(`${domain}_company`);
       if (local) {
         candidates.add(`${domain}_${local}`);
       }
     } else if (local) {
       candidates.add(local);
-      candidates.add(`${local}_workspace`);
+      candidates.add(`${local}_company`);
     }
     
     const filteredCandidates = Array.from(candidates).filter(c => c.length >= 3 && c.length <= 30);
@@ -68,16 +68,16 @@ function WorkspaceSetupContent() {
     return () => clearTimeout(timer);
   }, [email]);
 
-  const isWorkspaceInvalid = workspaceName.length > 0 && !workspaceName.match(/^[a-z0-9_]{3,30}$/);
-  const isPasswordValid = evaluatePasswordStrength(password, "default").percentage === 100;
+  const isHandleInvalid = companyHandle.length > 0 && !companyHandle.match(/^[a-z0-9_]{3,30}$/);
+  const isPasswordValid = evaluatePasswordStrength(password, 'default').percentage === 100;
   const isPasswordsMatch = password === confirmPassword;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!workspaceName || isWorkspaceInvalid) return;
+    if (!companyHandle || isHandleInvalid) return;
     if (!password || !isPasswordValid) return;
     if (!isPasswordsMatch) {
-      toast.danger("Mismatch", { description: "Passwords do not match." });
+      toast.danger('Mismatch', { description: 'Passwords do not match.' });
       return;
     }
 
@@ -85,28 +85,28 @@ function WorkspaceSetupContent() {
     const result = await setupWorkspace({
       verificationToken,
       companyEmail: email,
-      organizationUsername: workspaceName,
+      organizationUsername: companyHandle,
       password,
       confirmPassword
     });
     setIsLoading(false);
 
     if (result.success) {
-      toast.success("Company created successfully", {
-        description: "Please sign in or create an account to claim ownership."
+      toast.success('Company created successfully', {
+        description: 'Please sign in or create an account to claim ownership.',
       });
       router.replace(`/login?email=${encodeURIComponent(email)}`);
     } else {
-      const isExpired = result.error?.code === "TOKEN_EXPIRED" || result.error?.message?.toLowerCase().includes("expired");
+      const isExpired = result.error?.code === 'TOKEN_EXPIRED' || result.error?.message?.toLowerCase().includes('expired');
       if (isExpired) {
-        toast.danger("Session Expired", {
-          description: "Your workspace setup token has expired. Please restart the onboarding process."
+        toast.danger('Session Expired', {
+          description: 'Your company setup token has expired. Please restart the onboarding process.',
         });
-        setWorkspaceName("");
+        setCompanyHandle('');
         router.replace('/company-verification');
       } else {
-        toast.danger("Setup Failed", {
-          description: result.error?.message || "Failed to provision organization workspace."
+        toast.danger('Setup Failed', {
+          description: result.error?.message || 'Failed to provision company organization.',
         });
       }
     }
@@ -121,29 +121,29 @@ function WorkspaceSetupContent() {
 
         <div className="text-center w-full mb-8">
           <Typography.Heading level={3} className="text-2xl font-bold pb-2 text-foreground">
-            Setup workspace
+            Company Setup
           </Typography.Heading>
           <Typography className="text-sm text-muted">
-            Define your unique CVerify organization handle and workspace security.
+            Define your unique CVerify business handle and company security credentials.
           </Typography>
         </div>
 
         <Form className="w-full flex flex-col gap-5" onSubmit={handleSubmit}>
           {/* Descriptive Disclaimer */}
           <div className="p-3.5 bg-surface-secondary border border-border rounded-xl text-xs text-muted leading-relaxed">
-            <strong className="text-foreground font-semibold block mb-0.5">Workspace Credentials:</strong>
-            This password establishes credentials for the Workspace login page (using slug + password). The ownership verification email is only used as a contact to automatically bootstrap admin permissions on registration, and is not a company user account or authenticated identity.
+            <strong className="text-foreground font-semibold block mb-0.5">Company Credentials:</strong>
+            This password establishes credentials for the Company login page (using handle + password). The ownership verification email is only used as a contact to automatically bootstrap admin permissions on registration, and is not a company user account or authenticated identity.
           </div>
 
-          <TextField isRequired name="workspaceName" isInvalid={isWorkspaceInvalid}>
-            <Label className="text-sm font-medium text-foreground/80 pb-1">Workspace Handle</Label>
+          <TextField isRequired name="companyHandle" isInvalid={isHandleInvalid}>
+            <Label className="text-sm font-medium text-foreground/80 pb-1">Business Handle</Label>
             <Input
               placeholder="e.g. fpt_software"
               className="h-12 text-sm lowercase"
-              value={workspaceName}
-              onChange={(e) => setWorkspaceName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              value={companyHandle}
+              onChange={(e) => setCompanyHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
             />
-            {isWorkspaceInvalid && (
+            {isHandleInvalid && (
               <div className="text-left w-full mt-1">
                 <span className="text-danger text-xs font-medium">Handle must be 3-30 lowercase alphanumeric or underscore characters.</span>
               </div>
@@ -154,14 +154,14 @@ function WorkspaceSetupContent() {
           {suggestions.length > 0 && (
             <div className="w-full -mt-2">
               <span className="text-[11px] font-semibold text-muted flex items-center gap-1 mb-2">
-                <Sparkles className="size-3 text-warning animate-pulse" /> Suggested Workspace Handles
+                <Sparkles className="size-3 text-warning animate-pulse" /> Suggested Business Handles
               </span>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
-                    onClick={() => setWorkspaceName(suggestion)}
+                    onClick={() => setCompanyHandle(suggestion)}
                     className="text-[11px] font-semibold font-mono bg-surface-secondary hover:bg-surface-secondary/85 border border-border rounded-lg px-2.5 py-1 text-foreground/80 transition-colors cursor-pointer select-none"
                   >
                     {suggestion}
@@ -173,12 +173,12 @@ function WorkspaceSetupContent() {
 
           {/* Password fields */}
           <TextField isRequired name="password" type="password">
-            <Label className="text-sm font-medium text-foreground/80 pb-1">Workspace Password</Label>
+            <Label className="text-sm font-medium text-foreground/80 pb-1">Company Password</Label>
             <InputGroup>
               <InputGroup.Input
                 className="h-12 text-sm"
-                type={isVisible ? "text" : "password"}
-                placeholder="Workspace password (min 8 chars)"
+                type={isVisible ? 'text' : 'password'}
+                placeholder="Company password (min 8 chars)"
                 value={password}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                 disabled={isLoading}
@@ -200,12 +200,12 @@ function WorkspaceSetupContent() {
           </TextField>
 
           <TextField isRequired name="confirmPassword" type="password">
-            <Label className="text-sm font-medium text-foreground/80 pb-1">Confirm Workspace Password</Label>
+            <Label className="text-sm font-medium text-foreground/80 pb-1">Confirm Company Password</Label>
             <InputGroup>
               <InputGroup.Input
                 className="h-12 text-sm"
-                type={isConfirmVisible ? "text" : "password"}
-                placeholder="Repeat workspace password"
+                type={isConfirmVisible ? 'text' : 'password'}
+                placeholder="Repeat company password"
                 value={confirmPassword}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                 disabled={isLoading}
@@ -229,11 +229,11 @@ function WorkspaceSetupContent() {
             type="submit"
             fullWidth
             isPending={isLoading}
-            isDisabled={!workspaceName || isWorkspaceInvalid || !password || !isPasswordValid || !isPasswordsMatch || isLoading}
+            isDisabled={!companyHandle || isHandleInvalid || !password || !isPasswordValid || !isPasswordsMatch || isLoading}
             className="h-12 rounded-xl bg-foreground text-background font-semibold mt-2 flex items-center justify-center gap-2"
           >
             {isLoading && <Spinner color="current" size="sm" />}
-            Provision workspace
+            Create Company
           </Button>
         </Form>
       </div>
@@ -241,14 +241,15 @@ function WorkspaceSetupContent() {
   );
 }
 
-export function WorkspaceSetupView() {
+export function CompanySetupView() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center p-8 min-h-[400px]">
         <div className="w-8 h-8 border-2 border-t-foreground border-border rounded-full animate-spin" />
       </div>
     }>
-      <WorkspaceSetupContent />
+      <CompanySetupContent />
     </Suspense>
   );
 }
+export default CompanySetupView;
