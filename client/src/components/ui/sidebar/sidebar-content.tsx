@@ -1,8 +1,15 @@
 "use client";
 
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { useAuth } from "../../../features/auth/hooks/use-auth";
-import { navigationConfig } from "../../../config/navigation-config";
+import {
+  companyNavigationConfig,
+  workspaceNavigationConfig,
+  candidateNavigationConfig,
+  adminNavigationConfig
+} from "../../../config/navigation-config";
+import { useSidebarMode } from "../../../providers/sidebar-mode-provider";
+import { useActiveWorkspace } from "../../../features/workspace/hooks/use-active-workspace";
 import { filterNavigationNodes } from "../../../lib/navigation-utils";
 import SidebarLink from "./sidebar-link";
 import SidebarGroup from "./sidebar-group";
@@ -12,7 +19,7 @@ import { useWorkspace } from "../../../providers/workspace-provider";
 import { useWorkspaceStore } from "../../../features/workspace/store/use-workspace-store";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Tooltip } from "@heroui/react";
+import { Tooltip, Popover } from "@heroui/react";
 import {
   LayoutDashboard,
   Orbit,
@@ -26,15 +33,7 @@ import {
   BarChart3,
   Settings,
   ArrowLeft,
-  BookOpen,
-  Building2,
-  Shield,
-  Users,
-  Briefcase,
-  FileText,
-  Info,
-  CreditCard,
-  UserCheck
+  BookOpen
 } from "lucide-react";
 import { type NavigationNode } from "../../../types/navigation.types";
 
@@ -51,14 +50,17 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
   const userRole = user?.role || "USER";
 
   const { activeWorkspace } = useWorkspace();
+  const { sidebarMode } = useSidebarMode();
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeView = searchParams?.get("view") || "overview";
 
   const fetchMyOrganizations = useWorkspaceStore((s) => s.fetchMyOrganizations);
   const myOrganizations = useWorkspaceStore((s) => s.myOrganizations);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const workspacesStore = useWorkspaceStore((s) => s.workspaces);
   const fetchWorkspace = useWorkspaceStore((s) => s.fetchWorkspace);
+
+  const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -92,18 +94,21 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
   }, [currentOrgSlug, fetchWorkspace]);
 
   const workspaceDetails = useMemo(() => {
-    return currentOrgSlug ? workspaces[currentOrgSlug] : null;
-  }, [currentOrgSlug, workspaces]);
+    return currentOrgSlug ? workspacesStore[currentOrgSlug] : null;
+  }, [currentOrgSlug, workspacesStore]);
 
   const workspacePermissions = useMemo(() => workspaceDetails?.permissions || [], [workspaceDetails]);
   const workspaceUserRole = useMemo(() => workspaceDetails?.userRole || null, [workspaceDetails]);
 
+  // Active sub-workspaces hook
+  const { activeWorkspaceId, setActiveWorkspaceId, workspaces } = useActiveWorkspace(currentOrgSlug);
+  const activeWorkspaceObj = useMemo(() => workspaces.find(w => w.id === activeWorkspaceId), [workspaces, activeWorkspaceId]);
+  const activeWorkspaceName = activeWorkspaceObj?.displayName || "Select Workspace";
+
   // Helper check for role & permissions at workspace level
   const hasWorkspaceAccess = (node: NavigationNode) => {
-    // 1. Check workspace permissions
     const reqPerms = node.requiredWorkspacePermissions;
     if (reqPerms && reqPerms.length > 0) {
-      // Owners & Representatives bypass all checks
       if (workspaceUserRole === "OWNER" || workspaceUserRole === "REPRESENTATIVE") {
         return true;
       }
@@ -111,7 +116,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       if (!hasPerm) return false;
     }
 
-    // 2. Check workspace roles
     const reqRoles = node.requiredWorkspaceRoles;
     if (reqRoles && reqRoles.length > 0) {
       if (!workspaceUserRole || !reqRoles.includes(workspaceUserRole)) {
@@ -167,7 +171,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
           // 3. Workspace membership check (if it's a workspace-specific route)
           const isWorkspaceRoute = node.id.startsWith("workspace-") || node.id.startsWith("org-");
           if (isWorkspaceRoute) {
-            // Must have a valid organization and belong to it
             if (!currentOrgSlug || !workspaceDetails || workspaceUserRole === null) {
               return null;
             }
@@ -193,10 +196,27 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         .filter((node): node is NavigationNode => node !== null);
     };
 
-    const rawNodes = filterRecurse(navigationConfig);
-    // Resolve [slug] placeholders in hrefs
+    // Determine config array depending on mode
+    let targetConfig: NavigationNode[] = [];
+    if (sidebarMode === "WORKSPACE") {
+      targetConfig = workspaceNavigationConfig;
+    } else if (sidebarMode === "CANDIDATE") {
+      targetConfig = candidateNavigationConfig;
+    } else if (sidebarMode === "SYSTEM_ADMIN") {
+      targetConfig = adminNavigationConfig;
+    } else {
+      // Default mode: COMPANY
+      targetConfig = [...companyNavigationConfig];
+      if (userRole === "USER") {
+        targetConfig = [...candidateNavigationConfig];
+      } else if (userRole === "ADMIN") {
+        targetConfig = [...targetConfig, ...adminNavigationConfig];
+      }
+    }
+
+    const rawNodes = filterRecurse(targetConfig);
     return rawNodes.map(resolveNodeHref);
-  }, [userRole, hasPermission, currentOrgSlug, workspaceDetails, workspaceUserRole, workspacePermissions]);
+  }, [sidebarMode, userRole, hasPermission, currentOrgSlug, workspaceDetails, workspaceUserRole, workspacePermissions]);
 
   // Dedicated specialized components workspace navigation sections
   const componentSections = useMemo(() => [
@@ -317,7 +337,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     );
   }
 
-  // Standard Admin Layout Navigation
   return (
     <nav
       className={["flex flex-col w-full h-full", isMobile ? "gap-2" : "gap-3"].join(
@@ -328,6 +347,102 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       }
     >
       <div className="flex-1 flex flex-col gap-3 w-full">
+        {/* Workspace specific Mode Header */}
+        {sidebarMode === "WORKSPACE" && (
+          <div className="flex flex-col gap-2 pb-2 border-b border-border/40 mb-1 select-none">
+            <Link
+              href={`/workspace/${currentOrgSlug}/dashboard`}
+              className={[
+                "flex items-center gap-2 w-full rounded-xl transition-all duration-200 text-muted hover:bg-accent/10 hover:text-accent font-semibold cursor-pointer border-0 bg-transparent text-left",
+                isMobile ? "h-12 text-base px-3.5" : "h-10 text-sm px-3",
+                collapsed ? "justify-center" : ""
+              ].join(" ")}
+            >
+              <ArrowLeft size={16} />
+              {!collapsed && <span className="text-xs">Company Console</span>}
+            </Link>
+
+            {/* Sub-workspace Dropdown Selector */}
+            {workspaces.length > 0 && (
+              <div className="flex flex-col gap-1 w-full mt-1 px-1">
+                {!collapsed && (
+                  <span className="text-[9px] text-muted/65 font-bold uppercase tracking-wider px-2">
+                    Active Workspace
+                  </span>
+                )}
+                <Popover isOpen={isWorkspaceDropdownOpen} onOpenChange={setIsWorkspaceDropdownOpen}>
+                  <Popover.Trigger className={collapsed ? "" : "w-full"}>
+                    <button
+                      type="button"
+                      className={[
+                        "w-full flex items-center justify-between h-9 px-2 rounded-xl bg-surface-secondary/20 hover:bg-surface-secondary/40 text-foreground transition-all duration-200 cursor-pointer border border-border/40 outline-hidden select-none text-left",
+                        collapsed ? "justify-center p-0 w-8 h-8 mx-auto" : ""
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center gap-1.5 truncate">
+                        <div className="w-5 h-5 rounded-md bg-accent/10 text-accent flex items-center justify-center font-bold text-[9px] shrink-0 border border-accent/20">
+                          {activeWorkspaceName[0]?.toUpperCase() || "W"}
+                        </div>
+                        {!collapsed && (
+                          <span className="text-xs font-bold truncate pr-1">
+                            {activeWorkspaceName}
+                          </span>
+                        )}
+                      </div>
+                      {!collapsed && (
+                        <span className="text-muted/60 font-semibold text-[8px] mr-0.5">▼</span>
+                      )}
+                    </button>
+                  </Popover.Trigger>
+                  <Popover.Content placement="bottom start" className="w-[200px] p-1.5 bg-background border-2 border-border rounded-xl shadow-overlay z-9999">
+                    <div className="flex flex-col w-full font-outfit text-foreground">
+                      {workspaces.map((w) => {
+                        const isActive = w.id === activeWorkspaceId;
+                        return (
+                          <button
+                            key={w.id}
+                            onClick={() => {
+                              setActiveWorkspaceId(w.id);
+                              setIsWorkspaceDropdownOpen(false);
+                            }}
+                            className={[
+                              "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-150 text-left border-none bg-transparent hover:bg-surface-secondary focus:bg-surface-secondary cursor-pointer select-none text-xs",
+                              isActive ? "font-bold text-accent" : "font-semibold"
+                            ].join(" ")}
+                          >
+                            <div className={["w-4 h-4 rounded-sm flex items-center justify-center font-bold text-[9px] shrink-0", isActive ? "bg-accent/15 text-accent" : "bg-muted/15 text-muted"].join(" ")}>
+                              {w.displayName[0]?.toUpperCase()}
+                            </div>
+                            <span className="truncate flex-1">{w.displayName}</span>
+                            {isActive && <span className="text-accent text-[10px]">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Popover.Content>
+                </Popover>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Company Quick-Jump Banner (Rendered when in Company Mode and a workspace is selected) */}
+        {sidebarMode === "COMPANY" && activeWorkspaceObj && !collapsed && (
+          <div className="px-1.5 mb-1.5 select-none">
+            <Link
+              href={`/workspace/${currentOrgSlug}/recruitment/dashboard`}
+              className="flex items-center justify-between p-2 rounded-xl border border-accent/20 bg-accent/5 hover:bg-accent/10 transition-colors duration-200 cursor-pointer"
+            >
+              <div className="flex flex-col min-w-0">
+                <span className="text-[8px] text-accent font-bold uppercase tracking-wider">Active Workspace</span>
+                <span className="text-[11px] font-bold text-foreground truncate">{activeWorkspaceName}</span>
+              </div>
+              <span className="text-[9px] font-bold text-accent shrink-0 ml-1.5 bg-accent/10 px-1.5 py-0.5 rounded-md border border-accent/20">Open →</span>
+            </Link>
+          </div>
+        )}
+
+        {/* Dynamic Navigation Node Links */}
         {filteredNodes.map((node) => {
           if (node.type === "item") {
             return (
@@ -363,7 +478,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         })}
       </div>
 
-      {/* Workspace Switcher at the bottom */}
+      {/* Organization Switcher at the bottom */}
       {(userRole === "BUSINESS" || userRole === "ADMIN") && (
         <div className="mt-auto pt-3 border-t border-separator/50 w-full shrink-0 min-w-0">
           <WorkspaceSwitcher collapsed={collapsed} isMobile={isMobile} />
@@ -374,4 +489,3 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 };
 
 export default SidebarContent;
-

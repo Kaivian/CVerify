@@ -2,22 +2,23 @@ import { useMemo } from 'react';
 import { useWorkspaceStore } from '../store/use-workspace-store';
 
 export const useActiveWorkspace = (orgSlug: string) => {
-  const activeWorkspaceIds = useWorkspaceStore((s) => s.activeWorkspaceIds || {});
+  const activeWorkspaceIds = useWorkspaceStore((s) => s.activeWorkspaceIds);
   const setActiveWorkspaceIdInStore = useWorkspaceStore((s) => s.setActiveWorkspaceId);
-  const workspaces = useWorkspaceStore((s) => s.workspaces[orgSlug]?.workspaces || []);
+  const workspaces = useWorkspaceStore((s) => s.workspaces[orgSlug]?.workspaces);
 
   const activeWorkspaceId = useMemo(() => {
-    const storeActive = activeWorkspaceIds[orgSlug];
-    if (storeActive && workspaces.some((w) => w.id === storeActive)) {
+    const storeActive = activeWorkspaceIds?.[orgSlug];
+    const workspacesList = workspaces || [];
+    if (storeActive && workspacesList.some((w) => w.id === storeActive)) {
       return storeActive;
     }
     if (typeof window !== 'undefined') {
       const localActive = localStorage.getItem(`cverify:active-workspace:${orgSlug}`);
-      if (localActive && workspaces.some((w) => w.id === localActive)) {
+      if (localActive && workspacesList.some((w) => w.id === localActive)) {
         return localActive;
       }
     }
-    return workspaces[0]?.id || null;
+    return workspacesList[0]?.id || null;
   }, [orgSlug, activeWorkspaceIds, workspaces]);
 
   const setActiveWorkspaceId = (id: string) => {
@@ -27,5 +28,6 @@ export const useActiveWorkspace = (orgSlug: string) => {
     }
   };
 
-  return { activeWorkspaceId, setActiveWorkspaceId, workspaces };
+  return { activeWorkspaceId, setActiveWorkspaceId, workspaces: workspaces || [] };
 };
+
