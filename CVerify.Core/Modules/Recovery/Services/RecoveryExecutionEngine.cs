@@ -147,6 +147,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                 DisplayName = displayName,
                 Slug = slug,
                 Status = "active",
+                OwnerId = user.Id,
                 CreatedAt = _timeProvider.GetUtcNow(),
                 UpdatedAt = _timeProvider.GetUtcNow()
             };
@@ -421,6 +422,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             // Update presentation details
             workspace.DisplayName = displayName;
             workspace.Slug = slug;
+            workspace.OwnerId = user.Id;
             workspace.UpdatedAt = _timeProvider.GetUtcNow();
 
             org.VerificationLevel = 2; // Level 2 (Domain/Ownership verified)

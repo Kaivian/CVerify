@@ -45,15 +45,21 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
     return "";
   }, [pathname]);
 
+  // Fallback organization slug if not currently in a workspace path
+  const currentOrgSlug = useMemo(() => {
+    if (activeWorkspaceSlug) return activeWorkspaceSlug;
+    return myOrganizations && myOrganizations.length > 0 ? myOrganizations[0].slug : "";
+  }, [activeWorkspaceSlug, myOrganizations]);
+
   // Fetch details for active organization to retrieve workspaces
   useEffect(() => {
-    if (activeWorkspaceSlug) {
-      fetchWorkspace(activeWorkspaceSlug);
+    if (currentOrgSlug) {
+      fetchWorkspace(currentOrgSlug);
     }
-  }, [activeWorkspaceSlug, fetchWorkspace]);
+  }, [currentOrgSlug, fetchWorkspace]);
 
   // Active sub-workspaces hook
-  const { activeWorkspaceId, setActiveWorkspaceId, workspaces: subWorkspaces } = useActiveWorkspace(activeWorkspaceSlug);
+  const { activeWorkspaceId, setActiveWorkspaceId, workspaces: subWorkspaces } = useActiveWorkspace(currentOrgSlug);
   const activeWorkspaceObj = useMemo(() => subWorkspaces.find(w => w.id === activeWorkspaceId), [subWorkspaces, activeWorkspaceId]);
 
   // Deterministic avatar monogram
@@ -99,7 +105,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
     setActiveWorkspaceId(id);
     
     // Redirect to recruitment dashboard for the selected workspace context
-    router.push(`/business/${activeWorkspaceSlug}/recruitment/dashboard`);
+    router.push(`/business/${currentOrgSlug}/recruitment/dashboard`);
   };
 
   const handleCreateWorkspace = () => {
@@ -109,7 +115,10 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
   };
 
   // 1. Loading state
-  if (myOrganizations === null || workspacesStore[activeWorkspaceSlug] === undefined) {
+  const hasOrgs = myOrganizations && myOrganizations.length > 0;
+  const isWorkspaceLoaded = currentOrgSlug ? workspacesStore[currentOrgSlug] !== undefined : false;
+
+  if (myOrganizations === null || (hasOrgs && !isWorkspaceLoaded)) {
     return (
       <div className="w-full flex items-center gap-3 select-none px-3 py-2">
         <div className={[
@@ -264,14 +273,14 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
         </Popover.Content>
       </Popover>
 
-      {activeWorkspaceSlug && (
+      {currentOrgSlug && (
         <CreateWorkspaceModal
           isOpen={isCreateModalOpen}
           onOpenChange={setIsCreateModalOpen}
-          organizationSlug={activeWorkspaceSlug}
+          organizationSlug={currentOrgSlug}
           onSuccess={() => {
-            if (activeWorkspaceSlug) {
-              fetchWorkspace(activeWorkspaceSlug);
+            if (currentOrgSlug) {
+              fetchWorkspace(currentOrgSlug);
             }
           }}
         />

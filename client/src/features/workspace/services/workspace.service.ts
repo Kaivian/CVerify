@@ -4,7 +4,7 @@ import { type WorkspaceDetails, type PaginatedWorkspaceMembers, type LinkedOrgan
 export const workspaceService = {
   async createWorkspace(
     organizationSlug: string,
-    workspace: { displayName: string; slug: string }
+    workspace: { displayName: string; slug: string; description?: string }
   ): Promise<LinkedWorkspace> {
     const response = await axiosClient.post<LinkedWorkspace>(
       `/organizations/${organizationSlug}/workspaces`,
@@ -145,5 +145,89 @@ export const workspaceService = {
   async getOrganizationStats(): Promise<OrganizationStats> {
     const response = await axiosClient.get<OrganizationStats>('/workspace/organizations/stats');
     return response.data;
+  },
+
+  async getWorkspaces(
+    organizationSlug: string,
+    params?: {
+      search?: string;
+      status?: string;
+      sortBy?: string;
+      page?: number;
+      pageSize?: number;
+    }
+  ): Promise<{ items: any[]; totalCount: number; page: number; pageSize: number }> {
+    const response = await axiosClient.get<{ items: any[]; totalCount: number; page: number; pageSize: number }>(
+      `/organizations/${organizationSlug}/workspaces`,
+      { params }
+    );
+    return response.data;
+  },
+
+  async updateWorkspace(
+    organizationSlug: string,
+    workspaceId: string,
+    updates: { displayName: string; slug: string; description?: string; status: string }
+  ): Promise<any> {
+    const response = await axiosClient.patch<any>(
+      `/organizations/${organizationSlug}/workspaces/${workspaceId}`,
+      updates
+    );
+    return response.data;
+  },
+
+  async deleteWorkspace(organizationSlug: string, workspaceId: string): Promise<void> {
+    await axiosClient.delete(`/organizations/${organizationSlug}/workspaces/${workspaceId}`);
+  },
+
+  async archiveWorkspace(organizationSlug: string, workspaceId: string): Promise<void> {
+    await axiosClient.post(`/organizations/${organizationSlug}/workspaces/${workspaceId}/archive`);
+  },
+
+  async restoreWorkspace(organizationSlug: string, workspaceId: string): Promise<void> {
+    await axiosClient.post(`/organizations/${organizationSlug}/workspaces/${workspaceId}/restore`);
+  },
+
+  async transferWorkspaceOwnership(
+    organizationSlug: string,
+    workspaceId: string,
+    payload: { newOwnerId: string }
+  ): Promise<void> {
+    await axiosClient.post(`/organizations/${organizationSlug}/workspaces/${workspaceId}/transfer-ownership`, payload);
+  },
+
+  async getWorkspaceLevelMembers(organizationSlug: string, workspaceId: string): Promise<any[]> {
+    const response = await axiosClient.get<any[]>(
+      `/organizations/${organizationSlug}/workspaces/${workspaceId}/members`
+    );
+    return response.data;
+  },
+
+  async addWorkspaceLevelMember(
+    organizationSlug: string,
+    workspaceId: string,
+    member: { userId: string; role: string }
+  ): Promise<void> {
+    await axiosClient.post(`/organizations/${organizationSlug}/workspaces/${workspaceId}/members`, member);
+  },
+
+  async updateWorkspaceLevelMemberRole(
+    organizationSlug: string,
+    workspaceId: string,
+    targetUserId: string,
+    payload: { role: string }
+  ): Promise<void> {
+    await axiosClient.patch(
+      `/organizations/${organizationSlug}/workspaces/${workspaceId}/members/${targetUserId}`,
+      payload
+    );
+  },
+
+  async removeWorkspaceLevelMember(
+    organizationSlug: string,
+    workspaceId: string,
+    targetUserId: string
+  ): Promise<void> {
+    await axiosClient.delete(`/organizations/${organizationSlug}/workspaces/${workspaceId}/members/${targetUserId}`);
   }
 };

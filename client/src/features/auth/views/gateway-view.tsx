@@ -277,7 +277,7 @@ export function GatewayView() {
                       </TextField>
 
                       <div className="flex items-center justify-between pb-2">
-                        <Checkbox id="remember-me">
+                        <Checkbox id="remember-me" className="flex items-center gap-2 cursor-pointer select-none">
                           <Checkbox.Control>
                             <Checkbox.Indicator />
                           </Checkbox.Control>

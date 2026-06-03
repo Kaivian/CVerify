@@ -366,8 +366,8 @@ public class BusinessRoleTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.Workspaces.Add(new Workspace { Id = workspaceAId, OrganizationId = org.Id, DisplayName = "Workspace A", Slug = "ws-a", Status = "active" });
-            db.Workspaces.Add(new Workspace { Id = workspaceBId, OrganizationId = org.Id, DisplayName = "Workspace B", Slug = "ws-b", Status = "active" });
+            db.Workspaces.Add(new Workspace { Id = workspaceAId, OrganizationId = org.Id, DisplayName = "Workspace A", Slug = "ws-a", Status = "active", OwnerId = ownerId });
+            db.Workspaces.Add(new Workspace { Id = workspaceBId, OrganizationId = org.Id, DisplayName = "Workspace B", Slug = "ws-b", Status = "active", OwnerId = ownerId });
             await db.SaveChangesAsync();
         }
 

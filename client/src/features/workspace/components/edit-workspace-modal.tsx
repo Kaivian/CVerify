@@ -2,66 +2,53 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button, Input, TextArea, Spinner } from '@heroui/react';
-import { useWorkspaceStore } from '../store/use-workspace-store';
+import { workspaceService } from '../services/workspace.service';
 import DialogModal from '@/components/ui/dialog-modal';
+import SelectDropdown from '@/components/ui/select-dropdown';
 
-interface CreateWorkspaceModalProps {
+interface EditWorkspaceModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   organizationSlug: string;
-  onClose?: () => void;
-  onSuccess?: (newWorkspace: any) => void;
+  workspace: {
+    id: string;
+    displayName: string;
+    slug: string;
+    description?: string;
+    status: string;
+  } | null;
+  onSuccess?: () => void;
 }
 
-export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
+export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
   isOpen,
   onOpenChange,
   organizationSlug,
-  onClose,
+  workspace,
   onSuccess,
 }) => {
-  const createWorkspace = useWorkspaceStore((s) => s.createWorkspace);
-
   const [displayName, setDisplayName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
-  const [isAutoSlug, setIsAutoSlug] = useState(true);
+  const [status, setStatus] = useState('active');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Reset state when modal opens
+  // Initialize fields when workspace is set
   useEffect(() => {
-    if (isOpen) {
-      setDisplayName('');
-      setSlug('');
-      setDescription('');
-      setIsAutoSlug(true);
+    if (isOpen && workspace) {
+      setDisplayName(workspace.displayName);
+      setSlug(workspace.slug);
+      setDescription(workspace.description || '');
+      setStatus(workspace.status);
       setErrorMessage(null);
       setIsSubmitting(false);
     }
-  }, [isOpen]);
-
-  const slugify = (text: string) => {
-    return text
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-+|-+$)/g, '');
-  };
-
-  const handleDisplayNameChange = (val: string) => {
-    setDisplayName(val);
-    if (isAutoSlug) {
-      setSlug(slugify(val));
-    }
-  };
-
-  const handleSlugChange = (val: string) => {
-    setSlug(slugify(val));
-    setIsAutoSlug(false);
-  };
+  }, [isOpen, workspace]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!workspace) return;
     if (!displayName.trim() || !slug.trim()) return;
 
     const slugRegex = /^[a-z0-9-]{3,50}$/;
@@ -73,20 +60,21 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const newWorkspace = await createWorkspace(organizationSlug, {
-      displayName: displayName.trim(),
-      slug: slug.trim(),
-      description: description.trim() || undefined,
-    } as any); // cast since store type might not have description, but backend does.
-
-    setIsSubmitting(false);
-
-    if (newWorkspace) {
-      onSuccess?.(newWorkspace);
-      onClose?.();
+    try {
+      await workspaceService.updateWorkspace(organizationSlug, workspace.id, {
+        displayName: displayName.trim(),
+        slug: slug.trim(),
+        description: description.trim() || undefined,
+        status: status
+      });
+      onSuccess?.();
       onOpenChange(false);
-    } else {
-      setErrorMessage('Failed to create workspace. Verify that the slug is unique and not already taken.');
+    } catch (err: any) {
+      console.error(err);
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to update workspace.';
+      setErrorMessage(errMsg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -94,10 +82,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
     <div className="flex gap-3 w-full">
       <Button
         variant="secondary"
-        onClick={() => {
-          onClose?.();
-          onOpenChange(false);
-        }}
+        onClick={() => onOpenChange(false)}
         className="flex-1 cursor-pointer font-bold rounded-xl py-2.5 text-xs"
         isDisabled={isSubmitting}
       >
@@ -105,17 +90,17 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
       </Button>
       <Button
         type="submit"
-        form="create-workspace-form"
+        form="edit-workspace-form"
         className="flex-1 cursor-pointer bg-foreground text-background font-bold rounded-xl py-2.5 text-xs flex items-center justify-center gap-2"
         isDisabled={isSubmitting || !displayName.trim() || !slug.trim()}
       >
         {isSubmitting ? (
           <>
             <Spinner size="sm" color="current" />
-            Creating...
+            Saving...
           </>
         ) : (
-          'Create Workspace'
+          'Save Changes'
         )}
       </Button>
     </div>
@@ -125,15 +110,11 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
     <DialogModal
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      title="Create New Workspace"
+      title="Edit Workspace Settings"
       size="md"
       footer={footer}
     >
-      <form id="create-workspace-form" onSubmit={handleSubmit} className="space-y-4 font-outfit select-none">
-        <p className="text-xs text-muted-foreground">
-          Workspaces represent separate operational environments (e.g. Recruiting, Engineering) within your company organization.
-        </p>
-
+      <form id="edit-workspace-form" onSubmit={handleSubmit} className="space-y-4 font-outfit select-none">
         {errorMessage && (
           <div className="p-3 bg-danger/10 text-danger border border-danger/20 rounded-xl text-xs font-semibold">
             {errorMessage}
@@ -146,7 +127,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
             required
             placeholder="e.g. Engineering"
             value={displayName}
-            onChange={(e) => handleDisplayNameChange(e.target.value)}
+            onChange={(e) => setDisplayName(e.target.value)}
             className="w-full text-xs font-semibold rounded-xl border border-border"
           />
         </div>
@@ -157,11 +138,11 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
             required
             placeholder="e.g. engineering"
             value={slug}
-            onChange={(e) => handleSlugChange(e.target.value)}
+            onChange={(e) => setSlug(e.target.value)}
             className="w-full text-xs font-semibold rounded-xl border border-border font-mono"
           />
           <span className="text-[10px] text-muted-foreground block mt-1">
-            This will be used in your workspace URL, e.g. cverify.com/business/{organizationSlug}/{slug || 'your-slug'}
+            This will change the workspace URL path, e.g. cverify.com/business/{organizationSlug}/{slug}
           </span>
         </div>
 
@@ -175,9 +156,23 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
             rows={3}
           />
         </div>
+
+        <div className="space-y-1">
+          <SelectDropdown
+            label="Status"
+            value={status}
+            onChange={(val) => setStatus(val)}
+            options={[
+              { value: 'active', label: 'Active' },
+              { value: 'archived', label: 'Archived' },
+              { value: 'frozen', label: 'Frozen' },
+              { value: 'superseded', label: 'Superseded' }
+            ]}
+          />
+        </div>
       </form>
     </DialogModal>
   );
 };
 
-export default CreateWorkspaceModal;
+export default EditWorkspaceModal;

@@ -43,10 +43,10 @@ function WorkspaceAccessGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Access check: if there is a details fetch error (e.g. 403) OR if userRole is null (authenticated visitor/non-member)
+  const hasViewPermission = workspaceDetails?.permissions?.includes("organization:workspaces:view");
   const isAccessDenied =
     (detailsError && (detailsError.toLowerCase().includes("forbidden") || detailsError.includes("403"))) ||
-    (workspaceDetails && workspaceDetails.userRole === null);
+    (workspaceDetails && !hasViewPermission);
 
   if (isAccessDenied || detailsError || !workspaceDetails) {
     return (
