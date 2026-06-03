@@ -1,22 +1,27 @@
 import React from 'react';
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+interface CardProps extends React.HTMLAttributes<HTMLElement> {
   children: React.ReactNode;
   className?: string;
   glow?: boolean;
+  as?: 'div' | 'button' | 'a';
+  type?: 'button' | 'submit' | 'reset';
+  href?: string;
 }
 
 export const Card: React.FC<CardProps> = ({
   children,
   className = '',
   glow = true,
+  as = 'div',
   ...props
 }) => {
+  const Component = as as any;
   return (
-    <div
+    <Component
       {...props}
       className={[
-        "relative overflow-hidden w-full rounded-2xl p-6 sm:p-8 transition-all duration-300",
+        "relative overflow-hidden w-full rounded-2xl p-6 sm:p-8 transition-all duration-300 text-left",
         "bg-surface text-foreground",
         "border border-border/60",
         // Premium drop shadows and glowing border effects
@@ -34,6 +39,7 @@ export const Card: React.FC<CardProps> = ({
       <div className="relative z-10 flex flex-col h-full w-full">
         {children}
       </div>
-    </div>
+    </Component>
   );
 };
+

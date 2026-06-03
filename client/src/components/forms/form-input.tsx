@@ -79,8 +79,9 @@ export const FormInput: React.FC<FormInputProps> = ({
                 <button
                   type="button"
                   onClick={togglePasswordVisibility}
-                  className="absolute right-3.5 text-muted hover:text-foreground transition-colors cursor-pointer select-none"
-                  tabIndex={-1}
+                  className="absolute right-3.5 text-muted hover:text-foreground transition-colors cursor-pointer select-none focus-ring rounded-md p-0.5"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>

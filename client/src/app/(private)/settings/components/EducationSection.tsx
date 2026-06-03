@@ -84,9 +84,11 @@ const ClickToEditLabel: React.FC<ClickToEditLabelProps> = ({
   }
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => setIsEditing(true)}
-      className="group flex items-center text-[11px] cursor-pointer pb-1"
+      className="group flex items-center text-[11px] cursor-pointer pb-1 bg-transparent border-0 p-0 text-left focus-ring"
+      aria-label={`Edit school label: ${labelValue}`}
     >
       <Label className="cursor-pointer hover:text-muted transition-colors select-none font-bold uppercase text-xs tracking-wider text-muted-foreground">
         {labelValue}
@@ -95,7 +97,7 @@ const ClickToEditLabel: React.FC<ClickToEditLabelProps> = ({
       <span className="text-[10px] text-muted/50 opacity-0 group-hover:opacity-100 transition-opacity font-normal normal-case ml-1">
         (Click to edit)
       </span>
-    </div>
+    </button>
   );
 };
 

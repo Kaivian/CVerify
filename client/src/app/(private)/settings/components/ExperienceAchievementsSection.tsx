@@ -135,7 +135,7 @@ const TechInput: React.FC<TechInputProps> = ({ experienceIndex, control, setValu
                 <button
                   type="button"
                   onClick={() => handleRemoveTech(tech)}
-                  className="hover:bg-foreground/10 rounded-full p-0.5 transition-colors focus-visible:outline-hidden cursor-pointer"
+                  className="hover:bg-foreground/10 rounded-full p-0.5 transition-colors cursor-pointer focus-ring"
                   aria-label={`Remove technology: ${tech}`}
                 >
                   <svg

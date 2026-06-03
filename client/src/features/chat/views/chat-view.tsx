@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Spinner, Typography } from '@heroui/react';
 import { useTranslation } from 'react-i18next';
+import { useRovingTabindex } from '@/hooks/use-roving-tabindex';
 
 // Custom Markdown to Premium HTML converter with secure HTML sanitization
 function parseAndSanitizeMarkdown(text: string): string {
@@ -113,6 +114,17 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation(['chat-verification', 'common']);
 
+  const {
+    listRef,
+    focusedIndex,
+    setFocusedIndex,
+    handleKeyDown: handleRovingKeyDown,
+    getTabindex,
+  } = useRovingTabindex({
+    itemCount: conversations.length,
+    orientation: 'vertical',
+  });
+
   // Initialize conversations list on mount and clean up streaming on unmount
   useEffect(() => {
     fetchConversations();
@@ -170,7 +182,7 @@ export function ChatView() {
         </div>
 
         {/* Conversation List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto p-3 scrollbar-thin">
           {isLoadingConversations ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 select-none">
               <Spinner size="sm" color="accent" />
@@ -181,41 +193,58 @@ export function ChatView() {
               {t('chat-verification:sidebar.empty')}
             </div>
           ) : (
-            conversations.map((c) => {
-              const isActive = activeConversationId === c.id;
-              return (
-                <div
-                  key={c.id}
-                  onClick={() => !isStreaming && setActiveConversationId(c.id)}
-                  className={[
-                    "group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-hidden",
-                    isActive
-                      ? "bg-surface-secondary text-foreground border border-border/30"
-                      : "text-muted hover:bg-surface-secondary/40 hover:text-foreground"
-                  ].join(' ')}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <MessageSquare size={16} className={isActive ? "text-foreground" : "text-muted"} />
-                    <span className="text-xs font-semibold truncate max-w-[170px] select-none">
-                      {c.title}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isStreaming) {
-                        deleteConversation(c.id);
-                      }
-                    }}
-                    disabled={isStreaming}
-                    className="opacity-0 group-hover:opacity-100 hover:text-danger p-1 rounded transition-opacity duration-200 cursor-pointer"
+            <ul
+              ref={listRef}
+              onKeyDown={handleRovingKeyDown}
+              className="space-y-1.5 list-none p-0 m-0"
+              aria-label="Chat conversations"
+            >
+              {conversations.map((c, index) => {
+                const isActive = activeConversationId === c.id;
+                return (
+                  <li
+                    key={c.id}
+                    className="group relative flex items-center rounded-xl"
                   >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              );
-            })
+                    <button
+                      type="button"
+                      onClick={() => !isStreaming && setActiveConversationId(c.id)}
+                      tabIndex={getTabindex(index)}
+                      data-roving-item
+                      onFocus={() => setFocusedIndex(index)}
+                      className={[
+                        "flex-1 flex items-center gap-2.5 px-3 py-2.5 text-left rounded-xl transition-all duration-200 select-none focus-ring cursor-pointer",
+                        isActive
+                          ? "bg-surface-secondary text-foreground border border-border/30"
+                          : "text-muted hover:bg-surface-secondary/40 hover:text-foreground"
+                      ].join(' ')}
+                      aria-label={`Select conversation: ${c.title}`}
+                    >
+                      <MessageSquare size={16} className={isActive ? "text-foreground" : "text-muted"} />
+                      <span className="text-xs font-semibold truncate max-w-[150px]">
+                        {c.title}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isStreaming) {
+                          deleteConversation(c.id);
+                        }
+                      }}
+                      disabled={isStreaming}
+                      tabIndex={isActive ? 0 : -1}
+                      className="absolute right-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 hover:text-danger p-1 rounded transition-opacity duration-200 cursor-pointer text-muted focus-ring"
+                      aria-label={`Delete conversation: ${c.title}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       </aside>
@@ -259,9 +288,12 @@ export function ChatView() {
               {/* Grid of suggest prompt cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
                 <Card 
+                  as="button"
+                  type="button"
                   onClick={() => handleSuggestionClick(t('chat-verification:suggestions.kyotoPrompt'))}
-                  className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5"
+                  className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5 focus-ring"
                   glow={false}
+                  aria-label={`Suggestion: ${t('chat-verification:suggestions.kyotoTitle')}`}
                 >
                   <span className="text-[10px] font-extrabold tracking-wider text-accent uppercase">{t('chat-verification:suggestions.kyotoTitle')}</span>
                   <p className="text-[11px] font-semibold text-foreground/90 leading-normal">
@@ -270,9 +302,12 @@ export function ChatView() {
                 </Card>
                 
                 <Card 
+                  as="button"
+                  type="button"
                   onClick={() => handleSuggestionClick(t('chat-verification:suggestions.yosemitePrompt'))}
-                  className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5"
+                  className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5 focus-ring"
                   glow={false}
+                  aria-label={`Suggestion: ${t('chat-verification:suggestions.yosemiteTitle')}`}
                 >
                   <span className="text-[10px] font-extrabold tracking-wider text-success uppercase">{t('chat-verification:suggestions.yosemiteTitle')}</span>
                   <p className="text-[11px] font-semibold text-foreground/90 leading-normal">
@@ -281,9 +316,12 @@ export function ChatView() {
                 </Card>
 
                 <Card 
+                  as="button"
+                  type="button"
                   onClick={() => handleSuggestionClick(t('chat-verification:suggestions.romePrompt'))}
-                  className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5"
+                  className="p-4 cursor-pointer hover:scale-[1.02] border border-border/60 bg-surface-secondary/40 hover:bg-surface-secondary/80 transition-all duration-200 text-left space-y-1.5 focus-ring"
                   glow={false}
+                  aria-label={`Suggestion: ${t('chat-verification:suggestions.romeTitle')}`}
                 >
                   <span className="text-[10px] font-extrabold tracking-wider text-warning uppercase">{t('chat-verification:suggestions.romeTitle')}</span>
                   <p className="text-[11px] font-semibold text-foreground/90 leading-normal">
@@ -320,10 +358,10 @@ export function ChatView() {
                     ) : (
                       <div>
                         {/* Copy Code button for assistant messages */}
-                        <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 select-none">
+                        <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity duration-200 select-none">
                           <button
                             onClick={() => handleCopy(m.content, m.id)}
-                            className="p-1 rounded bg-surface hover:bg-surface-secondary text-muted transition-colors cursor-pointer"
+                            className="p-1 rounded bg-surface hover:bg-surface-secondary text-muted transition-colors cursor-pointer focus-ring"
                             title={t('chat-verification:actions.copy')}
                           >
                             {copiedMap[m.id] ? <Check size={13} className="text-success" /> : <Copy size={13} />}
