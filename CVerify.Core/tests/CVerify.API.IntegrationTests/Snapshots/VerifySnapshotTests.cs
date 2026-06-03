@@ -34,7 +34,8 @@ public class VerifySnapshotTests : IClassFixture<SharedTestcontainerFixture>
         var model = new Dictionary<string, object>
         {
             { "full_name", "Luc Snapshot Tester" },
-            { "verification_link", "https://cverify.ai/verify?token=verify_snapshot_123_abc" }
+            { "verification_link", "https://cverify.ai/verify?token=verify_snapshot_123_abc" },
+            { "greeting_text", "Hi Luc Snapshot Tester," }
         };
 
         // Act
@@ -52,7 +53,8 @@ public class VerifySnapshotTests : IClassFixture<SharedTestcontainerFixture>
         var model = new Dictionary<string, object>
         {
             { "full_name", "Luc Snapshot Tester" },
-            { "reset_link", "https://cverify.ai/reset?token=reset_snapshot_123_abc" }
+            { "reset_link", "https://cverify.ai/reset?token=reset_snapshot_123_abc" },
+            { "greeting_text", "Hi Luc Snapshot Tester," }
         };
 
         // Act
@@ -68,7 +70,8 @@ public class VerifySnapshotTests : IClassFixture<SharedTestcontainerFixture>
         // Arrange
         var model = new Dictionary<string, object>
         {
-            { "full_name", "Luc Welcome Snapshot" }
+            { "full_name", "Luc Welcome Snapshot" },
+            { "greeting_text", "Hi Luc Welcome Snapshot," }
         };
 
         // Act
@@ -85,7 +88,8 @@ public class VerifySnapshotTests : IClassFixture<SharedTestcontainerFixture>
         var model = new Dictionary<string, object>
         {
             { "full_name", "Luc OTP Tester" },
-            { "otp_code", "948201" }
+            { "otp_code", "948201" },
+            { "greeting_text", "Hi Luc OTP Tester," }
         };
 
         // Act
@@ -108,7 +112,8 @@ public class VerifySnapshotTests : IClassFixture<SharedTestcontainerFixture>
             { "activity_time", "2026-05-23T21:42:00Z" },
             { "ip_address", "192.168.1.155" },
             { "user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0" },
-            { "action_link", "https://cverify.ai/lock-account?token=security_alert_123_abc" }
+            { "action_link", "https://cverify.ai/lock-account?token=security_alert_123_abc" },
+            { "greeting_text", "Hi Luc Security Alert," }
         };
 
         // Act
@@ -126,7 +131,8 @@ public class VerifySnapshotTests : IClassFixture<SharedTestcontainerFixture>
         {
             { "full_name", "Luc Company Recruiter" },
             { "company_name", "DevTech Systems" },
-            { "verification_link", "https://cverify.ai/company/verify?token=company_verify_123_abc" }
+            { "verification_link", "https://cverify.ai/company/verify?token=company_verify_123_abc" },
+            { "greeting_text", "Hi Luc Company Recruiter," }
         };
 
         // Act
@@ -145,7 +151,8 @@ public class VerifySnapshotTests : IClassFixture<SharedTestcontainerFixture>
             { "full_name", "Luc Recruiter Admin" },
             { "company_name", "DevTech Systems" },
             { "workspace_id", "devtech-systems-workspace" },
-            { "workspace_url", "https://devtech.cverify.ai" }
+            { "workspace_url", "https://devtech.cverify.ai" },
+            { "greeting_text", "Hi Luc Recruiter Admin," }
         };
 
         // Act

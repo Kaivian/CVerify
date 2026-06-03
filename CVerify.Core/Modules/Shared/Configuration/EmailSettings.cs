@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace CVerify.API.Modules.Shared.Configuration;
@@ -87,6 +88,14 @@ public class EmailSettings
     /// The absolute base URL for hosting email-accessible static assets (e.g. logos).
     /// </summary>
     public string AssetBaseUrl { get; set; } = "https://cverify.ai";
+
+    /// <summary>
+    /// The list of generic placeholder names to ignore during recipient personalization.
+    /// </summary>
+    public List<string> InvalidPlaceholders { get; set; } = new()
+    {
+        "Candidate User", "User", "John Doe", "Example User", "Test User", "CVerify User", "Workspace Administrator"
+    };
 
     /// <summary>
     /// Centralized brand theme color settings for transactional emails.
