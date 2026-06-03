@@ -230,6 +230,10 @@ public class ApplicationDbContext : DbContext
             .IsConcurrencyToken();
 
         modelBuilder.Entity<User>()
+            .Property(u => u.AvatarSource)
+            .HasDefaultValue(AvatarSource.Default);
+
+        modelBuilder.Entity<User>()
             .Property(u => u.SessionVersion)
             .HasColumnName("session_version")
             .HasDefaultValue(1)

@@ -220,3 +220,8 @@ public record AttachmentResponse(
 
 public record AvatarUploadResponse(string AvatarUrl);
 
+public record SyncAvatarRequest(
+    [Required]
+    string ProviderName
+);
+

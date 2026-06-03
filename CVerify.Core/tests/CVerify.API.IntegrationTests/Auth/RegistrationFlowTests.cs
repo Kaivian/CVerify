@@ -257,6 +257,7 @@ public class RegistrationFlowTests : BaseIntegrationTest
             db.Users.Add(new User
             {
                 Email = "existing@cverify.ai",
+                Username = "existing_user",
                 FullName = "Existing User",
                 PasswordHash = null,
                 Status = UserStatus.EMAIL_VERIFY_PENDING,
@@ -356,6 +357,7 @@ public class RegistrationFlowTests : BaseIntegrationTest
             db.Users.Add(new User
             {
                 Email = legacyEmail,
+                Username = "theluc1746",
                 FullName = "Legacy User",
                 PasswordHash = passwordHash,
                 Status = UserStatus.ACTIVE,

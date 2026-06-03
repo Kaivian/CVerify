@@ -383,6 +383,32 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     }
   };
 
+  const loadLinkedEmails = useCallback(async () => {
+    try {
+      const res = await fetchLinkedEmails();
+      if (res.success && res.data) {
+        const verified = res.data.filter((e: any) => e.isVerified);
+        setLinkedEmails(verified);
+        if (verified.length > 0) {
+          const primary = verified.find((e: any) => e.isPrimary);
+          setSelectedOtpEmail(primary ? primary.email : verified[0].email);
+        } else if (user?.email) {
+          setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
+          setSelectedOtpEmail(user.email);
+        }
+      } else if (user?.email) {
+        setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
+        setSelectedOtpEmail(user.email);
+      }
+    } catch (err) {
+      console.error("Failed to load linked emails:", err);
+      if (user?.email) {
+        setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
+        setSelectedOtpEmail(user.email);
+      }
+    }
+  }, [fetchLinkedEmails, user]);
+
   if (isLoading && !profile) {
     return (
       <div className="flex items-center justify-center py-20 w-full h-full">
@@ -476,32 +502,6 @@ export const AccountTab: React.FC<AccountTabProps> = ({
       setIsDeleting(false);
     }
   };
-
-  const loadLinkedEmails = useCallback(async () => {
-    try {
-      const res = await fetchLinkedEmails();
-      if (res.success && res.data) {
-        const verified = res.data.filter((e: any) => e.isVerified);
-        setLinkedEmails(verified);
-        if (verified.length > 0) {
-          const primary = verified.find((e: any) => e.isPrimary);
-          setSelectedOtpEmail(primary ? primary.email : verified[0].email);
-        } else if (user?.email) {
-          setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
-          setSelectedOtpEmail(user.email);
-        }
-      } else if (user?.email) {
-        setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
-        setSelectedOtpEmail(user.email);
-      }
-    } catch (err) {
-      console.error("Failed to load linked emails:", err);
-      if (user?.email) {
-        setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
-        setSelectedOtpEmail(user.email);
-      }
-    }
-  }, [fetchLinkedEmails, user]);
 
   const handleSendFallbackOtp = async () => {
     setIsSendingOtp(true);

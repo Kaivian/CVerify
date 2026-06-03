@@ -11,6 +11,7 @@ using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Shared.Diagnostics;
 using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security;
@@ -387,6 +388,7 @@ public class ProfileService : IProfileService
 
         // Update user record
         user.AvatarUrl = uploadedFile.ObjectKey;
+        user.AvatarSource = AvatarSource.Uploaded;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -397,5 +399,120 @@ public class ProfileService : IProfileService
             cancellationToken);
 
         return (signedUrl, uploadedFile.ObjectKey);
+    }
+
+    public async Task<(string SignedUrl, string ObjectKey)> SyncAvatarWithProviderAsync(
+        Guid userId,
+        string providerName,
+        CancellationToken cancellationToken = default)
+    {
+        var canonicalName = providerName.ToLowerInvariant();
+        if (canonicalName != "google" && canonicalName != "github" && canonicalName != "gitlab")
+        {
+            throw new BusinessRuleException("INVALID_PROVIDER", "Unsupported sync provider.");
+        }
+
+        var user = await _context.Users
+            .Include(u => u.AuthProviders)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user == null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
+        }
+
+        var provider = user.AuthProviders
+            .FirstOrDefault(ap => ap.ProviderName.ToLower() == canonicalName && ap.DeletedAt == null);
+
+        if (provider == null || string.IsNullOrEmpty(provider.ProviderAvatarUrl))
+        {
+            throw new BusinessRuleException("PROVIDER_AVATAR_MISSING", $"No connected {providerName} account or provider avatar URL found.");
+        }
+
+        // Clean up old uploaded file from storage if applicable
+        if (!string.IsNullOrEmpty(user.AvatarUrl) && 
+            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+            !user.AvatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await _storageService.DeleteFileAsync(user.AvatarUrl, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(LogLevel.Warning, "Profile", $"Failed to delete old avatar key: {user.AvatarUrl}", ex);
+            }
+        }
+
+        user.AvatarUrl = provider.ProviderAvatarUrl;
+        user.AvatarSource = canonicalName switch
+        {
+            "google" => AvatarSource.Google,
+            "github" => AvatarSource.GitHub,
+            "gitlab" => AvatarSource.GitLab,
+            _ => AvatarSource.Default
+        };
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+        
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var log = new ProfileActivityLog
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = userId,
+            ActionType = "SYNC_AVATAR",
+            OldStateJson = JsonSerializer.Serialize(new { Source = "Manual" }),
+            NewStateJson = JsonSerializer.Serialize(new { Source = canonicalName, Url = provider.ProviderAvatarUrl }),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        _context.ProfileActivityLogs.Add(log);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return (provider.ProviderAvatarUrl, provider.ProviderAvatarUrl);
+    }
+
+    public async Task DeleteAvatarAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user == null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
+        }
+
+        // Delete old avatar from R2 storage physically if it is an object key we managed
+        if (!string.IsNullOrEmpty(user.AvatarUrl) && 
+            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+            !user.AvatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await _storageService.DeleteFileAsync(user.AvatarUrl, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.Log(LogLevel.Warning, "Profile", $"Failed to delete old avatar key: {user.AvatarUrl}", ex);
+            }
+        }
+
+        var oldStateJson = JsonSerializer.Serialize(new { user.AvatarUrl, user.AvatarSource });
+
+        user.AvatarUrl = null;
+        user.AvatarSource = AvatarSource.Default;
+        user.UpdatedAt = DateTimeOffset.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var log = new ProfileActivityLog
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = userId,
+            ActionType = "DELETE_AVATAR",
+            OldStateJson = oldStateJson,
+            NewStateJson = JsonSerializer.Serialize(new { AvatarUrl = (string?)null, AvatarSource = AvatarSource.Default }),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        _context.ProfileActivityLogs.Add(log);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }
