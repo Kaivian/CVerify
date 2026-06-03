@@ -225,3 +225,47 @@ public record SyncAvatarRequest(
     string ProviderName
 );
 
+public record WorkExperienceAchievementDto(
+    [Required, MaxLength(255)] string Title,
+    [Required, MaxLength(2000)] string Description
+);
+
+public record WorkExperienceLinkDto(
+    [Required] int LinkType,
+    [Required, MaxLength(500), Url(ErrorMessage = "Invalid project/repository URL.")] string Url
+);
+
+public record WorkExperienceRequest(
+    [Required, MaxLength(255)] string JobTitle,
+    [Required, MaxLength(255)] string Company,
+    [Required] int ExperienceCategory,
+    [Required] int EmploymentType,
+    [MaxLength(255)] string? Location,
+    [Required] DateTimeOffset StartDate,
+    DateTimeOffset? EndDate,
+    bool IsCurrentlyWorking,
+    [Required, MaxLength(2000)] string Description,
+    List<WorkExperienceAchievementDto>? Achievements,
+    List<string>? Technologies,
+    List<WorkExperienceLinkDto>? Links
+);
+
+public record WorkExperienceResponse(
+    Guid Id,
+    Guid UserId,
+    string JobTitle,
+    string Company,
+    int ExperienceCategory,
+    int EmploymentType,
+    string? Location,
+    DateTimeOffset StartDate,
+    DateTimeOffset? EndDate,
+    bool IsCurrentlyWorking,
+    string Description,
+    int DisplayOrder,
+    List<WorkExperienceAchievementDto> Achievements,
+    List<string> Technologies,
+    List<WorkExperienceLinkDto> Links
+);
+
+

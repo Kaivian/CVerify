@@ -74,10 +74,59 @@ export const academicAchievementSchema = z.object({
 
 export type AcademicAchievement = z.infer<typeof academicAchievementSchema>;
 
+// Work experience validation schemas
+export const workExperienceAchievementSchema = z.object({
+  title: z.string().min(1, "Achievement title is required"),
+  description: z.string().min(1, "Achievement description is required"),
+});
+
+export const workExperienceLinkSchema = z.object({
+  linkType: z.number(),
+  url: z.string().url("Must be a valid URL").or(z.literal("")),
+});
+
+export const workExperienceEntrySchema = z.object({
+  id: z.string().optional(),
+  jobTitle: z.string().min(1, "Job title is required"),
+  company: z.string().min(1, "Company/Organization is required"),
+  experienceCategory: z.coerce.number().min(1, "Category is required"),
+  employmentType: z.coerce.number().min(1, "Employment type is required"),
+  location: z.string().nullable().optional(),
+  startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().nullable().optional(),
+  isCurrentlyWorking: z.boolean(),
+  description: z.string().min(5, "Description must be at least 5 characters"),
+  achievements: z.array(workExperienceAchievementSchema),
+  technologies: z.array(z.string()),
+  links: z.array(workExperienceLinkSchema),
+  _links: z.object({
+    repo: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+    project: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+    portfolio: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+    demo: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+    article: z.string().url("Must be a valid URL").or(z.literal("")).optional(),
+  }).optional(),
+}).refine(
+  (data) => {
+    if (data.isCurrentlyWorking) {
+      return !data.endDate;
+    }
+    return !!data.endDate && new Date(data.endDate) >= new Date(data.startDate);
+  },
+  {
+    message: "End Date must be after Start Date when not currently working here",
+    path: ["endDate"],
+  }
+);
+
+export type WorkExperienceEntry = z.infer<typeof workExperienceEntrySchema>;
+
 // Unified personal info schema
 export const personalInfoSchema = z.object({
   education: z.array(educationEntrySchema),
   achievements: z.array(academicAchievementSchema),
+  workExperiences: z.array(workExperienceEntrySchema),
 });
 
 export type PersonalInfoFormValues = z.infer<typeof personalInfoSchema>;
+

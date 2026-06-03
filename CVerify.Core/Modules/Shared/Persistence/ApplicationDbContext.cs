@@ -105,6 +105,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<AcademicAchievement> AcademicAchievements => Set<AcademicAchievement>();
     public DbSet<ProfileAttachment> ProfileAttachments => Set<ProfileAttachment>();
     public DbSet<ProfileActivityLog> ProfileActivityLogs => Set<ProfileActivityLog>();
+    public DbSet<WorkExperienceEntry> WorkExperiences => Set<WorkExperienceEntry>();
+    public DbSet<WorkExperienceAchievement> WorkExperienceAchievements => Set<WorkExperienceAchievement>();
+    public DbSet<WorkExperienceTechnology> WorkExperienceTechnologies => Set<WorkExperienceTechnology>();
+    public DbSet<WorkExperienceLink> WorkExperienceLinks => Set<WorkExperienceLink>();
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -127,6 +132,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<AcademicAchievement>().Property(aa => aa.Id).ValueGeneratedNever();
         modelBuilder.Entity<ProfileAttachment>().Property(pa => pa.Id).ValueGeneratedNever();
         modelBuilder.Entity<ProfileActivityLog>().Property(pal => pal.Id).ValueGeneratedNever();
+        modelBuilder.Entity<WorkExperienceEntry>().Property(we => we.Id).ValueGeneratedNever();
+        modelBuilder.Entity<WorkExperienceAchievement>().Property(wa => wa.Id).ValueGeneratedNever();
+        modelBuilder.Entity<WorkExperienceTechnology>().Property(wt => wt.Id).ValueGeneratedNever();
+        modelBuilder.Entity<WorkExperienceLink>().Property(wl => wl.Id).ValueGeneratedNever();
         modelBuilder.Entity<ResetPasswordToken>().Property(rt => rt.Id).ValueGeneratedNever();
         modelBuilder.Entity<OutboxMessage>().Property(om => om.Id).ValueGeneratedNever();
         modelBuilder.Entity<AuditLog>().Property(al => al.Id).ValueGeneratedNever();
@@ -708,6 +717,49 @@ public class ApplicationDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(aa => aa.UserId).HasDatabaseName("idx_academic_achievements_user_id");
         });
+
+        // WorkExperience configurations
+        modelBuilder.Entity<WorkExperienceEntry>(entity =>
+        {
+            entity.ToTable("work_experience_entries");
+            entity.HasQueryFilter(we => we.DeletedAt == null);
+            entity.HasOne(we => we.User)
+                  .WithMany()
+                  .HasForeignKey(we => we.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(we => we.UserId).HasDatabaseName("idx_work_experience_entries_user_id");
+        });
+
+        modelBuilder.Entity<WorkExperienceAchievement>(entity =>
+        {
+            entity.ToTable("work_experience_achievements");
+            entity.HasOne(wa => wa.WorkExperienceEntry)
+                  .WithMany(we => we.Achievements)
+                  .HasForeignKey(wa => wa.WorkExperienceId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(wa => wa.WorkExperienceId).HasDatabaseName("idx_work_experience_achievements_entry");
+        });
+
+        modelBuilder.Entity<WorkExperienceTechnology>(entity =>
+        {
+            entity.ToTable("work_experience_technologies");
+            entity.HasOne(wt => wt.WorkExperienceEntry)
+                  .WithMany(we => we.Technologies)
+                  .HasForeignKey(wt => wt.WorkExperienceId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(wt => wt.WorkExperienceId).HasDatabaseName("idx_work_experience_technologies_entry");
+        });
+
+        modelBuilder.Entity<WorkExperienceLink>(entity =>
+        {
+            entity.ToTable("work_experience_links");
+            entity.HasOne(wl => wl.WorkExperienceEntry)
+                  .WithMany(we => we.Links)
+                  .HasForeignKey(wl => wl.WorkExperienceId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(wl => wl.WorkExperienceId).HasDatabaseName("idx_work_experience_links_entry");
+        });
+
 
         // ProfileAttachment configurations
         modelBuilder.Entity<ProfileAttachment>(entity =>

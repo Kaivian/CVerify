@@ -19,4 +19,5 @@ public static class ProfileErrorCodes
     public const string EducationNotFound = "PROFILE_EDUCATION_NOT_FOUND";
     public const string AchievementNotFound = "PROFILE_ACHIEVEMENT_NOT_FOUND";
     public const string AttachmentNotFound = "PROFILE_ATTACHMENT_NOT_FOUND";
+    public const string WorkExperienceNotFound = "PROFILE_WORK_EXPERIENCE_NOT_FOUND";
 }
