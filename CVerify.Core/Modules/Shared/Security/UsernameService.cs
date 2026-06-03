@@ -10,6 +10,7 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Exceptions.Catalogs;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.Modules.Shared.Security;
 
@@ -18,6 +19,7 @@ public class UsernameService : IUsernameService
     private readonly ApplicationDbContext _context;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<UsernameService> _logger;
+    private readonly IRateLimitPolicyService _rateLimitPolicyService;
 
     private static readonly HashSet<string> ReservedUsernames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -31,11 +33,13 @@ public class UsernameService : IUsernameService
     public UsernameService(
         ApplicationDbContext context,
         TimeProvider timeProvider,
-        ILogger<UsernameService> logger)
+        ILogger<UsernameService> logger,
+        IRateLimitPolicyService rateLimitPolicyService)
     {
         _context = context;
         _timeProvider = timeProvider;
         _logger = logger;
+        _rateLimitPolicyService = rateLimitPolicyService;
     }
 
     public void ValidateUsername(string username)
@@ -185,6 +189,12 @@ public class UsernameService : IUsernameService
 
     public async Task CheckChangeCooldownAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
+        {
+            _rateLimitPolicyService.LogBypass("Username change cooldown", "CheckChangeCooldownAsync", userId.ToString());
+            return;
+        }
+
         var user = await _context.Users.FindAsync(new object[] { userId }, cancellationToken);
         if (user == null)
         {

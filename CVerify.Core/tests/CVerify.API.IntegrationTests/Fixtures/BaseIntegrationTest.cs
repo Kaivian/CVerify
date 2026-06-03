@@ -109,7 +109,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                 { "Auth:GoogleClientId", "mock-google-client-id" },
                 { "Auth:DisableCsrf", "true" },
                 { "Jwt:Key", "super_secret_key_super_secret_key_super_secret_key_32_characters" },
-                { "Security:DisableRateLimits", "false" },
+                { "Security:DisableRateLimits", Environment.GetEnvironmentVariable("DISABLE_RATE_LIMITS") ?? "false" },
                 { "RateLimit:ForgotPasswordPermitLimit", "1000" },
                 { "RateLimit:ResetPasswordPermitLimit", "1000" },
                 { "RateLimit:ResendVerificationPermitLimit", "1000" },

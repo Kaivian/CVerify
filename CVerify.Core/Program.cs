@@ -85,7 +85,7 @@ if (envPath != null) {
 
 // 2. Validate & Resolve Configuration (Enterprise Clean Code: Fail Fast)
 var envConfig = EnvValidator.Validate(builder.Configuration);
-if (builder.Environment.IsProduction())
+if (builder.Environment.IsProduction() || builder.Environment.EnvironmentName.Equals("Production", StringComparison.OrdinalIgnoreCase))
 {
     if (envConfig.Security.DisableRateLimits)
     {
@@ -427,6 +427,18 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddCustomAuthorization();
 
 var app = builder.Build();
+
+// Startup Diagnostics for Rate Limiting / Environment
+{
+    var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    var rateLimitPolicy = app.Services.GetRequiredService<IRateLimitPolicyService>();
+    startupLogger.LogInformation(
+        "[Startup Diagnostics] Current Environment: {EnvironmentName}, DisableRateLimits Config Value: {DisableRateLimits}, Cooldown Enforcement Active: {CooldownEnforcementActive}",
+        app.Environment.EnvironmentName,
+        rateLimitPolicy.DisableRateLimits,
+        rateLimitPolicy.ShouldEnforceCooldowns()
+    );
+}
 
 // 3. Automatically initialize/sync the database schema at application startup
 using (var scope = app.Services.CreateScope())

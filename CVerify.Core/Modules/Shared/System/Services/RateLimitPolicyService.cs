@@ -26,9 +26,11 @@ public class RateLimitPolicyService : IRateLimitPolicyService
 
     public bool DisableRateLimits => _envConfig.Security.DisableRateLimits;
 
+    public bool ShouldEnforceCooldowns() => !DisableRateLimits;
+
     public void LogBypass(string actionName, string? endpoint = null, string? identifier = null)
     {
-        if (DisableRateLimits)
+        if (!ShouldEnforceCooldowns())
         {
             _logger.LogInformation(
                 "[DEV MODE] Rate limit bypass applied for {ActionName}. Environment={Environment}, Endpoint={Endpoint}, Identifier={Identifier}, Timestamp={Timestamp}",

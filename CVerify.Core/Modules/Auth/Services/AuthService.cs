@@ -1094,7 +1094,7 @@ public class AuthService : IAuthService
         var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
         if (isCooldown != null)
         {
-            if (_rateLimitPolicyService.DisableRateLimits)
+            if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
             {
                 _rateLimitPolicyService.LogBypass("Verification email cooldown", "ResendVerificationEmailAsync", normalizedEmail);
             }
@@ -1174,9 +1174,11 @@ public class AuthService : IAuthService
             _context.AddAndAuditOutboxMessage("EmailVerification", user.Email, correlationId, payloadObj, _timeProvider.GetUtcNow());
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Set 1-minute rate limiting cooldown in Redis
-            var cooldownTime = _rateLimitPolicyService.DisableRateLimits ? TimeSpan.Zero : TimeSpan.FromMinutes(1);
-            await _cacheService.SetAsync(cooldownKey, "active", cooldownTime);
+            // Set 1-minute rate limiting cooldown in Redis if enabled
+            if (_rateLimitPolicyService.ShouldEnforceCooldowns())
+            {
+                await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromMinutes(1));
+            }
 
             await transaction.CommitAsync(cancellationToken);
 
@@ -1207,7 +1209,7 @@ public class AuthService : IAuthService
         var isCooldown = await _cacheService.GetAsync<string>(cooldownKey);
         if (isCooldown != null)
         {
-            if (_rateLimitPolicyService.DisableRateLimits)
+            if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
             {
                 _rateLimitPolicyService.LogBypass("Forgot password cooldown", "ForgotPasswordAsync", normalizedEmail);
             }
@@ -1286,9 +1288,11 @@ public class AuthService : IAuthService
             _context.AddAndAuditOutboxMessage("PasswordReset", user.Email, correlationId, payloadObj, _timeProvider.GetUtcNow());
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Set 1-minute rate limiting cooldown in Redis
-            var cooldownTime = _rateLimitPolicyService.DisableRateLimits ? TimeSpan.Zero : TimeSpan.FromMinutes(1);
-            await _cacheService.SetAsync(cooldownKey, "active", cooldownTime);
+            // Set 1-minute rate limiting cooldown in Redis if enabled
+            if (_rateLimitPolicyService.ShouldEnforceCooldowns())
+            {
+                await _cacheService.SetAsync(cooldownKey, "active", TimeSpan.FromMinutes(1));
+            }
 
             await transaction.CommitAsync(cancellationToken);
 
@@ -2161,26 +2165,26 @@ public class AuthService : IAuthService
         // 2. Global Rate Limiting Throttling (IP + Email + Purpose)
         var ipRateKey = $"rate:otp:ip:{ipAddress}";
         var ipCount = await _cacheService.GetAsync<int?>(ipRateKey) ?? 0;
-        var maxIpCount = _rateLimitPolicyService.DisableRateLimits ? 99999 : 10;
+        var maxIpCount = !_rateLimitPolicyService.ShouldEnforceCooldowns() ? 99999 : 10;
         if (ipCount >= maxIpCount)
         {
             _logger.LogWarning("[CorrelationID: {CorrelationId}] [IP: {IpAddress}] IP OTP request limit exceeded.", correlationId, ipAddress);
             throw new AuthException(AuthErrorCodes.RateLimitExceeded, "Too many OTP requests from this IP. Please try again in an hour.");
         }
-        if (_rateLimitPolicyService.DisableRateLimits && ipCount > 0)
+        if (!_rateLimitPolicyService.ShouldEnforceCooldowns() && ipCount > 0)
         {
             _rateLimitPolicyService.LogBypass("IP OTP generation limit", "SendOtpAsync", ipAddress);
         }
 
         var emailRateKey = $"rate:otp:email:{normalizedEmail}:{request.Purpose}";
         var emailCount = await _cacheService.GetAsync<int?>(emailRateKey) ?? 0;
-        var maxEmailCount = _rateLimitPolicyService.DisableRateLimits ? 99999 : 5;
+        var maxEmailCount = !_rateLimitPolicyService.ShouldEnforceCooldowns() ? 99999 : 5;
         if (emailCount >= maxEmailCount)
         {
             _logger.LogWarning("[CorrelationID: {CorrelationId}] Email OTP request limit exceeded for: {Email}.", correlationId, normalizedEmail);
             throw new AuthException(AuthErrorCodes.RateLimitExceeded, "Too many OTP requests for this email. Please try again in 15 minutes.");
         }
-        if (_rateLimitPolicyService.DisableRateLimits && emailCount > 0)
+        if (!_rateLimitPolicyService.ShouldEnforceCooldowns() && emailCount > 0)
         {
             _rateLimitPolicyService.LogBypass("Email OTP generation limit", "SendOtpAsync", normalizedEmail);
         }
@@ -2213,7 +2217,7 @@ public class AuthService : IAuthService
                 // Check if cooldown is still active from database
                 if (verification.CooldownUntil.HasValue && verification.CooldownUntil.Value > utcNow)
                 {
-                    if (_rateLimitPolicyService.DisableRateLimits)
+                    if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
                     {
                         _rateLimitPolicyService.LogBypass("OTP resend cooldown", "SendOtpAsync", normalizedEmail);
                     }
@@ -2271,9 +2275,12 @@ public class AuthService : IAuthService
 
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Record incremented rate limits
-            await _cacheService.SetAsync(ipRateKey, (int?)(ipCount + 1), TimeSpan.FromHours(1));
-            await _cacheService.SetAsync(emailRateKey, (int?)(emailCount + 1), TimeSpan.FromMinutes(15));
+            // Record incremented rate limits if enabled
+            if (_rateLimitPolicyService.ShouldEnforceCooldowns())
+            {
+                await _cacheService.SetAsync(ipRateKey, (int?)(ipCount + 1), TimeSpan.FromHours(1));
+                await _cacheService.SetAsync(emailRateKey, (int?)(emailCount + 1), TimeSpan.FromMinutes(15));
+            }
 
             // Outbox Pattern Integration with template parameter mapping
             var payloadObj = new
@@ -2365,7 +2372,7 @@ public class AuthService : IAuthService
 
             if (verification.Status == OtpSessionStatus.LOCKED || verification.Attempts >= policy.MaxRetries)
             {
-                if (_rateLimitPolicyService.DisableRateLimits)
+                if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
                 {
                     _rateLimitPolicyService.LogBypass("OTP verification lockout", "VerifyOtpAsync", normalizedEmail);
                 }
@@ -2403,7 +2410,7 @@ public class AuthService : IAuthService
             {
                 if (verification.Attempts >= policy.MaxRetries)
                 {
-                    if (_rateLimitPolicyService.DisableRateLimits)
+                    if (!_rateLimitPolicyService.ShouldEnforceCooldowns())
                     {
                         _rateLimitPolicyService.LogBypass("OTP verification attempts limit", "VerifyOtpAsync", normalizedEmail);
                     }
@@ -2416,7 +2423,7 @@ public class AuthService : IAuthService
                 _logger.LogWarning("[CorrelationID: {CorrelationId}] OTP code mismatch for challenge {ChallengeId}. Total attempts: {Attempts}.", correlationId, request.ChallengeId, verification.Attempts);
                 await LogAuditEventAsync(null, "OTP_FAILED", $"OTP verification failed for challenge {request.ChallengeId} on {normalizedEmail}. Attempts: {verification.Attempts}. CorrelationId: {correlationId}");
                 
-                if (verification.Status == OtpSessionStatus.LOCKED && !_rateLimitPolicyService.DisableRateLimits)
+                if (verification.Status == OtpSessionStatus.LOCKED && _rateLimitPolicyService.ShouldEnforceCooldowns())
                 {
                     throw new AuthException(AuthErrorCodes.SuspiciousActivity, "Too many failed attempts. This OTP has been blocked.");
                 }
@@ -4155,11 +4162,14 @@ public class AuthService : IAuthService
         }
 
         var throttleKey = $"validate_scopes_throttle:{userId}:{canonicalName}";
-        if (await _cacheService.ExistsAsync(throttleKey))
+        if (_rateLimitPolicyService.ShouldEnforceCooldowns() && await _cacheService.ExistsAsync(throttleKey))
         {
             return true; // Throttle: skip external API check
         }
-        await _cacheService.SetAsync(throttleKey, true, TimeSpan.FromMinutes(2));
+        if (_rateLimitPolicyService.ShouldEnforceCooldowns())
+        {
+            await _cacheService.SetAsync(throttleKey, true, TimeSpan.FromMinutes(2));
+        }
 
         var credential = await _context.OAuthCredentials
             .FirstOrDefaultAsync(oc => oc.AuthProviderId == matchedProvider.Id);
