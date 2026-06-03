@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import OtpInput from "@/components/ui/otp-input";
 import { recoveryApi } from "@/features/auth/services/recovery.service";
+import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { PHONE_NUMBER_REGEX } from "@/features/auth/validators/auth.validator";
 
 import {
   Card,
@@ -187,7 +189,7 @@ export function ReclaimView() {
   // Validation formulas
   const isFullNameValid = fullName.trim().length >= 3;
   const isPositionValid = position.trim().length >= 2;
-  const isPhoneValid = /^[0-9+]{9,15}$/.test(phoneNumber);
+  const isPhoneValid = PHONE_NUMBER_REGEX.test(phoneNumber);
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recoveryEmail);
 
   const isStep1Valid =
@@ -197,7 +199,7 @@ export function ReclaimView() {
   const isNewRepNameValid = newRepName.trim().length >= 3;
   const isNewRepPositionValid = newRepPosition.trim().length >= 2;
   const isNewRepEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newRepEmail);
-  const isNewRepPhoneValid = /^[0-9+]{9,15}$/.test(newRepPhone);
+  const isNewRepPhoneValid = PHONE_NUMBER_REGEX.test(newRepPhone);
   const isLevel2FormValid =
     isNewRepNameValid &&
     isNewRepPositionValid &&
@@ -762,20 +764,16 @@ export function ReclaimView() {
                   <FieldError>Please enter a valid corporate email.</FieldError>
                 </TextField>
 
-                <TextField
+                <PhoneNumberField
+                  id="input-type-new-rep-phone"
                   isRequired
                   name="newRepPhone"
+                  label="Corporate Phone"
+                  value={newRepPhone}
+                  onChange={setNewRepPhone}
                   isInvalid={newRepPhone.length > 0 && !isNewRepPhoneValid}
-                >
-                  <Label>Corporate Phone</Label>
-                  <Input
-                    placeholder="+84901234567"
-                    value={newRepPhone}
-                    onChange={(e) => setNewRepPhone(e.target.value)}
-                    className="h-11 rounded-xl"
-                  />
-                  <FieldError>Please enter a valid phone number.</FieldError>
-                </TextField>
+                  errorMessage="Please enter a valid phone number. Must be 9 to 10 digits after the country code (+84)."
+                />
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -1152,20 +1150,17 @@ export function ReclaimView() {
                 </FieldError>
               </TextField>
 
-              <TextField
+              <PhoneNumberField
+                id="input-type-phone"
                 isRequired
                 name="phoneNumber"
+                label="Contact Phone Number"
+                value={phoneNumber}
+                onChange={setPhoneNumber}
+                onBlur={(e) => setPhoneTouched(e.target.value.length > 0)}
                 isInvalid={phoneTouched && !isPhoneValid}
-              >
-                <Label>Contact Phone Number</Label>
-                <Input
-                  placeholder="e.g. +84901234567"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  onBlur={(e) => setPhoneTouched(e.target.value.length > 0)}
-                />
-                <FieldError>Phone format is invalid.</FieldError>
-              </TextField>
+                errorMessage="Phone number is invalid. Must be 9 to 10 digits after the country code (+84)."
+              />
             </div>
 
             <TextField
