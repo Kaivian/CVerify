@@ -192,6 +192,15 @@ export const isActiveRoute = (
     return cleanPath === '/workspace/organizations' || cleanPath.startsWith('/business/');
   }
 
+  // 13. Public Page group matching
+  if (!exact && (itemId === 'company-public-page-group' || (cleanHref.startsWith('/business/') && cleanHref.split('/').filter(Boolean).length === 2))) {
+    const isPublicSubPage = 
+      cleanPath.endsWith('/jobs') || 
+      cleanPath.endsWith('/posts') || 
+      cleanPath.endsWith('/people');
+    return cleanPath === cleanHref || (cleanPath.startsWith(cleanHref + '/') && isPublicSubPage);
+  }
+
   if (exact) {
     return cleanPath === cleanHref;
   }

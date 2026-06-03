@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.System.Services;
@@ -16,11 +17,40 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
 {
     private readonly ApplicationDbContext _context;
     private readonly ICacheService _cacheService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public OrganizationAuthorizationService(ApplicationDbContext context, ICacheService cacheService)
+    public OrganizationAuthorizationService(
+        ApplicationDbContext context, 
+        ICacheService cacheService,
+        IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _cacheService = cacheService;
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    private bool IsOrganizationPrincipal(Guid userId, Guid organizationId)
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext != null)
+        {
+            var user = httpContext.User;
+            var actorTypeClaim = user?.FindFirst("actor_type")?.Value;
+            var nameIdentifierClaim = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var orgIdClaim = user?.FindFirst("org_id")?.Value;
+
+            if (string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) &&
+                Guid.TryParse(nameIdentifierClaim, out var tokenUserId) &&
+                Guid.TryParse(orgIdClaim, out var tokenOrgId))
+            {
+                return tokenUserId == organizationId && userId == organizationId && tokenOrgId == organizationId;
+            }
+
+            return false;
+        }
+
+        // Fallback for tests/non-HTTP context where HttpContext or actor_type might not be present
+        return userId == organizationId;
     }
 
     public async Task<List<string>> GetPermissionsAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken = default)
@@ -64,12 +94,22 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
 
     public async Task<bool> IsMemberAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken = default)
     {
+        if (IsOrganizationPrincipal(userId, organizationId))
+        {
+            return true;
+        }
+
         return await _context.OrganizationMemberships
             .AnyAsync(om => om.OrganizationId == organizationId && om.UserId == userId && om.Status == "active", cancellationToken);
     }
 
     private async Task<List<string>> FetchHierarchicalPermissionsFromDbAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken)
     {
+        if (IsOrganizationPrincipal(userId, organizationId))
+        {
+            return new List<string> { $"*:ORGANIZATION:{organizationId}" };
+        }
+
         // Validate active membership
         var isActiveMember = await _context.OrganizationMemberships
             .AnyAsync(om => om.OrganizationId == organizationId && om.UserId == userId && om.Status == "active", cancellationToken);

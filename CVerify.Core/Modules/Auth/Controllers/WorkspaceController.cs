@@ -1477,6 +1477,25 @@ public class WorkspaceController : ControllerBase
             return BadRequest("Workspace slug is already taken under this organization.");
         }
 
+        var actorTypeClaim = User.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+
+        Guid workspaceOwnerId = userId;
+        if (isBusiness)
+        {
+            var ownerMemberId = await _context.OrganizationMemberships
+                .Where(om => om.OrganizationId == org.Id && om.Status == "active")
+                .OrderBy(om => om.Role == "OWNER" ? 0 : om.Role == "REPRESENTATIVE" ? 1 : 2)
+                .Select(om => (Guid?)om.UserId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (ownerMemberId == null)
+            {
+                return BadRequest(new { message = "Organization must have at least one active member/representative to create a workspace." });
+            }
+            workspaceOwnerId = ownerMemberId.Value;
+        }
+
         var workspace = new Workspace
         {
             Id = Guid.CreateVersion7(),
@@ -1485,7 +1504,7 @@ public class WorkspaceController : ControllerBase
             Slug = normalizedSlug,
             Description = dto.Description?.Trim(),
             Status = "active",
-            OwnerId = userId,
+            OwnerId = workspaceOwnerId,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -1496,7 +1515,7 @@ public class WorkspaceController : ControllerBase
         {
             Id = Guid.CreateVersion7(),
             WorkspaceId = workspace.Id,
-            UserId = userId,
+            UserId = workspaceOwnerId,
             Role = "workspace_admin",
             JoinedAt = DateTimeOffset.UtcNow
         };
@@ -1688,11 +1707,15 @@ public class WorkspaceController : ControllerBase
             workspace.Status
         });
 
+        var actorTypeClaim = User.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        var realUserId = isBusiness ? null : (Guid?)userId;
+
         var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
-            UserId = userId,
-            ActorUserId = userId,
+            UserId = realUserId,
+            ActorUserId = realUserId,
             OrganizationId = org.Id,
             EventType = "WORKSPACE_UPDATED",
             Description = $"Workspace '{workspace.DisplayName}' was updated.",
@@ -2195,16 +2218,20 @@ public class WorkspaceController : ControllerBase
         return Ok(new { message = "Member successfully removed from workspace" });
     }
 
-    private async Task LogAuditEventAsync(Guid userId, string eventType, string description, Guid orgId, string? detailsJson = null)
+    private async Task LogAuditEventAsync(Guid? userId, string eventType, string description, Guid orgId, string? detailsJson = null)
     {
         var ipAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
         var userAgent = Request.Headers.UserAgent.ToString();
 
+        var actorTypeClaim = User.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        var realUserId = isBusiness ? null : userId;
+
         var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
-            UserId = userId,
-            ActorUserId = userId,
+            UserId = realUserId,
+            ActorUserId = realUserId,
             OrganizationId = orgId,
             EventType = eventType,
             Description = description,
