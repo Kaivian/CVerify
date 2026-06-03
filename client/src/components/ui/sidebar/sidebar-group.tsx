@@ -336,6 +336,8 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
                   <Link
                     key={child.id}
                     href={child.href}
+                    target={child.openInNewTab ? "_blank" : undefined}
+                    rel={child.openInNewTab ? "noopener noreferrer" : undefined}
                     className={[
                       "flex items-center h-8 px-2.5 rounded-lg text-xs font-semibold font-outfit transition-colors",
                       isActiveRoute(pathname, child.href, child.exactMatch, child.id, user?.username, paramsRecord)

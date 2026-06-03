@@ -53,6 +53,14 @@ export const companyNavigationConfig: NavigationNode[] = [
         icon: Building2,
         exactMatch: true,
       },
+      {
+        id: 'company-public-page',
+        type: 'item',
+        label: 'Public Page',
+        href: '/business/[slug]',
+        icon: Globe,
+        exactMatch: true,
+      },
     ],
   },
   {
