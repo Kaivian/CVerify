@@ -1,202 +1,844 @@
 "use client";
 
-import React, { useState } from "react";
-import { Typography, Chip } from "@heroui/react";
-import { Button } from "@/components/ui/button";
-
-// Custom inline brand SVGs for high reliability and zero typescript warnings
-const GitHubIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" {...props}>
-    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
-  </svg>
-);
-
-const GitLabIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" {...props}>
-    <path d="m23.904 13.569-1.262-3.881a.508.508 0 0 0-.166-.234.52.52 0 0 0-.276-.08.52.52 0 0 0-.276.08.508.508 0 0 0-.166.234l-1.262 3.881H3.344l-1.262-3.881a.512.512 0 0 0-.441-.314.512.512 0 0 0-.442.314L.096 13.569a.972.972 0 0 0 .092.834.986.986 0 0 0 .26.27l11.144 8.096a.823.823 0 0 0 .408.131.83.83 0 0 0 .408-.131l11.144-8.096a.986.986 0 0 0 .26-.27.972.972 0 0 0 .092-.834z"/>
-  </svg>
-);
-
-const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" {...props}>
-    <path d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-6.887 4.114-4.834 0-8.775-3.941-8.775-8.775s3.941-8.775 8.775-8.775c2.316 0 4.398.831 6.002 2.436l3.158-3.158C18.665.986 15.65 0 12.24 0 5.48 0 0 5.48 0 12.24s5.48 12.24 12.24 12.24c6.76 0 11.76-4.76 11.76-11.76 0-.796-.076-1.564-.22-2.316l-11.54.001z"/>
-  </svg>
-);
-
-const DiscordIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className="size-4.5" {...props}>
-    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.094 13.094 0 0 1-1.873-.894.077.077 0 0 1-.008-.128c.126-.093.252-.19.372-.287a.075.075 0 0 1 .077-.011c3.92 1.793 8.18 1.793 12.061 0a.073.073 0 0 1 .078.009c.12.099.246.195.373.289a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 1-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.156-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.156 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.156-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.156 2.418z"/>
-  </svg>
-);
-
-interface Provider {
-  id: string;
-  name: string;
-  icon: React.ComponentType<{ className?: string }>;
-  connected: boolean;
-  username?: string;
-  email?: string;
-}
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  Typography,
+  Chip,
+  Button,
+  Spinner,
+  Separator,
+  Avatar,
+  toast,
+  Modal,
+  Link,
+} from "@heroui/react";
+import { Github, Gitlab } from "@thesvg/react";
+import { useAuth } from "@/features/auth/hooks/use-auth";
+import { ConfirmationModal } from "./ConfirmationModal";
+import {
+  Info,
+  Trash2,
+  PlusCircle,
+  AlertCircle,
+  ExternalLink,
+} from "lucide-react";
+import { type LinkedProviderConnection } from "@/types/auth.types";
 
 export const LinkedAccountsList: React.FC = () => {
-  // Local state for third-party OAuth providers
-  const [providers, setProviders] = useState<Provider[]>([
-    {
-      id: "github",
-      name: "GitHub",
-      icon: GitHubIcon,
-      connected: true,
-      username: "cverify-developer",
-      email: "developer@cverify.com",
-    },
-    {
-      id: "google",
-      name: "Google",
-      icon: GoogleIcon,
-      connected: true,
-      username: "LucFr Developer",
-      email: "LucFr.dev@gmail.com",
-    },
-    {
-      id: "gitlab",
-      name: "GitLab",
-      icon: GitLabIcon,
-      connected: false,
-    },
-    {
-      id: "discord",
-      name: "Discord",
-      icon: DiscordIcon,
-      connected: false,
-    },
-  ]);
+  const {
+    fetchConnections,
+    confirmLink,
+    unlinkConnection,
+    fetchPendingLinkDetails,
+    fetchLinkedProviders,
+    user,
+  } = useAuth();
 
-  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [connections, setConnections] = useState<LinkedProviderConnection[]>(
+    [],
+  );
+  const [loading, setLoading] = useState(true);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  const handleDisconnect = async (id: string) => {
-    setLoadingId(id);
-    // Simulate API delay for disconnect request
-    await new Promise((resolve) => setTimeout(resolve, 800));
+  // Manage panels toggle states
+  const [isGithubPanelOpen, setIsGithubPanelOpen] = useState(false);
+  const [isGitlabPanelOpen, setIsGitlabPanelOpen] = useState(false);
 
-    setProviders((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          return { ...p, connected: false, username: undefined, email: undefined };
+  // Unlink and safety states
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [isUnlinkModalOpen, setIsUnlinkModalOpen] = useState(false);
+  const [unlinkTarget, setUnlinkTarget] = useState<LinkedProviderConnection | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
+  const [blockingError, setBlockingError] = useState<string | null>(null);
+
+  // Modal-based pending link confirmation state
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pendingDetails, setPendingDetails] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [loadingPendingDetails, setLoadingPendingDetails] = useState(false);
+
+  // Fetch all connections from the backend
+  const loadConnections = useCallback(async () => {
+    try {
+      const response = await fetchConnections();
+      if (response.success && response.data) {
+        setConnections(response.data);
+      }
+    } catch (err) {
+      console.error("Failed to load connections:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchConnections]);
+
+  const loadGoogleStatus = useCallback(async () => {
+    try {
+      const response = await fetchLinkedProviders();
+      if (response.success && response.data) {
+        const googleProv = response.data.find(
+          (p) => p.providerName === "google",
+        );
+        setGoogleConnected(googleProv?.connected || false);
+      }
+    } catch (err) {
+      console.error("Failed to load Google status:", err);
+    }
+  }, [fetchLinkedProviders]);
+
+  useEffect(() => {
+    loadConnections();
+    loadGoogleStatus();
+  }, [loadConnections, loadGoogleStatus]);
+
+  // Check query parameters for OAuth link success/error on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const pendingLinkId = params.get("link_pending_id");
+      const error = params.get("error");
+      const linkSuccess = params.get("link_success") === "true";
+      const provider = params.get("provider");
+
+      if (pendingLinkId) {
+        setPendingId(pendingLinkId);
+        setIsModalOpen(true);
+        // Clean URL parameters safely, retaining tab=account
+        const newUrl = window.location.pathname + "?tab=account";
+        window.history.replaceState({}, document.title, newUrl);
+      } else if (linkSuccess && provider) {
+        const providerName =
+          provider.charAt(0).toUpperCase() + provider.slice(1);
+        toast.success(`Successfully linked ${providerName} account.`);
+        const newUrl = window.location.pathname + "?tab=account";
+        window.history.replaceState({}, document.title, newUrl);
+        loadConnections();
+      } else if (error) {
+        toast.danger(`Failed to link account.`, {
+          description: decodeURIComponent(error),
+        });
+        const newUrl = window.location.pathname + "?tab=account";
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    }
+  }, [loadConnections]);
+
+  // Fetch pending link details when pendingId changes
+  useEffect(() => {
+    if (!pendingId) return;
+    const fetchDetails = async () => {
+      setLoadingPendingDetails(true);
+      try {
+        const response = await fetchPendingLinkDetails(pendingId);
+        if (response.success && response.data) {
+          setPendingDetails(response.data);
+        } else {
+          toast.danger("Failed to load pending connection details.");
+          setIsModalOpen(false);
+          setPendingId(null);
         }
-        return p;
-      })
-    );
-    setLoadingId(null);
+      } catch (err: any) {
+        console.error(err);
+        if (err.status === 410 || err.response?.status === 410) {
+          toast.danger("This linking request has expired. Please try again.");
+        } else {
+          toast.danger("Failed to retrieve pending connection details.");
+        }
+        setIsModalOpen(false);
+        setPendingId(null);
+      } finally {
+        setLoadingPendingDetails(false);
+      }
+    };
+    fetchDetails();
+  }, [pendingId, fetchPendingLinkDetails]);
+
+  const handleConnect = async (provider: string) => {
+    setActionLoadingId(`${provider}-link`);
+    try {
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
+      window.location.assign(`${API_URL}/auth/connect/${provider}`);
+    } catch (err) {
+      console.error(err);
+      toast.danger(`Failed to initiate ${provider} connection.`);
+      setActionLoadingId(null);
+    }
   };
 
-  const handleConnect = async (id: string) => {
-    setLoadingId(id);
-    // Simulate OAuth redirection trigger
-    await new Promise((resolve) => setTimeout(resolve, 800));
+  const handleDisconnectClick = (conn: LinkedProviderConnection) => {
+    setUnlinkTarget(conn);
+    
+    // Lockout Prevention Validation
+    const hasPassword = !!user?.passwordChangedAt;
+    const hasGoogle = googleConnected;
+    const otherGitHubCount = connections.filter(
+      (c) => c.providerName === "github" && c.connected && c.id !== conn.id
+    ).length;
+    const otherGitLabCount = connections.filter(
+      (c) => c.providerName === "gitlab" && c.connected && c.id !== conn.id
+    ).length;
 
-    setProviders((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          return {
-            ...p,
-            connected: true,
-            username: `mock_${p.id}_user`,
-            email: `mock.${p.id}@cverify.com`,
-          };
-        }
-        return p;
-      })
-    );
-    setLoadingId(null);
+    const totalOtherMethods =
+      (hasPassword ? 1 : 0) +
+      (hasGoogle ? 1 : 0) +
+      (otherGitHubCount > 0 ? 1 : 0) +
+      (otherGitLabCount > 0 ? 1 : 0);
+
+    if (totalOtherMethods === 0) {
+      setBlockingError(
+        "Action Blocked: You must set a login password or connect another authentication provider (Google, GitHub, or GitLab) before disconnecting this provider to prevent locking yourself out of your account."
+      );
+    } else {
+      setBlockingError(null);
+    }
+
+    setIsUnlinkModalOpen(true);
   };
+
+  const handleConfirmUnlink = async () => {
+    if (!unlinkTarget) return;
+    setIsUnlinking(true);
+    try {
+      const response = await unlinkConnection(unlinkTarget.id);
+      if (response.success) {
+        toast.success("Account successfully disconnected.");
+        // Security Audit Logging (Observability)
+        console.log(`[Security Audit Log] Connected OAuth connection ${unlinkTarget.providerName} (@${unlinkTarget.providerUsername}) successfully unlinked for User ID ${user?.id}.`);
+        setIsUnlinkModalOpen(false);
+        setUnlinkTarget(null);
+        await loadConnections();
+      } else {
+        toast.danger(response.data?.message || "Failed to disconnect account.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.danger("An error occurred while unlinking account.");
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
+
+  const handleConfirmLink = async () => {
+    if (!pendingId) return;
+    setConfirming(true);
+    try {
+      const response = await confirmLink(pendingId);
+      if (response.success) {
+        toast.success("Account successfully connected!");
+        setIsModalOpen(false);
+        setPendingId(null);
+        setPendingDetails(null);
+        await loadConnections();
+      } else {
+        toast.danger(response.data?.message || "Failed to confirm connection.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.danger(
+        err.response?.data?.message ||
+          "An error occurred while confirming the connection.",
+      );
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12 w-full">
+        <Spinner size="md" color="accent" />
+      </div>
+    );
+  }
+
+  // Filter connections by provider type
+  const githubConnections = connections.filter(
+    (c) => c.providerName === "github" && c.connected,
+  );
+  const gitlabConnections = connections.filter(
+    (c) => c.providerName === "gitlab" && c.connected,
+  );
 
   return (
-    <div className="flex flex-col gap-3 w-full text-left">
-      <div className="divide-y divide-separator/60 border border-separator/85 rounded-xl bg-field-background/50 overflow-hidden">
-        {providers.map((provider) => {
-          const IconComponent = provider.icon;
-          const isLoading = loadingId === provider.id;
+    <div className="flex flex-col gap-6">
+      {/* Privacy Notice Disclosure */}
+      <div className="flex gap-3 p-4 bg-surface-secondary border border-border/40 rounded-2xl items-start text-left">
+        <Info className="size-5 text-accent shrink-0 mt-0.5" />
+        <div className="flex flex-col gap-1">
+          <Typography className="font-semibold text-xs text-foreground">
+            OAuth Permission Transparency
+          </Typography>
+          <Typography type="body-xs" className="text-muted leading-relaxed">
+            Linking GitHub or GitLab grants CVerify secure, read access to your
+            public and private repositories, collaborative team history, and
+            metadata. This access is required for repository indexing,
+            contribution history analysis, and proof-of-work verifications.
+            Credentials are securely encrypted at rest.
+          </Typography>
+        </div>
+      </div>
 
-          return (
-            <div
-              key={provider.id}
-              className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 hover:bg-surface-secondary/20 transition-all"
+      <Separator className="bg-border/30" />
+
+      {/* GitHub Row */}
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 flex items-center justify-center">
+              <Github className="size-6 text-foreground/80" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2 justify-start">
+                <Typography.Heading level={6}>
+                  GitHub Integration
+                </Typography.Heading>
+                {githubConnections.length > 0 ? (
+                  <Chip
+                    color="success"
+                    variant="soft"
+                    className="h-4 px-1 text-[9px] font-bold uppercase tracking-wider font-outfit"
+                  >
+                    {githubConnections.length} Connected
+                  </Chip>
+                ) : (
+                  <Chip
+                    color="default"
+                    variant="soft"
+                    className="h-4 px-1 text-[9px] font-bold uppercase tracking-wider font-outfit"
+                  >
+                    Unlinked
+                  </Chip>
+                )}
+              </div>
+              <Typography type="body-xs" className="text-muted">
+                {githubConnections.length > 0
+                  ? `${githubConnections.length} linked GitHub account${githubConnections.length !== 1 ? "s" : ""}`
+                  : "No GitHub accounts linked"}
+              </Typography>
+            </div>
+          </div>
+
+          <div className="flex items-center shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsGithubPanelOpen((prev) => !prev)}
+              className="rounded-xl"
             >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-surface-secondary flex items-center justify-center border border-separator/40 shrink-0 text-muted">
-                  <IconComponent className="shrink-0" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Typography
-                      type="body-sm"
-                      className="font-bold text-foreground font-outfit"
-                    >
-                      {provider.name}
-                    </Typography>
-                    {provider.connected ? (
-                      <Chip
-                        size="sm"
-                        color="success"
-                        variant="soft"
-                        className="h-4.5 px-1.5 text-[9px] font-bold uppercase tracking-wider font-outfit"
+              {isGithubPanelOpen ? "Close" : "Manage"}
+            </Button>
+          </div>
+        </div>
+
+        {isGithubPanelOpen && (
+          <div className="flex flex-col gap-4 p-4 bg-background rounded-2xl">
+            {githubConnections.length === 0 ? (
+              <div className="py-4 text-center flex flex-col items-center gap-3">
+                <Typography type="body-xs" className="text-muted">
+                  No GitHub accounts linked to your profile yet.
+                </Typography>
+                <Button
+                  isPending={actionLoadingId === "github-link"}
+                  onClick={() => handleConnect("github")}
+                  className="rounded-xl font-semibold text-xs h-9.5 px-4"
+                >
+                  Link GitHub Account
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Typography
+                    type="body-sm"
+                    className="font-bold text-foreground/80 text-left"
+                  >
+                    {githubConnections.length} linked GitHub account
+                    {githubConnections.length !== 1 ? "s" : ""}
+                  </Typography>
+                  <div className="flex flex-col gap-2">
+                    {githubConnections.map((conn) => (
+                      <div
+                        key={conn.id}
+                        className="flex items-center justify-between p-3 bg-foreground/5 rounded-xl border border-foreground/5"
                       >
-                        Connected
-                      </Chip>
-                    ) : (
-                      <Chip
-                        size="sm"
-                        color="default"
-                        variant="soft"
-                        className="h-4.5 px-1.5 text-[9px] font-bold uppercase tracking-wider font-outfit"
-                      >
-                        Disconnected
-                      </Chip>
-                    )}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="size-9 text-xs border border-border shrink-0">
+                            {conn.providerAvatarUrl && (
+                              <Avatar.Image
+                                src={conn.providerAvatarUrl}
+                                alt={
+                                  conn.providerDisplayName ||
+                                  conn.providerUsername ||
+                                  ""
+                                }
+                              />
+                            )}
+                            <Avatar.Fallback>
+                              {(
+                                conn.providerDisplayName ||
+                                conn.providerUsername ||
+                                "?"
+                              )
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </Avatar.Fallback>
+                          </Avatar>
+                          <div className="flex flex-col min-w-0 text-left">
+                            <span className="font-semibold text-sm truncate text-foreground">
+                              {conn.providerDisplayName ||
+                                conn.providerUsername}
+                            </span>
+                            <span className="text-[10px] text-muted truncate">
+                              @{conn.providerUsername}{" "}
+                              {conn.providerEmail
+                                ? `(${conn.providerEmail})`
+                                : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {conn.providerProfileUrl && (
+                            <a
+                              href={conn.providerProfileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 rounded-lg hover:bg-surface text-muted hover:text-foreground transition-colors"
+                              title="View Profile"
+                              aria-label={`View profile for ${conn.providerUsername}`}
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="danger-soft"
+                            isPending={isUnlinking && unlinkTarget?.id === conn.id}
+                            isDisabled={isUnlinking}
+                            onClick={() => handleDisconnectClick(conn)}
+                            className="rounded-xl h-8 text-xs font-semibold"
+                            aria-label={`Disconnect account @${conn.providerUsername}`}
+                          >
+                            Disconnect
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  {provider.connected ? (
-                    <Typography
-                      type="body-xs"
-                      className="text-muted truncate text-[11px] font-sans mt-0.5"
-                    >
-                      {provider.username} ({provider.email})
-                    </Typography>
+                </div>
+
+                <Separator variant="tertiary" />
+
+                <div className="flex items-center justify-between gap-4">
+                  {githubConnections.length < 3 ? (
+                    <>
+                      <Typography
+                        type="body-xs"
+                        className="text-muted text-[11px]"
+                      >
+                        You can link up to 3 GitHub accounts (
+                        {3 - githubConnections.length} remaining).
+                      </Typography>
+                      <Button
+                        variant="ghost"
+                        isPending={actionLoadingId === "github-link"}
+                        onClick={() => handleConnect("github")}
+                        className="rounded-xl text-xs h-9.5 px-3.5 border-border flex items-center gap-1.5 font-semibold shrink-0"
+                      >
+                        <PlusCircle size={15} />
+                        <span>Link Another GitHub</span>
+                      </Button>
+                    </>
                   ) : (
-                    <Typography
-                      type="body-xs"
-                      className="text-muted text-[11px] font-medium font-sans mt-0.5"
-                    >
-                      Not linked to {provider.name}
-                    </Typography>
+                    <div className="flex items-center gap-2 text-warning">
+                      <AlertCircle size={14} />
+                      <Typography
+                        type="body-xs"
+                        className="text-warning text-[11px] font-medium"
+                      >
+                        Maximum limit of 3 linked GitHub accounts reached.
+                      </Typography>
+                    </div>
                   )}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+      </div>
 
-              <div className="flex items-center shrink-0">
-                {provider.connected ? (
-                  <Button
-                    variant="outline"
-                    isLoading={isLoading}
-                    onClick={() => handleDisconnect(provider.id)}
-                    className="h-8.5 rounded-lg border-separator font-bold text-xs hover:border-danger hover:bg-danger-soft text-foreground hover:text-danger select-none shrink-0"
+      <Separator />
+
+      {/* GitLab Row */}
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 flex items-center justify-center">
+              <Gitlab className="size-6 text-foreground/80" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2 justify-start">
+                <Typography.Heading level={6}>
+                  GitLab Integration
+                </Typography.Heading>
+                {gitlabConnections.length > 0 ? (
+                  <Chip
+                    color="success"
+                    variant="soft"
+                    className="h-4 px-1 text-[9px] font-bold uppercase tracking-wider font-outfit"
                   >
-                    Disconnect
-                  </Button>
+                    {gitlabConnections.length} Connected
+                  </Chip>
                 ) : (
-                  <Button
-                    variant="secondary"
-                    isLoading={isLoading}
-                    onClick={() => handleConnect(provider.id)}
-                    className="h-8.5 rounded-lg font-bold text-xs select-none hover:opacity-90 active:scale-[0.98] shrink-0"
+                  <Chip
+                    color="default"
+                    variant="soft"
+                    className="h-4 px-1 text-[9px] font-bold uppercase tracking-wider font-outfit"
                   >
-                    Link Account
-                  </Button>
+                    Unlinked
+                  </Chip>
                 )}
               </div>
+              <Typography type="body-xs" className="text-muted">
+                {gitlabConnections.length > 0
+                  ? `${gitlabConnections.length} linked GitLab account${gitlabConnections.length !== 1 ? "s" : ""}`
+                  : "No GitLab accounts linked"}
+              </Typography>
             </div>
-          );
-        })}
+          </div>
+
+          <div className="flex items-center shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsGitlabPanelOpen((prev) => !prev)}
+              className="rounded-xl"
+            >
+              {isGitlabPanelOpen ? "Close" : "Manage"}
+            </Button>
+          </div>
+        </div>
+
+        {isGitlabPanelOpen && (
+          <div className="flex flex-col gap-4 p-4 bg-background rounded-2xl">
+            {gitlabConnections.length === 0 ? (
+              <div className="py-4 text-center flex flex-col items-center gap-3">
+                <Typography type="body-xs" className="text-muted">
+                  No GitLab accounts linked to your profile yet.
+                </Typography>
+                <Button
+                  isPending={actionLoadingId === "gitlab-link"}
+                  onClick={() => handleConnect("gitlab")}
+                  className="rounded-xl font-semibold text-xs h-9.5 px-4"
+                >
+                  Link GitLab Account
+                </Button>
+
+                {/* GitLab Specific Session Switching Alert */}
+                <div className="flex gap-2.5 p-3.5 bg-surface-secondary border border-border/40 rounded-xl max-w-lg mt-2 items-start text-left">
+                  <Info className="size-4.5 text-accent shrink-0 mt-0.5" />
+                  <Typography
+                    type="body-xs"
+                    className="text-muted text-[10.5px] leading-relaxed"
+                  >
+                    <strong>Session switching tip:</strong> GitLab OAuth flow
+                    caches active GitLab browser sessions. If you want to
+                    connect a different GitLab account, please sign out of
+                    gitlab.com in another tab before clicking link.
+                  </Typography>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Typography
+                    type="body-sm"
+                    className="font-bold text-foreground/80 text-left"
+                  >
+                    {gitlabConnections.length} linked GitLab account
+                    {gitlabConnections.length !== 1 ? "s" : ""}
+                  </Typography>
+                  <div className="flex flex-col gap-2">
+                    {gitlabConnections.map((conn) => (
+                      <div
+                        key={conn.id}
+                        className="flex items-center justify-between p-3 bg-foreground/5 rounded-xl border border-foreground/5"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="size-9 text-xs border border-border shrink-0">
+                            {conn.providerAvatarUrl && (
+                              <Avatar.Image
+                                src={conn.providerAvatarUrl}
+                                alt={
+                                  conn.providerDisplayName ||
+                                  conn.providerUsername ||
+                                  ""
+                                }
+                              />
+                            )}
+                            <Avatar.Fallback>
+                              {(
+                                conn.providerDisplayName ||
+                                conn.providerUsername ||
+                                "?"
+                              )
+                                .slice(0, 2)
+                                .toUpperCase()}
+                            </Avatar.Fallback>
+                          </Avatar>
+                          <div className="flex flex-col min-w-0 text-left">
+                            <span className="font-semibold text-sm truncate text-foreground">
+                              {conn.providerDisplayName ||
+                                conn.providerUsername}
+                            </span>
+                            <span className="text-[10px] text-muted truncate">
+                              @{conn.providerUsername}{" "}
+                              {conn.providerEmail
+                                ? `(${conn.providerEmail})`
+                                : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {conn.providerProfileUrl && (
+                            <a
+                              href={conn.providerProfileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 rounded-lg hover:bg-surface text-muted hover:text-foreground transition-colors"
+                              title="View Profile"
+                              aria-label={`View profile for ${conn.providerUsername}`}
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="danger-soft"
+                            isPending={isUnlinking && unlinkTarget?.id === conn.id}
+                            isDisabled={isUnlinking}
+                            onClick={() => handleDisconnectClick(conn)}
+                            className="rounded-xl h-8 text-xs font-semibold"
+                            aria-label={`Disconnect account @${conn.providerUsername}`}
+                          >
+                            Disconnect
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator variant="tertiary" />
+
+                {/* GitLab Specific Session Switching Alert */}
+                <div className="flex gap-2.5 p-3.5 bg-surface-secondary border border-border/40 rounded-xl items-start text-left">
+                  <Info className="size-4.5 text-accent shrink-0 mt-0.5" />
+                  <Typography
+                    type="body-xs"
+                    className="text-muted text-[10.5px] leading-relaxed"
+                  >
+                    <strong>Session switching tip:</strong> GitLab OAuth flow
+                    caches active GitLab browser sessions. If you want to
+                    connect a different GitLab account, please sign out of
+                    gitlab.com in another tab before clicking link.
+                  </Typography>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  {gitlabConnections.length < 3 ? (
+                    <>
+                      <Typography
+                        type="body-xs"
+                        className="text-muted text-[11px]"
+                      >
+                        You can link up to 3 GitLab accounts (
+                        {3 - gitlabConnections.length} remaining).
+                      </Typography>
+                      <Button
+                        variant="ghost"
+                        isPending={actionLoadingId === "gitlab-link"}
+                        onClick={() => handleConnect("gitlab")}
+                        className="rounded-xl text-xs h-9.5 px-3.5 border-border flex items-center gap-1.5 font-semibold shrink-0"
+                      >
+                        <PlusCircle size={15} />
+                        <span>Link Another GitLab</span>
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-warning">
+                      <AlertCircle size={14} />
+                      <Typography
+                        type="body-xs"
+                        className="text-warning text-[11px] font-medium"
+                      >
+                        Maximum limit of 3 linked GitLab accounts reached.
+                      </Typography>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Confirmation Modal */}
+      <Modal.Backdrop
+        isOpen={isModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsModalOpen(false);
+            setPendingId(null);
+            setPendingDetails(null);
+          }
+        }}
+        isDismissable={false}
+        className="bg-background/80 backdrop-blur-sm animate-in fade-in duration-200"
+      >
+        <Modal.Container size="sm">
+          <Modal.Dialog className="w-full max-w-md bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left relative focus-visible:outline-hidden focus:outline-hidden">
+            <Modal.Header className="mb-4">
+              <div className="flex items-center gap-2">
+                {pendingDetails?.providerName === "gitlab" ? (
+                  <Gitlab className="size-6 text-[#FC6D26]" />
+                ) : (
+                  <Github className="size-6 text-foreground" />
+                )}
+                <span className="font-extrabold text-foreground text-xl">
+                  Confirm Account Connection
+                </span>
+              </div>
+            </Modal.Header>
+            <Modal.Body className="space-y-4 py-2 text-sm leading-relaxed text-muted">
+              {loadingPendingDetails ? (
+                <div className="flex flex-col items-center justify-center py-6 gap-2">
+                  <Spinner size="md" color="accent" />
+                  <Typography type="body-xs" className="text-muted">
+                    Retrieving profile details...
+                  </Typography>
+                </div>
+              ) : pendingDetails ? (
+                <div className="flex flex-col gap-4">
+                  <Typography
+                    type="body-xs"
+                    className="text-muted leading-relaxed font-sans text-left"
+                  >
+                    Please verify the identity details of the external account
+                    you are connecting to your CVerify profile:
+                  </Typography>
+
+                  {/* Account Profile Card */}
+                  <div className="flex items-center gap-3.5 p-4 rounded-xl border border-border/60 bg-surface-secondary select-none text-left">
+                    <Avatar className="size-12 border border-border shrink-0">
+                      {pendingDetails.providerAvatarUrl && (
+                        <Avatar.Image
+                          src={pendingDetails.providerAvatarUrl}
+                          alt={
+                            pendingDetails.providerDisplayName ||
+                            pendingDetails.providerUsername ||
+                            ""
+                          }
+                        />
+                      )}
+                      <Avatar.Fallback>
+                        {(
+                          pendingDetails.providerDisplayName ||
+                          pendingDetails.providerUsername ||
+                          "?"
+                        )
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </Avatar.Fallback>
+                    </Avatar>
+                    <div className="flex flex-col min-w-0">
+                      <Typography className="font-bold text-sm text-foreground truncate leading-snug">
+                        {pendingDetails.providerDisplayName ||
+                          pendingDetails.providerUsername}
+                      </Typography>
+                      <Typography
+                        type="body-xs"
+                        className="text-muted truncate mt-0.5"
+                      >
+                        @{pendingDetails.providerUsername}{" "}
+                        {pendingDetails.providerEmail
+                          ? `(${pendingDetails.providerEmail})`
+                          : ""}
+                      </Typography>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5 p-3.5 text-accent bg-accent-soft/10 rounded-xl border border-accent/15 items-start text-left">
+                    <Info size={16} className="shrink-0 mt-0.5 text-accent" />
+                    <Typography
+                      type="body-xs"
+                      className="leading-relaxed font-medium"
+                    >
+                      This action will connect this account to your profile,
+                      enabling repository indexing and trust verification. You
+                      can disconnect it anytime.
+                    </Typography>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-4 text-center">
+                  <Typography
+                    type="body-xs"
+                    className="text-danger font-semibold"
+                  >
+                    Failed to load connection details or request expired.
+                  </Typography>
+                </div>
+              )}
+            </Modal.Body>
+            <Modal.Footer className="flex justify-end gap-3 pt-4 mt-4 border-t border-separator">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setPendingId(null);
+                  setPendingDetails(null);
+                }}
+                className="rounded-xl text-xs h-9.5 px-4 font-semibold text-muted hover:text-foreground"
+                isDisabled={confirming}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmLink}
+                isPending={confirming}
+                isDisabled={!pendingDetails || loadingPendingDetails}
+                className="rounded-xl font-bold text-xs h-9.5 px-4"
+              >
+                Confirm Connection
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+
+      {/* Reusable Provider Disconnect Modal */}
+      <ConfirmationModal
+        isOpen={isUnlinkModalOpen}
+        onOpenChange={setIsUnlinkModalOpen}
+        title={`Disconnect ${unlinkTarget?.providerName === "github" ? "GitHub" : "GitLab"} Account`}
+        variant="danger"
+        confirmText="Disconnect Account"
+        isPending={isUnlinking}
+        blockingError={blockingError}
+        onConfirm={handleConfirmUnlink}
+        description={
+          <div className="flex flex-col gap-2 text-left">
+            <Typography type="body-xs" className="leading-relaxed">
+              Are you sure you want to disconnect your {unlinkTarget?.providerName === "github" ? "GitHub" : "GitLab"} integration for{" "}
+              <strong>@{unlinkTarget?.providerUsername}</strong>?
+            </Typography>
+            <Typography type="body-xs" className="leading-relaxed text-muted mt-1">
+              This will remove repository indexing, active pull request trails, code trust verifications, and disable single sign-on via this account.
+            </Typography>
+          </div>
+        }
+      />
     </div>
   );
 };

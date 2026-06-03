@@ -3,15 +3,19 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using CVerify.API.Application.DTOs;
-using CVerify.API.Core.Entities;
-using CVerify.API.Infrastructure.Persistence;
+using FluentAssertions;
+using Xunit;
 using CVerify.API.IntegrationTests.Fixtures;
 using CVerify.API.IntegrationTests.Helpers;
-using Xunit;
+using CVerify.API.Modules.Auth.DTOs;
+using CVerify.API.Modules.Auth.Entities;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Shared.Exceptions;
+using CVerify.API.Modules.Shared.Exceptions.Catalogs;
+using CVerify.API.Modules.Shared.Persistence;
 
 namespace CVerify.API.IntegrationTests.Auth;
 
@@ -90,7 +94,7 @@ public class RegistrationFlowTests : BaseIntegrationTest
         var problem = await response2.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>().ConfigureAwait(false);
         problem.Should().NotBeNull();
         problem!.Extensions.Should().ContainKey("code");
-        problem.Extensions["code"]!.ToString().Should().Be(CVerify.API.Application.Exceptions.AuthErrorCodes.EmailAlreadyExists);
+        problem.Extensions["code"]!.ToString().Should().Be(AuthErrorCodes.EmailAlreadyExists);
     }
 
     [Fact]
@@ -253,6 +257,7 @@ public class RegistrationFlowTests : BaseIntegrationTest
             db.Users.Add(new User
             {
                 Email = "existing@cverify.ai",
+                Username = "existing_user",
                 FullName = "Existing User",
                 PasswordHash = null,
                 Status = UserStatus.EMAIL_VERIFY_PENDING,
@@ -308,5 +313,72 @@ public class RegistrationFlowTests : BaseIntegrationTest
             user.FullName.Should().Be("Updated Existing User");
             BCrypt.Net.BCrypt.Verify("NewSecurePassword123!", user.PasswordHash).Should().BeTrue();
         }
+    }
+
+    [Theory]
+    [InlineData("theluc.1746@gmail.com")]
+    [InlineData("theluc+work@gmail.com")]
+    [InlineData("the-luc@gmail.com")]
+    [InlineData("the_luc@gmail.com")]
+    public async Task Register_With_Special_Email_Characters_Should_Preserve_Email_Exactly(string email)
+    {
+        await SeedDefaultRolesAsync();
+
+        var request = new RegisterRequest(
+            Email: email,
+            Password: "SecurePassword123!",
+            ConfirmPassword: "SecurePassword123!",
+            FullName: "Special Email User"
+        );
+
+        var response = await Client.PostAsJsonAsync("/api/auth/register", request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email.Trim().ToLowerInvariant());
+        user.Should().NotBeNull();
+        user!.Email.Should().Be(email.Trim().ToLowerInvariant());
+    }
+
+    [Fact]
+    public async Task Login_With_Gmail_Containing_Dot_Should_Fallback_To_Legacy_Normalized_Email()
+    {
+        await SeedDefaultRolesAsync();
+
+        var legacyEmail = "theluc1746@gmail.com";
+        var passwordHash = BCrypt.Net.BCrypt.HashPassword("SecurePassword123!");
+        
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var userRole = await db.Roles.FirstAsync(r => r.Name == "USER");
+            db.Users.Add(new User
+            {
+                Email = legacyEmail,
+                Username = "theluc1746",
+                FullName = "Legacy User",
+                PasswordHash = passwordHash,
+                Status = UserStatus.ACTIVE,
+                EmailVerifiedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Roles = new List<Role> { userRole }
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var loginRequest = new LoginRequest(
+            Email: "theluc.1746@gmail.com",
+            Password: "SecurePassword123!"
+        );
+
+        var response = await Client.PostAsJsonAsync("/api/auth/login", loginRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var data = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        data.Should().NotBeNull();
+        data!.Email.Should().Be(legacyEmail);
     }
 }

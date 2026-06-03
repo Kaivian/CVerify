@@ -1,19 +1,21 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using CVerify.API.Application.DTOs;
-using CVerify.API.Application.Exceptions;
-using CVerify.API.Core.Entities;
-using CVerify.API.Infrastructure.Persistence;
+using FluentAssertions;
+using Xunit;
 using CVerify.API.IntegrationTests.Fixtures;
 using CVerify.API.IntegrationTests.Helpers;
-using Xunit;
+using CVerify.API.Modules.Auth.Entities;
+using CVerify.API.Modules.Auth.Services;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Shared.Exceptions;
+using CVerify.API.Modules.Shared.Persistence;
 
 namespace CVerify.API.IntegrationTests.Auth;
 
@@ -116,5 +118,206 @@ public class SessionRevocationTests : BaseIntegrationTest
             .ToListAsync();
         safeTokens.Should().NotBeEmpty();
         safeTokens.First().Token.Should().Be("currently_active_token_value_xyz");
+    }
+
+    [Fact]
+    public async Task ValidSid_ActiveSession_Should_Pass()
+    {
+        var email = $"active_{Guid.NewGuid()}@cverify.ai";
+        var userId = await CreateActiveUserAsync(email);
+        var sessionId = Guid.NewGuid();
+        var refreshTokenValue = $"active_rt_{Guid.NewGuid()}";
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var user = await db.Users.FindAsync(userId);
+            var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
+
+            var rt = new RefreshToken
+            {
+                UserId = userId,
+                Token = refreshTokenValue,
+                SessionId = sessionId,
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7)
+            };
+            db.RefreshTokens.Add(rt);
+            await db.SaveChangesAsync();
+
+            var jwt = tokenService.GenerateJwtToken(user!, new[] { "USER" }, Enumerable.Empty<string>(), sessionId: sessionId);
+
+            Client.DefaultRequestHeaders.Add("Cookie", $"access_token={jwt}; refresh_token={refreshTokenValue}");
+        }
+
+        var response = await Client.GetAsync("/api/auth/me");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        Client.DefaultRequestHeaders.Remove("Cookie");
+    }
+
+    [Fact]
+    public async Task ValidSid_RevokedSession_Should_Fail()
+    {
+        var email = $"revoked_{Guid.NewGuid()}@cverify.ai";
+        var userId = await CreateActiveUserAsync(email);
+        var sessionId = Guid.NewGuid();
+        var refreshTokenValue = $"revoked_rt_{Guid.NewGuid()}";
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var user = await db.Users.FindAsync(userId);
+            var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
+
+            var rt = new RefreshToken
+            {
+                UserId = userId,
+                Token = refreshTokenValue,
+                SessionId = sessionId,
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+                RevokedAt = DateTimeOffset.UtcNow.AddMinutes(-5)
+            };
+            db.RefreshTokens.Add(rt);
+            await db.SaveChangesAsync();
+
+            var jwt = tokenService.GenerateJwtToken(user!, new[] { "USER" }, Enumerable.Empty<string>(), sessionId: sessionId);
+
+            Client.DefaultRequestHeaders.Add("Cookie", $"access_token={jwt}; refresh_token={refreshTokenValue}");
+        }
+
+        var response = await Client.GetAsync("/api/auth/me");
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        Client.DefaultRequestHeaders.Remove("Cookie");
+    }
+
+    [Fact]
+    public async Task MissingSid_ActiveCookieFallback_Should_Pass()
+    {
+        var email = $"fallback_active_{Guid.NewGuid()}@cverify.ai";
+        var userId = await CreateActiveUserAsync(email);
+        var sessionId = Guid.NewGuid();
+        var refreshTokenValue = $"fallback_rt_{Guid.NewGuid()}";
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var user = await db.Users.FindAsync(userId);
+            var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
+
+            var rt = new RefreshToken
+            {
+                UserId = userId,
+                Token = refreshTokenValue,
+                SessionId = sessionId,
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7)
+            };
+            db.RefreshTokens.Add(rt);
+            await db.SaveChangesAsync();
+
+            var jwt = tokenService.GenerateJwtToken(user!, new[] { "USER" }, Enumerable.Empty<string>(), sessionId: null);
+
+            Client.DefaultRequestHeaders.Add("Cookie", $"access_token={jwt}; refresh_token={refreshTokenValue}");
+        }
+
+        var response = await Client.GetAsync("/api/auth/me");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        Client.DefaultRequestHeaders.Remove("Cookie");
+    }
+
+    [Fact]
+    public async Task MissingSid_RevokedCookieFallback_Should_Fail()
+    {
+        var email = $"fallback_revoked_{Guid.NewGuid()}@cverify.ai";
+        var userId = await CreateActiveUserAsync(email);
+        var sessionId = Guid.NewGuid();
+        var refreshTokenValue = $"fallback_revoked_rt_{Guid.NewGuid()}";
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var user = await db.Users.FindAsync(userId);
+            var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
+
+            var rt = new RefreshToken
+            {
+                UserId = userId,
+                Token = refreshTokenValue,
+                SessionId = sessionId,
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+                RevokedAt = DateTimeOffset.UtcNow.AddMinutes(-5)
+            };
+            db.RefreshTokens.Add(rt);
+            await db.SaveChangesAsync();
+
+            var jwt = tokenService.GenerateJwtToken(user!, new[] { "USER" }, Enumerable.Empty<string>(), sessionId: null);
+
+            Client.DefaultRequestHeaders.Add("Cookie", $"access_token={jwt}; refresh_token={refreshTokenValue}");
+        }
+
+        var response = await Client.GetAsync("/api/auth/me");
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        Client.DefaultRequestHeaders.Remove("Cookie");
+    }
+
+    [Fact]
+    public async Task InvalidSid_Should_Fail()
+    {
+        var email = $"invalid_sid_{Guid.NewGuid()}@cverify.ai";
+        var userId = await CreateActiveUserAsync(email);
+        var sessionId = Guid.NewGuid();
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var user = await db.Users.FindAsync(userId);
+            var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
+
+            var jwt = tokenService.GenerateJwtToken(user!, new[] { "USER" }, Enumerable.Empty<string>(), sessionId: sessionId);
+
+            Client.DefaultRequestHeaders.Add("Cookie", $"access_token={jwt}");
+        }
+
+        var response = await Client.GetAsync("/api/auth/me");
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        Client.DefaultRequestHeaders.Remove("Cookie");
+    }
+
+    [Fact]
+    public async Task RevokeCurrentSession_Should_Return_BadRequest_And_Fail()
+    {
+        var email = $"self_revoke_{Guid.NewGuid()}@cverify.ai";
+        var userId = await CreateActiveUserAsync(email);
+        var sessionId = Guid.NewGuid();
+        var refreshTokenValue = $"rt_{Guid.NewGuid()}";
+
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var user = await db.Users.FindAsync(userId);
+            var tokenService = scope.ServiceProvider.GetRequiredService<ITokenService>();
+
+            var rt = new RefreshToken
+            {
+                UserId = userId,
+                Token = refreshTokenValue,
+                SessionId = sessionId,
+                ExpiresAt = DateTimeOffset.UtcNow.AddDays(7)
+            };
+            db.RefreshTokens.Add(rt);
+            await db.SaveChangesAsync();
+
+            var jwt = tokenService.GenerateJwtToken(user!, new[] { "USER" }, Enumerable.Empty<string>(), sessionId: sessionId);
+
+            Client.DefaultRequestHeaders.Add("Cookie", $"access_token={jwt}; refresh_token={refreshTokenValue}");
+        }
+
+        var response = await Client.DeleteAsync($"/api/auth/sessions/{sessionId}");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        Client.DefaultRequestHeaders.Remove("Cookie");
     }
 }

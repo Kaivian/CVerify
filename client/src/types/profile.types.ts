@@ -13,6 +13,7 @@ export interface ProfileResponse {
   publicEmail: string | null;
   profileVisibility: string;
   recruiterVisibility: boolean;
+  aiTalentDiscovery: string;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -32,6 +33,7 @@ export interface UpdateProfileRequest {
   publicEmail: string | null;
   profileVisibility: string;
   recruiterVisibility: boolean;
+  aiTalentDiscovery: string;
   socialLinks: string[];
   version: number;
 }
@@ -129,3 +131,59 @@ export interface UpdateCareerPreferenceRequest {
 export interface ReorderItemsRequest {
   orderedIds: string[];
 }
+
+export interface PublicProfileResponse {
+  userId: string;
+  username: string;
+  fullName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  headline: string | null;
+  company: string | null;
+  location: string | null;
+  socialLinks: string[];
+}
+
+export interface WorkExperienceAchievement {
+  title: string;
+  description: string;
+}
+
+export interface WorkExperienceLink {
+  linkType: number;
+  url: string;
+}
+
+export interface WorkExperienceRequest {
+  jobTitle: string;
+  company: string;
+  experienceCategory: number;
+  employmentType: number;
+  location: string | null;
+  startDate: string;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  description: string;
+  achievements: WorkExperienceAchievement[];
+  technologies: string[];
+  links: WorkExperienceLink[];
+}
+
+export interface WorkExperienceResponse {
+  id: string;
+  userId: string;
+  jobTitle: string;
+  company: string;
+  experienceCategory: number;
+  employmentType: number;
+  location: string | null;
+  startDate: string;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  description: string;
+  displayOrder: number;
+  achievements: WorkExperienceAchievement[];
+  technologies: string[];
+  links: WorkExperienceLink[];
+}
+

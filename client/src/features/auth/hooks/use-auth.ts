@@ -9,7 +9,8 @@ import {
   type CreatePasswordPayload,
   type RegisterCompanyPayload,
   type SetupWorkspacePayload,
-  type CompanyLoginPayload
+  type CompanyLoginPayload,
+  type ChangePasswordPayload
 } from '../services/auth.service';
 import { type User, type UserRole, type ResourceActionPermission } from '../../../types/auth.types';
 import { useState, useCallback } from 'react';
@@ -53,6 +54,13 @@ export const useAuth = () => {
         return { success: true, isUnverified: true, nextStep: response.nextStep, email: response.email };
       }
 
+      if (response.status === 'DELETION_PENDING' || response.nextStep?.startsWith('REACTIVATE:')) {
+        setAuthStatusAndNextStep(response.status, response.nextStep);
+        setLoading(false);
+        const reactivationToken = response.nextStep.split(':')[1] || '';
+        return { success: true, isDeletionPending: true, nextStep: 'DELETION_PENDING', reactivationToken };
+      }
+
       const user: User = {
         id: response.id,
         email: response.email,
@@ -61,6 +69,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
 
       login(user);
@@ -88,6 +98,13 @@ export const useAuth = () => {
         return { success: true, isUnverified: true, nextStep: response.nextStep, email: response.email };
       }
 
+      if (response.status === 'DELETION_PENDING' || response.nextStep?.startsWith('REACTIVATE:')) {
+        setAuthStatusAndNextStep(response.status, response.nextStep);
+        setLoading(false);
+        const reactivationToken = response.nextStep.split(':')[1] || '';
+        return { success: true, isDeletionPending: true, nextStep: 'DELETION_PENDING', reactivationToken };
+      }
+
       const user: User = {
         id: response.id,
         email: response.email,
@@ -96,6 +113,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
 
       login(user);
@@ -145,6 +164,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
 
       login(user);
@@ -174,6 +195,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
 
       login(user);
@@ -292,6 +315,8 @@ export const useAuth = () => {
           role: normalizeRole(response.roles),
           permissions: response.permissions,
           isEmailVerified: response.isEmailVerified,
+          passwordChangedAt: response.passwordChangedAt,
+          hasPassword: response.hasPassword,
         };
 
         stateStore.login(user);
@@ -419,6 +444,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
       login(user);
       setAuthStatusAndNextStep(response.status, response.nextStep);
@@ -477,6 +504,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
       login(user);
       setAuthStatusAndNextStep(response.status, response.nextStep);
@@ -503,6 +532,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
       login(user);
       setAuthStatusAndNextStep(response.status, response.nextStep);
@@ -529,10 +560,23 @@ export const useAuth = () => {
   const revokeSession = useCallback(async (sessionId: string) => {
     try {
       await authApi.revokeSession(sessionId);
-      return true;
+      return { success: true };
     } catch (err: unknown) {
-      console.error('Failed to revoke session:', err);
-      return false;
+      const parsedError = normalizeError(err);
+      console.error('Failed to revoke session:', parsedError);
+      return { success: false, error: parsedError.message };
+    }
+  }, []);
+
+  // Revoke All Other Sessions
+  const revokeOtherSessions = useCallback(async () => {
+    try {
+      await authApi.revokeOtherSessions();
+      return { success: true };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      console.error('Failed to revoke other sessions:', parsedError);
+      return { success: false, error: parsedError.message };
     }
   }, []);
 
@@ -607,6 +651,8 @@ export const useAuth = () => {
         role: normalizeRole(response.roles),
         permissions: response.permissions,
         isEmailVerified: response.isEmailVerified,
+        passwordChangedAt: response.passwordChangedAt,
+        hasPassword: response.hasPassword,
       };
       login(user);
       setAuthStatusAndNextStep(response.status, response.nextStep);
@@ -619,6 +665,313 @@ export const useAuth = () => {
       return { success: false, error: parsedError };
     }
   }, [setLoading, login, setAuthStatusAndNextStep]);
+
+  // Delete account action
+  const deleteAccount = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.deleteAccount();
+      logout(false);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading, logout]);
+
+  // Change password action
+  const changePassword = useCallback(async (payload: ChangePasswordPayload) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.changePassword(payload);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Fetch linked providers action
+  const fetchLinkedProviders = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.fetchLinkedProviders();
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Link Google Account action
+  const linkGoogleAccount = useCallback(async (idToken: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.linkGoogleAccount(idToken);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Unlink provider action
+  const unlinkProvider = useCallback(async (providerName: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.unlinkProvider(providerName);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Validate scopes action
+  const validateScopes = useCallback(async (providerName: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.validateScopes(providerName);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Forgot password action
+  const forgotPassword = useCallback(async (email: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.forgotPassword({ email });
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Send Recovery OTP action
+  const sendRecoveryOtp = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.sendRecoveryOtp();
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Verify Recovery OTP action
+  const verifyRecoveryOtp = useCallback(async (otp: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyRecoveryOtp(otp);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Change Password via Recovery action
+  const changePasswordViaRecovery = useCallback(async (payload: { recoveryToken: string; newPassword?: string; confirmPassword?: string }) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.changePasswordViaRecovery(payload);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Fetch linked emails
+  const fetchLinkedEmails = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.fetchLinkedEmails();
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Send link email OTP
+  const sendLinkEmailOtp = useCallback(async (email: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.sendLinkEmailOtp(email);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Verify link email OTP
+  const verifyLinkEmailOtp = useCallback(async (challengeId: string, email: string, code: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.verifyLinkEmailOtp(challengeId, email, code);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Promote email to primary
+  const makeEmailPrimary = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.makeEmailPrimary(email, password);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Delete linked email
+  const deleteLinkedEmail = useCallback(async (id: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const response = await authApi.deleteLinkedEmail(id);
+      setLoading(false);
+      return { success: true, data: response };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Fetch active connections
+  const fetchConnections = useCallback(async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const data = await authApi.fetchConnections();
+      setLoading(false);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Fetch pending link details
+  const fetchPendingLinkDetails = useCallback(async (id: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const data = await authApi.fetchPendingLinkDetails(id);
+      setLoading(false);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+  // Confirm pending link
+  const confirmLink = useCallback(async (id: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const data = await authApi.confirmLink(id);
+      setLoading(false);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
+
+
+
+  // Unlink specific connection
+  const unlinkConnection = useCallback(async (id: string) => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const data = await authApi.unlinkConnection(id);
+      setLoading(false);
+      return { success: true, data };
+    } catch (err: unknown) {
+      const parsedError = normalizeError(err);
+      setAuthError(parsedError.message);
+      setLoading(false);
+      return { success: false, error: parsedError };
+    }
+  }, [setLoading]);
 
   return {
     // Zustand States
@@ -638,7 +991,7 @@ export const useAuth = () => {
     resetPassword: resetPasswordUser,
     initializeSession: initializeUserSession,
     updateProfile: updateUserStore,
-
+ 
     // New actions
     sendOtp,
     fetchOtpSession,
@@ -651,7 +1004,35 @@ export const useAuth = () => {
     companyLogin,
     fetchSessions,
     revokeSession,
+    revokeOtherSessions,
     
+    // OAuth provider integration actions
+    deleteAccount,
+    fetchLinkedProviders,
+    unlinkProvider,
+    validateScopes,
+    forgotPassword,
+    changePassword,
+    linkGoogleAccount,
+    
+    // Settings password recovery actions
+    sendRecoveryOtp,
+    verifyRecoveryOtp,
+    changePasswordViaRecovery,
+    
+    // Linked email management actions
+    fetchLinkedEmails,
+    sendLinkEmailOtp,
+    verifyLinkEmailOtp,
+    makeEmailPrimary,
+    deleteLinkedEmail,
+
+    // Multi-account OAuth actions
+    fetchConnections,
+    fetchPendingLinkDetails,
+    confirmLink,
+    unlinkConnection,
+
     // Unified Onboarding flow
     verifyCompanyOnboarding,
     verifyOnboardingOtp,

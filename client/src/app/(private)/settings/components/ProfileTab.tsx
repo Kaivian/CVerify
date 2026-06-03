@@ -6,8 +6,13 @@ import { Card } from "@/components/ui/card";
 import { SettingsSection } from "./SettingsSection";
 import { SocialLinksEditor } from "./SocialLinksEditor";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { PhoneNumberField } from "@/components/ui/phone-number-field";
+import { PHONE_NUMBER_REGEX } from "@/features/auth/validators/auth.validator";
 import { parseDate } from "@internationalized/date";
-import { UnsavedChangesBar, isDeepEqual } from "@/components/ui/unsaved-changes-bar";
+import {
+  UnsavedChangesBar,
+  isDeepEqual,
+} from "@/components/ui/unsaved-changes-bar";
 
 import {
   Avatar,
@@ -42,14 +47,22 @@ const profileSchema = z.object({
     .min(2, "Name must be at least 2 characters")
     .max(50, "Name must be under 50 characters"),
   publicEmail: z.string(),
-  bio: z.string().max(160, "Bio must be under 160 characters").optional().or(z.literal("")),
+  bio: z
+    .string()
+    .max(160, "Bio must be under 160 characters")
+    .optional()
+    .or(z.literal("")),
   pronouns: z.enum(["he_him", "she_her", "they_them", "prefer_not", "custom"]),
   customPronouns: z
     .string()
     .max(30, "Pronouns must be under 30 characters")
     .optional()
     .or(z.literal("")),
-  company: z.string().max(50, "Company must be under 50 characters").optional().or(z.literal("")),
+  company: z
+    .string()
+    .max(50, "Company must be under 50 characters")
+    .optional()
+    .or(z.literal("")),
   location: z
     .string()
     .max(50, "Location must be under 50 characters")
@@ -59,8 +72,8 @@ const profileSchema = z.object({
     .string()
     .optional()
     .or(z.literal(""))
-    .refine((val) => !val || /^[0-9]{9,10}$/.test(val), {
-      message: "Phone number is invalid",
+    .refine((val) => !val || PHONE_NUMBER_REGEX.test(val), {
+      message: "Phone number is invalid. Must be 9 to 10 digits after the country code (+84).",
     }),
   birthDate: z.string().optional().or(z.literal("")),
   headline: z
@@ -68,12 +81,14 @@ const profileSchema = z.object({
     .max(50, "Headline must be under 50 characters")
     .optional()
     .or(z.literal("")),
-  socialLinks: z.array(
-    z.object({
-      id: z.string(),
-      url: z.string(),
-    })
-  ).optional(),
+  socialLinks: z
+    .array(
+      z.object({
+        id: z.string(),
+        url: z.string(),
+      }),
+    )
+    .optional(),
   version: z.number(),
 });
 
@@ -102,7 +117,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
 
   // Temporary diagnostics effect to trace avatar rendering
   useEffect(() => {
-    console.log("[Avatar Render Diagnostics] current states - avatarPreview:", avatarPreview, "user.avatarUrl:", user?.avatarUrl, "active source:", avatarPreview || user?.avatarUrl || "fallback initials");
+    console.log(
+      "[Avatar Render Diagnostics] current states - avatarPreview:",
+      avatarPreview,
+      "user.avatarUrl:",
+      user?.avatarUrl,
+      "active source:",
+      avatarPreview || user?.avatarUrl || "fallback initials",
+    );
   }, [avatarPreview, user?.avatarUrl]);
 
   const handleUpload = async (file: File) => {
@@ -118,11 +140,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       console.log("[Avatar Upload] Initiating API request to R2...");
       const result = await profileApi.uploadAvatar(file, (progress) => {
         if (progress.total) {
-          const percentage = Math.round((progress.loaded / progress.total) * 100);
+          const percentage = Math.round(
+            (progress.loaded / progress.total) * 100,
+          );
           setUploadProgress(percentage);
         }
       });
-      
+
       console.log("[Avatar Upload] API Response received:", result);
       console.log("[Avatar Upload] Returned avatar URL:", result.avatarUrl);
 
@@ -133,27 +157,37 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
 
       // Log store user status to verify mutation propagation
       const updatedUser = useAuthStore.getState().user;
-      console.log("[Avatar Upload] Global User State after mutation:", updatedUser);
+      console.log(
+        "[Avatar Upload] Global User State after mutation:",
+        updatedUser,
+      );
 
       toast.success("Avatar updated successfully.");
       setAvatarPreview(null); // Clear preview to fallback to newly returned signed URL
       setLastSelectedFile(null);
     } catch (error: unknown) {
       console.error("Failed to upload avatar:", error);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const err = error as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const errMsg = (err as any).response?.data?.message || (err as any).message || "Failed to upload avatar.";
-      
+      const err = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      const errMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to upload avatar.";
+
       toast.danger(errMsg);
-      
+
       // Revert optimistic preview
       setAvatarPreview(null);
     } finally {
       setIsUploadingAvatar(false);
       setUploadProgress(null);
       URL.revokeObjectURL(previewUrl);
-      console.log("[Avatar Upload] Revoked optimistic preview URL:", previewUrl);
+      console.log(
+        "[Avatar Upload] Revoked optimistic preview URL:",
+        previewUrl,
+      );
     }
   };
 
@@ -178,7 +212,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
     const objectUrl = URL.createObjectURL(file);
     setCropImageSrc(objectUrl);
     setIsCropModalOpen(true);
-    
+
     // Reset file input so that the same file can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -187,21 +221,28 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
 
   const handleCropComplete = (croppedBlob: Blob) => {
     setIsCropModalOpen(false);
-    
+
     // Revoke the original raw image object URL immediately to prevent memory leaks
     if (cropImageSrc) {
       URL.revokeObjectURL(cropImageSrc);
       setCropImageSrc(null);
     }
 
-    const fileExt = lastSelectedFile ? lastSelectedFile.name.split('.').pop() : 'jpg';
-    const originalName = lastSelectedFile ? lastSelectedFile.name.substring(0, lastSelectedFile.name.lastIndexOf('.')) : 'avatar';
+    const fileExt = lastSelectedFile
+      ? lastSelectedFile.name.split(".").pop()
+      : "jpg";
+    const originalName = lastSelectedFile
+      ? lastSelectedFile.name.substring(
+          0,
+          lastSelectedFile.name.lastIndexOf("."),
+        )
+      : "avatar";
     const croppedFile = new File(
-      [croppedBlob], 
-      `${originalName}_cropped.${fileExt}`, 
-      { type: "image/jpeg" }
+      [croppedBlob],
+      `${originalName}_cropped.${fileExt}`,
+      { type: "image/jpeg" },
     );
-    
+
     handleUpload(croppedFile);
   };
 
@@ -260,14 +301,23 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         fullName: profile.fullName || user?.fullName || "",
         publicEmail: profile.publicEmail || "none",
         bio: profile.bio || "",
-        pronouns: (profile.pronouns as "he_him" | "she_her" | "they_them" | "prefer_not" | "custom") || "prefer_not",
+        pronouns:
+          (profile.pronouns as
+            | "he_him"
+            | "she_her"
+            | "they_them"
+            | "prefer_not"
+            | "custom") || "prefer_not",
         customPronouns: profile.customPronouns || "",
         company: profile.company || "",
         location: profile.location || "",
         phoneNumber: profile.phoneNumber || "",
         birthDate: profile.birthDate ? profile.birthDate.split("T")[0] : "",
         headline: profile.headline || "",
-        socialLinks: (profile.socialLinks || []).map((url, i) => ({ id: String(i + 1), url })),
+        socialLinks: (profile.socialLinks || []).map((url, i) => ({
+          id: String(i + 1),
+          url,
+        })),
         version: profile.version || 0,
       });
     }
@@ -275,7 +325,10 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
 
   // Track dirty changes to inform parent page navigation guard
   useEffect(() => {
-    const hasChanges = !isDeepEqual(currentValues, methods.formState.defaultValues);
+    const hasChanges = !isDeepEqual(
+      currentValues,
+      methods.formState.defaultValues,
+    );
     onDirtyChange(hasChanges);
   }, [currentValues, methods.formState.defaultValues, onDirtyChange]);
 
@@ -295,7 +348,9 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         bio: data.bio || null,
         location: data.location || null,
         phoneNumber: data.phoneNumber || null,
-        birthDate: data.birthDate ? new Date(data.birthDate).toISOString() : null,
+        birthDate: data.birthDate
+          ? new Date(data.birthDate).toISOString()
+          : null,
         headline: data.headline || null,
         company: data.company || null,
         pronouns: data.pronouns || null,
@@ -303,8 +358,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
         publicEmail: data.publicEmail === "none" ? null : data.publicEmail,
         profileVisibility: profile?.profileVisibility || "public",
         recruiterVisibility: profile?.recruiterVisibility ?? true,
+        aiTalentDiscovery: profile?.aiTalentDiscovery || "disabled",
         socialLinks: (data.socialLinks || []).map((l) => l.url),
-        version: useProfileStore.getState().profile?.version || data.version || profile?.version || 0,
+        version:
+          useProfileStore.getState().profile?.version ||
+          data.version ||
+          profile?.version ||
+          0,
       };
 
       const updated = await updateProfile(request);
@@ -317,10 +377,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       onSaveSuccess();
     } catch (error: unknown) {
       console.error("Failed to save profile:", error);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const err = error as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const errorMsg = (err as any).response?.data?.message || (err as any).message || "Failed to update profile settings.";
+      const err = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to update profile settings.";
       toast.danger(errorMsg);
     }
   };
@@ -423,11 +487,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   // Initials for avatar fallback
   const initials = user?.fullName
     ? user.fullName
-      .split(" ")
-      .map((n: string) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase()
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
     : "U";
 
   // Dropdown options
@@ -488,7 +552,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                   {isUploadingAvatar ? (
                     <span className="flex items-center gap-1.5">
                       <Spinner size="sm" color="current" />
-                      <span>{uploadProgress !== null ? `${uploadProgress}%` : "Uploading..."}</span>
+                      <span>
+                        {uploadProgress !== null
+                          ? `${uploadProgress}%`
+                          : "Uploading..."}
+                      </span>
                     </span>
                   ) : (
                     "Change Avatar"
@@ -571,34 +639,19 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               </div>
             </div>
             <div className="grid grid-cols-[180px_250px_1fr] gap-4 mb-6 items-start">
-              <TextField
+              <PhoneNumberField
+                id="input-type-phone"
                 name="phoneNumber"
+                value={currentValues.phoneNumber || ""}
+                onChange={(val) =>
+                  setValue("phoneNumber", val, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
                 isInvalid={!!errors.phoneNumber}
-                className="flex flex-col w-full h-full"
-              >
-                <Label htmlFor="input-type-phone">Phone Number</Label>
-                <InputGroup>
-                  <InputGroup.Prefix className="text-muted text-xs font-mono bg-background">
-                    +084
-                  </InputGroup.Prefix>
-                  <InputGroup.Input
-                    id="input-type-phone"
-                    type="tel"
-                    placeholder="912345678"
-                    className="pl-2"
-                    value={currentValues.phoneNumber || ""}
-                    onChange={(e) =>
-                      setValue("phoneNumber", e.target.value, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      })
-                    }
-                  />
-                </InputGroup>
-                {errors.phoneNumber && (
-                  <FieldError>{errors.phoneNumber.message}</FieldError>
-                )}
-              </TextField>
+                errorMessage={errors.phoneNumber?.message}
+              />
 
               {/* Date of Birth DatePicker */}
               <DatePicker
@@ -681,11 +734,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                   setValue(
                     "pronouns",
                     val as
-                    | "he_him"
-                    | "she_her"
-                    | "they_them"
-                    | "prefer_not"
-                    | "custom",
+                      | "he_him"
+                      | "she_her"
+                      | "they_them"
+                      | "prefer_not"
+                      | "custom",
                     {
                       shouldDirty: true,
                       shouldValidate: true,
@@ -754,10 +807,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               control={methods.control}
               name="socialLinks"
               render={({ field: { value, onChange } }) => (
-                <SocialLinksEditor
-                  links={value || []}
-                  onChange={onChange}
-                />
+                <SocialLinksEditor links={value || []} onChange={onChange} />
               )}
             />
           </Card>

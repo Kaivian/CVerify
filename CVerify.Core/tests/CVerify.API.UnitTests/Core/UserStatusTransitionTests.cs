@@ -1,7 +1,9 @@
-﻿using System;
+
+using System;
 using FluentAssertions;
-using CVerify.API.Core.Entities;
 using Xunit;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
 
 namespace CVerify.API.UnitTests.Core;
 

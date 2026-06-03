@@ -1,11 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using FluentAssertions;
-using CVerify.API.Application.Exceptions;
-using CVerify.API.Infrastructure.Services;
 using Xunit;
+using CVerify.API.Modules.Auth.Services;
+using CVerify.API.Modules.Shared.Email.Services;
+using CVerify.API.Modules.Shared.Exceptions;
 
 namespace CVerify.API.UnitTests.Templates;
 
@@ -22,7 +23,7 @@ public class EmailTemplateServiceTests : IDisposable
     /// </summary>
     public EmailTemplateServiceTests()
     {
-        _templatesDirectory = Path.Combine(AppContext.BaseDirectory, "Infrastructure", "EmailTemplates");
+        _templatesDirectory = Path.Combine(AppContext.BaseDirectory, "Modules", "Shared", "Email", "Templates");
         
         // Ensure test environment directory is cleanly established
         Directory.CreateDirectory(_templatesDirectory);

@@ -1,11 +1,12 @@
-﻿using System;
+
+using System;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
-using CVerify.API.Infrastructure.Configuration;
-using CVerify.API.Infrastructure.Diagnostics;
+using FluentAssertions;
 using Xunit;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Diagnostics;
 
 namespace CVerify.API.UnitTests.HealthChecks;
 

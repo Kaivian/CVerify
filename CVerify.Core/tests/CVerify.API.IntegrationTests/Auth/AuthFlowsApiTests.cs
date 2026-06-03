@@ -1,4 +1,5 @@
-﻿using System;
+
+using System;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -6,17 +7,18 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using CVerify.API.Application.DTOs;
-using CVerify.API.Application.Exceptions;
-using CVerify.API.Application.Interfaces;
-using CVerify.API.Core.Entities;
-using CVerify.API.Infrastructure.Persistence;
+using FluentAssertions;
+using Xunit;
 using CVerify.API.IntegrationTests.Fixtures;
 using CVerify.API.IntegrationTests.Helpers;
-using Xunit;
+using CVerify.API.Modules.Auth.DTOs;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Shared.Email.Services;
+using CVerify.API.Modules.Shared.Exceptions;
+using CVerify.API.Modules.Shared.Persistence;
 
 namespace CVerify.API.IntegrationTests.Auth;
 

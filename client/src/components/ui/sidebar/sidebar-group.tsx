@@ -106,7 +106,7 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
                   isMobile ? "h-12 px-3.5 text-base" : "h-10 px-4 text-sm",
                 ].join(" ")}
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
                   {Icon && (
                     <Icon
                       size={isMobile ? 20 : 18}
@@ -143,7 +143,7 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
                     "border-l border-border/70 flex flex-col",
                     isMobile
                       ? "ml-4 pl-1.5 gap-2 my-2"
-                      : "ml-4.5 pl-3 gap-1.5 my-1.5",
+                      : "ml-4.5 pl-3 gap-1 my-1",
                   ].join(" ")}
                 >
                   {group.children.map((child) => {

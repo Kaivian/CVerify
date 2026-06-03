@@ -9,6 +9,13 @@ import {
   type SessionInfoData,
   type ResolveEmailAuthStateResponseData,
   type OtpSessionResponseData,
+  type LinkedEmail,
+  type LinkedProviderConnection,
+  type PendingLinkDetailsResponseData,
+  type DeletionRequirementsDto,
+  type InitiateDeletionRequest,
+  type DeletionInitiationResponse,
+  type ReactivateRequest,
 } from '../../../types/auth.types';
 import { type z } from 'zod';
 import {
@@ -225,6 +232,14 @@ export const authApi = {
   },
 
   /**
+   * Revoke all other active sessions (except the current one)
+   */
+  revokeOtherSessions: async (): Promise<{ message: string }> => {
+    const response = await axiosClient.delete<{ message: string }>('/auth/sessions');
+    return response.data;
+  },
+
+  /**
    * Verify company details for onboarding (Step 1)
    */
   verifyCompanyOnboarding: async (companyName: string, taxCode: string): Promise<{
@@ -299,4 +314,197 @@ export const authApi = {
     });
     return response.data;
   },
+
+  /**
+   * Fetch OAuth providers and their connection state
+   */
+  fetchLinkedProviders: async (): Promise<LinkedProvider[]> => {
+    const response = await axiosClient.get<LinkedProvider[]>('/auth/providers');
+    return response.data;
+  },
+
+  /**
+   * Unlink an OAuth provider from user account
+   */
+  unlinkProvider: async (providerName: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.delete<{ success: boolean; message: string }>(`/auth/providers/${providerName}`);
+    return response.data;
+  },
+
+  /**
+   * Permanently delete the user account
+   */
+  deleteAccount: async (): Promise<{ message: string }> => {
+    const response = await axiosClient.delete<{ message: string }>('/auth/me');
+    return response.data;
+  },
+
+  /**
+   * Fetch deletion requirements for the currently logged in user
+   */
+  getDeletionRequirements: async (): Promise<DeletionRequirementsDto> => {
+    const response = await axiosClient.get<DeletionRequirementsDto>('/users/me/deletion-requirements');
+    return response.data;
+  },
+
+  /**
+   * Request email verification OTP fallback code for account deletion
+   */
+  sendFallbackOtp: async (email: string): Promise<SendOtpResponseData> => {
+    const response = await axiosClient.post<SendOtpResponseData>('/users/me/fallback-otp', { email });
+    return response.data;
+  },
+
+  /**
+   * Initiate deletion request with appropriate verification
+   */
+  initiateDeletionRequest: async (payload: InitiateDeletionRequest): Promise<DeletionInitiationResponse> => {
+    const response = await axiosClient.post<DeletionInitiationResponse>('/users/me/delete-request', payload);
+    return response.data;
+  },
+
+  /**
+   * Reactivate a soft-deleted account within the 14-day deactivation grace period
+   */
+  reactivateAccount: async (payload: ReactivateRequest): Promise<LoginResponseData> => {
+    const response = await axiosClient.post<LoginResponseData>('/auth/reactivate', payload);
+    return response.data;
+  },
+
+  /**
+   * Validate scope permissions for a provider
+   */
+  validateScopes: async (providerName: string): Promise<{ valid: boolean }> => {
+    const response = await axiosClient.post<{ valid: boolean }>(`/auth/providers/${providerName}/validate-scopes`);
+    return response.data;
+  },
+
+  /**
+   * Link Google OAuth account to currently authenticated session using ID Token
+   */
+  linkGoogleAccount: async (idToken: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/providers/google', { idToken });
+    return response.data;
+  },
+
+  /**
+   * Change password for the active authenticated user
+   */
+  changePassword: async (payload: ChangePasswordPayload): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/change-password', payload);
+    return response.data;
+  },
+
+  /**
+   * Send verification OTP for password recovery inside settings
+   */
+  sendRecoveryOtp: async (): Promise<{ success: boolean; cooldownSeconds: number; cooldownUntil: string; otpExpiresIn: number }> => {
+    const response = await axiosClient.post<{ success: boolean; cooldownSeconds: number; cooldownUntil: string; otpExpiresIn: number }>('/auth/password-recovery/send-otp');
+    return response.data;
+  },
+
+  /**
+   * Verify password recovery OTP inside settings
+   */
+  verifyRecoveryOtp: async (otp: string): Promise<{ success: boolean; verified: boolean; recoveryToken: string; expiresIn: number }> => {
+    const response = await axiosClient.post<{ success: boolean; verified: boolean; recoveryToken: string; expiresIn: number }>('/auth/password-recovery/verify-otp', { otp });
+    return response.data;
+  },
+
+  /**
+   * Complete password recovery password change
+   */
+  changePasswordViaRecovery: async (payload: { recoveryToken: string; newPassword?: string; confirmPassword?: string }): Promise<{ success: boolean }> => {
+    const response = await axiosClient.post<{ success: boolean }>('/auth/password-recovery/change-password', payload);
+    return response.data;
+  },
+
+  /**
+   * Fetch all linked emails associated with the active account
+   */
+  fetchLinkedEmails: async (): Promise<LinkedEmail[]> => {
+    const response = await axiosClient.get<LinkedEmail[]>('/auth/emails');
+    return response.data;
+  },
+
+  /**
+   * Dispatch challenge OTP to link a new secondary email
+   */
+  sendLinkEmailOtp: async (email: string): Promise<SendOtpResponseData> => {
+    const response = await axiosClient.post<SendOtpResponseData>('/auth/emails/send-otp', { email });
+    return response.data;
+  },
+
+  /**
+   * Verify link email OTP and save the verified email
+   */
+  verifyLinkEmailOtp: async (challengeId: string, email: string, code: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/emails/verify-otp', { challengeId, email, code });
+    return response.data;
+  },
+
+  /**
+   * Promote secondary email to primary (requires re-authentication password)
+   */
+  makeEmailPrimary: async (email: string, password: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>('/auth/emails/make-primary', { email, password });
+    return response.data;
+  },
+
+  /**
+   * Delete / Unlink a secondary email by GUID id
+   */
+  deleteLinkedEmail: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.delete<{ success: boolean; message: string }>(`/auth/emails/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Fetch all active OAuth connections
+   */
+  fetchConnections: async (): Promise<LinkedProviderConnection[]> => {
+    const response = await axiosClient.get<LinkedProviderConnection[]>('/auth/providers/connections');
+    return response.data;
+  },
+
+  /**
+   * Fetch temporary pending connection details for verification views
+   */
+  fetchPendingLinkDetails: async (id: string): Promise<PendingLinkDetailsResponseData> => {
+    const response = await axiosClient.get<PendingLinkDetailsResponseData>(`/auth/providers/pending/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Confirm and activate a pending connection
+   */
+  confirmLink: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>(`/auth/providers/confirm/${id}`);
+    return response.data;
+  },
+
+
+
+  /**
+   * Unlink/delete a specific OAuth connection by ID
+   */
+  unlinkConnection: async (id: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.delete<{ success: boolean; message: string }>(`/auth/providers/connections/${id}`);
+    return response.data;
+  },
 };
+
+export interface ChangePasswordPayload {
+  currentPassword?: string;
+  newPassword?: string;
+  confirmNewPassword?: string;
+}
+
+export interface LinkedProvider {
+  providerName: string;
+  providerEmail: string | null;
+  providerUsername: string | null;
+  connected: boolean;
+  scopeValidationStatus: string;
+  grantedScopes: string | null;
+}

@@ -1,20 +1,22 @@
-﻿using System;
+
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using FluentAssertions;
 using Moq;
 using Polly;
 using Polly.CircuitBreaker;
 using Polly.Timeout;
-using CVerify.API.API.Extensions;
-using CVerify.API.Application.Interfaces;
-using CVerify.API.Infrastructure.Configuration;
 using Xunit;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Email;
+using CVerify.API.Modules.Shared.Email.Services;
+using CVerify.API.Modules.Shared.Security.Authorization;
 
 namespace CVerify.API.UnitTests.Services;
 

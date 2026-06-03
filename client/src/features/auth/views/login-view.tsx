@@ -63,6 +63,7 @@ function LoginContent() {
 
   // Google SSO logic
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleUnlinkedError, setGoogleUnlinkedError] = useState(false);
 
   const handleGoogleLogin = useCallback(
     async (idToken: string) => {
@@ -79,6 +80,14 @@ function LoginContent() {
             return;
           }
 
+          if (result.isDeletionPending && result.reactivationToken) {
+            toast.warning("Account Deactivated", {
+              description: "Your account is currently scheduled for permanent deletion. You can restore it here.",
+            });
+            router.push(`/auth/reactivate?token=${result.reactivationToken}`);
+            return;
+          }
+
           if (result.user) {
             toast.success("Welcome to CVerify!", {
               description: "Successfully logged in via Google SSO.",
@@ -86,9 +95,17 @@ function LoginContent() {
             // Navigation is handled by AuthOrchestrator (respects callbackUrl)
           }
         } else if (result.error) {
-          toast.danger("Google Login Failed", {
-            description: result.error.message,
-          });
+          if (
+            result.error.code === "GOOGLE_PROVIDER_UNLINKED" ||
+            result.error.message?.includes("GOOGLE_PROVIDER_UNLINKED") ||
+            result.error.message?.includes("unlinked")
+          ) {
+            setGoogleUnlinkedError(true);
+          } else {
+            toast.danger("Google Login Failed", {
+              description: result.error.message,
+            });
+          }
         }
       } catch {
         toast.danger("Google SSO Failed", {
@@ -105,6 +122,7 @@ function LoginContent() {
   const handleGoogleSignIn = () => {
     if (isGoogleLoading) return;
     setIsGoogleLoading(true);
+    setGoogleUnlinkedError(false);
 
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -252,6 +270,15 @@ function LoginContent() {
         router.push("/verify-email");
         return;
       }
+
+      if (result.isDeletionPending && result.reactivationToken) {
+        toast.warning("Account Deactivated", {
+          description: "Your account is currently scheduled for permanent deletion. You can restore it here.",
+        });
+        router.push(`/auth/reactivate?token=${result.reactivationToken}`);
+        return;
+      }
+
       toast.success("Welcome back!", {
         description: "Successfully logged in.",
       });
@@ -328,6 +355,31 @@ function LoginContent() {
                     Evidence-backed profiles for modern engineering hiring.
                   </Card.Description>
                 </CardHeader>
+
+                {googleUnlinkedError && (
+                  <div className="w-full bg-danger/10 border border-danger/20 rounded-xl p-4 mb-4 text-left animate-fade-in duration-300">
+                    <div className="flex flex-col gap-1">
+                      <Typography className="text-sm font-bold text-danger font-outfit">
+                        Google Login Disabled
+                      </Typography>
+                      <Typography type="body-xs" className="text-muted">
+                        This Google identity was previously disconnected from your CVerify profile. To recover access:
+                      </Typography>
+                      <ul className="list-disc pl-4 text-[11px] text-muted flex flex-col gap-1 mt-1 font-outfit">
+                        <li>Sign in using your primary email and password below.</li>
+                        <li>Go to <strong>Settings &gt; Sign-in Methods</strong> and re-link your Google account.</li>
+                      </ul>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="mt-2 self-end text-[10px] h-6 px-2 rounded-lg border-danger/20"
+                        onPress={() => setGoogleUnlinkedError(false)}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <Button
                   variant="tertiary"

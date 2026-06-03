@@ -4,17 +4,20 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using CVerify.API.Application.DTOs;
-using CVerify.API.Application.Interfaces;
-using CVerify.API.Core.Entities;
-using CVerify.API.Infrastructure.Persistence;
+using FluentAssertions;
+using Xunit;
 using CVerify.API.IntegrationTests.Fixtures;
 using CVerify.API.IntegrationTests.Helpers;
-using Xunit;
-using CVerify.API.Infrastructure.Security;
+using CVerify.API.Modules.Recovery.DTOs;
+using CVerify.API.Modules.Recovery.Services;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Shared.Exceptions.Catalogs;
+using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.Security;
 
 namespace CVerify.API.IntegrationTests.Auth;
 
@@ -46,24 +49,18 @@ public class Level2RecoveryTests : BaseIntegrationTest
         };
         db.Organizations.Add(org);
 
-        var adminUser = new User
-        {
-            Email = $"admin@{taxCode}.com",
-            FullName = "Org Admin One",
-            Status = UserStatus.ACTIVE,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var adminUser = new UserBuilder()
+            .WithEmail($"admin@{taxCode}.com")
+            .WithFullName("Org Admin One")
+            .WithStatus(UserStatus.ACTIVE)
+            .Build();
         db.Users.Add(adminUser);
 
-        var memberUser = new User
-        {
-            Email = $"member@{taxCode}.com",
-            FullName = "Org Workspace Member",
-            Status = UserStatus.ACTIVE,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var memberUser = new UserBuilder()
+            .WithEmail($"member@{taxCode}.com")
+            .WithFullName("Org Workspace Member")
+            .WithStatus(UserStatus.ACTIVE)
+            .Build();
         db.Users.Add(memberUser);
 
         await db.SaveChangesAsync();
@@ -195,7 +192,7 @@ public class Level2RecoveryTests : BaseIntegrationTest
 
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var config = scope.ServiceProvider.GetRequiredService<CVerify.API.Infrastructure.Configuration.EnvConfiguration>();
+        var config = scope.ServiceProvider.GetRequiredService<EnvConfiguration>();
         var level2Service = scope.ServiceProvider.GetRequiredService<ILevel2RecoveryService>();
 
         // Create rotation request

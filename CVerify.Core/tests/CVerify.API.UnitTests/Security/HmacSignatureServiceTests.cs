@@ -1,8 +1,10 @@
-﻿using System;
+
+using System;
 using FluentAssertions;
-using CVerify.API.Application.Services;
-using CVerify.API.Infrastructure.Configuration;
 using Xunit;
+using CVerify.API.Modules.Auth.Services;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.UnitTests.Security;
 

@@ -10,12 +10,20 @@ import {
   type CareerPreferenceResponse,
   type UpdateCareerPreferenceRequest,
   type AttachmentResponse,
+  type PublicProfileResponse,
+  type WorkExperienceRequest,
+  type WorkExperienceResponse,
 } from '../types/profile.types';
 
 export const profileApi = {
   // General Profile Settings
   fetchProfile: async (): Promise<ProfileResponse> => {
     const response = await axiosClient.get<ProfileResponse>('/v1/users/profile');
+    return response.data;
+  },
+
+  fetchPublicProfile: async (username: string): Promise<PublicProfileResponse> => {
+    const response = await axiosClient.get<PublicProfileResponse>(`/v1/users/profile/public/${username}`);
     return response.data;
   },
 
@@ -143,5 +151,29 @@ export const profileApi = {
       },
     });
     return response.data;
+  },
+
+  // Work Experience CRUD & reorder
+  fetchWorkExperience: async (): Promise<WorkExperienceResponse[]> => {
+    const response = await axiosClient.get<WorkExperienceResponse[]>('/v1/users/work-experience');
+    return response.data;
+  },
+
+  addWorkExperience: async (data: WorkExperienceRequest): Promise<WorkExperienceResponse> => {
+    const response = await axiosClient.post<WorkExperienceResponse>('/v1/users/work-experience', data);
+    return response.data;
+  },
+
+  updateWorkExperience: async (id: string, data: WorkExperienceRequest): Promise<WorkExperienceResponse> => {
+    const response = await axiosClient.put<WorkExperienceResponse>(`/v1/users/work-experience/${id}`, data);
+    return response.data;
+  },
+
+  deleteWorkExperience: async (id: string): Promise<void> => {
+    await axiosClient.delete(`/v1/users/work-experience/${id}`);
+  },
+
+  reorderWorkExperience: async (orderedIds: string[]): Promise<void> => {
+    await axiosClient.put('/v1/users/work-experience/reorder', { orderedIds });
   },
 };
