@@ -1,0 +1,15 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.foreground }}; letter-spacing: -0.4px;">Confirm company registration</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Hi <strong>{{ full_name }}</strong>,
+</p>
+
+<p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Use the following verification code to authorize your company registration on {{ product_name }}. This code is valid for a short time:
+</p>
+
+{{ code_value = otp_code }}
+{{ include 'Components/EmailCodeBlock.html' }}
+
+{{ alert_title = "Registration Cooldown"; alert_text = "This registration code is valid for <strong>15 minutes</strong> and can only be used once. If you did not initiate this registration request, please secure your credentials."; alert_bg_color = colors.accent_light; alert_border_color = colors.accent; alert_title_color = colors.accent; alert_text_color = colors.text }}
+{{ include 'Components/EmailAlert.html' }}

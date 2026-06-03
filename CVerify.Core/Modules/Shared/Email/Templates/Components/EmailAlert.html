@@ -1,0 +1,14 @@
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: {{ alert_bg_color ?? colors.warning_light }}; border-left: 4px solid {{ alert_border_color ?? colors.warning }}; border-radius: 4px; margin: 20px 0;">
+    <tr>
+        <td style="padding: 16px;">
+            {% if alert_title %}
+            <p style="margin: 0 0 4px 0; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: {{ alert_title_color ?? colors.warning_dark }};">
+                {{ alert_title }}
+            </p>
+            {% endif %}
+            <p style="margin: 0; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 18px; color: {{ alert_text_color ?? colors.warning_dark }};">
+                {{ alert_text }}
+            </p>
+        </td>
+    </tr>
+</table>

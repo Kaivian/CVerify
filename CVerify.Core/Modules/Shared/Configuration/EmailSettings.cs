@@ -62,7 +62,64 @@ public class EmailSettings
     /// Nested configurations specifically dedicated to SendGrid API connections.
     /// </summary>
     public SendGridSettings SendGrid { get; set; } = new();
+
+    /// <summary>
+    /// Toggles whether legacy flat email templates are rendered without layout wrappers.
+    /// </summary>
+    public bool UseLegacyEmailTemplates { get; set; } = false;
+
+    /// <summary>
+    /// The product name used in email templates.
+    /// </summary>
+    public string ProductName { get; set; } = "CVerify";
+
+    /// <summary>
+    /// The support contact email address used in email footer/replies.
+    /// </summary>
+    public string SupportEmail { get; set; } = "support@cverify.ai";
+
+    /// <summary>
+    /// The absolute website URL of CVerify.
+    /// </summary>
+    public string WebsiteUrl { get; set; } = "https://cverify.ai";
+
+    /// <summary>
+    /// The absolute base URL for hosting email-accessible static assets (e.g. logos).
+    /// </summary>
+    public string AssetBaseUrl { get; set; } = "https://cverify.ai";
+
+    /// <summary>
+    /// Centralized brand theme color settings for transactional emails.
+    /// </summary>
+    public EmailColors Colors { get; set; } = new();
 }
+
+/// <summary>
+/// Defines color configurations for layout and component styling to prevent visual drift.
+/// </summary>
+public class EmailColors
+{
+    public string Accent { get; set; } = "#854e28";
+    public string AccentLight { get; set; } = "#fdfaf8";
+    public string Background { get; set; } = "#f5f5f5";
+    public string Border { get; set; } = "#dfdedd";
+    public string Separator { get; set; } = "#e5e4e3";
+    public string Success { get; set; } = "#169c46";
+    public string Warning { get; set; } = "#ff9555";
+    public string WarningLight { get; set; } = "#fff9f5";
+    public string WarningDark { get; set; } = "#854e28";
+    public string Danger { get; set; } = "#cf202f";
+    public string DangerLight { get; set; } = "#fff4f2";
+    public string DangerDark { get; set; } = "#cf202f";
+    public string Foreground { get; set; } = "#191818";
+    public string ForegroundMuted { get; set; } = "#737170";
+    public string Text { get; set; } = "#191818";
+    public string Surface { get; set; } = "#fffffe";
+    public string SurfaceSecondary { get; set; } = "#f0efee";
+    public string SurfaceTertiary { get; set; } = "#ebeae9";
+    public string Muted { get; set; } = "#737170";
+}
+
 
 /// <summary>
 /// Configurations specific to the SMTP transport.

@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Hosting;
 using CVerify.API.Modules.Auth.Entities;
 using CVerify.API.Modules.Shared.Email.Services;
 using CVerify.API.Modules.Shared.Security;
@@ -17,13 +19,20 @@ namespace CVerify.API.Modules.Shared.Email.Controllers;
 public class EmailTestController : ControllerBase
 {
     private readonly IEmailService _emailService;
+    private readonly IEmailTemplateService _templateService;
+    private readonly IWebHostEnvironment _environment;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EmailTestController"/> class.
     /// </summary>
-    public EmailTestController(IEmailService emailService)
+    public EmailTestController(
+        IEmailService emailService,
+        IEmailTemplateService templateService,
+        IWebHostEnvironment environment)
     {
         _emailService = emailService;
+        _templateService = templateService;
+        _environment = environment;
     }
 
     /// <summary>
@@ -142,5 +151,56 @@ public class EmailTestController : ControllerBase
             length = token.Length,
             entropyBytes = byteLength
         });
+    }
+
+    /// <summary>
+    /// Development-only endpoint to preview the fully compiled and rendered email templates.
+    /// </summary>
+    [HttpGet("/api/email/preview/{template}")]
+    public async Task<IActionResult> PreviewEmailTemplate(string template)
+    {
+        if (!_environment.IsDevelopment())
+        {
+            return NotFound("Email preview is only available in Development mode.");
+        }
+
+        if (string.IsNullOrWhiteSpace(template))
+        {
+            return BadRequest("Template name is required.");
+        }
+
+        var templateName = template;
+        if (!templateName.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            templateName += ".html";
+        }
+
+        var mockModel = new Dictionary<string, object>
+        {
+            { "full_name", "John Doe" },
+            { "verification_link", "https://cverify.ai/verify?token=mock_verification_token_123" },
+            { "reset_link", "https://cverify.ai/reset?token=mock_reset_token_456" },
+            { "otp_code", "123456" },
+            { "company_name", "Acme Corporation" },
+            { "workspace_id", "ws_acme_prod_99" },
+            { "workspace_url", "https://cverify.ai/workspaces/ws_acme_prod_99" },
+            { "alert_title", "Unusual Account Activity Detected" },
+            { "alert_message", "We detected a login attempt from a new IP address or device that you do not normally use." },
+            { "activity_type", "Login from New Device" },
+            { "activity_time", DateTime.UtcNow.ToString("f") },
+            { "ip_address", "192.168.1.100 (Hanoi, VN)" },
+            { "user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+            { "action_link", "https://cverify.ai/lock-account?token=mock_lock_token_789" }
+        };
+
+        try
+        {
+            var html = await _templateService.RenderTemplateAsync(templateName, mockModel);
+            return Content(html, "text/html");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 }

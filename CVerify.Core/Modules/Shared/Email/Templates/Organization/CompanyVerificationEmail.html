@@ -1,0 +1,26 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.foreground }}; letter-spacing: -0.4px;">Confirm company domain registration</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Hi <strong>{{ full_name }}</strong>,
+</p>
+
+<p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    We received a request to verify domain ownership and register the organization workspace for <strong>{{ company_name }}</strong> on {{ product_name }}. Click the button below to confirm your business ownership:
+</p>
+
+{{ button_url = verification_link; button_text = "Verify Company Domain" }}
+{{ include 'Components/EmailButtonPrimary.html' }}
+
+{{ alert_title = "Security Notice"; alert_text = "This link is secure and will expire in <strong>24 hours</strong>. If you did not initiate this request, you can safely ignore this email."; alert_bg_color = colors.accent_light; alert_border_color = colors.accent; alert_title_color = colors.accent; alert_text_color = colors.text }}
+{{ include 'Components/EmailAlert.html' }}
+
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-top: 1px solid {{ colors.surface_tertiary }}; margin: 32px 0 24px 0;">
+    <tr><td height="1" style="font-size: 1px; line-height: 1px;">&nbsp;</td></tr>
+</table>
+
+<p style="margin: 0 0 8px 0; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 18px; color: {{ colors.foreground_muted }};">
+    If you are experiencing issues with the button above, copy and paste this URL into your web browser:
+</p>
+<p style="margin: 0; font-family: 'Inter', sans-serif; font-size: 12px; line-height: 18px; word-break: break-all;">
+    <a href="{{ verification_link }}" target="_blank" style="color: {{ colors.accent }}; text-decoration: underline;">{{ verification_link }}</a>
+</p>

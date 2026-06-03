@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ResetPassword - CVerify</title>
+    <title>SecurityAlert - CVerify</title>
     <!-- Modern typography integration -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -54,31 +54,55 @@
                     <!-- Body Content -->
                     <tr>
                         <td style="padding: 24px 40px 32px 40px; text-align: left;">
-                            <h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: #191818; letter-spacing: -0.4px;">Reset your password</h2>
+                            <h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: #cf202f; letter-spacing: -0.4px;">Unusual Account Activity Detected</h2>
                             
                             <p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: #191818;">
-                                Hi <strong>Luc Snapshot Tester</strong>,
+                                Hi <strong>John Doe</strong>,
                             </p>
                             
-                            <p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: #191818;">
-                                We received a request to reset your password on CVerify. To proceed with resetting your password, click the button below:
+                            <p style="margin: 0 0 20px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: #191818;">
+                                We detected a login attempt from a new IP address or device that you do not normally use.
                             </p>
                             
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0; border: 1px solid #dfdedd; border-radius: 8px; overflow: hidden;">
+                                <tr style="background-color: #f0efee;">
+                                    <th align="left" style="padding: 10px 14px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: #191818; border-bottom: 1px solid #dfdedd; width: 140px;">Activity Details</th>
+                                    <th align="left" style="padding: 10px 14px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: #191818; border-bottom: 1px solid #dfdedd;"></th>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #737170; border-bottom: 1px solid #dfdedd;">Event Type</td>
+                                    <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #191818; border-bottom: 1px solid #dfdedd; font-weight: 500;">Login from New Device</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #737170; border-bottom: 1px solid #dfdedd;">Date & Time</td>
+                                    <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #191818; border-bottom: 1px solid #dfdedd; font-weight: 500;">Wednesday, June 3, 2026 1:00 PM</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #737170; border-bottom: 1px solid #dfdedd;">IP Address</td>
+                                    <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #191818; border-bottom: 1px solid #dfdedd; font-family: monospace;">192.168.1.100 (Hanoi, VN)</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #737170;">Browser/Device</td>
+                                    <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 13px; color: #191818;">Mozilla/5.0 (Windows NT 10.0; Win64; x64)</td>
+                                </tr>
+                            </table>
+                            
+                            {% if action_link %}
                             
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 32px 0;">
                                 <tr>
                                     <td align="left">
                                         <table border="0" cellpadding="0" cellspacing="0" style="border-collapse: separate;">
                                             <tr>
-                                                <td align="center" style="border-radius: 8px; background-color: #854e28;">
-                                                    <a href="https://cverify.ai/reset?token=reset_snapshot_123_abc" target="_blank" style="display: inline-block; padding: 12px 28px; font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; color: #fffffe; text-decoration: none; border-radius: 8px; border: 1px solid #854e28; letter-spacing: -0.2px;">Reset Password</a>
+                                                <td align="center" style="border-radius: 8px; background-color: #cf202f;">
+                                                    <a href="https://cverify.ai/lock-account?token=mock_lock_token_789" target="_blank" style="display: inline-block; padding: 12px 28px; font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; color: #fffffe; text-decoration: none; border-radius: 8px; border: 1px solid #cf202f; letter-spacing: -0.2px;">Lock Account Immediately</a>
                                                 </td>
                                             </tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
-                            
+                            {% endif %}
                             
                             
                             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fff4f2; border-left: 4px solid #cf202f; border-radius: 4px; margin: 20px 0;">
@@ -86,27 +110,16 @@
                                     <td style="padding: 16px;">
                                         {% if alert_title %}
                                         <p style="margin: 0 0 4px 0; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: #cf202f;">
-                                            Security Alert
+                                            Important Security Notice
                                         </p>
                                         {% endif %}
                                         <p style="margin: 0; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 18px; color: #cf202f;">
-                                            This password reset link will expire in <strong>2 hours</strong>. If you did not request this reset, you can safely ignore this email; your password will remain unchanged.
+                                            If this activity was you, you can ignore this alert. If you do not recognize this activity, your account may be compromised. Please lock it immediately and change your password.
                                         </p>
                                     </td>
                                 </tr>
                             </table>
                             
-                            
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-top: 1px solid #ebeae9; margin: 32px 0 24px 0;">
-                                <tr><td height="1" style="font-size: 1px; line-height: 1px;">&nbsp;</td></tr>
-                            </table>
-                            
-                            <p style="margin: 0 0 8px 0; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 18px; color: #737170;">
-                                If you are experiencing issues with the button above, copy and paste this URL into your web browser:
-                            </p>
-                            <p style="margin: 0; font-family: 'Inter', sans-serif; font-size: 12px; line-height: 18px; word-break: break-all;">
-                                <a href="https://cverify.ai/reset?token=reset_snapshot_123_abc" target="_blank" style="color: #854e28; text-decoration: underline;">https://cverify.ai/reset?token=reset_snapshot_123_abc</a>
-                            </p>
 
                         </td>
                     </tr>

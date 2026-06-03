@@ -1,0 +1,23 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.foreground }}; letter-spacing: -0.4px;">Two-factor authentication code</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Hi <strong>{{ full_name }}</strong>,
+</p>
+
+<p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    To complete your sign-in, use the following secure 2FA verification code. This code is only valid for a few minutes:
+</p>
+
+{{ code_value = otp_code }}
+{{ include 'Components/EmailCodeBlock.html' }}
+
+{{ alert_title = "Security Notice"; alert_text = "This code will expire in <strong>3 minutes</strong> and can only be used once. Never share this code with anyone, including the support team." }}
+{{ include 'Components/EmailAlert.html' }}
+
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-top: 1px solid {{ colors.surface_tertiary }}; margin: 32px 0 24px 0;">
+    <tr><td height="1" style="font-size: 1px; line-height: 1px;">&nbsp;</td></tr>
+</table>
+
+<p style="margin: 0; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 18px; color: {{ colors.foreground_muted }};">
+    If you did not attempt to sign in to your account, please secure your credentials immediately.
+</p>

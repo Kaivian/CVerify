@@ -1,0 +1,15 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.foreground }}; letter-spacing: -0.4px;">Confirm email change</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Hi <strong>{{ full_name }}</strong>,
+</p>
+
+<p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    We received a request to change the primary email address for your {{ product_name }} account. Use the following secure verification code to authorize this change:
+</p>
+
+{{ code_value = otp_code }}
+{{ include 'Components/EmailCodeBlock.html' }}
+
+{{ alert_title = "Security Alert"; alert_text = "This code will expire in <strong>15 minutes</strong>. If you did not initiate this change, please immediately secure your account credentials and contact support."; alert_bg_color = colors.danger_light; alert_border_color = colors.danger; alert_title_color = colors.danger_dark; alert_text_color = colors.danger_dark }}
+{{ include 'Components/EmailAlert.html' }}
