@@ -89,7 +89,7 @@ public class SharedTestcontainerFixture : IAsyncLifetime
         else
         {
             // Fallback to absolute workspace path if running in some isolated host context
-            scriptPath = @"d:\Coding Space\Github\CVerify\resources\Initialize SQL.sql";
+            scriptPath = @"d:\Coding Space\Github\CVerify\CVerify.Core\resources\Initialize SQL.sql";
         }
 
         if (!File.Exists(scriptPath))
