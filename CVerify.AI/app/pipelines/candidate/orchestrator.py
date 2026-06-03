@@ -18,6 +18,7 @@ from app.pipelines.candidate.tasks.recommendations import MultiRoleRecommendatio
 from app.pipelines.candidate.tasks.summary import CandidateSummaryGenerator
 from app.pipelines.candidate.tasks.composer import CandidateProfileComposer
 from app.pipelines.candidate.tasks.improvement_engine import CandidateImprovementEngine
+from app.pipelines.candidate.tasks.skill_tree import SkillTreeGenerator
 
 logger = logging.getLogger("candidate_evaluation_orchestrator")
 
@@ -34,7 +35,8 @@ _CANDIDATE_L2_TASK_NAMES = {
     "CareerLevelMapper", "CareerLevelCalibrator", "CareerLevelGate",
     "EngineeringMaturityAssessor", "ProblemSolvingAnalyzer", "TechnicalTendencyClassifier",
     "WorkingStyleClassifier", "ExperienceConfidenceMultiplier", "MultiRoleRecommendationEngine",
-    "CandidateSummaryGenerator", "CandidateProfileComposer", "CandidateImprovementEngine"
+    "CandidateSummaryGenerator", "CandidateProfileComposer", "CandidateImprovementEngine",
+    "SkillTreeGenerator"
 }
 
 TASK_ALIASES: Dict[str, str] = {
@@ -52,7 +54,8 @@ TASK_ALIASES: Dict[str, str] = {
     "L2-012": "MultiRoleRecommendationEngine",
     "L2-013": "CandidateSummaryGenerator",
     "L2-014": "CandidateProfileComposer",
-    "L2-015": "CandidateImprovementEngine"
+    "L2-015": "CandidateImprovementEngine",
+    "L2-016": "SkillTreeGenerator"
 }
 
 def is_line2_task(task_type: str) -> bool:
@@ -79,6 +82,7 @@ class CandidateEvaluationOrchestrator:
             ExperienceConfidenceMultiplier(),
             MultiRoleRecommendationEngine(),
             CandidateSummaryGenerator(),
+            SkillTreeGenerator(),
             CandidateProfileComposer(),
             CandidateImprovementEngine()
         ]

@@ -80,10 +80,10 @@ export const routesConfig: Record<string, RouteMetadata> = {
     icon: Sparkles,
     parentPath: '/ranking',
   },
-  '/intelligence/capability-graph': {
-    path: '/intelligence/capability-graph',
-    translationKey: 'common:dashboard.capabilityGraph',
-    fallbackLabel: 'Capability Graph',
+  '/intelligence/skill-tree': {
+    path: '/intelligence/skill-tree',
+    translationKey: 'common:dashboard.skillTree',
+    fallbackLabel: 'Skill Tree',
   },
   '/intelligence/trust-score': {
     path: '/intelligence/trust-score',

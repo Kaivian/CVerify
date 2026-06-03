@@ -447,11 +447,11 @@ export const candidateNavigationConfig: NavigationNode[] = [
     requiredRoles: ['USER', 'ADMIN'],
     children: [
       {
-        id: 'intelligence-capability-graph',
+        id: 'intelligence-skill-tree',
         type: 'item',
-        label: 'Capability Graph',
-        href: '/intelligence/capability-graph',
-        icon: Orbit,
+        label: 'Skill Tree',
+        href: '/intelligence/skill-tree',
+        icon: GitFork,
       },
       {
         id: 'intelligence-trust-score',

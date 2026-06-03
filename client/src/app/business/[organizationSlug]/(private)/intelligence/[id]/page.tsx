@@ -123,7 +123,7 @@ export default function CandidateIntelligenceDetailPage() {
           <Card className="p-6 bg-surface border border-border rounded-2xl space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Code size={20} className="text-accent" />
-              <h3 className="font-bold text-foreground text-lg">Verified Capability Graph</h3>
+              <h3 className="font-bold text-foreground text-lg">Verified Skill Tree</h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

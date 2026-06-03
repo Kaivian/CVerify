@@ -28,6 +28,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
     private readonly ICandidateRepositoryProvider _repositoryProvider;
     private readonly ILogger<CandidateAssessmentService> _logger;
     private readonly ICandidateEvaluationService _evaluationService;
+    private readonly ISkillTreeValidationService _validationService;
 
     public CandidateAssessmentService(
         ApplicationDbContext context,
@@ -37,7 +38,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         IConnectionMultiplexer redis,
         ICandidateRepositoryProvider repositoryProvider,
         ILogger<CandidateAssessmentService> _logger,
-        ICandidateEvaluationService evaluationService)
+        ICandidateEvaluationService evaluationService,
+        ISkillTreeValidationService validationService)
     {
         _context = context;
         _queue = queue;
@@ -47,6 +49,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         _repositoryProvider = repositoryProvider;
         this._logger = _logger;
         _evaluationService = evaluationService;
+        _validationService = validationService;
     }
 
     public async Task<CandidateReadinessDto> GetReadinessStatusAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -671,6 +674,14 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
             // Save structured relational profile collections
             await SaveCandidateRelationalProfileAsync(assessment.Id, root, cancellationToken);
+
+            var skillTreeArtifact = await _context.CandidateAssessmentArtifacts
+                .FirstOrDefaultAsync(a => a.AssessmentId == assessment.Id && a.ArtifactType == "SkillTree", cancellationToken);
+            if (skillTreeArtifact != null)
+            {
+                using var treeDoc = JsonDocument.Parse(skillTreeArtifact.JsonData);
+                await SaveCandidateSkillTreeAsync(assessment.UserId, assessment.Id, treeDoc.RootElement, cancellationToken);
+            }
 
             // Touch UserProfile.LastAssessmentAt / Update
             userProfile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == assessment.UserId, cancellationToken);
@@ -1331,6 +1342,92 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<List<CandidateSkillTreeNodeResponse>?> GetSkillTreeAsync(Guid userId, Guid assessmentId, CancellationToken cancellationToken = default)
+    {
+        var assessment = await _context.CandidateAssessments
+            .FirstOrDefaultAsync(a => a.Id == assessmentId && a.UserId == userId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (assessment == null) return null;
+
+        return await BuildSkillTreeFromDbAsync(assessmentId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<List<CandidateSkillTreeNodeResponse>?> GetPublicSkillTreeAsync(string username, CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower(), cancellationToken)
+            .ConfigureAwait(false);
+
+        if (user == null) return null;
+
+        var latestAssessment = await _context.CandidateAssessments
+            .Where(a => a.UserId == user.Id && a.Status == "Completed")
+            .OrderByDescending(a => a.CompletedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (latestAssessment == null) return null;
+
+        return await BuildSkillTreeFromDbAsync(latestAssessment.Id, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<List<CandidateSkillTreeNodeResponse>> BuildSkillTreeFromDbAsync(Guid assessmentId, CancellationToken cancellationToken)
+    {
+        var nodes = await _context.CandidateSkillTreeNodes
+            .Where(n => n.CandidateAssessmentId == assessmentId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!nodes.Any()) return new List<CandidateSkillTreeNodeResponse>();
+
+        var nodeMap = nodes.Select(n => new CandidateSkillTreeNodeResponse
+        {
+            Id = n.Id,
+            ParentId = n.ParentId,
+            DisplayName = n.DisplayName,
+            Category = n.Category,
+            ProficiencyLevel = n.ProficiencyLevel,
+            ConfidenceScore = n.ConfidenceScore,
+            EstimatedExperienceMonths = n.EstimatedExperienceMonths,
+            SupportingEvidence = n.SupportingEvidence,
+            Children = new List<CandidateSkillTreeNodeResponse>()
+        }).ToDictionary(n => n.Id);
+
+        var rootNodes = new List<CandidateSkillTreeNodeResponse>();
+
+        foreach (var node in nodeMap.Values)
+        {
+            if (node.ParentId.HasValue && nodeMap.TryGetValue(node.ParentId.Value, out var parentNode))
+            {
+                parentNode.Children.Add(node);
+            }
+            else
+            {
+                rootNodes.Add(node);
+            }
+        }
+
+        return rootNodes;
+    }
+
+    private async Task SaveCandidateSkillTreeAsync(Guid candidateId, Guid assessmentId, JsonElement skillTreeRoot, CancellationToken cancellationToken)
+    {
+        var validatedNodes = await _validationService.ValidateAndNormalizeTreeAsync(candidateId, assessmentId, skillTreeRoot);
+
+        var oldNodes = await _context.CandidateSkillTreeNodes
+            .Where(n => n.CandidateAssessmentId == assessmentId)
+            .ToListAsync(cancellationToken);
+        _context.CandidateSkillTreeNodes.RemoveRange(oldNodes);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        if (validatedNodes.Any())
+        {
+            _context.CandidateSkillTreeNodes.AddRange(validatedNodes);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private class FastApiProgressEvent

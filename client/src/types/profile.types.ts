@@ -515,4 +515,16 @@ export interface RankingStats {
   averageCompositeScore: number;
 }
 
+export interface CandidateSkillTreeNodeResponse {
+  id: string;
+  parentId: string | null;
+  displayName: string;
+  category: 'Domain' | 'Subdomain' | 'Technology' | 'Framework' | 'Library' | 'Tool' | 'Methodology';
+  proficiencyLevel: string;
+  confidenceScore: number;
+  estimatedExperienceMonths: number;
+  supportingEvidence?: string; // Serialized JSON string
+  children: CandidateSkillTreeNodeResponse[];
+}
+
 
