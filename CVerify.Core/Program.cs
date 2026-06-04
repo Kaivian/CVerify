@@ -35,6 +35,8 @@ using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.Shared.Email;
 using CVerify.API.Modules.Shared.Security.Authorization;
 using CVerify.API.Modules.Shared.System.BackgroundWorkers;
+using CVerify.API.Modules.SourceCode.Services;
+using CVerify.API.Modules.SourceCode.BackgroundWorkers;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -375,6 +377,10 @@ builder.Services.AddScoped<ICareerService, CareerService>();
 builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();
 
+// Register Source Code Provider Services
+builder.Services.AddScoped<ISourceCodeProviderService, SourceCodeProviderService>();
+builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueue>();
+
 // Register AI Service
 builder.Services.AddScoped<IHmacSignatureService, HmacSignatureService>();
 builder.Services.AddHttpClient("AiServiceClient", client =>
@@ -392,6 +398,7 @@ builder.Services.AddHostedService<TokenCleanupBackgroundJob>();
 builder.Services.AddHostedService<RecoveryClaimBackgroundWorker>();
 builder.Services.AddHostedService<OtpCleanupBackgroundWorker>();
 builder.Services.AddHostedService<PendingLinkCleanupService>();
+builder.Services.AddHostedService<BackgroundRepositorySyncProcessor>();
 
 
 // Configure JWT Authentication

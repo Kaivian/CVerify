@@ -8,6 +8,7 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Email.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
+using CVerify.API.Modules.SourceCode.Entities;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
@@ -96,6 +97,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<PendingAuthProvider> PendingAuthProviders => Set<PendingAuthProvider>();
+    public DbSet<SourceCodeRepository> SourceCodeRepositories => Set<SourceCodeRepository>();
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
     public DbSet<UserPreferredLocation> UserPreferredLocations => Set<UserPreferredLocation>();
@@ -421,6 +423,21 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(oc => oc.AuthProvider)
                   .WithOne(ap => ap.OAuthCredential)
                   .HasForeignKey<OAuthCredential>(oc => oc.AuthProviderId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // SourceCodeRepository configurations
+        modelBuilder.Entity<SourceCodeRepository>(entity =>
+        {
+            entity.ToTable("source_code_repositories");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).ValueGeneratedNever();
+            entity.HasIndex(r => new { r.AuthProviderId, r.ExternalRepositoryId })
+                  .IsUnique()
+                  .HasDatabaseName("idx_source_code_repositories_external_active");
+            entity.HasOne(r => r.AuthProvider)
+                  .WithMany()
+                  .HasForeignKey(r => r.AuthProviderId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
