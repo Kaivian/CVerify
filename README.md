@@ -1,168 +1,199 @@
-# CVerify - Developer Source Code Verification & Trust Intelligence Platform
+# CVerify - Developer Source Code Verification and Trust Intelligence Platform
 
-Welcome to **CVerify**, an enterprise-grade developer source code verification and trust intelligence platform. CVerify leverages advanced large language models and static analysis to analyze candidate code repositories, evaluate developer contributions, detect plagiarism or AI-generated segments, and synthesize verified CV profiles. It features a responsive React/Next.js frontend and a resilient, high-performance ASP.NET Core backend.
+Welcome to CVerify, an enterprise-grade developer source code verification and trust intelligence platform. CVerify leverages large language models and static analysis to analyze candidate code repositories, evaluate developer contributions, detect plagiarism or AI-generated segments, and synthesize verified CV profiles. It features a responsive React/Next.js frontend client, a resilient ASP.NET Core backend gateway, and a dedicated FastAPI AI microservice.
 
 This repository is structured as a monorepo containing:
-*   **Frontend (Client Layer)**: [`/client`](client) — Built on Next.js 16 (App Router), React 19, HeroUI v3, Tailwind CSS v4, and Zustand. Employs a strict **feature-driven folder structure** with a modular design.
-*   **Backend (Server Layer)**: [`/CVerify.Core`](CVerify.Core) — Built on ASP.NET Core v10, PostgreSQL, Entity Framework Core, Redis, and Claude AI API. Follows Clean Architecture design principles.
+* Frontend Client Layer: `/client` - Built on Next.js 16 (App Router), React 19, HeroUI v3, Tailwind CSS v4, and Zustand. Employs a strict feature-driven folder structure with a modular design.
+* Backend Server Layer: `/CVerify.Core` - Built on ASP.NET Core v10, PostgreSQL, Entity Framework Core, Redis, and a custom email failover infrastructure. Follows Clean Architecture design principles.
+* AI Microservice Layer: `/CVerify.AI` - Built on Python, FastAPI, Lizard AST complexity analyzer, DataSketch MinHash LSH clone-detector, MarkItDown, and the Anthropic Claude API.
 
 ---
 
 ## Architecture Blueprint
 
-CVerify uses a decoupled architecture with strict separation of concerns, ensuring maximum scalability, security, and developer efficiency.
+CVerify uses a decoupled architecture with strict separation of concerns, ensuring scalability, security, and developer efficiency.
 
 ```mermaid
 graph TD
-    %% Frontend (Client) Layer
-    subgraph Client ["Frontend (Next.js 16 Client)"]
-        UI["UI Layer (HeroUI v3 / Tailwind v4)"]
-        Forms["Validation (React Hook Form / Zod)"]
-        Store["State (Zustand Global Store)"]
-        Axios["API client (Axios w/ Interceptors)"]
-        Proxy["Security Proxy (Next.js Edge Middleware)"]
+    Browser["User Browser"] -->|HTTP / SSE Requests| Proxy["Security Proxy (Next.js Edge Middleware)"]
+    
+    subgraph Frontend ["Frontend Client Layer (Next.js)"]
+        Proxy -->|Verify JWT / RBAC Gating| UI["UI Layer (HeroUI v3 / Tailwind CSS v4)"]
+        UI -->|State Updates| Store["Global State (Zustand)"]
+        UI -->|Validation| Forms["Form Controller (React Hook Form / Zod)"]
+        Store -->|HTTP Invocation| Axios["API Client (Axios Interceptors)"]
     end
-
-    %% Routing / Proxy flow
-    Browser["User Browser"] -->|Requests Page| Proxy
-    Proxy -->|Decrypts JWT Edge Verification| UI
-    UI -->|Uses State & Validates Forms| Forms
-    Forms -->|Dispatches Actions| Store
-    Store -->|Invokes HTTP calls| Axios
-
-    %% Backend (Server) Layer
-    subgraph Server ["Backend (ASP.NET Core v10 Clean Architecture)"]
-        API["API Layer (Controllers & SSE endpoints)"]
-        App["Application Layer (Services & DTOs)"]
-        Infra["Infrastructure Layer (Persistence & Transports)"]
-        Core["Core Domain Layer (Entities & Enums)"]
+    
+    Axios -->|REST API with HttpOnly Cookies| API["API Layer (ASP.NET Core Controllers)"]
+    
+    subgraph Backend ["Backend Core Layer (ASP.NET Core 10)"]
+        API -->|Dependency Injection| App["Application Layer (Services / DTOs)"]
+        App -->|Outbox & Data Access| Infra["Infrastructure Layer (Persistence / Email)"]
+        App -->|Domain Rules| CoreDomain["Core Domain Layer (Entities / Enums)"]
+        Infra -->|Save / Query| Postgres[("PostgreSQL Database")]
+        Infra -->|Distributed Caching| Redis[("Redis Store")]
+        Infra -->|Outbox Background Dispatch| BgProcessor["Hosted Services"]
     end
-
-    %% Network communication
-    Axios -->|POST / GET (HttpOnly Cookie Auth)| API
-    API -->|App Router Injection| App
-    App -->|Dependency Injection| Infra
-    Infra -->|Saves & Queries| Db[("PostgreSQL Db")]
-    Infra -->|Caches API Calls| Redis[("Redis Caching")]
-    Infra -->|hosted sweeps & Outbox| BgJobs["Hosted Services"]
-    Infra -->|Failover Transport| Email["SMTP / SendGrid"]
-    Infra -->|Code Verification & CV Synthesis| Claude["Claude 3.5 Sonnet (CVerify.AI Service)"]
-    App -->|Domain Models| Core
+    
+    App -->|HTTP Requests with HMAC Signatures| AI_API["AI Gateway (FastAPI router)"]
+    
+    subgraph AIService ["AI Microservice Layer (FastAPI)"]
+        AI_API -->|Parse / Analyze| Pip["Pipeline Orchestrators"]
+        Pip -->|AST Profiling| Lizard["Complexity Engine (Lizard)"]
+        Pip -->|Clone Detection| MinHash["MinHash LSH Engine (DataSketch)"]
+        Pip -->|Document Parsing| MarkItDown["Parser (MarkItDown)"]
+        Pip -->|Prompt Synthesis| Claude["Claude API (Anthropic Client)"]
+    end
+    
+    BgProcessor -->|SMTP / HTTP| EmailService["Email Delivery (MailKit / SendGrid)"]
 ```
 
 ---
 
-## 🛠️ Full Project Setup Guide
+## Monorepo Setup Guide
 
-Follow this guide to get both the frontend and backend running locally on your environment within minutes.
+Follow this guide to get all three services running locally on your development machine.
 
-### 📋 Prerequisites
+### Prerequisites
 
-Ensure you have the following environments and database servers installed locally:
+Ensure you have the following software installed:
 
 | Technology | Minimum Version | Purpose |
 | :--- | :--- | :--- |
-| **Node.js** | `>= 18.x` (LTS recommended) | Frontend runtime environment |
-| **.NET SDK** | `10.0.x` | Backend runtime & development SDK |
-| **PostgreSQL** | `>= 15.x` | Core transactional database (Source of Truth) |
-| **Redis** | `>= 6.x` | Distributed caching, session sharing, and API cost optimization |
+| Node.js | >= 18.x | Frontend runtime environment |
+| .NET SDK | 10.0.x | Backend core API gateway runtime |
+| Python | 3.11.x | AI microservice runtime environment |
+| Docker Desktop | Latest | Runs Postgres database and Redis caching engines |
+| Tesseract OCR | Latest | OCR fallback engine for certificate image parsing |
 
----
+### Step-by-Step Installation
 
-### 🚀 Step-by-Step Installation
+#### Step 1: Start Infrastructure Containers
+Ensure Docker is running, then start PostgreSQL and Redis containers from the repository root:
 
-#### Step 1: Clone the Repository
 ```bash
-git clone <your-repository-url>
-cd CVerify
+docker compose up -d postgres redis
 ```
 
-#### Step 2: Set Up the Database and Redis
-Ensure PostgreSQL and Redis servers are running locally on their default ports:
-*   **PostgreSQL**: Port `5432`
-*   **Redis**: Port `6379`
+This starts:
+* PostgreSQL on port `5432`
+* Redis on port `6379`
 
-Create an empty database named `cverify_db` in PostgreSQL:
+Create an empty database named `cverify_db` inside PostgreSQL using your database management tool or the psql CLI:
+
 ```sql
 CREATE DATABASE cverify_db;
 ```
 
-#### Step 3: Configure and Run the Backend
-1.  Navigate into the backend project root:
-    ```bash
-    cd CVerify.Core
-    ```
-2.  Create your local `.env` configuration file by duplicating the provided template:
-    ```bash
-    cp .env.example .env
-    ```
-3.  Open the newly created `.env` file and update your PostgreSQL credentials and JWT secret key:
-    ```env
-    DB_PASSWORD=your_actual_postgres_password
-    JWT_KEY=your_secure_32+_character_jwt_secret_key
-    ```
-4.  Restore dependencies and launch the server:
-    ```bash
-    dotnet restore
-    dotnet run
-    ```
-    *   *Note: On startup, the EF Core migrations will automatically execute via `DbInitializer.InitializeAsync` to synchronize and seed the PostgreSQL schema.*
+#### Step 2: Configure and Run the Backend (.NET Core)
+1. Navigate to the backend directory:
+   ```bash
+   cd CVerify.Core
+   ```
+2. Copy the environment configuration template:
+   ```bash
+   cp .env.example .env
+   ```
+3. Open `.env` and set the required variables, particularly `DB_PASSWORD` (database password) and `JWT_KEY` (secret key, must be 32+ characters):
+   ```env
+   DB_PASSWORD=your_postgres_password
+   JWT_KEY=your_secure_32_character_jwt_secret_key
+   TOKEN_ENCRYPTION_KEY=your_secure_32_byte_token_encryption_key
+   AI_SERVICE_SHARED_SECRET=your_secure_32_character_hmac_secret_key
+   ```
+4. Restore NuGet packages and run the server:
+   ```bash
+   dotnet restore
+   dotnet run
+   ```
+   Note: The EF Core database migrations apply automatically on application startup.
 
-#### Step 4: Configure and Run the Frontend
-1.  Open a new terminal session and navigate into the frontend directory:
-    ```bash
-    cd client
-    ```
-2.  Create your local `.env.local` configuration file from the template:
-    ```bash
-    cp .env.example .env.local
-    ```
-3.  Restore Node dependencies:
-    ```bash
-    npm install
-    ```
-4.  Start the Next.js development server in Turbopack mode:
-    ```bash
-    npm run dev
-    ```
+#### Step 3: Configure and Run the AI Microservice (Python)
+1. Open a new terminal and navigate to the AI service directory:
+   ```bash
+   cd CVerify.AI
+   ```
+2. Create a virtual environment:
+   ```bash
+   python -m venv .venv
+   ```
+3. Activate the virtual environment:
+   * Windows (PowerShell): `.venv\Scripts\Activate.ps1`
+   * Unix / macOS: `source .venv/bin/activate`
+4. Install python packages:
+   ```bash
+   pip install -r requirements.txt
+   ```
+5. Copy the environment configuration template:
+   ```bash
+   cp .env.example .env
+   ```
+6. Open `.env` and set the variables, ensuring the `SHARED_SECRET` matches `AI_SERVICE_SHARED_SECRET` in the backend:
+   ```env
+   ANTHROPIC_API_KEY=your_anthropic_api_key
+   SHARED_SECRET=your_secure_32_character_hmac_secret_key
+   ```
+7. Start the Uvicorn dev server:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+#### Step 4: Configure and Run the Frontend Client (Next.js)
+1. Open a new terminal and navigate to the client directory:
+   ```bash
+   cd client
+   ```
+2. Copy the environment configuration template:
+   ```bash
+   cp .env.example .env.local
+   ```
+3. Open `.env.local` and set the variables, ensuring `JWT_SECRET` matches `JWT_KEY` in the backend `.env`:
+   ```env
+   NEXT_PUBLIC_API_URL=http://localhost:5247/api
+   JWT_SECRET=your_secure_32_character_jwt_secret_key
+   ```
+4. Install npm packages:
+   ```bash
+   npm install
+   ```
+5. Start the development server with Turbopack support:
+   ```bash
+   npm run dev
+   ```
 
 ---
 
-### 🌐 System Ports & URLs
+## System Ports and URLs
 
-Once up and running, the system components bind to the following default configurations:
+When running locally, system components bind to the following default configurations:
 
-| Component | Service Address | Description |
+| Component | Default Address | Description |
 | :--- | :--- | :--- |
-| **Next.js Client** | `http://localhost:3000` | User Web Interface |
-| **ASP.NET Core API** | `http://localhost:5247` | REST API Backend Port |
-| **OpenAPI / Swagger** | `http://localhost:5247/swagger` | API Documentation Sandbox |
-| **PostgreSQL DB** | `localhost:5432` | Primary Database Instance |
-| **Redis Cache** | `localhost:6379` | Cache and Distributed State |
-
-
-#### API Base URL Mapping
-The frontend connects to the backend REST API by reading the `NEXT_PUBLIC_API_URL` environment variable inside [`client/.env.local`](client/.env.local):
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5247/api
-```
+| Next.js Client Portal | http://localhost:3000 | Frontend User Web Interface |
+| ASP.NET Core API Gateway | http://localhost:5247 | Core REST API Endpoint |
+| OpenAPI Swagger Sandbox | http://localhost:5247/swagger | API Documentation Sandbox |
+| FastAPI AI Microservice | http://localhost:8000 | AI Processing Endpoint |
+| PostgreSQL Database | localhost:5432 | Primary Transactional Store |
+| Redis Cache Server | localhost:6379 | State and Cache Store |
 
 ---
 
-### 🔍 Verification Checklist
+## Integration Verification Checklist
 
-Verify that the full-stack setup is fully integrated and functioning by checking the following indicators:
+To confirm the full monorepo stack is running and integrated, perform the following validation checks:
 
-1.  **Health Check Endpoint**: Navigate to `http://localhost:5247/health`. You should receive a status `200 OK` indicating the database, Redis cache, and services are healthy.
-2.  **API Status Endpoint**: Navigate to `http://localhost:5247/api/system/status`. This will return basic server details and the system clock.
-3.  **Swagger UI**: Navigate to `http://localhost:5247/swagger`. Explore the authenticated endpoints and verify that the bearer security scheme is active.
-4.  **Frontend Auth Flow**: Open `http://localhost:3000/register`. Create a new Developer account. You should receive a success toast, write the user data to PostgreSQL, and be prompted to verify your email.
-5.  **Multi-Tab Sync**: Log in to `http://localhost:3000/login` in one tab, and open another tab at `http://localhost:3000/dashboard`. Logging out in one tab will immediately terminate the session and redirect all open browser tabs to the `/login` screen via Zustand and the `BroadcastChannel` synchronization.
+1. API Health Endpoint: Navigate to `http://localhost:5247/health`. You should receive a status code 200 indicating DB and Redis caches are reachable.
+2. System Status Endpoint: Navigate to `http://localhost:5247/api/system/status`. This returns current server telemetry.
+3. Swagger Documentation: Visit `http://localhost:5247/swagger` to inspect endpoints.
+4. AI Service Documentation: Visit `http://localhost:8000/docs` to verify the FastAPI routing layer is running.
+5. User Registration: Navigate to `http://localhost:3000/register`. Register a new account. The registration should write data to PostgreSQL, trigger an outbox email log, and redirect to the email verification page.
+6. Multi-Tab Session Sync: Log in to `http://localhost:3000/login` in one tab and open `http://localhost:3000/dashboard` in another tab. Log out in one tab. The second tab should instantly log out and redirect to `/login` via broadcast channel notifications.
 
 ---
 
-## 📖 Sub-Project Documentations
+## Sub-Project Developer Guides
 
-For detailed deep-dives into specialized layers, refer to:
-*   📚 **[Frontend Developer Guide](client/README.md)**: Details on Next.js edge proxies, HeroUI styling variables, Zustand stores, state hydration, and the strict zero-duplication folder modularity.
-*   📚 **[Backend Developer Guide](CVerify.Core/README.md)**: Details on Clean Architecture layers, outbox patterns, rate limiter rules, MailKit SMTP transport failovers, and EF Core enum mappings.
+For detailed configurations, technologies, and structures of specific layers:
+* Frontend Client Guide: [client/README.md](client/README.md) - Details on Next.js Edge routing, Zustand stores, state hydration, and HeroUI integration.
+* Backend Core Server Guide: [CVerify.Core/README.md](CVerify.Core/README.md) - Details on Clean Architecture layers, outbox background processors, rate limiting, and EF Core mappings.
+* AI Microservice Guide: [CVerify.AI/README.md](CVerify.AI/README.md) - Details on FastAPI routes, Lizard AST complexity analyzer, and datasketch clone detection.

@@ -1,26 +1,22 @@
 # CVerify Backend Server Layer
 
-Welcome to the **CVerify AI Backend Server Layer**. This is a highly resilient, enterprise-grade REST API built using the modern **.NET 10.0** ecosystem. The application follows a rigorous Clean Architecture pattern, prioritizing a decoupled design, fast fail-safe validation, explicit database naming conventions, cost-optimized caching strategies, and secure session management.
+Welcome to the CVerify Backend Server Layer. This is a highly resilient REST API built using the .NET 10.0 runtime ecosystem. The project follows Clean Architecture patterns to enforce decoupling, fail-fast configuration validations, explicit persistence mapping rules, distributed caching, and secure session management.
 
----
+## Technology Stack
 
-## 🛠️ Technology Stack
+The backend uses a high-performance stack designed for low-latency RESTful transactions, transaction safety, and resilient external service integrations:
 
-The backend is built utilizing a high-performance, industry-standard stack designed for low latency, secure data transport, and optimal AI orchestration:
+* Runtime Framework: ASP.NET Core v10.
+* Primary Database: PostgreSQL >= 15.x as the absolute source of truth.
+* ORM Layer: Entity Framework Core (EF Core) v10, using snake_case conventions, custom converters, and native PostgreSQL enum mappings.
+* Caching and Rate Limiting: Redis v6.x / v7.x for distributed caching, rate limit partitioning, and session states.
+* AI Microservice Gateway: Named HttpClient client (AiServiceClient) connecting to the FastAPI microservice with HMAC SHA-256 signatures.
+* Email Delivery: MailKit (SMTP) and SendGrid API clients orchestrated through a background Outbox processor.
+* Metrics and Telemetry: Custom health checks (EmailProviderHealthCheck, AuthMetrics) and standard ASP.NET Core health diagnostics.
 
-*   **Runtime & Framework**: [ASP.NET Core v10](https://learn.microsoft.com/en-us/aspnet/core/) — High-performance RESTful APIs.
-*   **Database Engine**: [PostgreSQL >= 15.x](https://www.postgresql.org/) — Served as the absolute source of truth.
-*   **ORM Layer**: [Entity Framework Core (EF Core) v10](https://learn.microsoft.com/en-us/ef/core/) — Utilizing snake_case naming conventions, custom converters, and PostgreSQL native enum mappings.
-*   **Distributed Caching**: [Redis v6.x / v7.x](https://redis.io/) — Used for distributed sessions, caching external API responses, and rate limiters.
-*   **AI Engine Integration**: [Claude API (Anthropic)](https://www.anthropic.com/claude) — Integrates **Claude Sonnet 4.6** (`claude-sonnet-4-6`) for complex AI travel planning and **Claude Haiku 4.5** for validation, recommendations, and lightweight parsing tasks.
-*   **Email Transports**: [MailKit (SMTP)](https://github.com/jstedfast/MailKit) & [SendGrid](https://sendgrid.com/) — Multi-channel failover system utilizing the Outbox pattern.
-*   **Telemetry**: Custom Diagnostics (`AuthMetrics`, `EmailProviderHealthCheck`) and [ASP.NET Core Health Checks](https://learn.microsoft.com/en-us/aspnet/core/host-and-deploy/health-checks).
+## Clean Architecture Structure
 
----
-
-## 🏛️ Clean Architecture Design Blueprint
-
-The backend project structure is organized into decoupled layers, enforcing a strict dependency rule (outer layers depend inward, and the core domain depends on nothing):
+The project code is divided into four concentric layers to enforce inwards-directed dependency flows:
 
 ```
 CVerify.Core/
@@ -48,169 +44,127 @@ CVerify.Core/
 │   └── CVerify.API.UnitTests/        # Isolated mock service test suites
 ├── Program.cs              # Global Application Bootstrapper & Dependency Injection Container
 ├── appsettings.json        # Static base configurations
-└── CVerify.sln           # Multi-project solution configuration file
+└── CVerify.sln             # Multi-project solution configuration file
 ```
 
----
+## Configuration and Environment Variables
 
-## ⚙️ Environment Variables
+The server parses configurations at startup from the root `.env` file using the `EnvValidator` class. If any required configurations are missing or invalid, the server halts immediately (Fail-Fast policy).
 
-The backend relies on the environment configurations specified in the `.env` file at root. The `EnvValidator` validates all environment settings at application startup, enforcing a **Fail-Fast** rule (the server will refuse to run if key variables are missing or incorrectly typed).
+The table below lists the required configuration keys:
 
-### Configuration Schema Reference
-
-| Environment Key | Required | Default | Purpose / Details |
+| Environment Key | Required | Default | Description |
 | :--- | :--- | :--- | :--- |
-| **`DB_HOST`** | Yes | `localhost` | Hostname of the PostgreSQL instance. |
-| **`DB_PORT`** | Yes | `5432` | Port of the PostgreSQL instance. |
-| **`DB_NAME`** | Yes | `cverify_db` | Name of the primary database. |
-| **`DB_USER`** | Yes | `postgres` | Database admin or app username. |
-| **`DB_PASSWORD`** | Yes | — | Password for the database user. |
-| **`REDIS_HOST`** | Yes | `localhost` | Hostname of the Redis server. |
-| **`REDIS_PORT`** | Yes | `6379` | Port of the Redis server. |
-| **`REDIS_PASSWORD`**| No | — | Password for the Redis server. |
-| **`JWT_KEY`** | Yes | — | Secret signature key (HS256 requires `>= 32` characters). |
-| **`PORT`** | No | `5247` | Port for the ASP.NET Core web host. |
-| **`EMAIL_SENDER_EMAIL`**| Yes| `dev@cverify.ai` | Sender address shown in system emails. |
-| **`SMTP_HOST`** | No | `localhost` | SMTP host for MailKit failover email transport. |
-| **`SMTP_PORT`** | No | `587` | SMTP port for MailKit failover email transport. |
-| **`SMTP_USERNAME`** | No | — | Username credentials for the SMTP mail host. |
-| **`SMTP_PASSWORD`** | No | — | Password credentials for the SMTP mail host. |
-| **`SENDGRID_API_KEY`**| No | — | API key for the SendGrid primary HTTP email service. |
-| **`GOOGLE_CLIENT_ID`**| Yes | — | Client ID used to verify Google SSO ID tokens. |
+| DB_HOST | Yes | localhost | Hostname of the PostgreSQL database server. |
+| DB_PORT | Yes | 5432 | Port number of the PostgreSQL database server. |
+| DB_NAME | Yes | cverify_db | Name of the primary target database. |
+| DB_USER | Yes | postgres | Database username credential. |
+| DB_PASSWORD | Yes | None | Database password credential. |
+| REDIS_HOST | Yes | localhost | Hostname of the Redis caching server. |
+| REDIS_PORT | Yes | 6379 | Port number of the Redis caching server. |
+| REDIS_PASSWORD | No | None | Password credential for the Redis server. |
+| JWT_KEY | Yes | None | Symmetric signature key (requires 32+ characters for HS256). |
+| PORT | No | 5247 | Port address for the ASP.NET Core server. |
+| EMAIL_SENDER_EMAIL | Yes | dev@cverify.ai | From address shown in outbound system emails. |
+| SMTP_HOST | No | localhost | SMTP host address for MailKit fallback. |
+| SMTP_PORT | No | 587 | SMTP port for MailKit fallback. |
+| SMTP_USERNAME | No | None | SMTP username credential. |
+| SMTP_PASSWORD | No | None | SMTP password credential. |
+| SENDGRID_API_KEY | No | None | API key for SendGrid HTTP email transport. |
+| GOOGLE_CLIENT_ID | Yes | None | Client ID for Google SSO validation. |
+| AI_SERVICE_URL | Yes | http://localhost:8000 | URL pointing to the CVerify.AI FastAPI microservice. |
+| AI_SERVICE_SHARED_SECRET | Yes | None | Shared HMAC secret key matching the CVerify.AI secret. |
+| AI_SERVICE_CLIENT_ID | No | cverify-core | The identifier for the backend client in AI requests. |
+| CLAUDE_MODEL | No | claude-sonnet-4-6 | AI model version requested by backend tasks. |
+| SUPER_ADMIN_EMAIL | Yes | admin@system.com | Default Super Admin email address. |
+| SUPER_ADMIN_PASSWORD | Yes | None | Default Super Admin account password. |
+| ACCESS_KEY_ID | Yes | None | Cloudflare R2 access key. |
+| SECRET_ACCESS_KEY | Yes | None | Cloudflare R2 secret access key. |
+| R2_ENDPOINT | Yes | None | Cloudflare R2 storage endpoint. |
+| R2_BUCKET | Yes | None | Cloudflare R2 storage bucket. |
+| DISABLE_RATE_LIMITS | No | false | Allows disabling rate limiters during testing. |
+| TOKEN_ENCRYPTION_KEY | Yes | None | Encryption key for database-stored tokens (AES-256-GCM, requires exactly 32 bytes). |
+| FRONTEND_URL | Yes | http://localhost:3000 | URL of the frontend application for CORS rules. |
 
----
+## Database Setup and Migrations
 
-## 🗄️ Database Setup & Migrations
+The database layer is managed through EF Core. Migrations are checked and applied automatically on startup inside `DbInitializer.InitializeAsync`, meaning you do not need to execute database migrations manually on local development machines.
 
-The database is built on **PostgreSQL** using **EF Core**. The application applies migrations automatically on startup, so manually executing migration scripts during local onboarding is not required.
+### Manual EF Core Migrations
+If you make changes to domain entities and need to create a new migration, use the dotnet-ef tools CLI:
 
-### Database Initialization Flow
+1. Install the EF global tool (if not already present):
+   ```bash
+   dotnet tool install --global dotnet-ef
+   ```
+2. Generate a new migration:
+   ```bash
+   dotnet ef migrations add NameOfMigration --project CVerify.API.csproj
+   ```
+3. Update the database schema manually (optional):
+   ```bash
+   dotnet ef database update --project CVerify.API.csproj
+   ```
 
-```mermaid
-graph LR
-    Start([App Startup]) --> LoadConfig[Read .env Variables]
-    LoadConfig --> ValidateConfig{Validator Passes?}
-    ValidateConfig -- No --> FailFast[Throw Exception & Halt]
-    ValidateConfig -- Yes --> ConnDB[Establish DB Connection]
-    ConnDB --> DbInit[DbInitializer.InitializeAsync]
-    DbInit --> MigDB[EF Core: Apply Pending Migrations]
-    MigDB --> SyncEnums[Register Native PostgreSQL Enums]
-    SyncEnums --> SeedDB[Seed Static Roles & Permissions]
-    SeedDB --> Finish([Server Ready])
-```
+## Security Architecture
 
-### Manual Command-Line Migrations (EF CLI)
+1. Dual Cookie Authentication: Authentications issue an access token and a refresh token inside HttpOnly cookies:
+   * `access_token`: Short-lived token (15 minutes) containing role claims and verification flags. SameSite=Lax.
+   * `refresh_token`: Long-lived token (7 days) mapped to the database. SameSite=Strict.
+   Cookies are automatically read and validated by a custom authentication handler in the HTTP request pipeline.
+2. IP-Partitioned Rate Limiting: Limits access to sensitive endpoints to prevent brute-force attacks:
+   * ForgotPasswordLimit: Allows 3 attempts per 15 minutes.
+   * ResetPasswordLimit: Allows 5 attempts per 15 minutes.
+   * ResendVerificationLimit: Allows 3 attempts per 10 minutes.
+   * VerifyEmailLimit: Allows 5 attempts per 10 minutes.
+   * RegisterLimit: Allows 5 attempts per 15 minutes.
 
-If you need to make schema changes or manage migrations manually, use the following [.NET Entity Framework Core Tools](https://learn.microsoft.com/en-us/ef/core/cli/dotnet) commands:
+## Resilient Email Transport (Outbox Pattern)
 
-*   **Prerequisite**: Install the EF Core Global tool:
-    ```bash
-    dotnet tool install --global dotnet-ef
-    ```
-*   **Add a new migration**:
-    ```bash
-    dotnet ef migrations add NameOfYourMigration --project CVerify.API.csproj
-    ```
-*   **Manually apply migrations to database**:
-    ```bash
-    dotnet ef database update --project CVerify.API.csproj
-    ```
+The application separates database operations from network email transactions using the Outbox pattern:
 
----
+1. Stage Outbox: Email tasks are stored as records inside the `outbox_messages` table within the same transaction as the parent action.
+2. Background Processing: The `EmailOutboxBackgroundProcessor` hosted service scans the database at regular intervals.
+3. Primary SendGrid API: The background worker attempts to dispatch emails using SendGrid's HTTP endpoint.
+4. MailKit SMTP Failover: If the primary SendGrid client fails due to network errors or rate limit errors, the dispatcher automatically switches to the secondary MailKit SMTP client to ensure delivery.
 
-## 🔒 Security Architecture: Authentication & Gating
+## OpenAPI Swagger Sandbox
 
-CVerify uses a highly secure, stateless token authentication architecture utilizing dual HttpOnly cookies and IP-partitioned rate limiting filters.
+In the Development environment, the API exposes live Swagger documentation:
 
-### 1. Dual Cookie Authentication Mechanism
+* Swagger UI Page: `http://localhost:5247/swagger`
+* OpenAPI Definition JSON: `http://localhost:5247/openapi/v1.json`
 
-Upon successful login or Google OAuth token exchange:
-*   **Access Token**: Issued as a JWT with a **15-minute** lifespan. Contains standard claims (User ID, Email) and custom authorization parameters (`isEmailVerified`, roles, permission sets). Written into a `Secure`, `HttpOnly`, `SameSite=Lax` cookie named `access_token`.
-*   **Refresh Token**: Issued with a cryptographically secure value and a **7-day** lifespan. Recorded in the PostgreSQL database. Written to an `HttpOnly`, `Secure`, `SameSite=Strict` cookie named `refresh_token`.
-*   **Cookie Extraction**: The backend automatically extracts tokens from HttpOnly cookies via a custom authentication handler, removing the need for the frontend to manage cookies manually.
+To test authenticated endpoints in the sandbox:
+1. Obtain a valid JWT.
+2. Click the Authorize button in the top right of the Swagger UI.
+3. Paste the token in the text box in the format `Bearer <your-token>`.
 
-### 2. IP-Partitioned Rate Limiting
+## Running Locally
 
-The application registers strict IP-partitioned fixed-window limiters under `Program.cs` to prevent brute force and resource exhaustion attacks:
-
-```csharp
-builder.Services.AddRateLimiter(options => {
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    // - ForgotPasswordLimit: Allows 3 recovery attempts per 15 minutes.
-    // - ResetPasswordLimit: Allows 5 password changes per 15 minutes.
-    // - ResendVerificationLimit: Allows 3 emails per 10 minutes.
-    // - VerifyEmailLimit: Allows 5 confirmation requests per 10 minutes.
-    // - RegisterLimit: Allows 5 user sign-ups per 15 minutes.
-});
-```
-
----
-
-## 📧 Resilient Email Transport (Outbox Pattern)
-
-To guarantee email delivery even during network failures, CVerify separates database transactions from actual network tasks:
-
-1.  **Outbox Table Storage**: When a user registers or triggers a password reset, a record is added to the `outbox_messages` table within the same transaction.
-2.  **Hosted Background Processor**: The `EmailOutboxBackgroundProcessor` hosted service scans the database outbox table at periodic intervals.
-3.  **Primary SendGrid API**: Emails are sent using the primary SendGrid HTTP API client.
-4.  **MailKit SMTP Failover**: If the SendGrid API fails or returns a status error, the `FailoverEmailSender` automatically switches to the SMTP provider utilizing MailKit.
-5.  **Audit Logs**: Delivery success or failure metrics are written to the database.
-
----
-
-## 🔍 API Telemetry & OpenAPI Sandbox
-
-In **Development** mode, the backend exposes comprehensive API documentation via Microsoft's custom OpenApi library and Swagger UI:
-
-*   **Swagger Web UI**: `http://localhost:5247/swagger`
-*   **OpenAPI Documentation JSON**: `http://localhost:5247/openapi/v1.json`
-
-### Testing Authenticated Endpoints in Swagger
-
-The Swagger UI includes a custom document transformer that configures Bearer Token Authentication directly inside the sandbox:
-1.  Navigate to `/swagger`.
-2.  Click the **Authorize** button in the top right.
-3.  Enter your raw JWT token in the format `Bearer <token>` (or utilize the HttpOnly cookie login which will automatically attach cookies in your browser session).
-
----
-
-## ⚡ Setup & Local Running
-
-### 1. Restore Dependencies
-Navigate to the project root and restore NuGet packages:
+### 1. Restore NuGet Packages
 ```bash
 dotnet restore
 ```
 
-### 2. Run the Application
-Start the ASP.NET Core server:
+### 2. Run Web Host
 ```bash
 dotnet run
 ```
-The server will automatically start and bind to `http://localhost:5247`.
+The server will start and bind to `http://localhost:5247`.
 
-### 3. Run Automated Test Suites
-Execute all unit and integration tests across the test project:
+### 3. Run Automated Tests
 ```bash
 dotnet test
 ```
 
----
+## Troubleshooting
 
-## 🔍 Troubleshooting & Common Issues
+### JWT Key Length Constraint Exception
+If the application crashes on startup throwing symmetric key length errors, verify that `JWT_KEY` in your `.env` contains at least 32 characters. C# cryptographic providers enforce this minimum length for security purposes.
 
-### 1. "JWT Key must be at least 32 characters long"
-*   **Symptom**: The backend server throws an initialization exception on startup and exits with an error.
-*   **Root Cause**: In C#, the symmetric cryptographic security key used to sign HS256 tokens requires a minimum key length of 256 bits (32 bytes).
-*   **Solution**: Open `.env` and configure `JWT_KEY` with a string that is 32 characters or longer.
+### PostgreSQL Enum Mapping Conflict
+If database queries fail with casting exceptions (e.g. mapping column status values to integer parameters), check that the enum type is registered in the DbContext options during initialization, and verify that the corresponding migration registering the custom enum inside PostgreSQL has been applied.
 
-### 2. PostgreSQL Enum Mapping Exception
-*   **Symptom**: EF Core throws an exception during DB queries: `42804: column "status" is of type user_status but expression is of type integer`.
-*   **Root Cause**: PostgreSQL native enums are stored as string values in database tables, but EF Core maps them as standard integers by default if not configured.
-*   **Solution**: Ensure that enums are registered in the `DbContext` constructor via `.MapEnum<UserStatus>("user_status")` and the matching migrations have been successfully synchronized.
-
-### 3. Outbox background queue blocks or email delivery is delayed
-*   **Symptom**: Account registration completes successfully, but verification emails are delayed or not sent at all.
-*   **Root Cause**: The background worker thread has encountered a database access lock or the network timeout for the primary email sender is set too high.
-*   **Solution**: Check `EmailOutboxBackgroundProcessor` logs. Verify that your SMTP and SendGrid credentials are correct. You can also trigger emails directly by hitting the `/api/email-test` endpoint in Swagger.
+### Delayed Email Dispatch
+If verification emails are not being sent, check the background logs for `EmailOutboxBackgroundProcessor`. Ensure your SendGrid key or SMTP credentials are set correctly. You can trigger test emails using the `/api/email-test` endpoint in Swagger for validation.
