@@ -21,10 +21,13 @@ import {
   PlusCircle,
   AlertCircle,
   ExternalLink,
+  FolderTree,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { type LinkedProviderConnection } from "@/types/auth.types";
 
 export const LinkedAccountsList: React.FC = () => {
+  const router = useRouter();
   const {
     fetchConnections,
     confirmLink,
@@ -412,6 +415,16 @@ export const LinkedAccountsList: React.FC = () => {
                           )}
                           <Button
                             size="sm"
+                            variant="ghost"
+                            onClick={() => router.push(`/settings/source-code-providers?providerId=${conn.id}`)}
+                            className="rounded-xl h-8 text-xs font-semibold flex items-center gap-1.5 border border-border/40 hover:bg-foreground/5 hover:text-foreground"
+                            aria-label={`Manage repositories for @${conn.providerUsername}`}
+                          >
+                            <FolderTree size={14} className="text-muted-foreground" />
+                            <span>Manage Repositories</span>
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="danger-soft"
                             isPending={isUnlinking && unlinkTarget?.id === conn.id}
                             isDisabled={isUnlinking}
@@ -612,6 +625,16 @@ export const LinkedAccountsList: React.FC = () => {
                               <ExternalLink size={14} />
                             </a>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => router.push(`/settings/source-code-providers?providerId=${conn.id}`)}
+                            className="rounded-xl h-8 text-xs font-semibold flex items-center gap-1.5 border border-border/40 hover:bg-foreground/5 hover:text-foreground"
+                            aria-label={`Manage repositories for @${conn.providerUsername}`}
+                          >
+                            <FolderTree size={14} className="text-muted-foreground" />
+                            <span>Manage Repositories</span>
+                          </Button>
                           <Button
                             size="sm"
                             variant="danger-soft"

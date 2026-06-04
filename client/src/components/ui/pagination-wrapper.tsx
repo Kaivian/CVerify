@@ -52,9 +52,9 @@ export const PaginationWrapper: React.FC<PaginationWrapperProps> = ({
   const endItem = Math.min(page * itemsPerPage, totalItems);
 
   return (
-    <Pagination 
+    <Pagination
       aria-label="Pagination navigation"
-      className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-separator select-none"
+      className="w-full flex flex-col sm:flex-row items-center justify-between select-none"
     >
       <Pagination.Summary>
         <Typography type="body-xs" className="text-muted font-medium">
