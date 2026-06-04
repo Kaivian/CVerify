@@ -1,0 +1,328 @@
+{
+    "repo": {
+        "id": "1182179234",
+        "name": "DWatch",
+        "full_name": "TNL293107/DWatch",
+        "url": "https://github.com/TNL293107/DWatch",
+        "description": "Ứng dụng web bán đồng hồ e-commerce — Java Servlet/JSP, Maven, SQL Server",
+        "fork": false,
+        "created_at": "2025-xx-xx",
+        "languages": {
+            "Java": 79.5,
+            "CSS": 18.4,
+            "JavaScript": 1.3,
+            "Other": 0.8
+        },
+        "topics": [],
+        "stars": 0,
+        "forks": 0,
+        "branches": 1,
+        "open_prs": 1
+    },
+    "source_classification": {
+        "case": "personal_own",
+        "fork": false,
+        "confidence_base": 0.95
+    },
+    "contribution_stats": {
+        "total_commits": 6,
+        "user_commits": 6,
+        "user_commit_pct": 100,
+        "contributors_count": 2,
+        "lines_owned_pct": null,
+        "prs_authored": 1,
+        "prs_merged": 0,
+        "issues_count": 0,
+        "branches_count": 1
+    },
+    "fraud_flags": [
+        {
+            "type": "low_commit_density",
+            "severity": "high",
+            "detail": "6 commits cho codebase với 14+ servlets, 6 models, 18 JSP pages — mật độ bất thường",
+            "confidence_penalty": 0.5
+        },
+        {
+            "type": "no_issues_no_discussions",
+            "severity": "medium",
+            "detail": "0 issues, 0 discussions cho project e-commerce đầy đủ tính năng",
+            "confidence_penalty": 0.8
+        },
+        {
+            "type": "single_branch",
+            "severity": "low",
+            "detail": "Chỉ có 1 branch (main), không có feature/dev branches",
+            "confidence_penalty": 0.9
+        }
+    ],
+    "fraud_multiplier": 0.36,
+    "skill_tree": {
+        "Backend": {
+            "Java": {
+                "level": "intermediate",
+                "confidence": 0.90,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "language_stat",
+                        "signal": "79.5% of codebase is Java"
+                    },
+                    {
+                        "type": "file",
+                        "path": "src/main/java/servlet/",
+                        "signal": "14 Servlet classes"
+                    },
+                    {
+                        "type": "file",
+                        "path": "src/main/java/dao/",
+                        "signal": "5 DAO classes — JDBC pattern"
+                    },
+                    {
+                        "type": "file",
+                        "path": "src/main/java/model/",
+                        "signal": "6 Model classes"
+                    }
+                ]
+            },
+            "Servlet / JSP": {
+                "level": "intermediate",
+                "confidence": 0.88,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "dependency",
+                        "path": "pom.xml",
+                        "signal": "javax.servlet-api 4.0"
+                    },
+                    {
+                        "type": "file",
+                        "path": "src/main/webapp/pages/",
+                        "signal": "18 JSP pages"
+                    },
+                    {
+                        "type": "file",
+                        "path": "src/main/webapp/WEB-INF/web.xml",
+                        "signal": "Servlet mapping config"
+                    }
+                ]
+            },
+            "MVC Architecture": {
+                "level": "intermediate",
+                "confidence": 0.85,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "structure",
+                        "signal": "Tách rõ dao/ model/ servlet/ webapp/ — MVC pattern"
+                    }
+                ]
+            },
+            "Email Integration": {
+                "level": "beginner",
+                "confidence": 0.80,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "src/main/java/util/EmailUtil.java",
+                        "signal": "Apache Commons Email, Gmail SMTP"
+                    }
+                ]
+            },
+            "VietQR / Payment": {
+                "level": "beginner",
+                "confidence": 0.75,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "src/main/java/util/VietQRUtil.java",
+                        "signal": "VietQR integration"
+                    },
+                    {
+                        "type": "file",
+                        "path": "src/main/webapp/WEB-INF/web.xml",
+                        "signal": "vietqr_acq_id context-param"
+                    }
+                ]
+            }
+        },
+        "Database": {
+            "SQL Server": {
+                "level": "intermediate",
+                "confidence": 0.85,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "database.sql",
+                        "signal": "Schema + sample data script"
+                    },
+                    {
+                        "type": "file",
+                        "path": "database_add_payment_method.sql",
+                        "signal": "Migration script"
+                    },
+                    {
+                        "type": "file",
+                        "path": "database_password_reset.sql",
+                        "signal": "PasswordResetToken table"
+                    },
+                    {
+                        "type": "file",
+                        "path": "src/main/java/util/DBUtil.java",
+                        "signal": "JDBC connection util"
+                    }
+                ]
+            },
+            "JDBC": {
+                "level": "intermediate",
+                "confidence": 0.82,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "src/main/java/dao/",
+                        "signal": "5 DAO classes dùng raw JDBC"
+                    }
+                ]
+            }
+        },
+        "DevOps": {
+            "Docker": {
+                "level": "beginner",
+                "confidence": 0.78,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "Dockerfile",
+                        "signal": "Dockerfile present"
+                    },
+                    {
+                        "type": "file",
+                        "path": ".dockerignore",
+                        "signal": ".dockerignore present"
+                    },
+                    {
+                        "type": "file",
+                        "path": "docker/",
+                        "signal": "docker/ directory"
+                    }
+                ]
+            },
+            "Maven": {
+                "level": "beginner",
+                "confidence": 0.90,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "pom.xml",
+                        "signal": "Maven build config, WAR packaging"
+                    }
+                ]
+            }
+        },
+        "Frontend": {
+            "JSP / HTML": {
+                "level": "intermediate",
+                "confidence": 0.80,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "src/main/webapp/pages/",
+                        "signal": "18 JSP pages — full UI coverage"
+                    }
+                ]
+            },
+            "CSS": {
+                "level": "beginner",
+                "confidence": 0.70,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "language_stat",
+                        "signal": "18.4% CSS"
+                    },
+                    {
+                        "type": "file",
+                        "path": "src/main/webapp/css/",
+                        "signal": "admin.css, style.css"
+                    }
+                ]
+            }
+        },
+        "Security": {
+            "Session Management": {
+                "level": "beginner",
+                "confidence": 0.72,
+                "evidence_type": "inferred",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "src/main/java/servlet/UserServlet.java",
+                        "signal": "Session user handling"
+                    }
+                ]
+            },
+            "Token-based Password Reset": {
+                "level": "beginner",
+                "confidence": 0.75,
+                "evidence_type": "verified",
+                "evidence": [
+                    {
+                        "type": "file",
+                        "path": "src/main/java/servlet/ResetPasswordServlet.java",
+                        "signal": "Token expiry, DB lookup"
+                    },
+                    {
+                        "type": "file",
+                        "path": "database_password_reset.sql",
+                        "signal": "PasswordResetToken table"
+                    }
+                ]
+            }
+        }
+    },
+    "scoring": {
+        "raw_score": 74,
+        "fraud_multiplier": 0.36,
+        "final_score": 27,
+        "band": "D",
+        "verdict": "Cannot verify — low commit density",
+        "dimension_breakdown": {
+            "technical_depth": {
+                "score": 78,
+                "note": "MVC + DAO pattern + payment integration"
+            },
+            "code_quality_signals": {
+                "score": 60,
+                "note": "No tests, no CI/CD pipeline"
+            },
+            "contribution_quality": {
+                "score": 40,
+                "note": "6 commits toàn bộ project — initial dump pattern"
+            }
+        },
+        "top_strengths": [
+            "Java Servlet/JSP",
+            "SQL Server + JDBC",
+            "Full e-commerce feature coverage"
+        ],
+        "improvement_areas": [
+            "No unit tests",
+            "No CI/CD",
+            "Commit history quá thưa"
+        ],
+        "recruiter_summary": "Codebase có độ phức tạp trung bình (e-commerce đầy đủ tính năng) nhưng chỉ có 6 commits — không thể xác minh contribution thực sự. Cần interview để cross-validate."
+    },
+    "ui_hints": {
+        "show_fraud_warning": true,
+        "fraud_badge": "⚠️ Low commit density — unverifiable",
+        "show_skill_tree": true,
+        "show_score": false,
+        "prompt_recruiter_note": "Score bị ẩn do không đủ commit evidence. Kỹ năng detected vẫn hiển thị nhưng marked as 'detected, not verified'."
+    }
+}
