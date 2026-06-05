@@ -301,8 +301,12 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
             render={({ field: { value, onChange } }) => (
               <SelectDropdown
                 label="Experience Category"
-                value={value ? value.toString() : ""}
-                onChange={onChange}
+                value={
+                  typeof value === "number" && !Number.isNaN(value)
+                    ? String(value)
+                    : ""
+                }
+                onChange={(v) => onChange(v === "" ? undefined : Number(v))}
                 options={categoryOptions}
                 placeholder="Select category"
               />
@@ -310,7 +314,8 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
           />
           {errors.workExperiences?.[index]?.experienceCategory && (
             <FieldError className="text-danger text-xs mt-1 block">
-              Category is required
+              {errors.workExperiences[index]?.experienceCategory?.message ??
+                "Category is required"}
             </FieldError>
           )}
         </div>
@@ -323,8 +328,12 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
             render={({ field: { value, onChange } }) => (
               <SelectDropdown
                 label="Employment Type"
-                value={value ? value.toString() : ""}
-                onChange={onChange}
+                value={
+                  typeof value === "number" && !Number.isNaN(value)
+                    ? String(value)
+                    : ""
+                }
+                onChange={(v) => onChange(v === "" ? undefined : Number(v))}
                 options={employmentOptions}
                 placeholder="Select employment type"
               />
@@ -332,7 +341,8 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
           />
           {errors.workExperiences?.[index]?.employmentType && (
             <FieldError className="text-danger text-xs mt-1 block">
-              Employment type is required
+              {errors.workExperiences[index]?.employmentType?.message ??
+                "Employment type is required"}
             </FieldError>
           )}
         </div>
