@@ -97,25 +97,16 @@ export default function SourceCodeProvidersPage() {
   // Repository Analysis States
   const [analysisStatuses, setAnalysisStatuses] = useState<Record<string, AnalysisStatus>>({});
   const [analysisResults, setAnalysisResults] = useState<Record<string, RepositoryAnalysis>>({});
+  const [analysisProgress, setAnalysisProgress] = useState<Record<string, number>>({});
+  const [analysisSteps, setAnalysisSteps] = useState<Record<string, string>>({});
+  const [analysisLogs, setAnalysisLogs] = useState<Record<string, string[]>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAnalysis, setSelectedAnalysis] = useState<RepositoryAnalysis | null>(null);
 
-  const handleAnalyzeRepository = async (repoId: string, repoName: string, repoOwner: string) => {
-    setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "analyzing" }));
-    toast.info(`Repository analysis started...`);
-    try {
-      const result = await repositoryAnalysisApi.analyzeRepository(repoId, repoName, repoOwner);
-      setAnalysisResults((prev) => ({ ...prev, [repoId]: result }));
-      setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "success" }));
-      toast.success("Repository analysis completed.");
-    } catch (err: any) {
-      console.error("Repository analysis failed:", err);
-      setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
-      toast.danger("Repository analysis failed", {
-        description: err.message || "An unexpected error occurred during AI analysis."
-      });
-    }
-  };
+  const activeJobsRef = useRef<Record<string, string>>({});
+  const eventSourcesRef = useRef<Record<string, EventSource>>({});
+
+
 
   // Active Sync States (Polling)
   const [activeSyncJobs, setActiveSyncJobs] = useState<Record<string, { providerId: string | null; progress: number }>>({});
@@ -181,6 +172,190 @@ export default function SourceCodeProvidersPage() {
   const loadRepositories = useCallback(() => {
     return fetchRepos(1, true);
   }, [fetchRepos]);
+
+  const connectToProgressStream = useCallback((repoId: string, jobId: string) => {
+    if (eventSourcesRef.current[repoId]) {
+      eventSourcesRef.current[repoId].close();
+    }
+
+    activeJobsRef.current[repoId] = jobId;
+
+    const sseUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/repository-analyses/jobs/${jobId}/progress-stream`;
+    const eventSource = new EventSource(sseUrl, { withCredentials: true });
+    eventSourcesRef.current[repoId] = eventSource;
+
+    eventSource.onmessage = async (event) => {
+      const dataStr = event.data;
+      if (dataStr === "[DONE]") {
+        eventSource.close();
+        delete eventSourcesRef.current[repoId];
+        delete activeJobsRef.current[repoId];
+        
+        try {
+          const report = await repositoryAnalysisApi.getLatestReport(repoId);
+          setAnalysisResults((prev) => ({ ...prev, [repoId]: report }));
+          setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "success" }));
+          toast.success("Repository analysis completed successfully!");
+          loadRepositories();
+        } catch (err: any) {
+          console.error("Failed to load completed analysis report:", err);
+          setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
+        }
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(dataStr);
+        if (payload.status) {
+          const isAnalyzing = [
+            "Queued", "Preparing", "CloningRepository", "DetectingTechnologyStack",
+            "SamplingCode", "RunningAgents", "AggregatingResults", "SavingReport", "analyzing"
+          ].includes(payload.status);
+
+          const isError = [
+            "Failed", "Cancelled", "TimedOut", "error"
+          ].includes(payload.status);
+
+          const status: AnalysisStatus = isError 
+            ? "error" 
+            : isAnalyzing 
+              ? "analyzing" 
+              : payload.status === "Completed" || payload.status === "success" 
+                ? "success" 
+                : "idle";
+          const step = payload.step || status;
+          const progress = payload.progress || 0;
+          const message = payload.message || step;
+
+          setAnalysisStatuses((prev) => ({ ...prev, [repoId]: status }));
+          setAnalysisProgress((prev) => ({ ...prev, [repoId]: progress }));
+          setAnalysisSteps((prev) => ({ ...prev, [repoId]: step }));
+          if (message) {
+            setAnalysisLogs((prev) => {
+              const current = prev[repoId] || [];
+              if (current.includes(message)) return prev;
+              return { ...prev, [repoId]: [...current, message] };
+            });
+          }
+
+          if (payload.status === "error" || payload.status === "Failed" || payload.status === "Cancelled" || payload.status === "TimedOut") {
+            eventSource.close();
+            delete eventSourcesRef.current[repoId];
+            delete activeJobsRef.current[repoId];
+            setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
+            toast.danger(`Analysis failed: ${message}`);
+          }
+        }
+      } catch (err) {
+        console.error("Error parsing progress stream chunk:", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error(`EventSource error for repository ${repoId}:`, err);
+    };
+  }, [loadRepositories]);
+
+  const handleAnalyzeRepository = async (repoId: string, repoName: string, repoOwner: string) => {
+    setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "analyzing" }));
+    setAnalysisProgress((prev) => ({ ...prev, [repoId]: 0 }));
+    setAnalysisSteps((prev) => ({ ...prev, [repoId]: "Initializing..." }));
+    setAnalysisLogs((prev) => ({ ...prev, [repoId]: [] }));
+    
+    toast.info("Repository analysis started...");
+    try {
+      const response = await repositoryAnalysisApi.triggerAnalysis(repoId);
+      const jobId = response.jobId;
+      
+      try {
+        const history = await repositoryAnalysisApi.getJobEvents(jobId);
+        if (history && history.length > 0) {
+          const messages = history.map(h => h.message);
+          setAnalysisLogs((prev) => ({ ...prev, [repoId]: messages }));
+          const latest = history[history.length - 1];
+          setAnalysisProgress((prev) => ({ ...prev, [repoId]: latest.progress }));
+          setAnalysisSteps((prev) => ({ ...prev, [repoId]: latest.step }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch historical job events:", err);
+      }
+
+      connectToProgressStream(repoId, jobId);
+    } catch (err: any) {
+      console.error("Repository analysis trigger failed:", err);
+      setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
+      toast.danger("Repository analysis failed", {
+        description: err.response?.data?.message || err.message || "An unexpected error occurred during AI analysis."
+      });
+    }
+  };
+
+  const handleCancelAnalysis = async (repoId: string) => {
+    const jobId = activeJobsRef.current[repoId];
+    if (!jobId) return;
+    try {
+      await repositoryAnalysisApi.cancelJob(jobId);
+      toast.success("Analysis cancellation requested.");
+    } catch (err: any) {
+      toast.danger("Failed to cancel analysis", {
+        description: err.response?.data?.message || err.message
+      });
+    }
+  };
+
+  // Check and restore active jobs on page load
+  useEffect(() => {
+    const checkActiveJobs = async () => {
+      try {
+        const activeJobs = await repositoryAnalysisApi.getActiveJobs();
+        for (const job of activeJobs) {
+          const repoId = job.repositoryId;
+          const jobId = job.id;
+          
+          setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "analyzing" }));
+          setAnalysisProgress((prev) => ({ ...prev, [repoId]: job.progress }));
+          setAnalysisSteps((prev) => ({ ...prev, [repoId]: job.currentStep || "Running..." }));
+
+          try {
+            const history = await repositoryAnalysisApi.getJobEvents(jobId);
+            if (history && history.length > 0) {
+              const messages = history.map(h => h.message);
+              setAnalysisLogs((prev) => ({ ...prev, [repoId]: messages }));
+            }
+          } catch (hErr) {
+            console.error("Failed to fetch historical events for active job:", jobId, hErr);
+          }
+
+          connectToProgressStream(repoId, jobId);
+        }
+      } catch (err) {
+        console.error("Failed to check active analysis jobs:", err);
+      }
+    };
+
+    checkActiveJobs();
+
+    return () => {
+      Object.values(eventSourcesRef.current).forEach((es) => es.close());
+    };
+  }, [connectToProgressStream]);
+
+  // Background load reports for verified repositories
+  useEffect(() => {
+    if (repositories.length === 0) return;
+
+    repositories.forEach(async (repo) => {
+      if (repo.isVerified && !analysisResults[repo.id] && !activeJobsRef.current[repo.id]) {
+        try {
+          const report = await repositoryAnalysisApi.getLatestReport(repo.id);
+          setAnalysisResults((prev) => ({ ...prev, [repo.id]: report }));
+          setAnalysisStatuses((prev) => ({ ...prev, [repo.id]: "success" }));
+        } catch (err) {
+          console.error(`Failed to load report for repository ${repo.id}:`, err);
+        }
+      }
+    });
+  }, [repositories]);
 
   // Load initial data
   useEffect(() => {
@@ -383,6 +558,57 @@ export default function SourceCodeProvidersPage() {
             <span className="text-[10px] text-danger max-w-[150px] truncate">
               Analysis failed. Click retry.
             </span>
+          </div>
+        ) : status === "analyzing" ? (
+          <div className="mt-3 p-4 rounded-xl border border-warning/15 bg-warning-soft/10 text-left transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Spinner size="sm" color="warning" />
+                <span className="text-xs font-bold text-warning-foreground">
+                  {analysisSteps[repo.id] || "Initializing..."}
+                </span>
+              </div>
+              <span className="text-xs font-black text-warning font-mono">
+                {Math.round(analysisProgress[repo.id] || 0)}%
+              </span>
+            </div>
+
+            {/* Premium progress bar */}
+            <div className="w-full bg-default-100 dark:bg-neutral-800 rounded-full h-1.5 overflow-hidden mt-2 border border-border/10">
+              <div
+                className="bg-warning h-full rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${analysisProgress[repo.id] || 0}%` }}
+              />
+            </div>
+
+            {/* Log terminal console */}
+            {analysisLogs[repo.id] && analysisLogs[repo.id].length > 0 && (
+              <div 
+                className="bg-neutral-950 dark:bg-black border border-border/30 rounded-lg p-3 mt-3 font-mono text-[9px] text-green-500/90 h-28 overflow-y-auto shadow-inner flex flex-col gap-1"
+                ref={(el) => {
+                  if (el) el.scrollTop = el.scrollHeight;
+                }}
+              >
+                {analysisLogs[repo.id].map((log, idx) => (
+                  <div key={idx} className="flex gap-1.5 items-start">
+                    <span className="text-green-500/40 shrink-0">&gt;</span>
+                    <span className="break-all">{log}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Cancel Button */}
+            <div className="flex justify-end mt-3">
+              <Button
+                size="sm"
+                variant="danger"
+                className="h-7 text-[10px] font-bold rounded-lg px-3 hover:bg-danger/10 text-danger shrink-0"
+                onClick={() => handleCancelAnalysis(repo.id)}
+              >
+                Cancel Analysis
+              </Button>
+            </div>
           </div>
         ) : status === "success" ? null : (
           <div className="mt-3 p-3 rounded-lg border border-border/60 bg-surface-secondary/40 flex items-center justify-between text-left">

@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import AsyncGenerator
 from anthropic import AsyncAnthropic
 from app.config import settings
@@ -49,3 +49,24 @@ class ClaudeService:
         except Exception as e:
             logger.error(f"Error streaming from Anthropic Claude API: {e}")
             yield f"\n\n[Error occurred in travel planner service: {str(e)}]"
+
+    async def analyze_repo(self, system_prompt: str, user_prompt: str) -> str:
+        system_config = [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"}
+            }
+        ]
+        try:
+            response = await self.client.messages.create(
+                model=settings.claude_model,
+                max_tokens=4000,
+                system=system_config,
+                messages=[{"role": "user", "content": user_prompt}],
+                temperature=0.2
+            )
+            return response.content[0].text
+        except Exception as e:
+            logger.error(f"Error calling Anthropic Claude API for repository analysis: {e}")
+            raise e

@@ -380,6 +380,8 @@ builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();
 // Register Source Code Provider Services
 builder.Services.AddScoped<ISourceCodeProviderService, SourceCodeProviderService>();
 builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueue>();
+builder.Services.AddScoped<IRepositoryAnalysisService, RepositoryAnalysisService>();
+builder.Services.AddSingleton<IRepositoryAnalysisQueue, BackgroundRepositoryAnalysisQueue>();
 
 // Register AI Service
 builder.Services.AddScoped<IHmacSignatureService, HmacSignatureService>();
@@ -397,8 +399,9 @@ builder.Services.AddHostedService<EmailOutboxBackgroundProcessor>();
 builder.Services.AddHostedService<TokenCleanupBackgroundJob>();
 builder.Services.AddHostedService<RecoveryClaimBackgroundWorker>();
 builder.Services.AddHostedService<OtpCleanupBackgroundWorker>();
-builder.Services.AddHostedService<PendingLinkCleanupService>();
 builder.Services.AddHostedService<BackgroundRepositorySyncProcessor>();
+builder.Services.AddHostedService<AnalysisQueueRecoverySweeper>();
+builder.Services.AddHostedService<BackgroundRepositoryAnalysisProcessor>();
 
 
 // Configure JWT Authentication
