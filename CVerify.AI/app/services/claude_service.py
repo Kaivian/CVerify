@@ -37,7 +37,7 @@ class ClaudeService:
         try:
             async with self.client.messages.stream(
                 model=settings.claude_model,  # Loaded dynamically from environment variable (CLAUDE_MODEL)
-                max_tokens=4000,
+                max_tokens=8192,
                 system=system_config,
                 messages=formatted_messages,
                 temperature=0.7
@@ -61,7 +61,7 @@ class ClaudeService:
         try:
             response = await self.client.messages.create(
                 model=settings.claude_model,
-                max_tokens=4000,
+                max_tokens=8192,
                 system=system_config,
                 messages=[{"role": "user", "content": user_prompt}],
                 temperature=0.2

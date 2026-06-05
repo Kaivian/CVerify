@@ -9,67 +9,72 @@ import {
   BadgeAlert,
   Wrench,
 } from "lucide-react";
-import { RepositoryAnalysis } from "@/types/repository-analysis.types";
+import type { RepositoryAnalysis } from "@/types/repository-analysis.types";
 
 interface InsightSectionsProps {
   analysis: RepositoryAnalysis;
 }
 
 export const InsightSections: React.FC<InsightSectionsProps> = ({ analysis }) => {
-  const { scoring, fraud_flags } = analysis;
+  const {
+    profile = {
+      technologies: [],
+      skills: {},
+      architecture: { patterns: [], explanation: "" },
+      engineering_practices: {
+        testing: { frameworks: [], has_tests: false, detail: "" },
+        observability: { logging_configured: false, metrics_configured: false, detail: "" },
+        cicd: { configured: false, providers: [] }
+      }
+    },
+    trust = { classification: "personal_authentic", confidence: 100, rule_flags: [], ai_findings: [], explanation: "" },
+    ownership = { user_commit_ratio: 1, total_commits: 1, is_primary_author: true, architectural_ownership_pct: 100, critical_path_ownership_pct: 100, maintenance_duration_months: 1, explanation: "" }
+  } = analysis;
 
-  // Derive testing observations from improvement areas
-  const testObservations = scoring.improvement_areas.some((s) =>
-    s.toLowerCase().includes("test")
-  )
-    ? "Critical lack of testing. No unit tests, integration tests, or mock suites detected in the source code."
-    : "Basic testing framework detected. Unit tests are present but coverage metrics could not be fully verified.";
+  const testObservations = profile.engineering_practices.testing.has_tests
+    ? `Testing framework detected: ${profile.engineering_practices.testing.frameworks.join(", ") || "Yes"}. ${profile.engineering_practices.testing.detail}`
+    : "Critical lack of testing. No unit tests, integration tests, or mock suites detected in the source code.";
 
-  // Derive documentation quality from strengths/improvements
-  const docObservations = scoring.improvement_areas.some((s) =>
-    s.toLowerCase().includes("document") || s.toLowerCase().includes("readme")
-  )
-    ? "Minimal documentation observed. API documentation and code comments are sparse or missing."
-    : "Standard project documentation. Core README files, build guides, and basic instructions are present.";
+  const docObservations = profile.engineering_practices.observability.detail || "Standard project documentation. Core README files, build guides, and basic instructions are present.";
 
   const insightBlocks = [
     {
       title: "Code Quality Assessment",
       icon: <Code className="size-4.5 text-primary" />,
-      note: scoring.dimension_breakdown.code_quality_signals.note,
-      status: scoring.dimension_breakdown.code_quality_signals.score >= 70 ? "Good" : "Needs Review",
+      note: ownership.explanation,
+      status: ownership.user_commit_ratio >= 0.7 ? "Good" : "Needs Review",
     },
     {
       title: "Architecture Observations",
       icon: <Layers className="size-4.5 text-success" />,
-      note: scoring.dimension_breakdown.technical_depth.note,
-      status: scoring.dimension_breakdown.technical_depth.score >= 70 ? "Strong" : "Standard",
+      note: profile.architecture.explanation,
+      status: profile.architecture.patterns.length > 0 ? "Strong" : "Standard",
     },
     {
       title: "Security & Validation",
       icon: <Shield className="size-4.5 text-danger" />,
-      note: fraud_flags.length > 0
-        ? `Contains anomalies (${fraud_flags.length} flags). Security is impacted by unverified commits and patterns.`
+      note: trust.rule_flags.length > 0
+        ? `Contains anomalies (${trust.rule_flags.length} flags). Security is impacted by unverified commits and patterns.`
         : "No critical credentials or high-risk authentication breaches detected.",
-      status: fraud_flags.length > 1 ? "Attention Required" : "Secure",
+      status: trust.rule_flags.length > 1 ? "Attention Required" : "Secure",
     },
     {
       title: "Testing Coverage",
       icon: <BadgeAlert className="size-4.5 text-warning" />,
       note: testObservations,
-      status: testObservations.includes("lack") ? "Fail" : "Pass",
+      status: profile.engineering_practices.testing.has_tests ? "Pass" : "Fail",
     },
     {
       title: "Documentation Quality",
       icon: <FileText className="size-4.5 text-accent" />,
       note: docObservations,
-      status: docObservations.includes("Minimal") ? "Incomplete" : "Verified",
+      status: docObservations.toLowerCase().includes("minimal") || docObservations.toLowerCase().includes("no ") ? "Incomplete" : "Verified",
     },
     {
       title: "Maintainability Indicators",
       icon: <Wrench className="size-4.5 text-muted-foreground" />,
-      note: scoring.recruiter_summary,
-      status: scoring.final_score >= 60 ? "Stable" : "Review Recommended",
+      note: ownership.explanation,
+      status: trust.confidence >= 60 ? "Stable" : "Review Recommended",
     },
   ];
 
@@ -90,7 +95,7 @@ export const InsightSections: React.FC<InsightSectionsProps> = ({ analysis }) =>
             </div>
             <span
               className={`text-[8.5px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full ${
-                block.status === "Strong" || block.status === "Good" || block.status === "Secure" || block.status === "Verified" || block.status === "Stable"
+                block.status === "Strong" || block.status === "Good" || block.status === "Secure" || block.status === "Verified" || block.status === "Stable" || block.status === "Pass"
                   ? "bg-success/15 text-success"
                   : "bg-warning/15 text-warning"
               }`}

@@ -206,11 +206,7 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
   });
 
   // Watch links separately for a custom URL map input layout
-  const repoUrl = useWatch({ control, name: `workExperiences.${index}._links.repo` }) || "";
-  const projectUrl = useWatch({ control, name: `workExperiences.${index}._links.project` }) || "";
-  const portfolioUrl = useWatch({ control, name: `workExperiences.${index}._links.portfolio` }) || "";
-  const demoUrl = useWatch({ control, name: `workExperiences.${index}._links.demo` }) || "";
-  const articleUrl = useWatch({ control, name: `workExperiences.${index}._links.article` }) || "";
+
 
   // Achievements Field Array
   const {

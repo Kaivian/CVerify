@@ -10,14 +10,12 @@ import {
   Avatar,
   toast,
   Modal,
-  Link,
 } from "@heroui/react";
 import { Github, Gitlab } from "@thesvg/react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { ConfirmationModal } from "./ConfirmationModal";
 import {
   Info,
-  Trash2,
   PlusCircle,
   AlertCircle,
   ExternalLink,
@@ -56,7 +54,14 @@ export const LinkedAccountsList: React.FC = () => {
 
   // Modal-based pending link confirmation state
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [pendingDetails, setPendingDetails] = useState<any>(null);
+  interface PendingLinkDetails {
+    providerName: string;
+    providerAvatarUrl?: string | null;
+    providerDisplayName?: string | null;
+    providerUsername?: string | null;
+    providerEmail?: string | null;
+  }
+  const [pendingDetails, setPendingDetails] = useState<PendingLinkDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [loadingPendingDetails, setLoadingPendingDetails] = useState(false);
@@ -90,12 +95,16 @@ export const LinkedAccountsList: React.FC = () => {
   }, [fetchLinkedProviders]);
 
   useEffect(() => {
-    loadConnections();
-    loadGoogleStatus();
+    const timer = setTimeout(() => {
+      loadConnections();
+      loadGoogleStatus();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadConnections, loadGoogleStatus]);
 
   // Check query parameters for OAuth link success/error on mount
   useEffect(() => {
+    let timerId: NodeJS.Timeout | null = null;
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const pendingLinkId = params.get("link_pending_id");
@@ -104,8 +113,10 @@ export const LinkedAccountsList: React.FC = () => {
       const provider = params.get("provider");
 
       if (pendingLinkId) {
-        setPendingId(pendingLinkId);
-        setIsModalOpen(true);
+        timerId = setTimeout(() => {
+          setPendingId(pendingLinkId);
+          setIsModalOpen(true);
+        }, 0);
         // Clean URL parameters safely, retaining tab=account
         const newUrl = window.location.pathname + "?tab=account";
         window.history.replaceState({}, document.title, newUrl);
@@ -115,7 +126,9 @@ export const LinkedAccountsList: React.FC = () => {
         toast.success(`Successfully linked ${providerName} account.`);
         const newUrl = window.location.pathname + "?tab=account";
         window.history.replaceState({}, document.title, newUrl);
-        loadConnections();
+        timerId = setTimeout(() => {
+          loadConnections();
+        }, 0);
       } else if (error) {
         toast.danger(`Failed to link account.`, {
           description: decodeURIComponent(error),
@@ -124,6 +137,9 @@ export const LinkedAccountsList: React.FC = () => {
         window.history.replaceState({}, document.title, newUrl);
       }
     }
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
   }, [loadConnections]);
 
   // Fetch pending link details when pendingId changes
@@ -140,9 +156,10 @@ export const LinkedAccountsList: React.FC = () => {
           setIsModalOpen(false);
           setPendingId(null);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(err);
-        if (err.status === 410 || err.response?.status === 410) {
+        const customErr = err as { status?: number; response?: { status?: number } };
+        if (customErr.status === 410 || customErr.response?.status === 410) {
           toast.danger("This linking request has expired. Please try again.");
         } else {
           toast.danger("Failed to retrieve pending connection details.");
@@ -214,7 +231,7 @@ export const LinkedAccountsList: React.FC = () => {
       } else {
         toast.danger(response.data?.message || "Failed to disconnect account.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.danger("An error occurred while unlinking account.");
     } finally {
@@ -236,10 +253,11 @@ export const LinkedAccountsList: React.FC = () => {
       } else {
         toast.danger(response.data?.message || "Failed to confirm connection.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
+      const axiosError = err as { response?: { data?: { message?: string } } };
       toast.danger(
-        err.response?.data?.message ||
+        axiosError.response?.data?.message ||
           "An error occurred while confirming the connection.",
       );
     } finally {

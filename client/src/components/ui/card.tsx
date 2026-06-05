@@ -16,7 +16,7 @@ export const Card: React.FC<CardProps> = ({
   as = 'div',
   ...props
 }) => {
-  const Component = as as any;
+  const Component = as as React.ElementType;
   return (
     <Component
       {...props}

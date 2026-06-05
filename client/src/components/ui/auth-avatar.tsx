@@ -8,7 +8,6 @@ import {
   Avatar,
   Label,
   Separator,
-  Button,
   Chip,
   Kbd,
 } from "@heroui/react";

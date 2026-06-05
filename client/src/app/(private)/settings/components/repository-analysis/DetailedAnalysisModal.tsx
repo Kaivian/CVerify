@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Modal, Typography, Tabs, Button } from "@heroui/react";
 import { X, LayoutDashboard, ShieldCheck, Cpu, Users, Award } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { RepositoryAnalysis } from "@/types/repository-analysis.types";
+import type { RepositoryAnalysis } from "@/types/repository-analysis.types";
 import { AnalysisScoreCards } from "./AnalysisScoreCards";
 import { MetricCards } from "./MetricCards";
 import { TechnologyTags } from "./TechnologyTags";
@@ -27,6 +27,12 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
   if (!analysis) return null;
+
+  const {
+    repo = { full_name: "", open_prs: 0, branches: 0 },
+    trust = { explanation: "", classification: "", confidence: 0 },
+    ownership = { user_commit_ratio: 1, total_commits: 1, is_primary_author: true, maintenance_duration_months: 1 }
+  } = analysis;
 
   const tabsList = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -59,7 +65,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                 AI Repository Intelligence Report
               </span>
               <span className="font-extrabold text-foreground font-display select-all text-xl block">
-                {analysis.repo.full_name}
+                {repo.full_name}
               </span>
             </Modal.Heading>
           </Modal.Header>
@@ -101,7 +107,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                           Executive Evaluation Summary
                         </Typography>
                         <Typography type="body-xs" className="text-muted leading-relaxed font-light">
-                          {analysis.scoring.recruiter_summary}
+                          {analysis.narrative?.recruiter_summary || trust.explanation}
                         </Typography>
                       </div>
 
@@ -143,21 +149,21 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                           <div className="space-y-2">
                             <div>
                               <span className="font-bold text-foreground">Contribution Ratio: </span>
-                              The current user is responsible for <strong>{analysis.contribution_stats.user_commit_pct}%</strong> of all commits in this repository.
+                              The current user is responsible for <strong>{(ownership.user_commit_ratio * 100).toFixed(0)}%</strong> of all commits in this repository.
                             </div>
                             <div>
                               <span className="font-bold text-foreground">Commit Profile: </span>
-                              Total commits is <strong>{analysis.contribution_stats.total_commits}</strong>, with <strong>{analysis.contribution_stats.user_commits}</strong> authored by the target developer profile.
+                              Total commits is <strong>{ownership.total_commits}</strong>, spanning a maintenance duration of <strong>{ownership.maintenance_duration_months}</strong> months.
                             </div>
                           </div>
                           <div className="space-y-2">
                             <div>
                               <span className="font-bold text-foreground">Branch Management: </span>
-                              Codebase is deployed across <strong>{analysis.contribution_stats.branches_count}</strong> active branches with <strong>{analysis.repo.open_prs}</strong> open pull requests.
+                              Codebase is deployed across <strong>{repo.branches}</strong> active branches with <strong>{repo.open_prs}</strong> open pull requests.
                             </div>
                             <div>
-                              <span className="font-bold text-foreground">Collaboration Footprint: </span>
-                              Analysis identified <strong>{analysis.contribution_stats.contributors_count}</strong> active contributors involved in writing or reviewing code.
+                              <span className="font-bold text-foreground">Ownership Signal: </span>
+                              Target developer is classified as the <strong>{ownership.is_primary_author ? "Primary Author" : "Collaborator"}</strong> of this codebase.
                             </div>
                           </div>
                         </div>

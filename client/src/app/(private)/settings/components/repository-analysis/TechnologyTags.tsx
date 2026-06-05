@@ -1,13 +1,25 @@
 import React from "react";
 import { Chip, Typography } from "@heroui/react";
-import { RepositoryAnalysis } from "@/types/repository-analysis.types";
+import type { RepositoryAnalysis } from "@/types/repository-analysis.types";
 
 interface TechnologyTagsProps {
   analysis: RepositoryAnalysis;
 }
 
 export const TechnologyTags: React.FC<TechnologyTagsProps> = ({ analysis }) => {
-  const { repo, skill_tree } = analysis;
+  const {
+    repo,
+    profile = {
+      technologies: [],
+      skills: {},
+      architecture: { patterns: [], explanation: "" },
+      engineering_practices: {
+        testing: { frameworks: [], has_tests: false, detail: "" },
+        observability: { logging_configured: false, metrics_configured: false, detail: "" },
+        cicd: { configured: false, providers: [] }
+      }
+    }
+  } = analysis;
 
   return (
     <div className="space-y-4.5 text-left font-sans select-none">
@@ -31,14 +43,14 @@ export const TechnologyTags: React.FC<TechnologyTagsProps> = ({ analysis }) => {
         </div>
       </div>
 
-      {/* Categorized Stacks from Skill Tree */}
-      {Object.entries(skill_tree).map(([category, skills]) => (
+      {/* Categorized Stacks from Profile Skills */}
+      {Object.entries(profile.skills).map(([category, skills]) => (
         <div key={category} className="space-y-2">
           <Typography type="body-xs" className="text-muted font-bold uppercase tracking-wider text-[9px]">
             {category} Stacks & Frameworks
           </Typography>
           <div className="flex flex-wrap gap-2">
-            {Object.keys(skills).map((skillName) => (
+            {skills.map((skillName) => (
               <Chip
                 key={skillName}
                 variant="soft"

@@ -18,13 +18,10 @@ import {
   Skeleton,
   Link,
 } from "@heroui/react";
-import { PaginationWrapper } from "@/components/ui/pagination-wrapper";
 import { Github, Gitlab } from "@thesvg/react";
 import {
-  ArrowLeft,
   Search,
   RefreshCw,
-  ExternalLink,
   Lock,
   Globe,
   Star,
@@ -32,17 +29,15 @@ import {
   CheckCircle2,
   AlertCircle,
   Info,
-  FolderTree,
-  ChevronDown,
   Sparkles,
 } from "lucide-react";
 import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
-import {
+import type {
   SourceCodeProvider,
   SourceCodeRepository,
 } from "@/types/source-code-provider.types";
 import { useDebounce } from "@/hooks/use-debounce";
-import { AnalysisStatus, RepositoryAnalysis } from "@/types/repository-analysis.types";
+import type { AnalysisStatus, RepositoryAnalysis } from "@/types/repository-analysis.types";
 import { repositoryAnalysisApi } from "@/services/repository-analysis.service";
 import { AnalysisStatusBadge } from "../components/repository-analysis/AnalysisStatusBadge";
 import { DetailedAnalysisModal } from "../components/repository-analysis/DetailedAnalysisModal";
@@ -63,9 +58,9 @@ const POPULAR_LANGUAGES = [
   "CSS",
 ];
 
-const getRiskLevel = (multiplier: number) => {
-  if (multiplier >= 0.8) return { label: "Low Risk", color: "success" as const };
-  if (multiplier >= 0.5) return { label: "Medium Risk", color: "warning" as const };
+const getRiskLevel = (confidence: number) => {
+  if (confidence >= 80) return { label: "Low Risk", color: "success" as const };
+  if (confidence >= 50) return { label: "Medium Risk", color: "warning" as const };
   return { label: "High Risk", color: "danger" as const };
 };
 
@@ -105,6 +100,7 @@ export default function SourceCodeProvidersPage() {
 
   const activeJobsRef = useRef<Record<string, string>>({});
   const eventSourcesRef = useRef<Record<string, EventSource>>({});
+  const loadedReportsRef = useRef<Record<string, boolean>>({});
 
 
 
@@ -197,7 +193,7 @@ export default function SourceCodeProvidersPage() {
           setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "success" }));
           toast.success("Repository analysis completed successfully!");
           loadRepositories();
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error("Failed to load completed analysis report:", err);
           setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
         }
@@ -256,7 +252,7 @@ export default function SourceCodeProvidersPage() {
     };
   }, [loadRepositories]);
 
-  const handleAnalyzeRepository = async (repoId: string, repoName: string, repoOwner: string) => {
+  const handleAnalyzeRepository = async (repoId: string, _repoName: string, _repoOwner: string) => {
     setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "analyzing" }));
     setAnalysisProgress((prev) => ({ ...prev, [repoId]: 0 }));
     setAnalysisSteps((prev) => ({ ...prev, [repoId]: "Initializing..." }));
@@ -281,11 +277,12 @@ export default function SourceCodeProvidersPage() {
       }
 
       connectToProgressStream(repoId, jobId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Repository analysis trigger failed:", err);
+      const axiosError = err as { response?: { data?: { message?: string } }; message?: string };
       setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
       toast.danger("Repository analysis failed", {
-        description: err.response?.data?.message || err.message || "An unexpected error occurred during AI analysis."
+        description: axiosError.response?.data?.message || axiosError.message || "An unexpected error occurred during AI analysis."
       });
     }
   };
@@ -296,9 +293,10 @@ export default function SourceCodeProvidersPage() {
     try {
       await repositoryAnalysisApi.cancelJob(jobId);
       toast.success("Analysis cancellation requested.");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { message?: string } }; message?: string };
       toast.danger("Failed to cancel analysis", {
-        description: err.response?.data?.message || err.message
+        description: axiosError.response?.data?.message || axiosError.message
       });
     }
   };
@@ -335,8 +333,9 @@ export default function SourceCodeProvidersPage() {
 
     checkActiveJobs();
 
+    const currentEventSources = eventSourcesRef.current;
     return () => {
-      Object.values(eventSourcesRef.current).forEach((es) => es.close());
+      Object.values(currentEventSources).forEach((es) => es.close());
     };
   }, [connectToProgressStream]);
 
@@ -345,12 +344,14 @@ export default function SourceCodeProvidersPage() {
     if (repositories.length === 0) return;
 
     repositories.forEach(async (repo) => {
-      if (repo.isVerified && !analysisResults[repo.id] && !activeJobsRef.current[repo.id]) {
+      if (repo.isVerified && !loadedReportsRef.current[repo.id] && !activeJobsRef.current[repo.id]) {
+        loadedReportsRef.current[repo.id] = true;
         try {
           const report = await repositoryAnalysisApi.getLatestReport(repo.id);
           setAnalysisResults((prev) => ({ ...prev, [repo.id]: report }));
           setAnalysisStatuses((prev) => ({ ...prev, [repo.id]: "success" }));
         } catch (err) {
+          loadedReportsRef.current[repo.id] = false;
           console.error(`Failed to load report for repository ${repo.id}:`, err);
         }
       }
@@ -359,13 +360,19 @@ export default function SourceCodeProvidersPage() {
 
   // Load initial data
   useEffect(() => {
-    loadProviders();
+    const timer = setTimeout(() => {
+      loadProviders();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [loadProviders]);
 
   // Trigger initial fetch when filters change (always resets to page 1)
   useEffect(() => {
-    setPage(1);
-    fetchRepos(1, true);
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchRepos(1, true);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, fetchRepos]);
 
   // Infinite Scroll page fetching action
@@ -454,8 +461,9 @@ export default function SourceCodeProvidersPage() {
 
   // Clean up intervals on unmount
   useEffect(() => {
+    const currentIntervals = pollingIntervals.current;
     return () => {
-      Object.values(pollingIntervals.current).forEach(clearInterval);
+      Object.values(currentIntervals).forEach(clearInterval);
     };
   }, []);
 
@@ -465,7 +473,7 @@ export default function SourceCodeProvidersPage() {
       const response = await sourceCodeProviderApi.syncProvider(providerId);
       toast.info(`Sync queued for ${providerName === "github" ? "GitHub" : "GitLab"}.`);
       startPollingJob(response.jobId, providerId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.danger("Could not initiate sync. Rate limit cooldown may be active.");
     }
@@ -477,7 +485,7 @@ export default function SourceCodeProvidersPage() {
       const response = await sourceCodeProviderApi.syncAll();
       toast.info("Global sync job initiated.");
       startPollingJob(response.jobId, null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast.danger("Could not initiate global sync. Cooldown may be active.");
     }
@@ -492,10 +500,7 @@ export default function SourceCodeProvidersPage() {
 
   const isGlobalSyncing = Object.keys(activeSyncJobs).length > 0;
 
-  const totalPages = Math.ceil(totalCount / pageSize);
-
   const renderRepositoryCard = (repo: SourceCodeRepository) => {
-    const provider = providers.find((p) => p.id === repo.authProviderId);
     const status = analysisStatuses[repo.id] || "idle";
     const analysisResult = analysisResults[repo.id];
 
@@ -645,46 +650,38 @@ export default function SourceCodeProvidersPage() {
                   <Sparkles className="size-3.5" /> AI Analysis
                 </span>
                 <div className="flex items-center gap-2">
-                  <AnalysisStatusBadge status="success" band={analysisResult.scoring.band} />
+                  <AnalysisStatusBadge status="success" />
                 </div>
               </div>
 
               {/* 2x2 Grid of indicators */}
               <div className="grid grid-cols-2 gap-3 p-3 bg-surface-secondary/30 border border-border/40 rounded-lg text-left mb-3">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[9px] text-muted uppercase tracking-wider font-medium">Overall Score</span>
+                  <span className="text-[9px] text-muted uppercase tracking-wider font-medium">Evidence Strength</span>
                   <span className="text-xs font-black text-foreground font-mono">
-                    {analysisResult.scoring.final_score} <span className="text-[10px] text-muted font-normal">/ 100</span>
+                    {analysisResult.evidence_points?.total ?? 0} <span className="text-[10px] text-muted font-normal">EP</span>
                   </span>
                 </div>
 
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[9px] text-muted uppercase tracking-wider font-medium">Trust Score</span>
+                  <span className="text-[9px] text-muted uppercase tracking-wider font-medium">Trust Level</span>
                   <span className="text-xs font-black text-foreground font-mono">
-                    {(analysisResult.fraud_multiplier * 100).toFixed(0)}%
+                    {analysisResult.trust?.confidence ?? 0}%
                   </span>
                 </div>
 
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[9px] text-muted uppercase tracking-wider font-medium">Verification</span>
-                  <div>
-                    {analysisResult.fraud_multiplier >= 0.8 ? (
-                      <Chip size="sm" color="success" variant="soft" className="h-4.5 px-1.5 text-[8.5px] font-extrabold uppercase">
-                        Verified
-                      </Chip>
-                    ) : (
-                      <Chip size="sm" color="default" variant="soft" className="h-4.5 px-1.5 text-[8.5px] font-extrabold uppercase bg-foreground/5 text-muted-foreground">
-                        Unverified
-                      </Chip>
-                    )}
-                  </div>
+                  <span className="text-[9px] text-muted uppercase tracking-wider font-medium">Classification</span>
+                  <span className="text-xs font-bold text-foreground truncate block">
+                    {analysisResult.classification?.primary_type ?? "Unclassified"}
+                  </span>
                 </div>
 
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[9px] text-muted uppercase tracking-wider font-medium">Risk Level</span>
                   <div>
                     {(() => {
-                      const risk = getRiskLevel(analysisResult.fraud_multiplier);
+                      const risk = getRiskLevel(analysisResult.trust?.confidence ?? 0);
                       return (
                         <Chip size="sm" color={risk.color} variant="soft" className="h-4.5 px-1.5 text-[8.5px] font-extrabold uppercase">
                           {risk.label}
@@ -696,13 +693,13 @@ export default function SourceCodeProvidersPage() {
               </div>
 
               {/* Skill Highlights */}
-              {analysisResult.scoring.top_strengths.length > 0 && (
+              {analysisResult.narrative?.top_strengths && analysisResult.narrative.top_strengths.length > 0 && (
                 <div className="flex flex-col gap-1.5 mb-3 text-left">
                   <span className="text-[9px] text-muted uppercase tracking-wider font-extrabold ">Top Skills</span>
                   <div className="flex flex-wrap gap-1">
-                    {analysisResult.scoring.top_strengths.slice(0, 3).map((skill, idx) => (
+                    {analysisResult.narrative.top_strengths.slice(0, 3).map((strengthItem, idx) => (
                       <Chip key={idx} size="sm" variant="soft" className="text-[9px] font-bold">
-                        {skill}
+                        {strengthItem.strength}
                       </Chip>
                     ))}
                   </div>
@@ -713,7 +710,7 @@ export default function SourceCodeProvidersPage() {
               <div className="flex flex-col gap-1 text-left">
                 <span className="text-[9px] text-muted uppercase tracking-wider font-extrabold ">AI Summary</span>
                 <p className="text-[11px] text-muted leading-relaxed">
-                  {analysisResult.scoring.recruiter_summary}
+                  {analysisResult.narrative?.recruiter_summary || analysisResult.trust?.explanation || ""}
                 </p>
               </div>
             </motion.div>
@@ -742,39 +739,52 @@ export default function SourceCodeProvidersPage() {
 
           <div className="flex items-center gap-2">
             {repo.isAccessible && (
-              <Button
-                size="sm"
-                variant={
-                  status === "success"
-                    ? "secondary"
-                    : status === "error"
-                      ? "danger"
-                      : "primary"
-                }
-                className="text-xs font-bold rounded-xl"
-                onClick={() => {
-                  if (status === "success") {
-                    setSelectedAnalysis(analysisResult);
-                    setIsModalOpen(true);
-                  } else {
-                    handleAnalyzeRepository(repo.id, repo.name, repo.owner);
-                  }
-                }}
-                isDisabled={status === "analyzing"}
-              >
-                {status === "analyzing" ? (
-                  <>
-                    <Spinner size="sm" color="current" className="mr-1" />
-                    <span>Analyzing...</span>
-                  </>
-                ) : status === "success" ? (
-                  <span>View Details</span>
-                ) : status === "error" ? (
-                  <span>Retry Analysis</span>
-                ) : (
-                  <span>Analyze</span>
+              <>
+                {status === "success" && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="text-xs font-bold rounded-xl flex items-center gap-1"
+                    onClick={() => handleAnalyzeRepository(repo.id, repo.name, repo.owner)}
+                  >
+                    <RefreshCw size={12} className="shrink-0" />
+                    <span>Reanalyze</span>
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  size="sm"
+                  variant={
+                    status === "success"
+                      ? "secondary"
+                      : status === "error"
+                        ? "danger"
+                        : "primary"
+                  }
+                  className="text-xs font-bold rounded-xl"
+                  onClick={() => {
+                    if (status === "success") {
+                      setSelectedAnalysis(analysisResult);
+                      setIsModalOpen(true);
+                    } else {
+                      handleAnalyzeRepository(repo.id, repo.name, repo.owner);
+                    }
+                  }}
+                  isDisabled={status === "analyzing"}
+                >
+                  {status === "analyzing" ? (
+                    <>
+                      <Spinner size="sm" color="current" className="mr-1" />
+                      <span>Analyzing...</span>
+                    </>
+                  ) : status === "success" ? (
+                    <span>View Details</span>
+                  ) : status === "error" ? (
+                    <span>Retry Analysis</span>
+                  ) : (
+                    <span>Analyze</span>
+                  )}
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -1179,10 +1189,10 @@ export default function SourceCodeProvidersPage() {
                 height += 50;
               } else if (status === "success" && analysisResult) {
                 height += 200; // grade details and grid
-                if (analysisResult.scoring?.top_strengths?.length > 0) {
+                if ((analysisResult.narrative?.top_strengths?.length ?? 0) > 0) {
                   height += 60;
                 }
-                if (analysisResult.scoring?.recruiter_summary) {
+                if (analysisResult.narrative?.recruiter_summary || analysisResult.trust?.explanation) {
                   height += 50;
                 }
               } else {

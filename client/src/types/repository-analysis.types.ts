@@ -16,88 +16,112 @@ export interface RepoInfo {
   open_prs: number;
 }
 
-export interface SourceClassification {
-  case: string;
-  fork: boolean;
-  confidence_base: number;
-}
-
-export interface ContributionStats {
-  total_commits: number;
-  user_commits: number;
-  user_commit_pct: number;
-  contributors_count: number;
-  lines_owned_pct: number | null;
-  prs_authored: number;
-  prs_merged: number;
-  issues_count: number;
-  branches_count: number;
-}
-
-export interface FraudFlag {
-  type: string;
-  severity: "high" | "medium" | "low";
-  detail: string;
-  confidence_penalty: number;
-}
-
-export interface SkillEvidence {
-  type: "language_stat" | "file" | "dependency" | "structure";
-  path?: string;
+export interface RepositoryEvidenceItem {
+  id?: string;
+  type: "file" | "dependency" | "structure" | "commit";
+  path: string | null;
+  line_range: string | null;
   signal: string;
 }
 
-export interface SkillDetails {
-  level: "beginner" | "intermediate" | "advanced";
+export interface RepositoryEvidenceFinding {
+  id?: string;
+  category: string;
+  finding: string;
   confidence: number;
-  evidence_type: "verified" | "inferred";
-  evidence: SkillEvidence[];
+  evidence: RepositoryEvidenceItem[];
+  explanation: string;
 }
 
-export type SkillTreeCategory = Record<string, SkillDetails>;
-
-export type SkillTree = Record<string, SkillTreeCategory>;
-
-export interface ScoreDetail {
-  score: number;
-  note: string;
+export interface RepositoryClassification {
+  primary_type: string; // e.g. "SaaS Platform"
+  all_types: string[];  // e.g. ["SaaS Platform", "AI Project"]
+  complexity: "low" | "medium" | "high";
+  benchmark_group: string; // e.g. "saas_platforms"
 }
 
-export interface DimensionBreakdown {
-  technical_depth: ScoreDetail;
-  code_quality_signals: ScoreDetail;
-  contribution_quality: ScoreDetail;
+export interface EvidencePoints {
+  total: number;
+  breakdown: Record<string, number>;
 }
 
-export interface Scoring {
-  raw_score: number;
-  fraud_multiplier: number;
-  final_score: number;
-  band: string;
-  verdict: string;
-  dimension_breakdown: DimensionBreakdown;
-  top_strengths: string[];
-  improvement_areas: string[];
+export interface OwnershipDetails {
+  user_commit_ratio: number;
+  total_commits: number;
+  is_primary_author: boolean;
+  architectural_ownership_pct: number;
+  critical_path_ownership_pct: number;
+  maintenance_duration_months: number;
+  explanation: string;
+}
+
+export interface TrustProfile {
+  classification: "personal_authentic" | "fork_rebranded" | "template_dump" | "collaboration";
+  confidence: number;
+  rule_flags: string[];
+  ai_findings: string[];
+  explanation: string;
+}
+
+export interface ComparativePositioning {
+  benchmark_group: string;
+  percentile_rank: number;
+  peer_group_size: number;
+  relative_strengths: string[];
+}
+
+export interface TechnologyItem {
+  name: string;
+  type: "language" | "framework" | "database" | "library" | "infrastructure";
+}
+
+export interface RepositoryProfileDetail {
+  technologies: TechnologyItem[];
+  skills: Record<string, string[]>;
+  architecture: {
+    patterns: string[];
+    explanation: string;
+  };
+  engineering_practices: {
+    testing: {
+      frameworks: string[];
+      has_tests: boolean;
+      detail: string;
+    };
+    observability: {
+      logging_configured: boolean;
+      metrics_configured: boolean;
+      detail: string;
+    };
+    cicd: {
+      configured: boolean;
+      providers: string[];
+    };
+  };
+}
+
+export interface RepositoryNarrative {
   recruiter_summary: string;
-}
-
-export interface UIHints {
-  show_fraud_warning: boolean;
-  fraud_badge: string;
-  show_skill_tree: boolean;
-  show_score: boolean;
-  prompt_recruiter_note: string;
+  top_strengths: Array<{
+    strength: string;
+    rationale: string;
+  }>;
+  limitations: Array<{
+    limitation: string;
+    rationale: string;
+  }>;
 }
 
 export interface RepositoryAnalysis {
   repo: RepoInfo;
-  source_classification: SourceClassification;
-  contribution_stats: ContributionStats;
-  fraud_flags: FraudFlag[];
-  fraud_multiplier: number;
-  skill_tree: SkillTree;
-  scoring: Scoring;
-  ui_hints: UIHints;
+  classification: RepositoryClassification;
+  evidence_points: EvidencePoints;
+  ownership: OwnershipDetails;
+  trust: TrustProfile;
+  positioning: ComparativePositioning;
+  profile: RepositoryProfileDetail;
+  findings: RepositoryEvidenceFinding[];
+  narrative?: RepositoryNarrative; // Decoupled and loaded dynamically
 }
 
 export interface AnalysisJob {
@@ -123,3 +147,4 @@ export interface AnalysisJobEvent {
   message: string;
   createdAtUtc: string;
 }
+

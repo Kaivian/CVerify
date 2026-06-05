@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Modal, Button, Typography } from "@heroui/react";
-import { AlertTriangle, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -43,7 +43,10 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   // Reset input when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
-      setInputValue("");
+      const timer = setTimeout(() => {
+        setInputValue("");
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 

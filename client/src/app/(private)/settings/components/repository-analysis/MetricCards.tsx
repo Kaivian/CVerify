@@ -2,21 +2,24 @@ import React from "react";
 import {
   Star,
   GitFork,
-  Eye,
-  Users,
   GitCommit,
   GitPullRequest,
-  AlertCircle,
   GitBranch,
+  Crown,
+  FileCode2,
+  CalendarDays,
 } from "lucide-react";
-import { RepositoryAnalysis } from "@/types/repository-analysis.types";
+import type { RepositoryAnalysis } from "@/types/repository-analysis.types";
 
 interface MetricCardsProps {
   analysis: RepositoryAnalysis;
 }
 
 export const MetricCards: React.FC<MetricCardsProps> = ({ analysis }) => {
-  const { repo, contribution_stats } = analysis;
+  const {
+    repo,
+    ownership = { user_commit_ratio: 1, total_commits: 1, is_primary_author: true, architectural_ownership_pct: 100, critical_path_ownership_pct: 100, maintenance_duration_months: 1, explanation: "" }
+  } = analysis;
 
   const metrics = [
     {
@@ -41,23 +44,23 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ analysis }) => {
     },
     {
       label: "Total Commits",
-      value: contribution_stats.total_commits,
+      value: ownership.total_commits,
       icon: <GitCommit className="size-4 text-accent" />,
     },
     {
-      label: "Contributors",
-      value: contribution_stats.contributors_count,
-      icon: <Users className="size-4 text-accent" />,
+      label: "Architectural Share",
+      value: `${ownership.architectural_ownership_pct}%`,
+      icon: <Crown className="size-4 text-yellow-500" />,
     },
     {
-      label: "Author PRs",
-      value: contribution_stats.prs_authored,
-      icon: <GitPullRequest className="size-4 text-accent" />,
+      label: "Critical Path Share",
+      value: `${ownership.critical_path_ownership_pct}%`,
+      icon: <FileCode2 className="size-4 text-primary" />,
     },
     {
-      label: "Issues Count",
-      value: contribution_stats.issues_count,
-      icon: <AlertCircle className="size-4 text-muted-foreground" />,
+      label: "Active Duration",
+      value: `${ownership.maintenance_duration_months} Mos`,
+      icon: <CalendarDays className="size-4 text-muted-foreground" />,
     },
   ];
 
