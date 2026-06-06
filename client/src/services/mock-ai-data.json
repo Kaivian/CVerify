@@ -1,0 +1,169 @@
+{
+  "repo": {
+    "id": "1182179234",
+    "name": "DWatch",
+    "full_name": "TNL293107/DWatch",
+    "url": "https://github.com/TNL293107/DWatch",
+    "description": "Ứng dụng web bán đồng hồ e-commerce — Java Servlet/JSP, Maven, SQL Server",
+    "fork": false,
+    "created_at": "2025-06-01T08:00:00Z",
+    "languages": {
+      "Java": 79.5,
+      "CSS": 18.4,
+      "JavaScript": 1.3,
+      "Other": 0.8
+    },
+    "topics": [],
+    "stars": 0,
+    "forks": 0,
+    "branches": 1,
+    "open_prs": 1
+  },
+  "classification": {
+    "primary_type": "SaaS Platform",
+    "all_types": ["SaaS Platform", "E-Commerce App"],
+    "complexity": "medium",
+    "benchmark_group": "saas_platforms"
+  },
+  "evidence_points": {
+    "total": 450,
+    "breakdown": {
+      "backend": 240,
+      "database": 110,
+      "frontend": 60,
+      "devops": 40,
+      "security": 0
+    }
+  },
+  "ownership": {
+    "user_commit_ratio": 1.0,
+    "total_commits": 6,
+    "is_primary_author": true,
+    "architectural_ownership_pct": 100.0,
+    "critical_path_ownership_pct": 95.0,
+    "maintenance_duration_months": 1,
+    "explanation": "The developer created and initialized the entire repository. However, the commit frequency represents a single-shot upload of code rather than active ongoing maintenance."
+  },
+  "trust": {
+    "classification": "template_dump",
+    "confidence": 45,
+    "rule_flags": [
+      "low_commit_density (6 commits for a complete codebase)",
+      "single_commit_dump (large initial codebase file dump)"
+    ],
+    "ai_findings": [
+      "Stylistic structure matches a standard classroom university template",
+      "Redundant comments describing elementary programming concepts"
+    ],
+    "explanation": "High probability of template duplication or project dump. The code features complex patterns like 14 servlets and payment processing but was uploaded in only 6 commits with minimal commit comments."
+  },
+  "positioning": {
+    "benchmark_group": "saas_platforms",
+    "percentile_rank": 35,
+    "peer_group_size": 1280,
+    "relative_strengths": [
+      "Demonstrates complete servlet structure mapping",
+      "Features payment module integration"
+    ]
+  },
+  "profile": {
+    "technologies": [
+      { "name": "Java", "type": "language" },
+      { "name": "Servlet", "type": "framework" },
+      { "name": "JSP", "type": "framework" },
+      { "name": "SQL Server", "type": "database" },
+      { "name": "Maven", "type": "infrastructure" },
+      { "name": "Docker", "type": "infrastructure" }
+    ],
+    "skills": {
+      "backend": ["Java", "Servlet", "JSP"],
+      "database": ["SQL Server", "JDBC"],
+      "frontend": ["HTML", "CSS", "JavaScript"]
+    },
+    "architecture": {
+      "patterns": ["Model-View-Controller (MVC)", "Data Access Object (DAO)"],
+      "explanation": "Traditional Java EE pattern with separation of database CRUD queries (DAO) from routing controllers (Servlets) and templates (JSPs)."
+    },
+    "engineering_practices": {
+      "testing": {
+        "frameworks": [],
+        "has_tests": false,
+        "detail": "No unit tests or JUnit dependencies registered in pom.xml."
+      },
+      "observability": {
+        "logging_configured": false,
+        "metrics_configured": false,
+        "detail": "System.out.println statements used instead of loggers."
+      },
+      "cicd": {
+        "configured": false,
+        "providers": []
+      }
+    }
+  },
+  "findings": [
+    {
+      "category": "backend",
+      "finding": "Java EE Model-View-Controller Pattern",
+      "confidence": 90,
+      "explanation": "Separates the business entity schemas from template views and servlet handlers.",
+      "evidence": [
+        {
+          "type": "file",
+          "path": "src/main/java/servlet/HomeServlet.java",
+          "line_range": "1-50",
+          "signal": "Handles GET requests and forwards attributes to home.jsp."
+        },
+        {
+          "type": "structure",
+          "path": "src/main/webapp/WEB-INF/web.xml",
+          "line_range": "10-30",
+          "signal": "Configures servlet routing patterns."
+        }
+      ]
+    },
+    {
+      "category": "database",
+      "finding": "Data Access Object JDBC CRUD Operations",
+      "confidence": 85,
+      "explanation": "Performs SQL query mappings via raw PreparedStatement mapping connections.",
+      "evidence": [
+        {
+          "type": "file",
+          "path": "src/main/java/dao/ProductDAO.java",
+          "line_range": "20-80",
+          "signal": "Prepares SELECT statements and populates Product models from SQL Server connection."
+        }
+      ]
+    },
+    {
+      "category": "devops",
+      "finding": "Containerized Development Context",
+      "confidence": 95,
+      "explanation": "Containerizes the Tomcat server and deployment WAR configurations.",
+      "evidence": [
+        {
+          "type": "file",
+          "path": "Dockerfile",
+          "line_range": "1-15",
+          "signal": "Declares tomcat:9.0 base image and copies target DWatch.war."
+        }
+      ]
+    }
+  ],
+  "narrative": {
+    "recruiter_summary": "The repository contains a fully functional Java EE watch store with database schemas and Dockerization. However, it displays strong markers of a template dump or school project (uploaded in bulk, no test code, sparse git history), meaning candidate ownership remains unverifiable.",
+    "top_strengths": [
+      {
+        "strength": "Complete e-commerce logic",
+        "rationale": "Implements shopping cart session structures, administrative screens, and payments."
+      }
+    ],
+    "limitations": [
+      {
+        "limitation": "Zero testing coverage",
+        "rationale": "Codebase contains no unit or integration tests, indicating potential gap in engineering discipline."
+      }
+    ]
+  }
+}

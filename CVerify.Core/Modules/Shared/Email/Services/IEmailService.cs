@@ -19,6 +19,8 @@ public interface IEmailService
         string toEmail,
         string fullName,
         string verificationLink,
+        string? correlationId = null,
+        string? outboxId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -27,11 +29,15 @@ public interface IEmailService
     /// <param name="toEmail">The target email address.</param>
     /// <param name="fullName">The recipient's full name.</param>
     /// <param name="resetLink">The fully qualified password reset URL.</param>
+    /// <param name="correlationId">Optional tracking trace identifier.</param>
+    /// <param name="outboxId">Optional outbox message identifier.</param>
     /// <param name="cancellationToken">Cancellation token trace.</param>
     Task SendResetPasswordEmailAsync(
         string toEmail,
         string fullName,
         string resetLink,
+        string? correlationId = null,
+        string? outboxId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -39,25 +45,33 @@ public interface IEmailService
     /// </summary>
     /// <param name="toEmail">The target email address.</param>
     /// <param name="fullName">The recipient's full name.</param>
+    /// <param name="correlationId">Optional tracking trace identifier.</param>
+    /// <param name="outboxId">Optional outbox message identifier.</param>
     /// <param name="cancellationToken">Cancellation token trace.</param>
     Task SendWelcomeEmailAsync(
         string toEmail,
         string fullName,
+        string? correlationId = null,
+        string? outboxId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Delivers an OTP code to verify identity during signup/login flows.
     /// </summary>
     /// <param name="toEmail">The target email address.</param>
-    /// <param name="fullName">The recipient's full name.</param>
+    /// <param name="fullName">The recipient's full name (optional to trigger resolution).</param>
     /// <param name="otpCode">The 6-digit verification code.</param>
     /// <param name="templateName">The optional name of the custom HTML template.</param>
+    /// <param name="correlationId">Optional tracking trace identifier.</param>
+    /// <param name="outboxId">Optional outbox message identifier.</param>
     /// <param name="cancellationToken">Cancellation token trace.</param>
     Task SendOtpEmailAsync(
         string toEmail,
-        string fullName,
+        string? fullName,
         string otpCode,
         string? templateName = null,
+        string? correlationId = null,
+        string? outboxId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -66,11 +80,15 @@ public interface IEmailService
     /// <param name="toEmail">The target email address.</param>
     /// <param name="companyName">The name of the company/organization.</param>
     /// <param name="verificationLink">The fully qualified verification URL.</param>
+    /// <param name="correlationId">Optional tracking trace identifier.</param>
+    /// <param name="outboxId">Optional outbox message identifier.</param>
     /// <param name="cancellationToken">Cancellation token trace.</param>
     Task SendCompanyVerificationEmailAsync(
         string toEmail,
         string companyName,
         string verificationLink,
+        string? correlationId = null,
+        string? outboxId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -80,5 +98,20 @@ public interface IEmailService
         string toEmail,
         string alertSubject,
         string alertBody,
+        string? correlationId = null,
+        string? outboxId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Delivers a workspace onboarding welcome notice containing setup checklist and dashboard pathways.
+    /// </summary>
+    Task SendWorkspaceOnboardingEmailAsync(
+        string toEmail,
+        string fullName,
+        string companyName,
+        string workspaceId,
+        string workspaceUrl,
+        string? correlationId = null,
+        string? outboxId = null,
         CancellationToken cancellationToken = default);
 }

@@ -8,6 +8,7 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Email.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
+using CVerify.API.Modules.SourceCode.Entities;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
@@ -96,6 +97,14 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<PendingAuthProvider> PendingAuthProviders => Set<PendingAuthProvider>();
+    public DbSet<SourceCodeRepository> SourceCodeRepositories => Set<SourceCodeRepository>();
+    public DbSet<AnalysisJob> AnalysisJobs => Set<AnalysisJob>();
+    public DbSet<AnalysisJobEvent> AnalysisJobEvents => Set<AnalysisJobEvent>();
+    public DbSet<AnalysisReport> AnalysisReports => Set<AnalysisReport>();
+    public DbSet<AnalysisTask> AnalysisTasks => Set<AnalysisTask>();
+    public DbSet<AnalysisTaskResult> AnalysisTaskResults => Set<AnalysisTaskResult>();
+    public DbSet<AnalysisTaskEvent> AnalysisTaskEvents => Set<AnalysisTaskEvent>();
+    public DbSet<AnalysisExecution> AnalysisExecutions => Set<AnalysisExecution>();
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
     public DbSet<UserPreferredLocation> UserPreferredLocations => Set<UserPreferredLocation>();
@@ -160,6 +169,12 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<RepresentativeApprovalVote>().Property(v => v.Id).ValueGeneratedNever();
         modelBuilder.Entity<RepresentativeAuthorityHistory>().Property(h => h.Id).ValueGeneratedNever();
         modelBuilder.Entity<UserEmail>().Property(ue => ue.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AnalysisJob>().Property(j => j.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AnalysisJobEvent>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AnalysisReport>().Property(r => r.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AnalysisTask>().Property(t => t.Id).ValueGeneratedNever();
+        modelBuilder.Entity<AnalysisTaskResult>().Property(r => r.TaskId).ValueGeneratedNever();
+        modelBuilder.Entity<AnalysisTaskEvent>().Property(e => e.Id).ValueGeneratedNever();
 
         // Enable PostgreSQL Extensions
         modelBuilder.HasPostgresExtension("citext");
@@ -421,6 +436,137 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(oc => oc.AuthProvider)
                   .WithOne(ap => ap.OAuthCredential)
                   .HasForeignKey<OAuthCredential>(oc => oc.AuthProviderId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // SourceCodeRepository configurations
+        modelBuilder.Entity<SourceCodeRepository>(entity =>
+        {
+            entity.ToTable("source_code_repositories");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).ValueGeneratedNever();
+            entity.HasIndex(r => new { r.AuthProviderId, r.ExternalRepositoryId })
+                  .IsUnique()
+                  .HasDatabaseName("idx_source_code_repositories_external_active");
+            entity.HasOne(r => r.AuthProvider)
+                  .WithMany()
+                  .HasForeignKey(r => r.AuthProviderId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalysisJob configurations
+        modelBuilder.Entity<AnalysisJob>(entity =>
+        {
+            entity.ToTable("analysis_jobs");
+            entity.HasKey(j => j.Id);
+            entity.Property(j => j.Id).ValueGeneratedNever();
+            entity.HasIndex(j => j.RepositoryId).HasDatabaseName("idx_analysis_jobs_repository_id");
+            entity.HasIndex(j => j.UserId).HasDatabaseName("idx_analysis_jobs_user_id");
+
+            entity.HasOne(j => j.Repository)
+                  .WithMany()
+                  .HasForeignKey(j => j.RepositoryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(j => j.User)
+                  .WithMany()
+                  .HasForeignKey(j => j.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalysisJobEvent configurations
+        modelBuilder.Entity<AnalysisJobEvent>(entity =>
+        {
+            entity.ToTable("analysis_job_events");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.HasIndex(e => e.JobId).HasDatabaseName("idx_analysis_job_events_job_id");
+
+            entity.HasOne(e => e.Job)
+                  .WithMany()
+                  .HasForeignKey(e => e.JobId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalysisReport configurations
+        modelBuilder.Entity<AnalysisReport>(entity =>
+        {
+            entity.ToTable("analysis_reports");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).ValueGeneratedNever();
+            entity.HasIndex(r => r.JobId).IsUnique().HasDatabaseName("idx_analysis_reports_job_id");
+            entity.HasIndex(r => r.RepositoryId).HasDatabaseName("idx_analysis_reports_repository_id");
+
+            entity.HasOne(r => r.Job)
+                  .WithOne()
+                  .HasForeignKey<AnalysisReport>(r => r.JobId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(r => r.Repository)
+                  .WithMany()
+                  .HasForeignKey(r => r.RepositoryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalysisTask configurations
+        modelBuilder.Entity<AnalysisTask>(entity =>
+        {
+            entity.ToTable("analysis_tasks");
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.Id).ValueGeneratedNever();
+            entity.HasIndex(t => t.JobId).HasDatabaseName("idx_analysis_tasks_job_id");
+            entity.HasIndex(t => new { t.JobId, t.TaskType }).IsUnique().HasDatabaseName("idx_analysis_tasks_job_id_task_type");
+
+            entity.HasOne(t => t.Job)
+                  .WithMany()
+                  .HasForeignKey(t => t.JobId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalysisTaskResult configurations
+        modelBuilder.Entity<AnalysisTaskResult>(entity =>
+        {
+            entity.ToTable("analysis_task_results");
+            entity.HasKey(r => r.TaskId);
+            entity.Property(r => r.TaskId).ValueGeneratedNever();
+
+            entity.HasOne(r => r.Task)
+                  .WithOne()
+                  .HasForeignKey<AnalysisTaskResult>(r => r.TaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalysisTaskEvent configurations
+        modelBuilder.Entity<AnalysisTaskEvent>(entity =>
+        {
+            entity.ToTable("analysis_task_events");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.HasIndex(e => e.TaskId).HasDatabaseName("idx_analysis_task_events_task_id");
+
+            entity.HasOne(e => e.Task)
+                  .WithMany()
+                  .HasForeignKey(e => e.TaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalysisExecution configurations
+        modelBuilder.Entity<AnalysisExecution>(entity =>
+        {
+            entity.ToTable("analysis_executions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.HasIndex(e => e.TaskId).HasDatabaseName("idx_analysis_executions_task_id");
+            entity.HasIndex(e => e.JobId).HasDatabaseName("idx_analysis_executions_job_id");
+
+            entity.HasOne(e => e.Task)
+                  .WithMany()
+                  .HasForeignKey(e => e.TaskId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Job)
+                  .WithMany()
+                  .HasForeignKey(e => e.JobId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 

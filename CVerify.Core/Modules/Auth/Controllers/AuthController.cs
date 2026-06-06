@@ -467,10 +467,11 @@ public class AuthController : ControllerBase
         }
 
         var state = Guid.NewGuid().ToString("N");
+        var isDevelopment = string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase);
         var cookieOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
+            Secure = !isDevelopment,
             SameSite = SameSiteMode.Lax,
             Expires = DateTimeOffset.UtcNow.AddMinutes(5)
         };

@@ -2,6 +2,7 @@ import React from 'react';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { Compass, Briefcase, MapPin, Link as LinkIcon, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Typography, Card, Button } from '@heroui/react';
 import { API_URL } from '@/services/axios-client';
 import { type PublicProfileResponse } from '@/types/profile.types';
@@ -90,10 +91,13 @@ export default async function PublicProfilePage({ params }: PageProps) {
           {/* User Avatar */}
           <div className="relative w-28 h-28 rounded-full border-2 border-indigo-500/30 overflow-hidden shadow-xl mb-6">
             {profile.avatarUrl ? (
-              <img
+              <Image
                 src={profile.avatarUrl}
                 alt={profile.fullName}
+                width={112}
+                height={112}
                 className="w-full h-full object-cover"
+                unoptimized
               />
             ) : (
               <div className="w-full h-full bg-linear-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-3xl font-extrabold text-white">

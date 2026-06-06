@@ -7,6 +7,15 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>CVerify.API.IntegrationTests</_Parameter1>
+        </AssemblyAttribute>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>CVerify.API.UnitTests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
 
         <!-- PostgreSQL -->
         <PackageReference Include="AWSSDK.S3" Version="3.7.400.67" />
@@ -65,7 +74,7 @@
 
     <!-- Copy physical email templates to output folder during builds -->
     <ItemGroup>
-        <None Update="Modules\Shared\Email\Templates\*.html">
+        <None Update="Modules\Shared\Email\Templates\**\*.html">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>

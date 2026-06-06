@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Database,
   ShieldCheck,
@@ -640,7 +641,7 @@ export default function SystemStatusPage() {
           <span>&copy; {new Date().getFullYear()} CVerify AI Inc. All rights reserved.</span>
         </div>
         <div className="flex items-center gap-4">
-          <a href="/login" className="hover:text-foreground transition-colors">Access Console</a>
+          <Link href="/login" className="hover:text-foreground transition-colors">Access Console</Link>
           <span className="text-muted/40">|</span>
           <span className="text-muted flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

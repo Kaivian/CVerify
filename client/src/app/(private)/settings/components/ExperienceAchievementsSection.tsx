@@ -135,7 +135,7 @@ const TechInput: React.FC<TechInputProps> = ({ experienceIndex, control, setValu
                 <button
                   type="button"
                   onClick={() => handleRemoveTech(tech)}
-                  className="hover:bg-foreground/10 rounded-full p-0.5 transition-colors focus-visible:outline-hidden cursor-pointer"
+                  className="hover:bg-foreground/10 rounded-full p-0.5 transition-colors cursor-pointer focus-ring"
                   aria-label={`Remove technology: ${tech}`}
                 >
                   <svg
@@ -206,11 +206,7 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
   });
 
   // Watch links separately for a custom URL map input layout
-  const repoUrl = useWatch({ control, name: `workExperiences.${index}._links.repo` }) || "";
-  const projectUrl = useWatch({ control, name: `workExperiences.${index}._links.project` }) || "";
-  const portfolioUrl = useWatch({ control, name: `workExperiences.${index}._links.portfolio` }) || "";
-  const demoUrl = useWatch({ control, name: `workExperiences.${index}._links.demo` }) || "";
-  const articleUrl = useWatch({ control, name: `workExperiences.${index}._links.article` }) || "";
+
 
   // Achievements Field Array
   const {
@@ -301,8 +297,12 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
             render={({ field: { value, onChange } }) => (
               <SelectDropdown
                 label="Experience Category"
-                value={value ? value.toString() : ""}
-                onChange={onChange}
+                value={
+                  typeof value === "number" && !Number.isNaN(value)
+                    ? String(value)
+                    : ""
+                }
+                onChange={(v) => onChange(v === "" ? undefined : Number(v))}
                 options={categoryOptions}
                 placeholder="Select category"
               />
@@ -310,7 +310,8 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
           />
           {errors.workExperiences?.[index]?.experienceCategory && (
             <FieldError className="text-danger text-xs mt-1 block">
-              Category is required
+              {errors.workExperiences[index]?.experienceCategory?.message ??
+                "Category is required"}
             </FieldError>
           )}
         </div>
@@ -323,8 +324,12 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
             render={({ field: { value, onChange } }) => (
               <SelectDropdown
                 label="Employment Type"
-                value={value ? value.toString() : ""}
-                onChange={onChange}
+                value={
+                  typeof value === "number" && !Number.isNaN(value)
+                    ? String(value)
+                    : ""
+                }
+                onChange={(v) => onChange(v === "" ? undefined : Number(v))}
                 options={employmentOptions}
                 placeholder="Select employment type"
               />
@@ -332,7 +337,8 @@ const ExperienceEntryItem: React.FC<ExperienceEntryItemProps> = ({
           />
           {errors.workExperiences?.[index]?.employmentType && (
             <FieldError className="text-danger text-xs mt-1 block">
-              Employment type is required
+              {errors.workExperiences[index]?.employmentType?.message ??
+                "Employment type is required"}
             </FieldError>
           )}
         </div>

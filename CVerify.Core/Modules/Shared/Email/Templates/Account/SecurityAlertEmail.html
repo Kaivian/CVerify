@@ -1,0 +1,52 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.danger_dark }}; letter-spacing: -0.4px;">{{ alert_title }}</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    {{ greeting_text }}
+</p>
+
+<p style="margin: 0 0 20px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    {{ alert_message }}
+</p>
+
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0; border: 1px solid {{ colors.border }}; border-radius: 8px; overflow: hidden;">
+    <tr style="background-color: {{ colors.surface_secondary }};">
+        <th align="left" style="padding: 10px 14px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: {{ colors.foreground }}; border-bottom: 1px solid {{ colors.border }}; width: 140px;">Activity Details</th>
+        <th align="left" style="padding: 10px 14px; font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700; color: {{ colors.foreground }}; border-bottom: 1px solid {{ colors.border }};"></th>
+    </tr>
+    <tr>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground_muted }}; border-bottom: 1px solid {{ colors.border }};">Event Type</td>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground }}; border-bottom: 1px solid {{ colors.border }}; font-weight: 500;">{{ activity_type }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground_muted }}; border-bottom: 1px solid {{ colors.border }};">Date & Time</td>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground }}; border-bottom: 1px solid {{ colors.border }}; font-weight: 500;">{{ activity_time }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground_muted }}; border-bottom: 1px solid {{ colors.border }};">IP Address</td>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground }}; border-bottom: 1px solid {{ colors.border }}; font-family: monospace;">{{ ip_address }}</td>
+    </tr>
+    <tr>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: {{ colors.foreground_muted }};">Browser/Device</td>
+        <td style="padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 13px; color: {{ colors.foreground }};">{{ user_agent }}</td>
+    </tr>
+</table>
+
+{{ if action_link }}
+{{ button_url = action_link; button_text = "Lock Account Immediately" }}
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 32px 0;">
+    <tr>
+        <td align="left">
+            <table border="0" cellpadding="0" cellspacing="0" style="border-collapse: separate;">
+                <tr>
+                    <td align="center" style="border-radius: 8px; background-color: {{ colors.danger }};">
+                        <a href="{{ button_url }}" target="_blank" style="display: inline-block; padding: 12px 28px; font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; color: {{ colors.surface }}; text-decoration: none; border-radius: 8px; border: 1px solid {{ colors.danger }}; letter-spacing: -0.2px;">{{ button_text }}</a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+{{ end }}
+
+{{ alert_title = "Important Security Notice"; alert_text = "If this activity was you, you can ignore this alert. If you do not recognize this activity, your account may be compromised. Please lock it immediately and change your password."; alert_bg_color = colors.danger_light; alert_border_color = colors.danger; alert_title_color = colors.danger_dark; alert_text_color = colors.danger_dark }}
+{{ include 'Components/EmailAlert.html' }}

@@ -35,6 +35,8 @@ using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.Shared.Email;
 using CVerify.API.Modules.Shared.Security.Authorization;
 using CVerify.API.Modules.Shared.System.BackgroundWorkers;
+using CVerify.API.Modules.SourceCode.Services;
+using CVerify.API.Modules.SourceCode.BackgroundWorkers;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -85,7 +87,7 @@ if (envPath != null) {
 
 // 2. Validate & Resolve Configuration (Enterprise Clean Code: Fail Fast)
 var envConfig = EnvValidator.Validate(builder.Configuration);
-if (builder.Environment.IsProduction())
+if (builder.Environment.IsProduction() || builder.Environment.EnvironmentName.Equals("Production", StringComparison.OrdinalIgnoreCase))
 {
     if (envConfig.Security.DisableRateLimits)
     {
@@ -375,6 +377,12 @@ builder.Services.AddScoped<ICareerService, CareerService>();
 builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();
 
+// Register Source Code Provider Services
+builder.Services.AddScoped<ISourceCodeProviderService, SourceCodeProviderService>();
+builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueue>();
+builder.Services.AddScoped<IRepositoryAnalysisService, RepositoryAnalysisService>();
+builder.Services.AddSingleton<IRepositoryAnalysisQueue, BackgroundRepositoryAnalysisQueue>();
+
 // Register AI Service
 builder.Services.AddScoped<IHmacSignatureService, HmacSignatureService>();
 builder.Services.AddHttpClient("AiServiceClient", client =>
@@ -391,7 +399,9 @@ builder.Services.AddHostedService<EmailOutboxBackgroundProcessor>();
 builder.Services.AddHostedService<TokenCleanupBackgroundJob>();
 builder.Services.AddHostedService<RecoveryClaimBackgroundWorker>();
 builder.Services.AddHostedService<OtpCleanupBackgroundWorker>();
-builder.Services.AddHostedService<PendingLinkCleanupService>();
+builder.Services.AddHostedService<BackgroundRepositorySyncProcessor>();
+builder.Services.AddHostedService<AnalysisQueueRecoverySweeper>();
+builder.Services.AddHostedService<BackgroundRepositoryAnalysisProcessor>();
 
 
 // Configure JWT Authentication
@@ -427,6 +437,18 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddCustomAuthorization();
 
 var app = builder.Build();
+
+// Startup Diagnostics for Rate Limiting / Environment
+{
+    var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    var rateLimitPolicy = app.Services.GetRequiredService<IRateLimitPolicyService>();
+    startupLogger.LogInformation(
+        "[Startup Diagnostics] Current Environment: {EnvironmentName}, DisableRateLimits Config Value: {DisableRateLimits}, Cooldown Enforcement Active: {CooldownEnforcementActive}",
+        app.Environment.EnvironmentName,
+        rateLimitPolicy.DisableRateLimits,
+        rateLimitPolicy.ShouldEnforceCooldowns()
+    );
+}
 
 // 3. Automatically initialize/sync the database schema at application startup
 using (var scope = app.Services.CreateScope())

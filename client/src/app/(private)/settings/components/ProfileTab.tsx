@@ -22,9 +22,6 @@ import {
   TextArea,
   Description,
   Input,
-  InputGroup,
-  TextField,
-  FieldError,
   DatePicker,
   DateField,
   Calendar,
@@ -233,9 +230,9 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
       : "jpg";
     const originalName = lastSelectedFile
       ? lastSelectedFile.name.substring(
-          0,
-          lastSelectedFile.name.lastIndexOf("."),
-        )
+        0,
+        lastSelectedFile.name.lastIndexOf("."),
+      )
       : "avatar";
     const croppedFile = new File(
       [croppedBlob],
@@ -487,11 +484,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
   // Initials for avatar fallback
   const initials = user?.fullName
     ? user.fullName
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase()
     : "U";
 
   // Dropdown options
@@ -638,7 +635,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-[180px_250px_1fr] gap-4 mb-6 items-start">
+            <div className="grid grid-cols-[180px_280px_1fr] gap-4 mb-6 items-start">
               <PhoneNumberField
                 id="input-type-phone"
                 name="phoneNumber"
@@ -734,11 +731,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                   setValue(
                     "pronouns",
                     val as
-                      | "he_him"
-                      | "she_her"
-                      | "they_them"
-                      | "prefer_not"
-                      | "custom",
+                    | "he_him"
+                    | "she_her"
+                    | "they_them"
+                    | "prefer_not"
+                    | "custom",
                     {
                       shouldDirty: true,
                       shouldValidate: true,

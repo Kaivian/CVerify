@@ -9,8 +9,6 @@ import { SettingsSection } from "./SettingsSection";
 import { LinkedAccountsList } from "./LinkedAccountsList";
 import { SignInMethod } from "./SignInMethod";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { axiosClient } from "@/services/axios-client";
-import { Github } from "@thesvg/react";
 import {
   Typography,
   Chip,
@@ -28,6 +26,7 @@ import {
   Modal,
   FieldError,
   Checkbox,
+  Link,
 } from "@heroui/react";
 import {
   ShieldAlert,
@@ -100,7 +99,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     fetchSessions,
     revokeSession,
     revokeOtherSessions,
-    deleteAccount,
+    deleteAccount: _deleteAccount,
     initializeSession,
     fetchLinkedEmails,
   } = useAuth();
@@ -120,7 +119,10 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setProfileOrigin(window.location.origin);
+      const timer = setTimeout(() => {
+        setProfileOrigin(window.location.origin);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -148,7 +150,12 @@ export const AccountTab: React.FC<AccountTabProps> = ({
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
-  const [blockingOrganizations, setBlockingOrganizations] = useState<any[]>([]);
+  const [blockingOrganizations, setBlockingOrganizations] = useState<{
+    id: string;
+    name: string;
+    username: string;
+    memberCount: number;
+  }[]>([]);
   const [agreeToTerms, setAgreeToTerms] = useState({
     hideProfile: false,
     gracePeriod: false,
@@ -180,17 +187,19 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     const reauthSuccess = searchParams.get("reauth_success");
     const deletionToken = searchParams.get("deletion_authorize_token");
     const error = searchParams.get("error");
-    
+
     if (reauthSuccess === "true" && deletionToken) {
-      setDeletionAuthToken(deletionToken);
-      loadDeletionRequirements();
-      setIsDeleteModalOpen(true);
-      setDeletionStep(3);
-      setAgreeToTerms({
-        hideProfile: true,
-        gracePeriod: true,
-        auditAnonymize: true,
-      });
+      const timer = setTimeout(() => {
+        setDeletionAuthToken(deletionToken);
+        loadDeletionRequirements();
+        setIsDeleteModalOpen(true);
+        setDeletionStep(3);
+        setAgreeToTerms({
+          hideProfile: true,
+          gracePeriod: true,
+          auditAnonymize: true,
+        });
+      }, 0);
 
       const params = new URLSearchParams(window.location.search);
       params.delete("reauth_success");
@@ -198,8 +207,9 @@ export const AccountTab: React.FC<AccountTabProps> = ({
       params.delete("tab");
       const cleanSearch = params.toString() ? `?${params.toString()}` : "";
       window.history.replaceState(null, "", window.location.pathname + cleanSearch);
-      
+
       toast.success("OAuth re-authentication verified successfully.");
+      return () => clearTimeout(timer);
     } else if (error === "reauth_failed") {
       const details = searchParams.get("details");
       toast.danger(`Re-authentication failed: ${details || "Access Denied"}`);
@@ -387,10 +397,11 @@ export const AccountTab: React.FC<AccountTabProps> = ({
     try {
       const res = await fetchLinkedEmails();
       if (res.success && res.data) {
-        const verified = res.data.filter((e: any) => e.isVerified);
+        type LinkedEmailType = { email: string; isVerified: boolean; isPrimary: boolean };
+        const verified = res.data.filter((e: LinkedEmailType) => e.isVerified);
         setLinkedEmails(verified);
         if (verified.length > 0) {
-          const primary = verified.find((e: any) => e.isPrimary);
+          const primary = verified.find((e: LinkedEmailType) => e.isPrimary);
           setSelectedOtpEmail(primary ? primary.email : verified[0].email);
         } else if (user?.email) {
           setLinkedEmails([{ email: user.email, isVerified: true, isPrimary: true }]);
@@ -494,9 +505,10 @@ export const AccountTab: React.FC<AccountTabProps> = ({
           toast.danger(response.message || "Failed to delete account.");
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to delete account:", err);
-      const errMsg = err.response?.data?.message || "An error occurred during account deletion.";
+      const axiosError = err as { response?: { data?: { message?: string } } };
+      const errMsg = axiosError.response?.data?.message || "An error occurred during account deletion.";
       toast.danger(errMsg);
     } finally {
       setIsDeleting(false);
@@ -512,16 +524,17 @@ export const AccountTab: React.FC<AccountTabProps> = ({
       setIsOtpSent(true);
       setOtpCooldown(response.cooldownSeconds);
       toast.success(`Email OTP code sent to ${targetEmail}.`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to send fallback OTP:", err);
-      const errMsg = err.response?.data?.message || "Failed to send fallback OTP code.";
+      const axiosError = err as { response?: { data?: { message?: string } } };
+      const errMsg = axiosError.response?.data?.message || "Failed to send fallback OTP code.";
       toast.danger(errMsg);
     } finally {
       setIsSendingOtp(false);
     }
   };
 
-  const handleOAuthReauth = () => {
+  const _handleOAuthReauth = () => {
     const provider = deletionRequirements?.linkedOAuthProvider || "google";
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
     window.location.assign(`${apiUrl}/users/me/connect-reauth/${provider}`);
@@ -585,10 +598,10 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                   </TextField>
                   <Description>
                     Your public profile link will be:{" "}
-                    <span className="font-bold text-foreground">
+                    <Link href={`${profileOrigin}/${currentValues.username || "username"}`} className="font-bold text-foreground text-xs">
                       {profileOrigin.replace(/^https?:\/\//, "")}/
                       {currentValues.username || "username"}
-                    </span>
+                    </Link>
                   </Description>
                 </div>
                 <div className="w-full flex gap-2">

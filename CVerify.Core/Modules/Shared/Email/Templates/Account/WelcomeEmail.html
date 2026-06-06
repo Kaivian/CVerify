@@ -1,0 +1,16 @@
+<h2 style="margin: 0 0 16px 0; font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: {{ colors.foreground }}; letter-spacing: -0.4px;">Welcome to {{ product_name }}!</h2>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    {{ greeting_text }}
+</p>
+
+<p style="margin: 0 0 16px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    Your identity account is now fully active and ready to link with workspaces.
+</p>
+
+<p style="margin: 0 0 24px 0; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 24px; color: {{ colors.text }};">
+    {{ product_name }} helps candidates securely store and verify their credentials while facilitating collaboration with trusted employers. 
+</p>
+
+{{ alert_title = "Need Help?"; alert_text = "If you have any questions or need support, contact our security operations team at " + support_email + " or visit " + website_url + "."; alert_bg_color = colors.accent_light; alert_border_color = colors.accent; alert_title_color = colors.accent; alert_text_color = colors.text }}
+{{ include 'Components/EmailAlert.html' }}

@@ -1,0 +1,39 @@
+{
+  "skills": [
+    {
+      "id": "csharp",
+      "name": "C#",
+      "category": "backend",
+      "aliases": ["c#", "c-sharp", "csharp"],
+      "proficiency": 0
+    },
+    {
+      "id": "dotnet",
+      "name": ".NET",
+      "category": "backend",
+      "aliases": [".net", "dot net", "dotnet"],
+      "proficiency": 0
+    },
+    {
+      "id": "typescript",
+      "name": "TypeScript",
+      "category": "frontend",
+      "aliases": ["typescript", "ts"],
+      "proficiency": 0
+    },
+    {
+      "id": "react",
+      "name": "React",
+      "category": "frontend",
+      "aliases": ["react", "reactjs"],
+      "proficiency": 0
+    }
+  ],
+  "categories": [
+    "backend",
+    "frontend",
+    "devops",
+    "data",
+    "mobile"
+  ]
+}

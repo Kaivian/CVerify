@@ -1,0 +1,59 @@
+{
+  "pipelineName": "GitHubRepositoryAnalysis",
+  "stages": [
+    {
+      "taskType": "RepoStructure",
+      "weight": 10.0,
+      "prerequisites": [],
+      "providesCapabilities": [ "repo_metadata" ]
+    },
+    {
+      "taskType": "CommitIntelligence",
+      "weight": 20.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "trust_score", "git_metrics" ]
+    },
+    {
+      "taskType": "SkillExtraction",
+      "weight": 15.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "skills" ]
+    },
+    {
+      "taskType": "ArchitectureAnalysis",
+      "weight": 15.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "architecture" ]
+    },
+    {
+      "taskType": "CodeQuality",
+      "weight": 15.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "testing", "observability", "cicd", "quality_findings" ]
+    },
+    {
+      "taskType": "SecurityAnalysis",
+      "weight": 10.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "security_findings" ]
+    },
+    {
+      "taskType": "RepositoryClassification",
+      "weight": 10.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "classification" ]
+    },
+    {
+      "taskType": "RepositorySummary",
+      "weight": 5.0,
+      "prerequisites": [ "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "RepositoryClassification" ],
+      "providesCapabilities": [ "narrative_summary", "recommendations" ]
+    },
+    {
+      "taskType": "CvSynthesis",
+      "weight": 5.0,
+      "prerequisites": [ "RepositorySummary" ],
+      "providesCapabilities": [ "cv_object" ]
+    }
+  ]
+}

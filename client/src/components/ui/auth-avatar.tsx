@@ -8,7 +8,6 @@ import {
   Avatar,
   Label,
   Separator,
-  Button,
   Chip,
   Kbd,
 } from "@heroui/react";
@@ -57,11 +56,11 @@ export function AuthAvatar() {
 
   const initials = user.fullName
     ? user.fullName
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase()
     : "U";
 
   const handleAction = async (key: React.Key) => {
@@ -180,187 +179,175 @@ export function AuthAvatar() {
           </Dropdown.Section>
           <Separator variant="tertiary" className="my-2" />
           <Dropdown.Section className="gap-1">
-            <Dropdown.Item
-              id="theme-selector"
-              textValue={t("navbar:menu.themes", { defaultValue: "Themes" })}
-              className="rounded-lg pointer-events-none"
-            >
-              <div className="flex items-center justify-between w-full gap-2">
-                <div className="flex items-center gap-2.5">
-                  <Palette className="size-4 shrink-0 text-muted" />
-                  <Label className="font-semibold text-foreground">
-                    {t("navbar:menu.themes", { defaultValue: "Themes" })}
-                  </Label>
-                </div>
-                <div className="pointer-events-auto">
-                  <Dropdown>
-                    <Button
-                      aria-label="Theme Menu"
-                      variant="ghost"
-                      size="sm"
-                      className="border border-border rounded-lg flex items-center h-7 px-2"
-                    >
-                      {(() => {
-                        const isSystem =
-                          typeof window !== "undefined" &&
-                          localStorage.getItem("theme") === "system";
-                        if (isSystem) {
-                          return (
-                            <div className="flex items-center justify-center gap-1.5">
-                              <LaptopMinimal className="size-3" />
-                              <Label className="text-[10px] cursor-pointer">
-                                {t("navbar:menu.themes_system", { defaultValue: "System" })}
-                              </Label>
-                            </div>
-                          );
-                        }
-                        if (theme === "dark") {
-                          return (
-                            <div className="flex items-center justify-center gap-1.5">
-                              <Moon className="size-3" />
-                              <Label className="text-[10px] cursor-pointer">
-                                {t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
-                              </Label>
-                            </div>
-                          );
-                        }
+            <Dropdown.SubmenuTrigger>
+              <Dropdown.Item
+                id="theme-selector"
+                textValue={t("navbar:menu.themes", { defaultValue: "Themes" })}
+                className="rounded-lg cursor-pointer"
+              >
+                <div className="flex items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <Palette className="size-4 shrink-0 text-muted" />
+                    <Label className="cursor-pointer font-semibold text-foreground">
+                      {t("navbar:menu.themes", { defaultValue: "Themes" })}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {(() => {
+                      const isSystem =
+                        typeof window !== "undefined" &&
+                        localStorage.getItem("theme") === "system";
+                      if (isSystem) {
                         return (
-                          <div className="flex items-center justify-center gap-1.5">
-                            <Sun className="size-3" />
-                            <Label className="text-[10px] cursor-pointer">
-                              {t("navbar:menu.themes_light", { defaultValue: "Light" })}
-                            </Label>
+                          <div className="flex items-center gap-1 text-muted">
+                            <LaptopMinimal className="size-3" />
+                            <span className="text-[10px]">
+                              {t("navbar:menu.themes_system", { defaultValue: "System" })}
+                            </span>
                           </div>
                         );
-                      })()}
-                    </Button>
-                    <Dropdown.Popover className="min-w-[100px] bg-background border-2 rounded-xl p-1 z-9999 shadow-overlay">
-                      <Dropdown.Menu
-                        onAction={(key) => {
-                          const targetTheme = String(key);
-                          if (targetTheme === "system") {
-                            const systemTheme = window.matchMedia(
-                              "(prefers-color-scheme: dark)",
-                            ).matches
-                              ? "dark"
-                              : "light";
-                            setTheme(systemTheme);
-                            localStorage.setItem("theme", "system");
-                          } else {
-                            setTheme(targetTheme);
-                          }
-                        }}
-                        className="outline-hidden"
-                      >
-                        <Dropdown.Item
-                          id="light"
-                          textValue={t("navbar:menu.themes_light", { defaultValue: "Light" })}
-                          className="rounded-lg"
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <Sun className="size-4 shrink-0 text-muted" />
-                            <Label className="cursor-pointer font-semibold text-foreground">
-                              {t("navbar:menu.themes_light", { defaultValue: "Light" })}
-                            </Label>
-                          </div>
-                        </Dropdown.Item>
-                        <Dropdown.Item
-                          id="dark"
-                          textValue={t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
-                          className="rounded-lg"
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <Moon className="size-4 shrink-0 text-muted" />
-                            <Label className="cursor-pointer font-semibold text-foreground">
+                      }
+                      if (theme === "dark") {
+                        return (
+                          <div className="flex items-center gap-1 text-muted">
+                            <Moon className="size-3" />
+                            <span className="text-[10px]">
                               {t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
-                            </Label>
+                            </span>
                           </div>
-                        </Dropdown.Item>
-                        <Dropdown.Item
-                          id="system"
-                          textValue={t("navbar:menu.themes_system", { defaultValue: "System" })}
-                          className="rounded-lg"
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <LaptopMinimal className="size-4 shrink-0 text-muted" />
-                            <Label className="cursor-pointer font-semibold text-foreground">
-                              {t("navbar:menu.themes_system", { defaultValue: "System" })}
-                            </Label>
-                          </div>
-                        </Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown.Popover>
-                  </Dropdown>
+                        );
+                      }
+                      return (
+                        <div className="flex items-center gap-1 text-muted">
+                          <Sun className="size-3" />
+                          <span className="text-[10px]">
+                            {t("navbar:menu.themes_light", { defaultValue: "Light" })}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    <Dropdown.SubmenuIndicator />
+                  </div>
                 </div>
-              </div>
-            </Dropdown.Item>
-            <Dropdown.Item
-              id="language-selector"
-              textValue={t("navbar:menu.languages", { defaultValue: "Languages" })}
-              className="rounded-lg pointer-events-none"
-            >
-              <div className="flex items-center justify-between w-full gap-2">
-                <div className="flex items-center gap-2.5">
-                  <Globe className="size-4 shrink-0 text-muted" />
-                  <Label className="font-semibold text-foreground">
-                    {t("navbar:menu.languages", { defaultValue: "Languages" })}
-                  </Label>
+              </Dropdown.Item>
+              <Dropdown.Popover className="min-w-[110px] bg-background border-2 rounded-xl p-1 z-9999 shadow-overlay">
+                <Dropdown.Menu
+                  onAction={(key) => {
+                    const targetTheme = String(key);
+                    if (targetTheme === "system") {
+                      const systemTheme = window.matchMedia(
+                        "(prefers-color-scheme: dark)",
+                      ).matches
+                        ? "dark"
+                        : "light";
+                      setTheme(systemTheme);
+                      localStorage.setItem("theme", "system");
+                    } else {
+                      setTheme(targetTheme);
+                    }
+                  }}
+                  className="outline-hidden"
+                >
+                  <Dropdown.Item
+                    id="light"
+                    textValue={t("navbar:menu.themes_light", { defaultValue: "Light" })}
+                    className="rounded-lg"
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <Sun className="size-4 shrink-0 text-muted" />
+                      <Label className="cursor-pointer font-semibold text-foreground">
+                        {t("navbar:menu.themes_light", { defaultValue: "Light" })}
+                      </Label>
+                    </div>
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="dark"
+                    textValue={t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
+                    className="rounded-lg"
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <Moon className="size-4 shrink-0 text-muted" />
+                      <Label className="cursor-pointer font-semibold text-foreground">
+                        {t("navbar:menu.themes_dark", { defaultValue: "Dark" })}
+                      </Label>
+                    </div>
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="system"
+                    textValue={t("navbar:menu.themes_system", { defaultValue: "System" })}
+                    className="rounded-lg"
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <LaptopMinimal className="size-4 shrink-0 text-muted" />
+                      <Label className="cursor-pointer font-semibold text-foreground">
+                        {t("navbar:menu.themes_system", { defaultValue: "System" })}
+                      </Label>
+                    </div>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown.SubmenuTrigger>
+            <Dropdown.SubmenuTrigger>
+              <Dropdown.Item
+                id="language-selector"
+                textValue={t("navbar:menu.languages", { defaultValue: "Languages" })}
+                className="rounded-lg"
+              >
+                <div className="flex items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <Globe className="size-4 shrink-0 text-muted" />
+                    <Label className="cursor-pointer font-semibold text-foreground">
+                      {t("navbar:menu.languages", { defaultValue: "Languages" })}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 text-muted">
+                      <Globe className="size-3" />
+                      <span className="text-[10px]">
+                        {i18n.language === "vi" ? "VN" : "EN"}
+                      </span>
+                    </div>
+                    <Dropdown.SubmenuIndicator />
+                  </div>
                 </div>
-                <div className="pointer-events-auto">
-                  <Dropdown>
-                    <Button
-                      aria-label="Language Menu"
-                      variant="ghost"
-                      size="sm"
-                      className="border border-border rounded-lg flex items-center h-7 px-2"
-                    >
-                      <div className="flex items-center justify-center gap-1.5">
-                        <Globe className="size-3" />
-                        <Label className="text-[10px] cursor-pointer">
-                          {i18n.language === "vi" ? "VN" : "EN"}
-                        </Label>
-                      </div>
-                    </Button>
-                    <Dropdown.Popover className="min-w-[80px] bg-background border-2 rounded-xl p-1 z-9999 shadow-overlay">
-                      <Dropdown.Menu
-                        onAction={(key) => {
-                          const lang = String(key);
-                          setCookie("i18next", lang);
-                          if (typeof window !== "undefined") {
-                            localStorage.setItem("i18nextLng", lang);
-                          }
-                          i18n.changeLanguage(lang);
-                        }}
-                        className="outline-hidden"
-                      >
-                        <Dropdown.Item
-                          id="vi"
-                          textValue="VN"
-                          className="rounded-lg"
-                        >
-                          <div className="flex items-center gap-2 w-full justify-center">
-                            <Label className="cursor-pointer font-semibold text-foreground">
-                              VN
-                            </Label>
-                          </div>
-                        </Dropdown.Item>
-                        <Dropdown.Item
-                          id="en"
-                          textValue="EN"
-                          className="rounded-lg"
-                        >
-                          <div className="flex items-center gap-2 w-full justify-center">
-                            <Label className="cursor-pointer font-semibold text-foreground">
-                              EN
-                            </Label>
-                          </div>
-                        </Dropdown.Item>
-                      </Dropdown.Menu>
-                    </Dropdown.Popover>
-                  </Dropdown>
-                </div>
-              </div>
-            </Dropdown.Item>
+              </Dropdown.Item>
+              <Dropdown.Popover className="min-w-[90px] bg-background border-2 rounded-xl p-1 z-9999 shadow-overlay">
+                <Dropdown.Menu
+                  onAction={(key) => {
+                    const lang = String(key);
+                    setCookie("i18next", lang);
+                    if (typeof window !== "undefined") {
+                      localStorage.setItem("i18nextLng", lang);
+                    }
+                    i18n.changeLanguage(lang);
+                  }}
+                  className="outline-hidden"
+                >
+                  <Dropdown.Item
+                    id="vi"
+                    textValue="VN"
+                    className="rounded-lg"
+                  >
+                    <div className="flex items-center gap-2 w-full justify-center">
+                      <Label className="cursor-pointer font-semibold text-foreground">
+                        VN
+                      </Label>
+                    </div>
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="en"
+                    textValue="EN"
+                    className="rounded-lg"
+                  >
+                    <div className="flex items-center gap-2 w-full justify-center">
+                      <Label className="cursor-pointer font-semibold text-foreground">
+                        EN
+                      </Label>
+                    </div>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown.SubmenuTrigger>
             <Dropdown.Item
               id="support"
               textValue={t("navbar:menu.support", { defaultValue: "Support" })}

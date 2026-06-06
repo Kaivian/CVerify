@@ -161,11 +161,20 @@ public class GlobalExceptionHandler : IExceptionHandler
             );
         }
 
-        // 6. Write sanitized response
-        httpContext.Response.StatusCode = responsePayload.Status;
-        httpContext.Response.ContentType = "application/json";
-
-        await httpContext.Response.WriteAsJsonAsync(responsePayload, cancellationToken);
+        // 6. Write sanitized response if connection is active
+        if (!cancellationToken.IsCancellationRequested && !httpContext.RequestAborted.IsCancellationRequested)
+        {
+            try
+            {
+                httpContext.Response.StatusCode = responsePayload.Status;
+                httpContext.Response.ContentType = "application/json";
+                await httpContext.Response.WriteAsJsonAsync(responsePayload, cancellationToken);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException || ex is global::System.IO.IOException)
+            {
+                // Client aborted connection during response serialization; suppress exception to prevent error handler crash
+            }
+        }
 
         return true;
     }

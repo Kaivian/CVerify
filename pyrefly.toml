@@ -1,0 +1,9 @@
+# Pyrefly configuration
+project-excludes = [
+    "**/docs/**",
+    "**/temp_clones/**",
+    "**/.venv/**",
+    "**/node_modules/**",
+    "**/client/**",
+    "**/CVerify.Core/**"
+]

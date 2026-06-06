@@ -14,6 +14,7 @@ using CVerify.API.Modules.Shared.Email.Entities;
 using CVerify.API.Modules.Shared.Exceptions.Catalogs;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security;
+using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.Modules.Recovery.Services;
 
@@ -23,17 +24,20 @@ public class Level2RecoveryService : ILevel2RecoveryService
     private readonly EnvConfiguration _envConfig;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<Level2RecoveryService> _logger;
+    private readonly IRateLimitPolicyService _rateLimitPolicyService;
 
     public Level2RecoveryService(
         ApplicationDbContext context,
         EnvConfiguration envConfig,
         TimeProvider timeProvider,
-        ILogger<Level2RecoveryService> logger)
+        ILogger<Level2RecoveryService> logger,
+        IRateLimitPolicyService rateLimitPolicyService)
     {
         _context = context;
         _envConfig = envConfig;
         _timeProvider = timeProvider;
         _logger = logger;
+        _rateLimitPolicyService = rateLimitPolicyService;
     }
 
     public async Task<Level2CheckResponse> CheckOrganizationAsync(string taxCode, CancellationToken cancellationToken)
@@ -75,9 +79,17 @@ public class Level2RecoveryService : ILevel2RecoveryService
         }
 
         // 7-day cooldown block
-        var cooldownLimit = _timeProvider.GetUtcNow().AddDays(-7);
-        var hasRecentRequest = await _context.RepresentativeRotationRequests
-            .AnyAsync(r => r.OrganizationId == org.Id && r.CreatedAt >= cooldownLimit, cancellationToken);
+        var hasRecentRequest = false;
+        if (_rateLimitPolicyService.ShouldEnforceCooldowns())
+        {
+            var cooldownLimit = _timeProvider.GetUtcNow().AddDays(-7);
+            hasRecentRequest = await _context.RepresentativeRotationRequests
+                .AnyAsync(r => r.OrganizationId == org.Id && r.CreatedAt >= cooldownLimit, cancellationToken);
+        }
+        else
+        {
+            _rateLimitPolicyService.LogBypass("Representative rotation request cooldown", "RequestRotationAsync", org.Id.ToString());
+        }
 
         if (hasRecentRequest)
         {
@@ -492,22 +504,17 @@ public class Level2RecoveryService : ILevel2RecoveryService
 
     private async Task QueueNotificationEmailAsync(string email, string companyName, string subject, string content)
     {
+        var correlationId = Guid.NewGuid().ToString("N");
         var payloadObj = new
         {
             Email = email,
             CompanyName = companyName,
             Subject = subject,
-            Content = content
+            Content = content,
+            CorrelationId = correlationId
         };
 
-        var outboxMessage = new OutboxMessage
-        {
-            Type = "SystemNotificationEmail",
-            Payload = System.Text.Json.JsonSerializer.Serialize(payloadObj),
-            CreatedAt = _timeProvider.GetUtcNow()
-        };
-
-        _context.OutboxMessages.Add(outboxMessage);
+        _context.AddAndAuditOutboxMessage("SystemNotificationEmail", email, correlationId, payloadObj, _timeProvider.GetUtcNow());
         await _context.SaveChangesAsync();
     }
 
