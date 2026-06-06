@@ -90,6 +90,12 @@ public class SourceCodeRepository
 
     public string? CustomSettingsJson { get; set; }
 
+    [MaxLength(255)]
+    public string? Classification { get; set; }
+
+    [MaxLength(255)]
+    public string? AuthenticityType { get; set; }
+
     [Required]
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 

@@ -17,6 +17,7 @@ import {
   ListBox,
   Skeleton,
   Link,
+  AlertDialog,
 } from "@heroui/react";
 import { Github, Gitlab } from "@thesvg/react";
 import {
@@ -30,6 +31,7 @@ import {
   AlertCircle,
   Info,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
 import type {
@@ -78,6 +80,8 @@ export default function SourceCodeProvidersPage() {
   const [visibilityFilter, setVisibilityFilter] = useState("all");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [sortBy, setSortBy] = useState("updated");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categories, setCategories] = useState<string[]>([]);
 
   // Pagination / Infinite Scroll State
   const [page, setPage] = useState(1);
@@ -94,6 +98,8 @@ export default function SourceCodeProvidersPage() {
   const [selectedAnalysis, setSelectedAnalysis] = useState<RepositoryAnalysis | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedRepoId, setSelectedRepoId] = useState<string>("");
+  const [repoToReanalyze, setRepoToReanalyze] = useState<{ id: string; name: string; owner: string } | null>(null);
+  const [isReanalyzeConfirmOpen, setIsReanalyzeConfirmOpen] = useState(false);
   const activeJobsRef = useRef<Record<string, string>>({});
   const lastJobIdsRef = useRef<Record<string, string>>({});
   const eventSourcesRef = useRef<Record<string, EventSource>>({});
@@ -122,6 +128,15 @@ export default function SourceCodeProvidersPage() {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      const data = await sourceCodeProviderApi.fetchCategories();
+      setCategories(data);
+    } catch (err) {
+      console.error("Failed to load repository categories:", err);
+    }
+  }, []);
+
   // Fetch repositories with pagination / infinite scroll appending support
   const fetchRepos = useCallback(async (pageNum: number, isInitial: boolean) => {
     if (isInitial) {
@@ -137,6 +152,7 @@ export default function SourceCodeProvidersPage() {
         visibility: visibilityFilter === "all" ? undefined : visibilityFilter,
         language: languageFilter === "all" ? undefined : languageFilter,
         sort: sortBy,
+        category: categoryFilter === "all" ? undefined : categoryFilter,
         page: pageNum,
         pageSize,
       };
@@ -159,12 +175,13 @@ export default function SourceCodeProvidersPage() {
       setLoadingRepositories(false);
       setLoadingMore(false);
     }
-  }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, pageSize]);
+  }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, categoryFilter, pageSize]);
 
   // Compatibility alias for manual sync or reload operations
   const loadRepositories = useCallback(() => {
+    loadCategories();
     return fetchRepos(1, true);
-  }, [fetchRepos]);
+  }, [fetchRepos, loadCategories]);
 
   const connectToProgressStream = useCallback((repoId: string, jobId: string) => {
     if (eventSourcesRef.current[repoId]) {
@@ -369,9 +386,10 @@ export default function SourceCodeProvidersPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       loadProviders();
+      loadCategories();
     }, 0);
     return () => clearTimeout(timer);
-  }, [loadProviders]);
+  }, [loadProviders, loadCategories]);
 
   // Trigger initial fetch when filters change (always resets to page 1)
   useEffect(() => {
@@ -380,7 +398,7 @@ export default function SourceCodeProvidersPage() {
       fetchRepos(1, true);
     }, 0);
     return () => clearTimeout(timer);
-  }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, fetchRepos]);
+  }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, categoryFilter, fetchRepos]);
 
   // Infinite Scroll page fetching action
   const hasMore = repositories.length < totalCount;
@@ -547,7 +565,7 @@ export default function SourceCodeProvidersPage() {
                       </Typography.Heading>
                     </Link>
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0 flex items-center gap-1.5">
                     {repo.isPrivate ? (
                       <Chip size="sm" color="default" variant="primary">
                         <Lock className="size-2.5 mr-0.5" />
@@ -557,6 +575,14 @@ export default function SourceCodeProvidersPage() {
                       <Chip size="sm" color="accent" variant="soft">
                         <Globe className="size-3 mr-0.5" />
                         <span className="text-[8.5px] uppercase tracking-wider font-extrabold mt-px">Public</span>
+                      </Chip>
+                    )}
+                    <Chip size="sm" color="default" variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
+                      {repo.classification || "Pending Analysis"}
+                    </Chip>
+                    {repo.authenticityType && (
+                      <Chip size="sm" color="warning" variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
+                        {repo.authenticityType.replace(/_/g, " ")}
                       </Chip>
                     )}
                   </div>
@@ -607,7 +633,10 @@ export default function SourceCodeProvidersPage() {
                     size="sm"
                     variant="secondary"
                     className="text-xs font-bold rounded-xl flex items-center gap-1 border-border/40"
-                    onClick={() => handleAnalyzeRepository(repo.id, repo.name, repo.owner)}
+                    onClick={() => {
+                      setRepoToReanalyze({ id: repo.id, name: repo.name, owner: repo.owner });
+                      setIsReanalyzeConfirmOpen(true);
+                    }}
                   >
                     <RefreshCw size={12} className="shrink-0" />
                     <span>Reanalyze</span>
@@ -733,7 +762,7 @@ export default function SourceCodeProvidersPage() {
               </Link>
             </div>
 
-            <div className="flex items-center shrink-0">
+            <div className="flex items-center shrink-0 gap-1.5">
               {repo.isPrivate ? (
                 <Chip size="sm" color="default" variant="primary">
                   <Lock className="size-2.5 mr-0.5" />
@@ -743,6 +772,14 @@ export default function SourceCodeProvidersPage() {
                 <Chip size="sm" color="accent" variant="soft">
                   <Globe className="size-3 mr-0.5" />
                   <span className="text-[8.5px] uppercase tracking-wider font-extrabold mt-px">Public</span>
+                </Chip>
+              )}
+              <Chip size="sm" color="default" variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
+                {repo.classification || "Pending Analysis"}
+              </Chip>
+              {repo.authenticityType && (
+                <Chip size="sm" color="warning" variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
+                  {repo.authenticityType.replace(/_/g, " ")}
                 </Chip>
               )}
             </div>
@@ -1164,6 +1201,52 @@ export default function SourceCodeProvidersPage() {
                   </Select>
                 </div>
 
+                {/* Category filter */}
+                <div className="flex flex-col gap-1 text-left">
+                  <Label className="text-xs text-muted">Category</Label>
+                  <Select
+                    value={categoryFilter}
+                    onChange={(val) => {
+                      setCategoryFilter(val as string);
+                      setPage(1);
+                    }}
+                    className="w-auto"
+                    variant="secondary"
+                    aria-label="Category"
+                  >
+                    <Select.Trigger className="bg-surface border border-border">
+                      <Select.Value className="text-xs" />
+                      <Select.Indicator />
+                    </Select.Trigger>
+                    <Select.Popover className="rounded-xl z-50">
+                      <ListBox
+                        aria-label="Category Options"
+                        className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+                      >
+                        <ListBox.Item
+                          id="all"
+                          textValue="All Categories"
+                          className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                        >
+                          <span>All Categories</span>
+                          <ListBox.ItemIndicator className="size-3 text-accent" />
+                        </ListBox.Item>
+                        {categories.map((cat) => (
+                          <ListBox.Item
+                            key={cat}
+                            id={cat}
+                            textValue={cat}
+                            className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                          >
+                            <span>{cat}</span>
+                            <ListBox.ItemIndicator className="size-3 text-accent" />
+                          </ListBox.Item>
+                        ))}
+                      </ListBox>
+                    </Select.Popover>
+                  </Select>
+                </div>
+
                 {/* Visibility Filter */}
                 <div className="flex flex-col gap-1 text-left">
                   <Label className="text-xs text-muted">Visibility</Label>
@@ -1393,6 +1476,70 @@ export default function SourceCodeProvidersPage() {
         repoId={selectedRepoId}
         onAnalysisComplete={handleAnalysisComplete}
       />
+
+      {/* Reanalyze Confirmation Modal */}
+      <AlertDialog.Backdrop
+        isOpen={isReanalyzeConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsReanalyzeConfirmOpen(false);
+            setRepoToReanalyze(null);
+          }
+        }}
+      >
+        <AlertDialog.Container>
+          <AlertDialog.Dialog className="sm:max-w-[400px]">
+            {(renderProps) => (
+              <>
+                <AlertDialog.CloseTrigger />
+                <AlertDialog.Header>
+                  <AlertDialog.Icon status="warning">
+                    <AlertTriangle className="size-5 text-warning" />
+                  </AlertDialog.Icon>
+                  <AlertDialog.Heading>
+                    Confirm Reanalysis
+                  </AlertDialog.Heading>
+                </AlertDialog.Header>
+                <AlertDialog.Body className="text-sm font-sans font-light leading-relaxed">
+                  <p>
+                    Are you sure you want to re-analyze the repository{" "}
+                    <strong>{repoToReanalyze?.owner}/{repoToReanalyze?.name}</strong>?
+                  </p>
+                  <p className="mt-2 text-xs text-muted">
+                    This will re-run the entire AI analysis pipeline and generate new career intelligence data.
+                  </p>
+                </AlertDialog.Body>
+                <AlertDialog.Footer>
+                  <Button
+                    variant="tertiary"
+                    onPress={() => {
+                      setIsReanalyzeConfirmOpen(false);
+                      setRepoToReanalyze(null);
+                      renderProps.close();
+                    }}
+                    className="rounded-xl"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onPress={() => {
+                      if (repoToReanalyze) {
+                        handleAnalyzeRepository(repoToReanalyze.id, repoToReanalyze.name, repoToReanalyze.owner);
+                      }
+                      setIsReanalyzeConfirmOpen(false);
+                      setRepoToReanalyze(null);
+                      renderProps.close();
+                    }}
+                    className="bg-warning-soft text-warning rounded-xl font-semibold"
+                  >
+                    Reanalyze
+                  </Button>
+                </AlertDialog.Footer>
+              </>
+            )}
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
     </div>
   );
 }

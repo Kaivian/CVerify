@@ -164,6 +164,16 @@ public static class DbInitializer
                         ALTER TABLE user_profiles ADD COLUMN username CITEXT;
                     END IF;
                 END IF;
+
+                -- If source_code_repositories exists, add classification and authenticity_type columns if missing
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'source_code_repositories') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'classification') THEN
+                        ALTER TABLE source_code_repositories ADD COLUMN classification VARCHAR(255);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'authenticity_type') THEN
+                        ALTER TABLE source_code_repositories ADD COLUMN authenticity_type VARCHAR(255);
+                    END IF;
+                END IF;
             END $$;
 
             -- Stores user roles for the Role-Based Access Control (RBAC) system
@@ -299,6 +309,8 @@ public static class DbInitializer
                 is_verified BOOLEAN NOT NULL DEFAULT FALSE,
                 trust_score DOUBLE PRECISION NOT NULL DEFAULT 0.0,
                 custom_settings_json TEXT,
+                classification VARCHAR(255),
+                authenticity_type VARCHAR(255),
                 created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
                 last_synced_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 CONSTRAINT fk_source_code_repositories_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
@@ -309,6 +321,8 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_updated ON source_code_repositories(last_updated_utc DESC);
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_stars ON source_code_repositories(stars_count DESC);
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_accessible ON source_code_repositories(is_accessible) WHERE is_accessible = TRUE;
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_classification ON source_code_repositories(classification) WHERE classification IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_authenticity_type ON source_code_repositories(authenticity_type) WHERE authenticity_type IS NOT NULL;
 
             -- Stores active/inactive historical password credentials to prevent reuse
             CREATE TABLE IF NOT EXISTS password_credentials (
@@ -1869,6 +1883,9 @@ public static class DbInitializer
         // One-time compatibility migration to generate unique usernames for legacy users
         var serviceToUse = usernameService ?? new UsernameService(context, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<UsernameService>.Instance, new DbInitializerRateLimitPolicyService());
         await MigrateLegacyUsernamesAsync(context, serviceToUse);
+
+        // One-time compatibility migration to backfill repository classification & authenticity columns
+        await MigrateLegacyRepositoryMetadataAsync(context);
     }
 
     private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)
@@ -1960,6 +1977,66 @@ public static class DbInitializer
         }
 
         await context.SaveChangesAsync();
+    }
+
+    private static async Task MigrateLegacyRepositoryMetadataAsync(ApplicationDbContext context)
+    {
+        try
+        {
+            var repos = await context.SourceCodeRepositories
+                .Where(r => r.Classification == null || r.AuthenticityType == null)
+                .ToListAsync();
+
+            if (!repos.Any())
+            {
+                return;
+            }
+
+            Console.WriteLine($"[Migration] Found {repos.Count} repositories requiring classification & authenticity backfill.");
+
+            foreach (var repo in repos)
+            {
+                var latestReport = await context.AnalysisReports
+                    .Where(rep => rep.RepositoryId == repo.Id)
+                    .OrderByDescending(rep => rep.CreatedAtUtc)
+                    .FirstOrDefaultAsync();
+
+                if (latestReport != null && !string.IsNullOrEmpty(latestReport.ReportData))
+                {
+                    try
+                    {
+                        using var doc = global::System.Text.Json.JsonDocument.Parse(latestReport.ReportData);
+                        if (doc.RootElement.TryGetProperty("ai_conclusions", out var aiConclusionsProp))
+                        {
+                            if (repo.Classification == null &&
+                                aiConclusionsProp.TryGetProperty("classification", out var classificationProp) &&
+                                classificationProp.TryGetProperty("primary_type", out var primaryTypeProp))
+                            {
+                                repo.Classification = primaryTypeProp.GetString();
+                            }
+
+                            if (repo.AuthenticityType == null &&
+                                aiConclusionsProp.TryGetProperty("authenticity", out var authenticityProp) &&
+                                authenticityProp.TryGetProperty("type", out var typeProp))
+                            {
+                                repo.AuthenticityType = typeProp.GetString();
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Migration] Failed to parse report data for repository {repo.Id}: {ex.Message}");
+                    }
+                }
+            }
+
+            await context.SaveChangesAsync();
+            Console.WriteLine("[Migration] Repository classification & authenticity backfill migration completed successfully.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Migration] Error running MigrateLegacyRepositoryMetadataAsync: {ex.Message}");
+        }
     }
 
     private class DbInitializerRateLimitPolicyService : CVerify.API.Modules.Shared.System.Services.IRateLimitPolicyService

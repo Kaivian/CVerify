@@ -57,12 +57,13 @@ interface DetailedAnalysisModalProps {
 }
 
 const FRIENDLY_NAMES: Record<string, string> = {
-  RepoStructure: "Workspace Setup & Classification",
+  RepoStructure: "Workspace Setup & Provenance Scan",
   CommitIntelligence: "Commit Ownership & Git Trust",
   SkillExtraction: "Technical Skills Scan",
   ArchitectureAnalysis: "Architecture Design Pattern Scan",
   CodeQuality: "Code Quality & Styling Inspection",
   SecurityAnalysis: "Vulnerability & Security Audit",
+  RepositoryClassification: "Repository Semantic Classification",
   RepositorySummary: "Recruiter Summary & Narrative",
 };
 
@@ -617,20 +618,20 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
               </div>
             </div>
 
-            <div className="flex gap-2 border-t border-border/30 pt-4 mt-auto">
-              <div className="flex items-center gap-2">
+            <div className="flex gap-8 border-t border-border/30 pt-4 mt-auto">
+              <div className="flex flex-col items-start justify-center gap-2">
                 <span className="text-[9px] text-muted uppercase font-bold">Evidence Strength:</span>
                 <strong className="text-sm text-foreground font-extrabold font-mono">
                   {getEvidenceStrength(localAnalysis.evidence_points?.total ?? 0)}
                 </strong>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-start justify-center gap-2">
                 <span className="text-[9px] text-muted uppercase font-bold">Trust Confidence:</span>
                 <strong className="text-sm text-foreground font-extrabold font-mono">
                   {localAnalysis.trust?.confidence ?? 100}%
                 </strong>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-start justify-center gap-2">
                 <span className="text-[9px] text-muted uppercase font-bold">Complexity:</span>
                 <strong className="text-sm text-foreground font-extrabold capitalize font-sans">
                   {classification.complexity || "Medium"}

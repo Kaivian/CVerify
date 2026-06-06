@@ -40,8 +40,20 @@ export interface RepositoryEvidenceFinding {
 export interface RepositoryClassification {
   primary_type: string; // e.g. "SaaS Platform"
   all_types: string[];  // e.g. ["SaaS Platform", "AI Project"]
-  complexity: "low" | "medium" | "high";
-  benchmark_group: string; // e.g. "saas_platforms"
+  confidence: number;
+  evidence: string[];
+  schema_version: string;
+  classifier_version: string;
+  complexity?: "low" | "medium" | "high";
+  benchmark_group?: string; // e.g. "saas_platforms"
+}
+
+export interface RepositoryAuthenticity {
+  type: string;
+  confidence_ceiling: number;
+  confidence_modifier: number;
+  rationale: string;
+  red_flags: string[];
 }
 
 export interface EvidencePoints {
@@ -167,6 +179,7 @@ export interface RiskAssessment {
 }
 
 export interface RepositoryAnalysisAiConclusions {
+  authenticity?: RepositoryAuthenticity;
   classification: RepositoryClassification & {
     classification_rationale?: string;
     sampled_files?: string[];
@@ -187,6 +200,7 @@ export interface RepositoryAnalysis {
   schemaVersion?: string;
   facts?: RepositoryAnalysisFacts;
   ai_conclusions?: RepositoryAnalysisAiConclusions;
+  authenticity?: RepositoryAuthenticity;
   
   // For backwards compatibility:
   repo: RepoInfo;

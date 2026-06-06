@@ -13,22 +13,24 @@ interface AnalysisTaskTimelineProps {
 }
 
 const FRIENDLY_NAMES: Record<string, string> = {
-  RepoStructure: "Workspace Setup & Classification",
+  RepoStructure: "Workspace Setup & Provenance Scan",
   CommitIntelligence: "Commit Ownership & Git Trust",
   SkillExtraction: "Technical Skills Scan",
   ArchitectureAnalysis: "Architecture Design Pattern Scan",
   CodeQuality: "Code Quality & Styling Inspection",
   SecurityAnalysis: "Vulnerability & Security Audit",
+  RepositoryClassification: "Repository Semantic Classification",
   RepositorySummary: "Recruiter Summary & Narrative",
 };
 
 const FRIENDLY_DESCRIPTIONS: Record<string, string> = {
-  RepoStructure: "Clones the repository branch and runs pre-pipeline repository classification.",
+  RepoStructure: "Clones the repository branch and runs pre-pipeline repository provenance scan.",
   CommitIntelligence: "Analyzes git commit history, user contributions, and file path ownership ratio.",
   SkillExtraction: "Performs technical skills extraction and technical stack discovery.",
   ArchitectureAnalysis: "Extracts architectural design patterns and software architectural structure.",
   CodeQuality: "Inspects testing frameworks, code practices, observability, and CI/CD pipelines.",
   SecurityAnalysis: "Audits for sensitive credentials, secrets leaks, and known security risks.",
+  RepositoryClassification: "Identifies semantic repository category, types, confidence and evidence.",
   RepositorySummary: "Constructs the final narrative portfolio summary and career benchmarking statistics.",
 };
 

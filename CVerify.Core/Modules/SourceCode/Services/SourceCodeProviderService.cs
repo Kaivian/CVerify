@@ -93,6 +93,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         string? visibility, 
         string? language, 
         string? sort, 
+        string? category, 
         int page, 
         int pageSize)
     {
@@ -177,6 +178,11 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             query = query.Where(r => r.PrimaryLanguage != null && EF.Functions.ILike(r.PrimaryLanguage, language));
         }
 
+        if (!string.IsNullOrWhiteSpace(category) && !string.Equals(category, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(r => r.Classification != null && EF.Functions.ILike(r.Classification, category));
+        }
+
         // Apply Sorting
         query = sort?.ToLowerInvariant() switch
         {
@@ -217,6 +223,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 r.IsVerified,
                 r.TrustScore,
                 r.CustomSettingsJson,
+                r.Classification,
+                r.AuthenticityType,
                 r.CreatedAtUtc,
                 r.LastSyncedAt
             ))
@@ -826,5 +834,15 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 existing.LastSyncedAt = _timeProvider.GetUtcNow();
             }
         }
+    }
+
+    public async Task<IEnumerable<string>> GetDistinctCategoriesAsync(Guid userId)
+    {
+        return await _context.SourceCodeRepositories
+            .Where(r => r.AuthProvider.UserId == userId && r.AuthProvider.DeletedAt == null && r.Classification != null && r.Classification != "")
+            .Select(r => r.Classification!)
+            .Distinct()
+            .OrderBy(c => c)
+            .ToListAsync();
     }
 }

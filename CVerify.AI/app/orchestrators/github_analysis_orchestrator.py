@@ -124,6 +124,8 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 result = await self.analyze_quality(job_id, encrypted_token, correlation_id)
             elif task_type == "SecurityAnalysis":
                 result = await self.analyze_security(job_id, encrypted_token, correlation_id)
+            elif task_type == "RepositoryClassification":
+                result = await self.analyze_classification(job_id, encrypted_token, correlation_id)
             elif task_type == "RepositorySummary":
                 result = await self.analyze_summary(job_id, encrypted_token, correlation_id)
             else:
@@ -827,6 +829,73 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             ]
         }
 
+    async def analyze_classification(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
+        meta, sample = await self._get_meta_and_sample(job_id, encrypted_token, correlation_id)
+        await self.publish_task_event(job_id, "RepositoryClassification", "Classifying repository's semantic domain...")
+        
+        if not meta.get("is_cloned"):
+            await self.publish_task_event(job_id, "RepositoryClassification", "Ecosystem evaluation only (repo is a fork with no contributions).")
+            result_data = {
+                "primary_type": "Unknown",
+                "all_types": [],
+                "confidence": 1.0,
+                "evidence": ["Repository is a fork with no contributions and has not been cloned for code analysis."],
+                "schema_version": "1.0",
+                "classifier_version": "2026.06",
+                "confidence_meta": {
+                    "confidence_score": 100.0,
+                    "completeness_ratio": 1.0,
+                    "evidence_coverage_count": 0
+                }
+            }
+            return {
+                "data": result_data,
+                "telemetry": None,
+                "events": [
+                    {
+                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "level": "Info",
+                        "eventType": "StepCompleted",
+                        "message": "Repository classification complete (Short-circuited)."
+                    }
+                ]
+            }
+
+        files_str = "".join([f"--- FILE: {name} ---\n{content}\n\n" for name, content in zip(sample.file_names, sample.file_content)])
+        input_payload = {
+            "repo_name": meta.get("repo_name"),
+            "repo_owner": meta.get("repo_owner"),
+            "technologies": meta.get("technologies", []),
+            "files_str": files_str
+        }
+        system_prompt = self.prompt_factory.get_system_prompt()
+        user_prompt = self.prompt_factory.get_classification_user_prompt(input_payload)
+        
+        await self.publish_task_event(job_id, "RepositoryClassification", "Invoking AI Repository Classification model...")
+        raw_text, telemetry = await self.claude_service.analyze_repo_with_telemetry(system_prompt, user_prompt, correlation_id)
+        parsed = self._extract_json(raw_text, correlation_id)
+        await self.publish_task_event(job_id, "RepositoryClassification", "AI reasoning complete. Parsed response successfully.")
+        
+        parsed_data = parsed.get("data", parsed)
+        parsed_data["confidence_meta"] = {
+            "confidence_score": round(parsed_data.get("confidence", 0.8) * 100.0, 1),
+            "completeness_ratio": round(meta.get("coverage_pct", 100.0) / 100.0, 2),
+            "evidence_coverage_count": len(parsed_data.get("evidence", []))
+        }
+
+        return {
+            "data": parsed_data,
+            "telemetry": telemetry,
+            "events": [
+                {
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "level": "Info",
+                    "eventType": "StepCompleted",
+                    "message": f"Repository classified as: {parsed_data.get('primary_type', 'Unknown')}."
+                }
+            ]
+        }
+
     async def aggregate_results(
         self,
         job_id: str,
@@ -854,6 +923,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         arch_data = partial_results.get("ArchitectureAnalysis", {})
         quality_data = partial_results.get("CodeQuality", {})
         security_data = partial_results.get("SecurityAnalysis", {})
+        class_task_data = partial_results.get("RepositoryClassification", {})
         summary_data = partial_results.get("RepositorySummary", {})
 
         repo_type = meta.get("repo_type", "ORIGINAL_WORK")
@@ -865,6 +935,39 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
 
         repo_info = structure_data.get("repo", {})
         classification_info = structure_data.get("classification", {})
+
+        # Segregated classification and authenticity data structures
+        authenticity_info = {
+            "type": repo_type,
+            "confidence_ceiling": confidence_ceiling,
+            "confidence_modifier": confidence_modifier,
+            "rationale": classification_rationale,
+            "red_flags": meta.get("red_flags", [])
+        }
+
+        class_primary_type = class_task_data.get("primary_type", "Unknown")
+        class_all_types = class_task_data.get("all_types", [])
+        class_confidence = class_task_data.get("confidence", 0.8)
+        class_evidence = class_task_data.get("evidence", [])
+        class_schema_version = class_task_data.get("schema_version", "1.0")
+        class_classifier_version = class_task_data.get("classifier_version", "2026.06")
+
+        classification_dict = {
+            "schema_version": class_schema_version,
+            "classifier_version": class_classifier_version,
+            "primary_type": class_primary_type,
+            "all_types": class_all_types,
+            "confidence": class_confidence,
+            "evidence": class_evidence,
+            
+            # Legacy fallbacks for backward compatibility
+            "classification_rationale": " | ".join(class_evidence) if class_evidence else classification_rationale,
+            "complexity": class_task_data.get("complexity", "medium"),
+            "benchmark_group": class_task_data.get("benchmark_group", class_primary_type.lower().replace(" ", "_") + "s"),
+            "sampled_files": meta.get("sampled_files", []),
+            "ignored_files_count": max(0, len(filenames) - len(meta.get("sampled_files", []))),
+            "confidence_factors": meta.get("red_flags") or ["authentic_history"]
+        }
 
         ownership_info = commits_data.get("ownership", {
             "user_commit_ratio": 1.0,
@@ -1023,16 +1126,8 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 }
             },
             "ai_conclusions": {
-                "classification": {
-                    "primary_type": classification_info.get("primary_type", "Unclassified"),
-                    "all_types": classification_info.get("all_types", []),
-                    "complexity": classification_info.get("complexity", "medium"),
-                    "benchmark_group": classification_info.get("benchmark_group", "unclassified"),
-                    "classification_rationale": classification_rationale,
-                    "sampled_files": meta.get("sampled_files", []),
-                    "ignored_files_count": max(0, len(filenames) - len(meta.get("sampled_files", []))),
-                    "confidence_factors": meta.get("red_flags") or ["authentic_history"]
-                },
+                "authenticity": authenticity_info,
+                "classification": classification_dict,
                 "evidence_points": {
                     "total": len(findings) * 5,
                     "breakdown": {f.get("category", "quality"): 5 for f in findings}
@@ -1040,7 +1135,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 "trust": trust_info,
                 "risk_assessment": risk_assessment,
                 "positioning": {
-                    "benchmark_group": classification_info.get("benchmark_group", "unclassified"),
+                    "benchmark_group": classification_dict.get("benchmark_group", "unclassified"),
                     "percentile_rank": int(modified_confidence),
                     "peer_group_size": 100,
                     "relative_strengths": [s.get("strength") for s in summary_data.get("top_strengths", [])][:3]

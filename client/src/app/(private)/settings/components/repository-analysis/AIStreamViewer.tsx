@@ -21,6 +21,7 @@ const SHORT_TASK_NAMES: Record<string, string> = {
   ArchitectureAnalysis: "Arch",
   CodeQuality: "Quality",
   SecurityAnalysis: "Security",
+  RepositoryClassification: "Class",
   RepositorySummary: "Summary",
 };
 

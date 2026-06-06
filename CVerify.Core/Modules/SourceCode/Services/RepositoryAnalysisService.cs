@@ -129,7 +129,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         if (taskTypes.Count == 0)
         {
-            taskTypes = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositorySummary" };
+            taskTypes = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary" };
         }
 
         foreach (var tType in taskTypes)
@@ -196,7 +196,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         if (orderList.Count == 0)
         {
-            orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositorySummary" };
+            orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary" };
         }
 
         var orderedTasks = tasks.OrderBy(x => {
@@ -389,13 +389,14 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
             if (orderList.Count == 0)
             {
-                orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositorySummary" };
-                weights["RepoStructure"] = 15.0;
-                weights["CommitIntelligence"] = 25.0;
+                orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary" };
+                weights["RepoStructure"] = 10.0;
+                weights["CommitIntelligence"] = 20.0;
                 weights["SkillExtraction"] = 15.0;
                 weights["ArchitectureAnalysis"] = 15.0;
                 weights["CodeQuality"] = 15.0;
                 weights["SecurityAnalysis"] = 10.0;
+                weights["RepositoryClassification"] = 10.0;
                 weights["RepositorySummary"] = 5.0;
                 totalWeight = 100.0;
             }
@@ -714,6 +715,22 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 repo.IsVerified = confidence >= 50.0;
                 repo.TrustScore = confidence / 100.0;
                 repo.LastSyncedAt = _timeProvider.GetUtcNow();
+            }
+
+            // Extract and save classification & authenticity metadata
+            if (reportDoc.RootElement.TryGetProperty("ai_conclusions", out var conclusionsElement))
+            {
+                if (conclusionsElement.TryGetProperty("classification", out var classificationProp) &&
+                    classificationProp.TryGetProperty("primary_type", out var primaryTypeProp))
+                {
+                    repo.Classification = primaryTypeProp.GetString();
+                }
+
+                if (conclusionsElement.TryGetProperty("authenticity", out var authenticityProp) &&
+                    authenticityProp.TryGetProperty("type", out var typeProp))
+                {
+                    repo.AuthenticityType = typeProp.GetString();
+                }
             }
 
             // 8. Complete Job

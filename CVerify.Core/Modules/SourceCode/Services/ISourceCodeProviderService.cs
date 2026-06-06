@@ -29,8 +29,10 @@ public interface ISourceCodeProviderService
         string? visibility, 
         string? language, 
         string? sort, 
+        string? category, 
         int page, 
         int pageSize);
+    Task<IEnumerable<string>> GetDistinctCategoriesAsync(Guid userId);
     Task<Guid> EnqueueSyncJobAsync(Guid userId, Guid? providerId);
     Task<RepositorySyncJobStatus?> GetSyncStatusAsync(Guid userId, Guid jobId);
     Task ExecuteSyncJobAsync(RepositorySyncJob job, CancellationToken cancellationToken);

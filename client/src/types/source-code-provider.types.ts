@@ -39,6 +39,8 @@ export interface SourceCodeRepository {
   isVerified: boolean;
   trustScore: number;
   customSettingsJson: string | null;
+  classification: string | null;
+  authenticityType: string | null;
   createdAtUtc: string;
   lastSyncedAt: string;
 }
@@ -60,6 +62,7 @@ export interface RepositoryFilterParams {
   visibility?: string;
   language?: string;
   sort?: string;
+  category?: string;
   page?: number;
   pageSize?: number;
 }
