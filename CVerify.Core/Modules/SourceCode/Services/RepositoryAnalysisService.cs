@@ -132,7 +132,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         if (taskTypes.Count == 0)
         {
-            taskTypes = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary" };
+            taskTypes = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary", "CvSynthesis" };
         }
 
         foreach (var tType in taskTypes)
@@ -199,7 +199,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         if (orderList.Count == 0)
         {
-            orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary" };
+            orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary", "CvSynthesis" };
         }
 
         var orderedTasks = tasks.OrderBy(x => {
@@ -401,7 +401,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
             if (orderList.Count == 0)
             {
-                orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary" };
+                orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary", "CvSynthesis" };
                 weights["RepoStructure"] = 10.0;
                 weights["CommitIntelligence"] = 20.0;
                 weights["SkillExtraction"] = 15.0;
@@ -410,7 +410,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 weights["SecurityAnalysis"] = 10.0;
                 weights["RepositoryClassification"] = 10.0;
                 weights["RepositorySummary"] = 5.0;
-                totalWeight = 100.0;
+                weights["CvSynthesis"] = 5.0;
+                totalWeight = 105.0;
             }
 
             tasks = tasks.OrderBy(x => {
@@ -897,9 +898,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         }
         else
         {
-            // Reset the target task and the RepositorySummary task
+            // Reset the target task, the RepositorySummary task, and the CvSynthesis task
             tasksToReset = await _context.AnalysisTasks
-                .Where(t => t.JobId == jobId && (t.Id == taskId || t.TaskType == "RepositorySummary"))
+                .Where(t => t.JobId == jobId && (t.Id == taskId || t.TaskType == "RepositorySummary" || t.TaskType == "CvSynthesis"))
                 .ToListAsync();
         }
 

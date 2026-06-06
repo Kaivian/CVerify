@@ -48,6 +48,12 @@
       "weight": 5.0,
       "prerequisites": [ "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "RepositoryClassification" ],
       "providesCapabilities": [ "narrative_summary", "recommendations" ]
+    },
+    {
+      "taskType": "CvSynthesis",
+      "weight": 5.0,
+      "prerequisites": [ "RepositorySummary" ],
+      "providesCapabilities": [ "cv_object" ]
     }
   ]
 }

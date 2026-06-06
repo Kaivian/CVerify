@@ -21,6 +21,7 @@ const FRIENDLY_NAMES: Record<string, string> = {
   SecurityAnalysis: "Vulnerability & Security Audit",
   RepositoryClassification: "Repository Semantic Classification",
   RepositorySummary: "Recruiter Summary & Narrative",
+  CvSynthesis: "CV Synthesis Profile",
 };
 
 const FRIENDLY_DESCRIPTIONS: Record<string, string> = {
@@ -32,6 +33,7 @@ const FRIENDLY_DESCRIPTIONS: Record<string, string> = {
   SecurityAnalysis: "Audits for sensitive credentials, secrets leaks, and known security risks.",
   RepositoryClassification: "Identifies semantic repository category, types, confidence and evidence.",
   RepositorySummary: "Constructs the final narrative portfolio summary and career benchmarking statistics.",
+  CvSynthesis: "Synthesizes a structured, recruiter-ready professional CV summary and profile narrative.",
 };
 
 export const AnalysisTaskTimeline: React.FC<AnalysisTaskTimelineProps> = ({

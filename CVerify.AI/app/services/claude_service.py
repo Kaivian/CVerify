@@ -145,6 +145,12 @@ class ClaudeService:
         return text
 
     async def analyze_repo_with_telemetry(self, system_prompt: str, user_prompt: str, correlation_id: str = "system") -> tuple[str, dict]:
+        from app.monitoring.observability import TraceContext, UIStreamingManager, span_context
+        
+        ctx = TraceContext.get()
+        job_id = ctx.get("extra", {}).get("jobId")
+        task_type = ctx.get("extra", {}).get("taskType") or "LLM_CALL"
+        
         extra_log = {"correlation_id": correlation_id}
         system_config = [
             {
@@ -154,37 +160,75 @@ class ClaudeService:
             }
         ]
         
-        logger.info("Invoking Claude analysis with telemetry", extra=extra_log)
+        # Determine if debug mode is active
+        debug_mode = ctx.get("extra", {}).get("debug", False)
+        
+        logger.info(
+            "Invoking Claude analysis with telemetry in streaming mode",
+            extra={
+                "eventType": "llm_call_start",
+                "status": "running",
+                "correlation_id": correlation_id,
+                # Mask prompt logs in stdout: only expose if debug_mode is true
+                "rawPrompt": f"System: {system_prompt}\nUser: {user_prompt}" if debug_mode else "[MASKED]"
+            }
+        )
+        
         start_time = time.perf_counter()
-
+        
         try:
-            async def get_response():
+            async def get_stream():
                 return await self.client.messages.create(
                     model=settings.claude_model,
                     max_tokens=8192,
                     system=system_config,
                     messages=[{"role": "user", "content": user_prompt}],
-                    temperature=0.2
+                    temperature=0.2,
+                    stream=True
                 )
 
-            response = await retry_with_exponential_backoff(get_response, correlation_id=correlation_id)
+            stream = await retry_with_exponential_backoff(get_stream, correlation_id=correlation_id)
             
+            input_tokens = 0
+            output_tokens = 0
+            cache_creation = 0
+            cache_read = 0
+            text_chunks = []
+            
+            async for event in stream:
+                if event.type == "content_block_delta" and event.delta.type == "text_delta":
+                    token_text = event.delta.text
+                    text_chunks.append(token_text)
+                    
+                    # Decoupled real-time token streaming to frontend
+                    if job_id:
+                        await UIStreamingManager().enqueue_ui_event(
+                            job_id=job_id,
+                            task_type=task_type,
+                            task_status="Running",
+                            message="Streaming LLM response...",
+                            token_chunk=token_text
+                        )
+                elif event.type == "message_start":
+                    input_tokens = getattr(event.message.usage, "input_tokens", 0) or 0
+                    cache_creation = getattr(event.message.usage, "cache_creation_input_tokens", 0) or 0
+                    cache_read = getattr(event.message.usage, "cache_read_input_tokens", 0) or 0
+                elif event.type == "message_delta":
+                    output_tokens = getattr(event.usage, "output_tokens", 0) or 0
+
+            full_text = "".join(text_chunks)
             duration = int((time.perf_counter() - start_time) * 1000)
             
-            # Extract token details (with prompt caching)
-            input_tokens = response.usage.input_tokens
-            output_tokens = response.usage.output_tokens
-            cache_creation = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
-            cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
-
             # Record cost
-            cost = self.cost_tracker.record_usage(
+            cost = self.cost_tracker.record_execution(
+                correlation_id=correlation_id,
                 model=settings.claude_model,
+                execution_type="llm_call",
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cache_creation_tokens=cache_creation,
                 cache_read_tokens=cache_read,
-                correlation_id=correlation_id
+                duration_ms=duration
             )
 
             telemetry = {
@@ -201,6 +245,8 @@ class ClaudeService:
             logger.info(
                 f"Claude telemetry call successful. Tokens: In={input_tokens} (CacheWrite={cache_creation}, CacheRead={cache_read}), Out={output_tokens}, Cost=${cost:.6f}, Duration={duration}ms",
                 extra={
+                    "eventType": "llm_call_end",
+                    "status": "success",
                     "correlation_id": correlation_id,
                     "duration_ms": duration,
                     "input_tokens": input_tokens,
@@ -210,8 +256,30 @@ class ClaudeService:
                     "estimated_cost_usd": float(cost)
                 }
             )
-            return response.content[0].text, telemetry
+            return full_text, telemetry
 
         except Exception as e:
-            logger.error(f"Error calling Anthropic Claude API for repository analysis: {e}", extra=extra_log)
+            duration = int((time.perf_counter() - start_time) * 1000)
+            # Classify errors into standard categories
+            err_str = str(e).lower()
+            error_type = "UNKNOWN_EXCEPTION"
+            if "timeout" in err_str or "time out" in err_str:
+                error_type = "LLM_TIMEOUT"
+            elif "invalid_prompt" in err_str or "bad request" in err_str or "system prompt" in err_str:
+                error_type = "INVALID_PROMPT"
+            elif "rate limit" in err_str or "overloaded" in err_str or "connection" in err_str:
+                error_type = "TOOL_FAILURE"
+
+            # Log classified error details
+            logger.error(
+                f"Error calling Anthropic Claude API for repository analysis: {e}",
+                exc_info=True,
+                extra={
+                    "eventType": "llm_call_end",
+                    "status": "error",
+                    "correlation_id": correlation_id,
+                    "duration_ms": duration,
+                    "errorType": error_type
+                }
+            )
             raise e
