@@ -1,93 +1,65 @@
 # 09 - Debugging Guide
 
-This document is a practical troubleshooting manual for engineers and AI agents diagnosing failures across the CVerify.AI pipeline.
+This document is a diagnostic guide for engineers to troubleshoot, isolate, and resolve common runtime errors within the CVerify AI microservice.
 
 ---
 
-## 1. Repository Clone Failure
-*   **Where**: [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) in `orchestrate_async` (lines 70-100)
-*   **Symptoms**: UI progress indicator hangs on `CloningRepository` and then transitions to a red `Failed` state. The user receives a message such as: `"Failed to clone repository (Exception): ..."` or `"Git clone failed: ..."`.
-*   **Expected Logs**:
-    *   *Microservice*: `CorrelationId: system - Clone failed for {repo_owner}/{repo_name}` (logged as traceback by `logger.exception`).
-*   **Resolution Steps**:
-    1.  Confirm that the Git CLI is installed and added to the PATH on the host running the FastAPI service.
-    2.  Verify the repository branch exists on the remote Git server.
-    3.  Confirm the GitHub Personal Access Token is valid, active, and has read scope permissions for the target repository.
-    4.  Verify that `GIT_TERMINAL_PROMPT="0"` is set in the environment variables (the orchestrator sets this, but verify system-level overrides) to prevent Git subprocesses from prompting for credentials in stdin.
+## 1. Git Clone & Authentication Failures
+*   **Where**: [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) in `analyze_structure` (invoked during `RepoStructure` task).
+*   **Symptom**: Job fails during the first task (`RepoStructure`) with `"Git clone failed: Exit code 128"` or authentication prompts in stdout.
+*   **Causes**:
+    *   GitHub OAuth token has expired or lacks repo permissions.
+    *   Git command is missing from the system path.
+    *   Network timeouts when accessing `github.com`.
+*   **Diagnostics**:
+    1.  Verify the decrypted token is valid by testing it via curl:
+        ```bash
+        curl -H "Authorization: token gho_xxx" https://api.github.com/user
+        ```
+    2.  Check if `git` is callable: `git --version`.
+    3.  Confirm local file write access to the `temp_clones/` directory.
 
----
+## 2. Claude API Outages & Rate Limits
+*   **Where**: [app/services/claude_service.py](../services/claude_service.py) in `retry_with_exponential_backoff`.
+*   **Symptom**: Task execution hangs or logs multiple `Transient error in Claude call` warnings.
+*   **Causes**:
+    *   Anthropic API rate-limits hit (HTTP 429).
+    *   Out of API credits on the Anthropic console.
+    *   Anthropic service outage (HTTP 502/503/504).
+*   **Diagnostics**:
+    1.  Check stdout logs for the retry warnings. The system retries transient errors up to **5 times** using exponential delay.
+    2.  Check Anthropic Status: `status.anthropic.com`.
+    3.  Verify the environment variable `ANTHROPIC_API_KEY` is loaded and active.
 
-## 2. Claude API Failure
-*   **Where**: [app/services/claude_service.py](../services/claude_service.py) in `analyze_repo` (lines 53-73) and [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) in `orchestrate_async` (lines 162-167)
-*   **Symptoms**: Job fails at step `RunningAgents`. Error displayed: `"Claude analysis service failure: ..."` or `"Claude analysis service failure: APIConnectionError"`.
-*   **Expected Logs**:
-    *   *Microservice*: `CorrelationId: system - Error calling Anthropic Claude API for repository analysis: {exception}`
-    *   *Microservice*: `CorrelationId: system - Claude analysis failed for {owner}/{name}: {exception}`
-*   **Resolution Steps**:
-    1.  Verify the `ANTHROPIC_API_KEY` is loaded by checking microservice console startup output: `"Anthropic API Key Configured: True"`.
-    2.  Confirm that the credit balance on the Anthropic Developer Console is positive.
-    3.  Check if `CLAUDE_MODEL` is configured to a valid, supported Anthropic model tag (e.g. `claude-3-5-sonnet-20241022`).
+## 3. JSON Parsing Exceptions
+*   **Where**: [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) in `_extract_json`.
+*   **Symptom**: Task completes with an error: `"Claude output did not return a valid JSON format."` or `"Sanitization failed"`.
+*   **Causes**:
+    *   Claude response was truncated due to output token constraints (`max_tokens` limit).
+    *   Claude included conversational wrapping text (e.g. "Here is the JSON:") despite strict formatting instructions.
+*   **Diagnostics**:
+    1.  If debug logging is active (`AI_DEBUG_MODE=true`), inspect the raw prompt response in the logs.
+    2.  Verify the Pydantic schemas in `github_prompt_factory.py` are compact and do not exceed Claude's output buffer limit.
+    3.  `_extract_json` uses brace boundary scanning (`find('{')` and `rfind('}')`) to bypass markdown fences. Check if nested braces are correctly balanced in the LLM's response.
 
----
-
-## 3. Server-Sent Events (SSE) Streaming Failure
-*   **Where**: `RepositoryAnalysisService.cs` in `ExecuteAnalysisJobAsync` (lines 269-318)
-*   **Symptoms**: UI spinner hangs indefinitely, or the connection terminates early without displaying report details.
-*   **Expected Logs**:
-    *   *C# Core Service*: `Failed to parse SSE event chunk from AI microservice: {Chunk}`
-    *   *C# Core Service*: `AI microservice stream ended without returning final report data.`
-*   **Resolution Steps**:
-    1.  Confirm that the FastAPI server is running and is reachable from the CVerify.Core container/host via curl or ping.
-    2.  Check for intervening proxy servers (e.g., Nginx, IIS) that might buffer chunked HTTP responses. Ensure proxies have `X-Accel-Buffering: no` or `proxy_buffering off` configured.
-
----
-
-## 4. JSON Schema Parsing Failure
-*   **Where**: [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) in `orchestrate_async` (lines 170-189)
-*   **Symptoms**: Job completes Claude analysis but fails in `RunningAgents`. Error message: `"Claude output did not return a valid JSON format."`
-*   **Expected Logs**:
-    *   *Microservice*: `CorrelationId: system - Failed to parse extracted JSON block: {parse_err}`
-    *   *Microservice*: `CorrelationId: system - Failed to parse Claude output as JSON. Output: {raw_report}`
-*   **Resolution Steps**:
-    1.  Inspect the raw text output logged from Claude.
-    2.  Identify if Claude truncated its output mid-object due to token limits. If so, reduce `max_files` (default 10) or `max_lines_per_file` (default 100) inside `github_analysis_orchestrator.py` to reduce context size.
-    3.  Verify that the sampled codebase contents do not contain nested escape characters that break JSON boundaries.
-
----
-
-## 5. Redis Connectivity and Nonce Replay Failures
-*   **Where**: [app/middleware/hmac_auth.py](../middleware/hmac_auth.py) in `verify_hmac_signature` (lines 43-57)
-*   **Symptoms**: C# Core receives HTTP 503 `"Signature store unavailable."` or `"Distributed security store offline."` when POSTing trigger requests.
-*   **Expected Logs**:
-    *   *Microservice*: `Redis connection error during nonce validation: {re}`
-    *   *Microservice*: `Redis client is offline. Signature verification failed closed.`
-*   **Resolution Steps**:
-    1.  Verify the Redis server is online and responding.
-    2.  Confirm that the connection string `REDIS_URL` (in Python) and `REDIS_HOST` / `REDIS_PORT` (in C#) point to the same Redis instance.
-    3.  Check Docker network configurations if running inside containers.
-
----
-
-## 6. Database Persistence Failures
-*   **Where**: `RepositoryAnalysisService.cs` in `ExecuteAnalysisJobAsync` (lines 330-365)
-*   **Symptoms**: Microservice successfully completes report aggregation, but Core worker fails at step `SavingReport`.
-*   **Expected Logs**:
-    *   *C# Core Service*: `Failed to run analysis job {JobId} - Microsoft.EntityFrameworkCore.DbUpdateException: ...`
-*   **Resolution Steps**:
-    1.  Check DB storage spaces.
-    2.  Verify the Postgres `AnalysisReports` schema columns.
-    3.  Ensure database migrations have been successfully run (specifically verifying that JSONB column attributes are supported).
-
----
-
-## 7. Analysis Timeout Failure
-*   **Where**: `RepositoryAnalysisService.cs` in `ExecuteAnalysisJobAsync` (lines 366-384)
-*   **Symptoms**: Job switches status to `TimedOut` exactly 10 minutes after starting. Error message: `"The analysis exceeded the maximum execution timeout of 10 minutes."`
-*   **Expected Logs**:
-    *   *C# Core Service*: `Repository analysis job {JobId} timed out or was cancelled.`
-*   **Resolution Steps**:
-    1.  Determine which stage was executing when the timeout occurred. If git cloning is slow, review network links to GitHub.
-    2.  If Claude API latency is high, check Anthropic status pages for performance degradation.
+## 4. Aggregator Schema Violations
+*   **Where**: [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) in `aggregate_results`.
+*   **Symptom**: Aggregator returns HTTP 400 with `Report V2 Contract validation failure`.
+*   **Causes**:
+    *   A discrete task cached unparseable or corrupted JSON results on disk.
+    *   Pydantic validation rules failed (e.g. `confidence` was outside `0.0 - 1.0`, or `schemaVersion` did not match `"v2"`).
+*   **Diagnostics**:
+    1.  Inspect the workspace directory `temp_clones/{job_id}/` for cached task outputs:
+        *   `RepoStructure_result.json`
+        *   `CommitIntelligence_result.json`
+        *   `SkillExtraction_result.json`
+        *   `ArchitectureAnalysis_result.json`
+        *   `CodeQuality_result.json`
+        *   `SecurityAnalysis_result.json`
+        *   `RepositoryClassification_result.json`
+        *   `RepositorySummary_result.json`
+        *   `CvSynthesis_result.json`
+    2.  Check the error trace to see which field violated the Pydantic type constraints.
 
 ---
 
@@ -95,12 +67,12 @@ This document is a practical troubleshooting manual for engineers and AI agents 
 
 | Field | Reference Value / Path |
 |---|---|
-| **Entry Points** | None (troubleshooting manual) |
-| **Dependencies** | Python: `fastapi`, `redis`, `anthropic`, `git`. C#: `EF Core`, `StackExchange.Redis`. |
-| **Execution Flow** | Diagnostic manuals map errors to specific line numbers and troubleshooting steps. |
-| **Common Failure Modes** | Invalid environment variables, blocked network ports, stale security tokens. |
-| **Related Files** | [app/middleware/hmac_auth.py](../middleware/hmac_auth.py), [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
-| **Related Services** | [ClaudeService](../services/claude_service.py), `RepositoryAnalysisService.cs` |
+| **Entry Points** | Logs located at `app.log` or standard stdout streams |
+| **Dependencies** | Python standard `logging` setup in [app/monitoring/observability.py](../monitoring/observability.py) |
+| **Execution Flow** | Diagnostic procedure mapping exceptions back to the 9 discrete task nodes and final aggregator. |
+| **Common Failure Modes** | Workspace cleanup occurred (`deleteWorkspace=true`), erasing cached files before debugging could begin. For debugging, set `deleteWorkspace` to `false` in tests. |
+| **Related Files** | [app/services/claude_service.py](../services/claude_service.py), [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
+| **Related Services** | None |
 | **Related DTOs** | None |
-| **Related Database Tables** | `AnalysisJobs`, `AnalysisJobEvents`, `AnalysisReports` |
-| **Related Frontend Components** | `DetailedAnalysisModal.tsx` |
+| **Related Database Tables** | `AnalysisJobEvents` (holds SQL server copy of logs) |
+| **Related Frontend Components** | `DetailedAnalysisModal.tsx` (displays error messages) |

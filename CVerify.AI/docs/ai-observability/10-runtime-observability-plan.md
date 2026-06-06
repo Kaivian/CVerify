@@ -1,102 +1,76 @@
 # 10 - Runtime Observability Plan
 
-This document audits the current logging and request-tracing architecture of the `CVerify.AI` microservice, identifies critical observability gaps, and proposes a structured logging strategy to optimize debugging and auditing.
+This document details the request-tracing, cost-auditing, and structured logging architecture implemented in the `CVerify.AI` microservice.
 
 ---
 
-## Observability Audit
+## Observability Architecture
 
-### 1. Logger Instances in Python Service
-The microservice registers five distinct loggers using Python's standard `logging` library:
-*   `cverify-ai` (configured in [app/main.py](../main.py)): Root application logger.
-*   `analysis_router` (configured in [app/routes/analysis_router.py](../routes/analysis_router.py)): Logs router invocations.
-*   `github_analysis_orchestrator` (configured in [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py)): Logs clone and sampling operations.
-*   `claude_service` (configured in [app/services/claude_service.py](../services/claude_service.py)): Logs API exceptions.
-*   `hmac_auth` (configured in [app/middleware/hmac_auth.py](../hmac_auth.py)): Logs authentication events and nonce validation.
+CVerify.AI uses an automated, context-aware tracing system to log, audit, and track latency and costs across the FastAPI microservice and Anthropic API.
 
-### 2. Request Correlation Gaps
+### 1. Unified Logger Setup
+Loggers are configured in `app/monitoring/observability.py` using Python's standard `logging` library. Standard loggers include:
+*   `cverify-ai`: Root microservice application logger.
+*   `analysis_router`: Logs router endpoints.
+*   `github_analysis_orchestrator`: Logs task execution steps.
+*   `claude_service`: Logs API calls and exponential backoff retry messages.
+*   `hmac_auth`: Logs HMAC auth and replay checks.
 
-> [!WARNING]
-> **Critical Observability Defect: Broken Correlation ID Propagation**
->
-> While `main.py` configures a custom `CorrelationIdFormatter` that outputs `CorrelationId: %(correlation_id)s`, it relies on the developer manually passing `extra={"correlation_id": ...}` on every log call.
->
-> *   **Where it works**: The middleware (`hmac_auth.py`) extracts `X-Correlation-Id` and assigns it to `request.state.correlation_id`. The router (`analysis_router.py`) retrieves this and calls logger methods with `extra={"correlation_id": correlation_id}`.
-> *   **Where it fails**: The `GitHubAnalysisOrchestrator` and the `ClaudeService` have **no knowledge of the correlation ID**.
-> *   *Result*: Any log messages or tracebacks emitted during Git cloning, technology scans, file sampling, or Claude API invocations default to `CorrelationId: system`. This makes it impossible to link exceptions in these core execution phases to specific job records in a production environment.
+### 2. Trace Context Propagation (Resolved)
+Correlation IDs and trace boundaries are propagated dynamically using Python `contextvars` rather than manually passing `extra` logs.
+*   **Trace Context**: Managed via `TraceContext` in `app/monitoring/observability.py`. It holds:
+    *   `trace_id`: The global execution correlation ID.
+    *   `span_id`: Unique ID for the current execution span.
+    *   `parent_span_id`: ID of the calling parent span (from W3C traceparent headers).
+    *   `pipeline_stage`: Name of the active task (e.g. `CommitIntelligence`).
+    *   `is_sampled`: Sampling flag for telemetry persistence.
+*   **Middleware Binding**: `add_trace_context_middleware` in `app/main.py` extracts correlation IDs or W3C `traceparent` headers from incoming requests and binds them to the async task context using context variables. All logger calls in the task's thread/coroutine automatically resolve and print these IDs.
 
-### 3. Missing Observability Metrics
-*   **No Latency Audits**: There are no duration metrics tracked or logged for git clones, scans, or Anthropic API transits.
-*   **No Token Tracking**: Claude's token usage data (`response.usage.input_tokens` and `response.usage.output_tokens`) is completely discarded in `ClaudeService.py`.
+### 3. Latency & Token Telemetry (Resolved)
+*   **Latency Metrics**: Latency is tracked for each task execution and recorded in milliseconds inside `AnalysisTasks` and `AnalysisExecutions` database records.
+*   **Token Metrics**: `ClaudeService` reads token usage data (`input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`) directly from the Anthropic response object stream.
+*   **Cost Tracking**: Token metrics are passed to `AiCostTracker`, which calculates and registers cost metrics (USD) using the model's pricing rates. These are persisted under the correlation ID.
 
 ---
 
-## Propose Structured JSON Logging Strategy
+## JSON Log Formatting
 
-We recommend replacing the standard text formatter with a structured JSON logger (e.g. using `python-json-logger` or custom formatting) so that logs can be parsed by ingestion utilities like Datadog, Elasticsearch, or AWS CloudWatch.
+Logs are structured as JSON structures for automatic parsing by cloud log ingestion engines (Datadog, Elasticsearch, AWS CloudWatch, etc.).
 
-### JSON Log Schema Proposal
+### Example Log Payload
 ```json
 {
-  "timestamp": "2026-06-06T04:06:52.000Z",
-  "level": "ERROR",
-  "logger": "github_analysis_orchestrator",
+  "timestamp": "2026-06-06T18:59:51.000Z",
+  "level": "INFO",
+  "logger": "claude_service",
   "correlation_id": "018f6f69-d4c5-7a42-990a-5b1285311e9f",
-  "stage": "CloningRepository",
-  "duration_ms": 15400,
-  "message": "Git clone failed: Exit code 128",
-  "exception": "Traceback (most recent call last):\n..."
+  "duration_ms": 4210,
+  "message": "Claude telemetry call successful. Tokens: In=1050 (CacheWrite=0, CacheRead=3120), Out=450, Cost=$0.00782, Duration=4210ms",
+  "input_tokens": 1050,
+  "output_tokens": 450,
+  "cache_read_input_tokens": 3120,
+  "estimated_cost_usd": 0.00782
 }
 ```
 
 ---
 
-## Concrete Log Placement Recommendations
+## Core Logging Implementations
 
-To restore correlation ID continuity and capture missing pipeline metrics, apply the following code changes:
+### 1. Observability Formatter
+The application formatter extracts `trace_id`, `span_id`, and `pipeline_stage` context from `TraceContext`:
+```python
+class TraceContextFormatter(logging.Formatter):
+    def format(self, record):
+        ctx = TraceContext.get()
+        record.trace_id = ctx.get("trace_id", "system")
+        record.span_id = ctx.get("span_id", "system")
+        record.pipeline_stage = ctx.get("pipeline_stage", "system")
+        return super().format(record)
+```
 
-### 1. In `GitHubAnalysisOrchestrator.orchestrate_async`
-*   **Recommendation**: Modify the signature of `orchestrate_async` to accept a `correlation_id` parameter (forwarded from the router) and pass it to all logger calls.
-*   **Code Implementation Pattern**:
-    ```python
-    # In analysis_router.py:
-    async for progress_event in orchestrator.orchestrate_async(
-        ...,
-        correlation_id=correlation_id # ← Forwarded here
-    ):
-    
-    # In github_analysis_orchestrator.py:
-    async def orchestrate_async(self, ..., correlation_id: str) -> AsyncGenerator[dict, None]:
-        extra_log = {"correlation_id": correlation_id}
-        logger.info("Starting repository analysis", extra=extra_log)
-        
-        start_time = time.perf_counter()
-        # execution block ...
-        duration = int((time.perf_counter() - start_time) * 1000)
-        logger.info("Repository analysis completed", extra={**extra_log, "duration_ms": duration})
-    ```
-
-### 2. In `ClaudeService.analyze_repo`
-*   **Recommendation**: Pass the correlation ID to `analyze_repo` and capture input/output token usages from the Anthropic response object.
-*   **Code Implementation Pattern**:
-    ```python
-    async def analyze_repo(self, system_prompt: str, user_prompt: str, correlation_id: str) -> str:
-        extra_log = {"correlation_id": correlation_id}
-        logger.info("Invoking Claude analysis", extra=extra_log)
-        start_time = time.perf_counter()
-        
-        response = await self.client.messages.create(...)
-        
-        duration = int((time.perf_counter() - start_time) * 1000)
-        input_tokens = response.usage.input_tokens
-        output_tokens = response.usage.output_tokens
-        
-        logger.info(
-            f"Claude call successful. Tokens: In={input_tokens}, Out={output_tokens}",
-            extra={**extra_log, "duration_ms": duration, "input_tokens": input_tokens, "output_tokens": output_tokens}
-        )
-        return response.content[0].text
-    ```
+### 2. UI Telemetry Streaming
+As tokens stream back from Claude, they are immediately broadcasted to the frontend client via `UIStreamingManager().enqueue_ui_event()`, enabling real-time feedback in the UI for the active task.
 
 ---
 
@@ -104,12 +78,12 @@ To restore correlation ID continuity and capture missing pipeline metrics, apply
 
 | Field | Reference Value / Path |
 |---|---|
-| **Entry Points** | `CorrelationIdFormatter` in [app/main.py](../main.py), `verify_hmac_signature` in [app/middleware/hmac_auth.py](../middleware/hmac_auth.py) |
-| **Dependencies** | Python: `logging` module |
-| **Execution Flow** | Incoming request triggers HMAC middleware → correlation ID stored in `request.state` → Router reads correlation ID → Manual passing of ID as `extra` parameter |
-| **Common Failure Modes** | **Stale Correlation Context** (forgetting to pass `extra` parameters, yielding default `"system"` correlation records). |
-| **Related Files** | [app/routes/analysis_router.py](../routes/analysis_router.py), [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
-| **Related Services** | [ClaudeService](../services/claude_service.py) |
+| **Entry Points** | `setup_logging` and `TraceContext` in [app/monitoring/observability.py](../monitoring/observability.py) |
+| **Dependencies** | Python: `logging`, `contextvars` |
+| **Execution Flow** | Incoming HTTP ➔ middleware binds contextvars ➔ Logger formats output with trace metadata automatically. |
+| **Common Failure Modes** | Context variables cleared when spawning unmanaged threads (always use `asyncio.to_thread` or context-preserving thread wrappers). |
+| **Related Files** | [app/main.py](../main.py), [app/services/claude_service.py](../services/claude_service.py) |
+| **Related Services** | `AiCostTracker` |
 | **Related DTOs** | None |
-| **Related Database Tables** | `AnalysisJobEvents` (stores DB copies of structured logs) |
-| **Related Frontend Components** | None |
+| **Related Database Tables** | `AnalysisExecutions` |
+| **Related Frontend Components** | `DetailedAnalysisModal.tsx` |

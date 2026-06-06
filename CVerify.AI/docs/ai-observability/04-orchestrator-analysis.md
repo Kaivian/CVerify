@@ -1,12 +1,12 @@
 # 04 - Orchestrator Analysis
 
-This document audits the orchestrator classes defined in the `app/orchestrators` directory, detailing the execution steps, dependency maps, timeout logic, and retry behaviors.
+This document audits the orchestrator classes defined in the `app/orchestrators` directory, detailing the execution steps, workspace caching, truth calibration algorithms, trust graph models, and retry behaviors.
 
 ---
 
 ## Orchestrator Directory Audit
 
-1.  **`GitHubAnalysisOrchestrator` (Active)**: Coordinates the entire repository verification process.
+1.  **`GitHubAnalysisOrchestrator` (Active)**: Coordinates the sequential task execution and results aggregation for repository verification.
 2.  **`CvAnalysisOrchestrator` (Skeleton)**: Intended to orchestrate resume profile extractions. Currently returns `{}`.
 3.  **`JobMatchingOrchestrator` (Skeleton)**: Intended to match candidate profiles to jobs. Currently returns `[]`.
 
@@ -14,65 +14,101 @@ This document audits the orchestrator classes defined in the `app/orchestrators`
 
 ## GitHubAnalysisOrchestrator Execution Flow
 
-The `GitHubAnalysisOrchestrator` executes the repository intelligence pipeline using a series of generator steps, yielding status reports back to the C# Core client.
+The `GitHubAnalysisOrchestrator` exposes two primary operational endpoints invoked by CVerify.Core:
+
+### 1. Task Execution (`execute_task`)
+Runs a single, discrete analysis step based on `task_type`.
 
 ```mermaid
 flowchart TD
-    Start([Start Orchestration]) --> CloneBranch[Shallow Clone with branch]
-    CloneBranch --> CloneBranchCheck{Clone Success?}
+    Start([Start Task Execution]) --> TypeCheck{Task Type?}
     
-    CloneBranchCheck -- No --> CleanDir[Delete temp folder]
-    CleanDir --> CloneDefault[Shallow Clone without branch]
-    CloneDefault --> CloneDefaultCheck{Retry Success?}
+    TypeCheck -->|RepoStructure| RepoStruct[Classify Repo, Git Clone, Tech Scan]
+    TypeCheck -->|CommitIntelligence| CommitIntel[Factual Git Log Scan & Claude Authenticity Audit]
+    TypeCheck -->|SkillExtraction| SkillExt[Claude Tech Skill Signature Extraction]
+    TypeCheck -->|ArchitectureAnalysis| ArchAnal[Claude Codebase Layout Scan]
+    TypeCheck -->|CodeQuality| CodeQual[Claude Testing & Observability Scan]
+    TypeCheck -->|SecurityAnalysis| SecAnal[Claude Dependency & Vulnerability Audit]
+    TypeCheck -->|RepositoryClassification| RepoClass[Claude Semantic Domain Classification]
+    TypeCheck -->|RepositorySummary| RepoSum[Claude Narrative Summary Compile]
+    TypeCheck -->|CvSynthesis| CvSynth[Claude CV Profile Synthesis]
     
-    CloneDefaultCheck -- No --> FailClone[Raise Git Clone Exception]
+    RepoStruct --> CacheResult[Save result to temp_clones/jobId/taskType_result.json]
+    CommitIntel --> CacheResult
+    SkillExt --> CacheResult
+    ArchAnal --> CacheResult
+    CodeQual --> CacheResult
+    SecAnal --> CacheResult
+    RepoClass --> CacheResult
+    RepoSum --> CacheResult
+    CvSynth --> CacheResult
     
-    CloneBranchCheck -- Yes --> DetectTech[Technology Stack Detection]
-    CloneDefaultCheck -- Yes --> DetectTech
+    CacheResult --> Finish([Return TaskExecuteResponse JSON])
+```
+
+### 2. Results Aggregation (`aggregate_results`)
+Combines task outputs, runs truth calibration and adversarial checks, and validates the final Report V2 schema.
+
+```mermaid
+flowchart TD
+    StartAgg([Start Aggregation]) --> LoadCaches[Read task result caches from local temp_clones]
+    LoadCaches --> CheckCICD[Verify CI/CD config files on disk]
+    CheckCICD --> TruthCalibrate[Run Truth Calibration: Git logs override API and LLM]
+    TruthCalibrate --> RiskAssess[Run 6-Dimensional Risk Score calculations]
+    RiskAssess --> AdvMetrics[Compute Adversarial Risk: timestamp compression, uncalibrated identities, etc.]
+    AdvMetrics --> BuildGraph[Generate Calibrated Trust Graph: Nodes & Edges]
+    BuildGraph --> ValidateV2[Validate via ReportV2Contract Pydantic Model]
     
-    DetectTech --> SampleFiles[Walk & Sample Files]
-    SampleFiles --> SampleCheck{Repo Size Bounds?}
-    
-    SampleCheck -- Out of Bounds --> FailSample[Raise Sampling Exception]
-    SampleCheck -- In Bounds --> BuildPrompts[Build System & User Prompts]
-    
-    BuildPrompts --> CallClaude[Call Claude Service]
-    CallClaude --> ParseJSON[Clean & Parse JSON Block]
-    
-    ParseJSON --> JSONCheck{Valid JSON?}
-    JSONCheck -- No --> FailParse[Raise JSON Format Exception]
-    JSONCheck -- Yes --> BackfillScoring[Backfill scoring.final_score]
-    
-    BackfillScoring --> StreamReport[Yield final reportData SSE]
-    StreamReport --> Success([Success])
-    
-    FailClone --> EndFail([Failed State])
-    FailSample --> EndFail
-    FailParse --> EndFail
+    ValidateV2 --> DelWorkspace{deleteWorkspace?}
+    DelWorkspace -->|Yes| CleanDisk[Delete temp_clones/jobId/ folder]
+    DelWorkspace -->|No| FinalResult[Build Final JSON payload]
+    CleanDisk --> FinalResult
+    FinalResult --> EndAgg([Return AggregateResponse])
 ```
 
 ---
 
 ## Detailed Component Analysis (GitHubAnalysisOrchestrator)
 
-### 1. Responsibilities
-*   Create a local clone workspace directory inside `CVerify.AI/temp_clones/`.
-*   Execute shell commands for `git clone` using depth-1 settings.
-*   Scan file paths and manifests to identify tech stacks and framework usage.
-*   Enforce repository safety size constraints (<= 150MB total size, <= 10,000 files).
-*   Extract up to 10 largest source files + package configuration manifests.
-*   Synthesize prompts, invoke Anthropic's Claude, and extract the JSON response.
-*   Backfill scoring parameters (final score/band mappings) to satisfy C# backend models.
+### 1. Workspace Caching
+*   **Mechanism**: The C# backend manages orchestration sequentially. To share context between steps without passing huge payloads, CVerify.AI writes task results to disk in the job's temporary workspace folder: `CVerify.AI/temp_clones/{job_id}/{task_type}_result.json`.
+*   **Example**: `CvSynthesis` reads the outputs of `RepositoryClassification`, `SkillExtraction`, `CommitIntelligence`, and `RepositorySummary` directly from the cached workspace files to build the prompt.
 
-### 2. Failure Points and Retry Behavior
-*   **Git Clone Failure (with Fallback)**:
-    *   *Mechanism*: If cloning using the specified branch (`--branch default_branch`) returns a non-zero code, it deletes the directory `clone_dir` using `shutil.rmtree(clone_dir, ignore_errors=True)`.
-    *   *Retry*: It immediately attempts a second clone command *without* the branch parameter, letting the remote repository fall back to its own default branch (e.g. `main` or `master`). If this fallback also fails, it decodes `stderr` and raises a generic Exception.
-*   **API Timeout**:
-    *   The Python microservice does not define explicit connection timeouts when calling the Anthropic API.
-    *   *Timeout handling*: The C# background processor `BackgroundRepositoryAnalysisProcessor` encapsulates the task with `linkedCts.CancelAfter(TimeSpan.FromMinutes(10))`. If the analysis execution exceeds 10 minutes, CVerify.Core raises an `OperationCanceledException` and marks the job status in the database as `TimedOut`.
-*   **JSON Parse Failure**:
-    *   If Claude outputs an unparseable or truncated block, the orchestrator first attempts to locate the outermost braces `{ ... }`. If parsing still fails, it raises an exception, yielding a `Failed` event SSE frame.
+### 2. Truth Calibration Layer & Conflict Resolution
+The orchestrator implements a strict hierarchical validation layer to resolve conflicts between developer-reported metrics, GitHub API counts, and LLM inferences:
+*   **Hierarchical Order**: Local Git Logs (`S_git`: highest authority) ➔ GitHub API (`S_api`: medium authority) ➔ LLM Inference (`S_llm`: advisory authority).
+*   **Skill Calibration**: LLM-inferred skills are cross-referenced with files detected during the directory walk. Skills unsupported by manifest file references are rejected.
+*   **Authorship Calibration**: If Git logs indicate the user's commit ratio is under 20%, any claims by GitHub API metadata or Claude identifying the user as the primary author are overridden.
+
+### 3. Adversarial Risk & Uncertainty Metrics
+The orchestrator calculates six metrics to detect repository manipulation:
+*   **Variance**: stability parameter reflecting commit size and frequency (`100.0 / (total_commits + 1)`).
+*   **Sampling Bias Risk**: ratio of files skipped during sampling (`1.0 - (sampled_files / scanned_files)`).
+*   **Uncalibrated Identities**: count of author email addresses in the Git log that do not match the user's profile.
+*   **Timestamp Compression**: ratio of commits occurring within compressed windows (e.g. bulk copy-paste history dumps).
+*   **Unverified Commits**: count of Git commits missing cryptographic signatures.
+*   **Adversarial Risk Score**: combined index which penalizes the final trust score (up to a 50% reduction) if spoofing or identity mismatch is detected.
+
+### 4. Structured Trust Graph Generation
+The aggregation step compiles an interactive graph of the verified evidence:
+*   **Nodes**:
+    *   `developer`: representing the candidate.
+    *   `repository`: representing the audited codebase.
+    *   `skill`: calibrated developer skills.
+    *   `evidence`: specific quality or security findings that verify skills.
+*   **Edges**:
+    *   `dev-owns-repo` (weight based on commit ratio).
+    *   `dev-has-skill` (weight based on trust score).
+    *   `repo-uses-skill`.
+    *   `evidence-supports-repo`.
+
+---
+
+## Failure Points and Retry Behavior
+
+*   **Task Interruption**: If any task fails, the C# coordinator logs the exception, halts subsequent tasks, and marks the job as `Failed`.
+*   **API Outages**: Recovered via exponential backoff retries within the `ClaudeService` (up to 5 attempts).
+*   **Cleanup Failures**: If deleting the directory `temp_clones/{jobId}` fails, the orchestrator logs a warning but does not fail the job.
 
 ---
 
@@ -80,12 +116,12 @@ flowchart TD
 
 | Field | Reference Value / Path |
 |---|---|
-| **Entry Points** | `orchestrate_async` in [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
-| **Dependencies** | Python: `shutil`, `tempfile`, `subprocess`, `asyncio`, `json` |
-| **Execution Flow** | Triggered by router → Create Temp Dir → Subprocess Git Clone (branch retry) → Scan technologies → Sample files (size checks) → Fetch prompts → Send to Claude → Parse JSON → Yield steps |
-| **Common Failure Modes** | **Git Subprocess Hangs** (no credential helper configuration, waiting for stdin), **Out of Disk Space** (accumulated temp clones), **JSON Parse Crash** (Claude returned invalid JSON formats) |
-| **Related Files** | [app/routes/analysis_router.py](../routes/analysis_router.py), [app/orchestrators/cv_analysis_orchestrator.py](../orchestrators/cv_analysis_orchestrator.py), [app/orchestrators/job_matching_orchestrator.py](../orchestrators/job_matching_orchestrator.py) |
+| **Entry Points** | `execute_task` and `aggregate_results` in [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
+| **Dependencies** | Python: `shutil`, `tempfile`, `subprocess`, `asyncio`, `json`, Pydantic models |
+| **Execution Flow** | Route execute calls ➔ run logic ➔ cache result on disk. Final aggregation ➔ read caches ➔ calibrate metrics ➔ build trust graph ➔ validate and return. |
+| **Common Failure Modes** | **Disk full** (failure to write caches), **Task out-of-order** (running CommitIntelligence before RepoStructure causes missing metadata exceptions), **Pydantic Validation Failures** (during aggregation schema checks). |
+| **Related Files** | [app/routes/analysis_router.py](../routes/analysis_router.py), `RepositoryAnalysisService.cs` |
 | **Related Services** | [ClaudeService](../services/claude_service.py), [TechnologyDetector](../github/technology_detector.py), [CodeSampler](../github/code_sampler.py) |
-| **Related DTOs** | `AnalysisRequest` (FastAPI router input payload) |
-| **Related Database Tables** | `AnalysisJobs`, `AnalysisJobEvents`, `AnalysisReports` |
+| **Related DTOs** | `TaskExecutionRequest`, `AggregationRequest`, `ReportV2Contract` |
+| **Related Database Tables** | `AnalysisJobs`, `AnalysisTasks`, `AnalysisTaskResults`, `AnalysisReports` |
 | **Related Frontend Components** | `DetailedAnalysisModal.tsx` |

@@ -1,6 +1,6 @@
 # 06 - Claude Integration
 
-This document analyzes the integration with Anthropic's Claude API via the `ClaudeService`, reviewing the service configurations, prompt caching mechanism, error behaviors, and streaming handlers.
+This document analyzes the integration with Anthropic's Claude API via the `ClaudeService`, reviewing the service configurations, exponential backoff retries, cost tracking metrics, token streaming, and prompt caching.
 
 ---
 
@@ -8,24 +8,22 @@ This document analyzes the integration with Anthropic's Claude API via the `Clau
 
 The `ClaudeService` (defined in `app/services/claude_service.py`) encapsulates all interactions with Anthropic's Async SDK. It provides two execution modes:
 
-1.  **Repository Analysis (`analyze_repo`)**: A single-shot request with low temperature (`0.2`) and strict JSON output formatting guidelines.
+1.  **Task-Specific Analysis (`analyze_repo_with_telemetry`)**: A streaming request with low temperature (`0.2`) and strict JSON output formatting guidelines. It yields real-time token events to the frontend and returns full text along with usage telemetry.
 2.  **Conversational Chat Streaming (`stream_chat`)**: A token-by-token server-sent event generator with moderate temperature (`0.7`) and markdown formatting guidelines.
 
 ```mermaid
 graph TD
     SystemPrompt[System Prompt] --> EphemeralCache[Add Ephemeral Cache Header]
-    UserPrompt[User Prompt + Code Samples] --> SendClaude[AsyncAnthropic Message API]
+    UserPrompt[User Prompt] --> RetryHandler[Exponential Backoff Retry Handler]
     
-    EphemeralCache --> SendClaude
-    SendClaude -->|Network Transit| AnthropicServer[Anthropic Claude 3.5 Sonnet]
+    EphemeralCache --> RetryHandler
+    RetryHandler -->|Async Messages API| AnthropicServer[Anthropic Claude 3.5 Sonnet]
     
-    AnthropicServer -->|Success response| ExtractText[Extract Content Text]
-    AnthropicServer -->|Connection Exception / Rate Limit| CatchErr[Log & Re-raise Exception]
+    AnthropicServer -->|Token chunk stream| StreamHandler[UI Streaming Manager]
+    StreamHandler -->|SSE Token Chunk| Frontend[React Client UI]
     
-    ExtractText --> ValidateJSON[Outer Brace Extraction]
-    CatchErr --> CoreFail[CVerify.Core Job Fail status]
-    
-    ValidateJSON --> SaveDB[EF Core DB Persistence]
+    AnthropicServer -->|Final Output| RecordUsage[Record Token & Cost Metrics]
+    RecordUsage --> CostTracker[Cost Tracker Persistence]
 ```
 
 ---
@@ -34,16 +32,16 @@ graph TD
 
 *   **SDK Client**: Instantiated using the asynchronous Anthropic SDK `AsyncAnthropic(api_key=settings.anthropic_api_key)`.
 *   **Model Parameter**: Loaded dynamically from `settings.claude_model`. Defaults to `claude-3-5-sonnet-20241022` (Claude 3.5 Sonnet).
-*   **Token Output Limit**: Set to `max_tokens=8192` (maximum supported output tokens for Sonnet).
+*   **Token Output Limit**: Set to `max_tokens=8192`.
 *   **Temperature Setting**:
-    *   *Repository Analysis*: `0.2` to reduce creative liberties and force adherence to the JSON schema.
+    *   *Task-Specific Analysis*: `0.2` to reduce creative liberties and force adherence to the JSON schema.
     *   *Chat Streaming*: `0.7` for conversational fluency.
 
 ---
 
-## Cost Optimization: Ephemeral Prompt Caching
+## Cost Optimization & Prompt Caching
 
-Repository analysis user prompts contain dense directory listings and file content dumps, which represent high token volumes. To minimize token overhead, the `ClaudeService` enables Anthropic's **Prompt Caching** (specifically Ephemeral Prompt Caching) on system prompts:
+Repository analysis prompts contain large code samples. To minimize token overhead, `ClaudeService` enables Anthropic's **Prompt Caching** (specifically Ephemeral Prompt Caching) on system prompts:
 
 *   **Configuration**:
     ```python
@@ -55,18 +53,25 @@ Repository analysis user prompts contain dense directory listings and file conte
         }
     ]
     ```
-*   **Functionality**: Systems running multiple concurrent or sequential analyses of similarly structured codebases query cached prompt contexts on Anthropic's routers. This reduces input processing pricing by up to 90% and decreases execution latency.
+*   **Functionality**: Reduces input processing costs by up to 90% and decreases execution latency for sequential or concurrent queries with identical system prompts.
 
 ---
 
-## Gaps, Error Handling, and Retry Limitations
+## Robust Transient Error Handling: Exponential Backoff Retries
 
-> [!WARNING]
-> **Critical Observability & Reliability Gap**: The `ClaudeService` implements **no automatic retry logic**.
->
-> If a network timeout, transient API outage, or rate limit exception (`429 Too Many Requests`) occurs, the exception is logged locally via `logger.error` and immediately re-raised, causing the background execution job to crash instantly.
->
-> *Recommendation*: Implement an exponential backoff retry mechanism (e.g., using `tenacity` library) in `analyze_repo` and `stream_chat` to catch Anthropic API errors and retry up to 3-5 times.
+To prevent rate limits or temporary network outages from crashing background analysis jobs, the service runs all API calls through `retry_with_exponential_backoff`:
+
+*   **Retry Criteria**: Catches transient codes (HTTP 429, 500, 502, 503, 504) or errors containing `"rate limit"`, `"timeout"`, or `"connection"`.
+*   **Backoff Schedule**: Retries up to **5 times** starting with a 1.0 second initial delay, multiplying by a factor of 2.0 on each failure, and adding random jitter to prevent synchronization collisions.
+*   **Non-Transient Errors**: Immediately propagates non-transient errors (such as HTTP 400 Bad Request or API key authentication failure) on the first attempt without retrying.
+
+---
+
+## Observability: Cost Tracking and Token Streaming
+
+*   **Token Streaming**: The orchestrator handles LLM invocation in streaming mode. As text chunks arrive, they are dynamically published to the client via `UIStreamingManager().enqueue_ui_event()`, enabling real-time typing displays in the frontend.
+*   **Usage Telemetry**: Consumes the `message_start` and `message_delta` events to read the actual input tokens, output tokens, cached tokens, and cache write tokens.
+*   **Cost Tracking**: Calls `cost_tracker.record_execution()` or `cost_tracker.record_usage()`. Financial metrics (estimated cost in USD) are calculated and saved under the correlation ID.
 
 ---
 
@@ -74,12 +79,12 @@ Repository analysis user prompts contain dense directory listings and file conte
 
 | Field | Reference Value / Path |
 |---|---|
-| **Entry Points** | `analyze_repo` and `stream_chat` in [app/services/claude_service.py](../services/claude_service.py) |
-| **Dependencies** | Python: `anthropic` library, [app/config.py](../config.py) settings |
-| **Execution Flow** | Orchestrator invokes `claude_service.analyze_repo` → system config caching set → sdk message call dispatched → text returned |
-| **Common Failure Modes** | **Auth Error** (invalid api key), **Network Timeout** (slow upload/download), **Rate Limit Block** (no exponential backoff, crashes loop) |
+| **Entry Points** | `analyze_repo_with_telemetry` and `stream_chat` in [app/services/claude_service.py](../services/claude_service.py) |
+| **Dependencies** | Python: `anthropic`, `app.monitoring.ai_cost_tracker`, `app.monitoring.observability` |
+| **Execution Flow** | Task execute ➔ Invokes ClaudeService ➔ Wrap API stream call in backoff handler ➔ Stream chunks to UI ➔ Calculate final tokens/costs on close. |
+| **Common Failure Modes** | **API Key Expired** (causes non-transient HTTP 401 error, halts loop), **Concurrency Exhaustion** (causes rate limits, but successfully retries via backoff). |
 | **Related Files** | [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
-| **Related Services** | None |
+| **Related Services** | `AiCostTracker` in `app/monitoring/ai_cost_tracker.py` |
 | **Related DTOs** | None |
-| **Related Database Tables** | `AnalysisReports` |
+| **Related Database Tables** | `AnalysisExecutions` (stores token counts and USD estimates) |
 | **Related Frontend Components** | `DetailedAnalysisModal.tsx` |

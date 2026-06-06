@@ -1,6 +1,6 @@
 # 14 - Prompt Output Contract
 
-This document provides the technical data contract for the repository analysis pipeline, tracing how every key field is generated, validated, stored, and rendered — and specifying the **required detail level** for every descriptive text field.
+This document provides the technical data contract for the repository analysis pipeline, tracing how every key field is generated, validated, stored, and rendered — and specifying the **required detail level** for every descriptive text field under the v2 schema.
 
 ---
 
@@ -18,82 +18,60 @@ All descriptive fields in the analysis report must meet the following standard:
 
 ---
 
-## Data Contract Specifications
+## Data Contract Specifications (Report V2 Schema)
 
-| Property / Path | Source / Generator | Detail Level Required | Validation Rule | Storage Format | Rendering UI Component |
-|---|---|---|---|---|---|
-| **`repo.id`** | Injected by Python Orchestrator from requested `repositoryId` | N/A (identifier) | Checked by Pydantic string validation; parsed as UUID in C# | PostgreSQL: `AnalysisReport.RepositoryId` (UUID) | Renders in the modal header title context |
-| **`repo.description`** | Claude output — synthesized from sampled README and code context | Specific: must reflect the actual repo purpose, not a generic label | Zod: `z.string().optional()` | Saved inside the JSONB blob | `DetailedAnalysisModal.tsx` header |
-| **`repo.languages`** | Claude output; backfilled by Technology Detector if missing | N/A (numeric map) | Zod: `z.record(z.number())` (maps language names to pct ratios) | Saved inside the JSONB blob | `TechnologyTags.tsx` maps ratios to tags |
-| **`classification.complexity`** | Claude output stylistic evaluation | N/A (enum) | Zod enum: `"low"` \| `"medium"` \| `"high"` (defaults to `"medium"`) | Saved inside the JSONB blob | `AnalysisScoreCards.tsx` (badge color matches level) |
-| **`trust.classification`** | Claude output stylistic analysis | N/A (enum) | Zod enum: `"personal_authentic"` \| `"fork_rebranded"` \| `"template_dump"` \| `"collaboration"` (defaults to `"personal_authentic"`) | Saved inside the JSONB blob | `VerificationSignals.tsx` (renders status badge) |
-| **`trust.explanation`** | Claude output — rationale for trust classification | **Specific (2-3 sentences)**: must cite specific signals that justify the classification (e.g., commit history structure, file authorship consistency, deviation from template boilerplate) | Zod: `z.string()` | Saved inside the JSONB blob | `VerificationSignals.tsx` |
-| **`trust.ai_findings[]`** | Claude output — AI-observed behavioral patterns | **Specific (1 entry per pattern)**: each entry must describe one concrete observed behavior with an example (file name, class, or code construct) | Zod: `z.array(z.string())` | Saved inside the JSONB blob | `VerificationSignals.tsx` warning cards |
-| **`trust.confidence`** | Claude output confidence percentage | N/A (numeric score) | Zod: `z.number().min(0).max(100)` (defaults to `100`) | Extracted in C# to calculate: `SourceCodeRepository.TrustScore = score / 100` | `AnalysisScoreCards.tsx` (gauge rendering score) |
-| **`profile.skills`** | Claude output categorized skill mappings | N/A (structured map) | Zod: `z.record(z.array(z.string()))` (category map) | Saved inside the JSONB blob | `SkillTreeVisualization.tsx` (collapsible tree categories) |
-| **`findings[]`** | Claude output (max 5 critical findings) | **Specific**: see Finding Contract table below | Zod: `z.array(RepositoryEvidenceFindingSchema)` | Saved inside the JSONB blob | `VerificationSignals.tsx` and `SkillTreeVisualization.tsx` |
-| **`narrative.recruiter_summary`** | Claude output summary text | **Specific (3-5 sentences)**: must name specific technologies, architecture patterns, and at least one concrete quality signal observed in sampled files | Zod: `z.string().optional()` | Saved inside the JSONB blob | `DetailedAnalysisModal.tsx` (executive summary panel) |
-| **`narrative.top_strengths[]`** | Claude output strength list | **Specific**: full sentence per entry, grounded in a specific technical observation (not generic labels) | Zod: `z.array(z.string())` | Saved inside the JSONB blob | `RecommendationPanels.tsx` |
-| **`narrative.limitations[]`** | Claude output limitation list | **Specific**: full sentence per entry, referencing a concrete gap visible in the sampled code | Zod: `z.array(z.string())` | Saved inside the JSONB blob | `RecommendationPanels.tsx` |
-| **`positioning.relative_strengths[]`** | Claude output comparative positioning | **Specific**: each strength must be evidence-backed (e.g., cite files or patterns, not generic labels) | Zod: `z.array(z.string())` | Saved inside the JSONB blob | `AnalysisScoreCards.tsx` |
-| **`scoring.final_score`** | Claude output or backfilled from `trust.confidence` | N/A (numeric) | Must be a JSON number (not string). C# parses via `GetDouble()`. | `SourceCodeRepository.TrustScore`, `AnalysisJob.Status` | `AnalysisScoreCards.tsx` trust gauge |
+Aggregated results strictly satisfy the Pydantic `ReportV2Contract` model:
+
+### 1. Root-Level Schema Fields
+
+*   **`schemaVersion`**: Literal string `"v2"`.
+*   **`repoId`**: Unique repository UUID string. Injected from the database record during execution.
+*   **`classification`** (`ClassificationV2`):
+    *   `primaryDomain` (string): The resolved semantic type of repository (e.g. SaaS Platform, CLI Tool).
+    *   `subDomain` (string): Specific technology stack descriptors (e.g. `Python, JavaScript`).
+    *   `confidence` (float): Resolution confidence score between `0.0` and `1.0`.
+    *   `isVerified` (bool): True if the trust score is `50%` or higher, and there are no critical adversarial flags.
+    *   `trustScore` (float): Calibrated developer trust score between `0.0` and `1.0`.
+*   **`sections`** (`List[SectionV2]`):
+    Grouped categories of qualitative intelligence findings. Each section contains:
+    *   `type`: Literal choice of `"engineering_practices"`, `"security_findings"`, or `"architecture_insights"`.
+    *   `items`: List of text elements or `SectionItemV2` objects:
+        *   `title` (string): Finding name (3-6 words).
+        *   `content` (string): Evidence explanation (2-4 sentences, must cite specific files).
+*   **`risk`** (`RiskV2`):
+    *   `score` (float): Calibrated risk score between `0.0` and `100.0`.
+    *   `level`: Literal choice of `"low"`, `"medium"`, or `"high"`.
+    *   `reasons` (list of strings): Concrete contributing factors justifying the risk classification.
+*   **`cvSynthesis`** (`CvSynthesisContract`):
+    Professional CV summary details extracted during the final pipeline task:
+    *   `schemaVersion`: Literal `"v2"`.
+    *   `title` (string): Professional developer title (e.g. `Django Backend Developer`).
+    *   `skills` (list of strings): Exact list of calibrated developer skills.
+    *   `summary` (string): Recruiter-ready narrative (2-3 sentences).
+    *   `highlights` (`List[CvHighlight]`): Key developer achievements (e.g. signal description, impact tier: `positive`/`warning`/`critical`).
+    *   `ownershipProfile`: Literal choice of `"High contribution profile"`, `"Standard contribution profile"`, `"Low contribution profile"`, or `"External contributor context"`.
 
 ---
 
-## Finding Detail Contract
+## Legacy Field Preservation map
 
-Each entry in the `findings[]` array must conform to the following structure:
-
-| Sub-field | Type | Detail Requirement | Example (Good) | Example (Bad) |
-|---|---|---|---|---|
-| `title` | string | Short category label (3-6 words) | `"Layered Architecture Detected"` | `"Architecture"` |
-| `explanation` | string | **2-4 sentences.** Must reference at least one specific file path or method name visible in the sampled code. | `"The repository separates concerns into Controllers, Services, and Repositories layers. RepositoryAnalysisController.cs delegates all business logic to RepositoryAnalysisService.cs, which in turn calls IAnalysisJobRepository for data access. This pattern reduces coupling and aligns with standard ASP.NET MVC conventions."` | `"The project follows a layered architecture with good separation of concerns."` |
-| `evidence_signals[]` | string[] | List of 1-5 specific file paths, class names, or code patterns that support the finding | `["RepositoryAnalysisController.cs", "RepositoryAnalysisService.cs", "IAnalysisJobRepository.cs"]` | `["controllers", "services"]` |
-| `category` | string | Enum tag for grouping | `"architecture"` \| `"security"` \| `"testing"` \| `"quality"` \| `"ownership"` | Free text |
-| `impact` | string | Enum severity of the finding | `"positive"` \| `"warning"` \| `"critical"` | Boolean |
+For backward compatibility with the frontend React UI, the orchestrator injects three legacy blocks at the root level of the returned payload:
+*   **`facts`**: Contains `repo` info, `git_metrics` (commits, ratios, active authors, bus factor), and `quality_metrics` (scanned/sampled files, prompt caching efficiency).
+*   **`ai_conclusions`**: Holds `authenticity`, classification details, findings breakdown, `trust` evaluation, risk assessments, relative strengths, and narrative summary block.
+*   **`trust_intelligence`**: Holds uncertainty metrics (variance, bias, manipulation risks), conflict resolution log, and the interactive trust graph.
 
 ---
 
 ## Recruiter Summary Contract
 
-The `narrative.recruiter_summary` field is the most visible output in the UI (renders in the executive summary panel). It must follow this structure:
+The `cvSynthesis.summary` field is the most visible text block in the UI. It must adhere to the following structure:
 
-1. **Sentence 1 — What the repo is**: State the primary purpose and domain of the repository, grounded in the README or entry-point files.
-2. **Sentence 2 — Tech stack highlight**: Name the detected primary language, framework, and 1-2 notable libraries.
-3. **Sentence 3 — Architecture signal**: Describe the observable architecture pattern with a specific file reference.
-4. **Sentence 4 — Quality signal**: Call out one concrete quality indicator (test coverage, CI/CD presence, error handling patterns, etc.) with a file or directory reference.
-5. **Sentence 5 (optional) — Red flag or standout**: Note one notable concern or exceptional positive that distinguishes this repository.
+1.  **Sentence 1 — What the repo is**: State the primary purpose and domain of the repository.
+2.  **Sentence 2 — Tech stack highlight**: Name the detected primary language, framework, and key libraries.
+3.  **Sentence 3 — Architecture/Quality signal**: Describe the observable architecture pattern or testing framework with specific file references.
 
-**Example of an acceptable recruiter_summary:**
-```
-"CVerify is an AI-powered developer verification platform built around a microservice architecture.
-The backend runs on ASP.NET Core 10 (C#) with a Python FastAPI microservice (CVerify.AI) handling
-all Anthropic Claude integrations. Service communication follows an event-driven pattern via Redis
-Pub/Sub, as visible in RepositoryAnalysisService.cs and BackgroundRepositoryAnalysisProcessor.cs.
-Unit and integration tests are present in the CVerify.Tests project, targeting the service layer
-with xUnit and Moq. The repository is actively maintained with consistent commit cadence and no
-evidence of template-dumped scaffolding."
-```
-
-**Example of a rejected recruiter_summary (too generic):**
-```
-"This repository demonstrates strong engineering practices and shows a skilled developer with
-experience in modern web technologies. The code is well-organized and follows industry standards."
-```
-
----
-
-## Nullability and Type Mismatch Risks
-
-> [!CAUTION]
-> **1. Zod Catches vs. DB Deserialization**:
-> CVerify uses Zod's `.catch()` and `.transform()` methods in the frontend (e.g., `complexity: z.enum(...).catch("medium")`). While this prevents React from throwing a white-screen exception, it silently masks LLM format drift. Monitor for silent fallbacks in Zod validation logs.
->
-> **2. C# Numeric Parse Risk**:
-> In `RepositoryAnalysisService.cs` line 348, the service uses `scoring.final_score.GetDouble()`. If Claude returns the score as a string (e.g. `"92"` instead of `92`), the C# method will throw a `JsonException`, failing the job at the final step.
->
-> **3. Evidence Hallucination Risk (New)**:
-> With specificity requirements, Claude may fabricate plausible-sounding file names not present in the sampled set. The `evidence_signals[]` array should be cross-validated against the `file_names` list injected into the prompt. A future validation step in the orchestrator should flag signals referencing files not in the sampled set.
+**Example of an acceptable summary:**
+> "CVerify is a talent verification platform built on a microservice architecture. The backend is written in ASP.NET Core with a Python FastAPI microservice (CVerify.AI) handling all AI integrations. Service communication is event-driven via Redis Pub/Sub, as visible in RepositoryAnalysisService.cs, with unit test coverage provided by xUnit."
 
 ---
 
@@ -101,12 +79,12 @@ experience in modern web technologies. The code is well-organized and follows in
 
 | Field | Reference Value / Path |
 |---|---|
-| **Entry Points** | Prompt Schema definition in [app/prompts/github_prompt_factory.py](../prompts/github_prompt_factory.py) |
-| **Dependencies** | Python: `json`. C#: `System.Text.Json`. TS: `zod`. |
-| **Execution Flow** | Prompt schema specification (with inline specificity directives) → Claude response matching → Python parser conversion → C# DB commit → Zod frontend conversion |
-| **Common Failure Modes** | **JSON Schema Drift** (Claude updates format, Zod fails), **C# Score Parse Failure** (missing or string-typed `scoring.final_score`), **Evidence Hallucination** (cited files not in sampled set) |
-| **Related Files** | [client/src/services/repository-analysis.service.ts](../services/repository-analysis.service.ts), `RepositoryAnalysisService.cs` |
+| **Entry Points** | Pydantic contracts in [app/orchestrators/github_analysis_orchestrator.py](../orchestrators/github_analysis_orchestrator.py) |
+| **Dependencies** | Python: `pydantic`. C#: `ParseV2ReportMetadata()`. TS: `repository-analysis.service.ts` |
+| **Execution Flow** | Task prompts generated ➔ Claude output ➔ JSON extracted ➔ Aggregator validates against `ReportV2Contract` ➔ Core C# parses and saves ➔ UI validates Zod. |
+| **Common Failure Modes** | **JSON Schema Drift** (Claude updates format, Zod fails), **String/Numeric Mismatch** (such as formatting `trustScore` as a percentage string instead of a float). |
+| **Related Files** | [app/prompts/github_prompt_factory.py](../prompts/github_prompt_factory.py), [app/prompts/cv_prompt_factory.py](../prompts/cv_prompt_factory.py) |
 | **Related Services** | [ClaudeService](../services/claude_service.py) |
-| **Related DTOs** | `RepositoryAnalysis` |
+| **Related DTOs** | `ReportV2Contract` |
 | **Related Database Tables** | `AnalysisReports` |
 | **Related Frontend Components** | `DetailedAnalysisModal.tsx` |
