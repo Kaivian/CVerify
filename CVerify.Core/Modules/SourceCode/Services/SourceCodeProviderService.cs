@@ -96,6 +96,53 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         int page, 
         int pageSize)
     {
+        // Auto-heal/backfill: mark repositories as verified if they have a completed analysis report
+        // but are currently marked as not verified due to a parsing discrepancy.
+        var unverifiedWithReports = await _context.SourceCodeRepositories
+            .Where(r => !r.IsVerified && r.AuthProvider.UserId == userId)
+            .Join(_context.AnalysisReports,
+                r => r.Id,
+                rep => rep.RepositoryId,
+                (r, rep) => new { Repository = r, Report = rep })
+            .ToListAsync();
+
+        if (unverifiedWithReports.Any())
+        {
+            foreach (var item in unverifiedWithReports)
+            {
+                try
+                {
+                    using var reportDoc = JsonDocument.Parse(item.Report.ReportData);
+                    JsonElement confidenceProp = default;
+                    bool hasConfidence = false;
+
+                    if (reportDoc.RootElement.TryGetProperty("ai_conclusions", out var aiConclusionsProp) &&
+                        aiConclusionsProp.TryGetProperty("trust", out var trustProp) &&
+                        trustProp.TryGetProperty("confidence", out confidenceProp))
+                    {
+                        hasConfidence = true;
+                    }
+                    else if (reportDoc.RootElement.TryGetProperty("trust", out var rootTrustProp) &&
+                             rootTrustProp.TryGetProperty("confidence", out confidenceProp))
+                    {
+                        hasConfidence = true;
+                    }
+
+                    if (hasConfidence)
+                    {
+                        var confidence = confidenceProp.GetDouble();
+                        item.Repository.IsVerified = confidence >= 50.0;
+                        item.Repository.TrustScore = confidence / 100.0;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse report data during auto-heal for repository {RepositoryId}", item.Repository.Id);
+                }
+            }
+            await _context.SaveChangesAsync();
+        }
+
         var query = _context.SourceCodeRepositories
             .Include(r => r.AuthProvider)
             .Where(r => r.AuthProvider.UserId == userId && r.AuthProvider.DeletedAt == null);

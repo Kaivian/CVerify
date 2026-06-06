@@ -168,7 +168,7 @@ async def chat_stream(
         try:
             msg_list = [{"role": msg.role, "content": msg.content} for msg in request_data.messages]
             
-            async for token in claude_service.stream_chat(msg_list):
+            async for token in claude_service.stream_chat(msg_list, correlation_id):
                 # Send the token in clean JSON SSE formatting
                 yield f"data: {json.dumps({'token': token})}\n\n"
             

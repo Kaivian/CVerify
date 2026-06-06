@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "gitCommitHash": "6c1e62b4dd49ab306a1014f6ed8e7e61fce6faa3",
-  "generatedAt": "2026-06-04T13:56:47.551Z",
+  "gitCommitHash": "dc5b14d819d57e12e9484b69674e79d872ca12b4",
+  "generatedAt": "2026-06-06T06:51:49.378Z",
   "files": {
     ".agents/rules/api-design.md": {
       "filePath": ".agents/rules/api-design.md",
@@ -133,164 +133,84 @@
       "totalLines": 4,
       "hasStructuralAnalysis": true
     },
-    ".understand-anything/intermediate/batch-0-part-1.json": {
-      "filePath": ".understand-anything/intermediate/batch-0-part-1.json",
-      "contentHash": "d932e1bb1e4368cee5c2ce1db6c31a2261d51a91d2358db862704997963df224",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 516,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/intermediate/batch-0-part-2.json": {
-      "filePath": ".understand-anything/intermediate/batch-0-part-2.json",
-      "contentHash": "0f9d8ce5f02111e30bd4f949f6e7fc0118761db9beb97f95684aef5b1ea04759",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 546,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/intermediate/batch-1-part-1.json": {
-      "filePath": ".understand-anything/intermediate/batch-1-part-1.json",
-      "contentHash": "00b29901c41c262d699b92912253a3c082dbcef15828088cbfe69568405d4aa2",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 301,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/intermediate/batch-1-part-2.json": {
-      "filePath": ".understand-anything/intermediate/batch-1-part-2.json",
-      "contentHash": "24dd190dd5d6a405f7cb62041f15ad03af14c3d6554e263744cf602283f7f8a7",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 279,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/intermediate/batch-10.json": {
-      "filePath": ".understand-anything/intermediate/batch-10.json",
-      "contentHash": "0610e2e8ec6f14bc8e9e9473827df481bef34d5b8a00cc2e14beda79a1ac782f",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 192,
-      "hasStructuralAnalysis": true
-    },
     ".understand-anything/intermediate/batch-11.json": {
       "filePath": ".understand-anything/intermediate/batch-11.json",
-      "contentHash": "dc71d89b5aa91759f06e9c927a35b65ed6e104caecb6a0bdc13b66f837695983",
+      "contentHash": "eb9cadd53af6471fb9708b4a34bbcfd80c254ed7a0318f76847c31d3610e1844",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 293,
+      "totalLines": 322,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/intermediate/batch-17.json": {
       "filePath": ".understand-anything/intermediate/batch-17.json",
-      "contentHash": "c3b10a47926ef0301fc191b5e6515fc34be38f72d42cd77d7fe36e907b811470",
+      "contentHash": "d0dc01f37bd86772137eab642063531fc54456876a88f0950765eca374793082",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 112,
+      "totalLines": 245,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/intermediate/batch-2.json": {
       "filePath": ".understand-anything/intermediate/batch-2.json",
-      "contentHash": "8632b8083fb04bb89300463d109ef7aa4be467ee652ed5ed2ef0485cb639cd03",
+      "contentHash": "01ca9c6df0a2006e5f949e31a2c67f18368282d0895fbeb17e42b972caa42542",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 770,
+      "totalLines": 1331,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/intermediate/batch-3.json": {
       "filePath": ".understand-anything/intermediate/batch-3.json",
-      "contentHash": "dc11789aa203588dba773d3e8944355f4421ff770ae1db57bc507a13c05c1bda",
+      "contentHash": "38d3471cb91116b98436a5c1b24c9aaf4127c15d9c679eff877d06ebc7fef554",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 763,
+      "totalLines": 1142,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/intermediate/batch-4.json": {
       "filePath": ".understand-anything/intermediate/batch-4.json",
-      "contentHash": "b433bfd4749b96c3bc29b09a99af824b057a6ab455793a8d775836cec9482403",
+      "contentHash": "921d4fd644117d614aaf5b517dfff4a88f7c4851f0414d46939d149b3612d6ca",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 860,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/intermediate/batch-5.json": {
-      "filePath": ".understand-anything/intermediate/batch-5.json",
-      "contentHash": "fc792faa81bdeee9caf05693581fcd4934097de6ad9d1ed265fd557108197ea8",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 785,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/intermediate/batch-6.json": {
-      "filePath": ".understand-anything/intermediate/batch-6.json",
-      "contentHash": "2d6876d11b08a73b1b302721eb9e8ee31d0570508fc87309054bc81f54248855",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 565,
+      "totalLines": 992,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/intermediate/batch-7.json": {
       "filePath": ".understand-anything/intermediate/batch-7.json",
-      "contentHash": "6ec98066acf8a798915acdb688de45e5701d020e6c99456b7f067eaab0efe738",
+      "contentHash": "cfa3d9dffd5b684e3017ed63569f1a17687be03e16f0bd4354dd90ebe2211e22",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 518,
+      "totalLines": 595,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/intermediate/batch-8.json": {
       "filePath": ".understand-anything/intermediate/batch-8.json",
-      "contentHash": "2134014e7ee4ae8bcc9b94805a8865aa5122d651f282dc662f6ee0097d31131c",
+      "contentHash": "199eca47aa1c8d799f19778359deb57b2d0c7afd60705e82fbbb57e15dd29225",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 398,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/intermediate/batch-9.json": {
-      "filePath": ".understand-anything/intermediate/batch-9.json",
-      "contentHash": "d5dc7ac9fc2f69f906f62ca89c7365f8d237ed9ba581f6d8cc9c41ee0cdd5af0",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 304,
+      "totalLines": 400,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/intermediate/batches.json": {
       "filePath": ".understand-anything/intermediate/batches.json",
-      "contentHash": "5577658cac38727c7d85fad720216af2fa332bfe2c3a43f36a55d5500b45d215",
+      "contentHash": "e54d7e312844b43f8e549918983742bdee65ac5740c9353423327ea58f5e2fda",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 11738,
+      "totalLines": 6897,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/intermediate/scan-result.json": {
@@ -303,236 +223,39 @@
       "totalLines": 6340,
       "hasStructuralAnalysis": true
     },
-    ".understand-anything/tmp/assemble-scan.cjs": {
-      "filePath": ".understand-anything/tmp/assemble-scan.cjs",
-      "contentHash": "37175f70afa778e6536ec5cb1ed8a93ac62d66ed6ec59037f9da419cf1a6f672",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 54,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/gen-analyzer-inputs.cjs": {
-      "filePath": ".understand-anything/tmp/gen-analyzer-inputs.cjs",
-      "contentHash": "71ed6355ebf93e2e8c6996d3936b0b2a240093c92a14c30073527b0bde9fc1ee",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 36,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/gen-ignore.cjs": {
-      "filePath": ".understand-anything/tmp/gen-ignore.cjs",
-      "contentHash": "370fcbde9cce93699b077e152c76daa3c769d08b02065eabe0730f8ac56175a1",
-      "functions": [
-        {
-          "name": "norm",
-          "params": [],
-          "exported": false,
-          "lineCount": 1
-        }
-      ],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 22,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/manage-pool.cjs": {
-      "filePath": ".understand-anything/tmp/manage-pool.cjs",
-      "contentHash": "82e49a63401d3ab8168e063a88910034661a8027c0aea90288e0fa2d5a2f7777",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 40,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/run-step-c.cjs": {
-      "filePath": ".understand-anything/tmp/run-step-c.cjs",
-      "contentHash": "7a8d93c1da7643136ca593a05f4a9bdaac62d29a6cad54f4c9dbc9b250a6607d",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 19,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-0.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-0.json",
-      "contentHash": "b7a158bcc35edfb658be82aa69500e45f5ae05eca3ff328c2b52c0a171fc6e12",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 425,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-1-corrected.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-1-corrected.json",
-      "contentHash": "1e017e8bdadd6c623e770ee6ca5f07b8a9fb38de852aa507decf08429f728719",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 291,
-      "hasStructuralAnalysis": true
-    },
     ".understand-anything/tmp/ua-file-analyzer-input-1.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-1.json",
-      "contentHash": "0c59313a85792ba072a00690214645b408c760617df92ac5d68e9b5065b5b91e",
+      "contentHash": "92bb302c8e27580b0b4a32fce2012c916cfe7c31c5304bb2b323746f6b4d1edc",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 350,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-10.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-10.json",
-      "contentHash": "18b51aa7bd6c22fb01ceb71919b3e7866946f81f2663799570a81edd71e732c1",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 100,
+      "totalLines": 140,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-11.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-11.json",
-      "contentHash": "aefafae2e7693045f72424019431264f9a20da2813b70e328482fbcf62f97cc9",
+      "contentHash": "8fe41f1026782e589d5aae6fc8c6d34e074dde77d8ae7448a5cbc424bfa35004",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 71,
+      "totalLines": 30,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-12.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-12.json",
-      "contentHash": "685d7f3a021ec7149ef66416558bb2284ef9276b51790793cb439de33a293b96",
+      "contentHash": "47caa9201f55f0b232a92ecdd23398a7f03fd25c9b413a8df2a89427130f6951",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 54,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-13.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-13.json",
-      "contentHash": "a2440e7d8a1c0cb6db3ae0e296d0ee88653627fcac7c8743e2c5348c195b59de",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 14,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-14.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-14.json",
-      "contentHash": "05b3232ef977d49d6b70a8e3ace4f19dd6eee81995d0381ea341f70df840fd9f",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 14,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-15.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-15.json",
-      "contentHash": "a0624ac88877cdc004ba369be3676b67d9ae7e4d0dcce061d3e816ebe743b891",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 14,
+      "totalLines": 20,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-16.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-16.json",
-      "contentHash": "662a1550568aa5620957d3eed0986f9dbd16fc2a1ab4f60010063d636f2f3331",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 77,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-17.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-17.json",
-      "contentHash": "2f3f0b20cf77bc677373cd133cb6ed9b8c4ba2fd657a256ee46d4e43f8999759",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 126,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-18.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-18.json",
-      "contentHash": "6410560d1ca23c63192eeb9278eb1286f17b1965f74a7c7c0d74ab53ada6c8b4",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 147,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-19.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-19.json",
-      "contentHash": "0c7cd1af9b533397b31a0e573e3c22176f4794a6c0cf79a54d4fccce9affb84e",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 147,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-2.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-2.json",
-      "contentHash": "47980e80358fcb48211c467b483b6578a4bb96a7ca42e17205f94f4999228464",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 232,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-20.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-20.json",
-      "contentHash": "4582a3c123caa634510674e6d17e1b6068c7042844ef1432cdc779c091c02a7d",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 112,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-21.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-21.json",
-      "contentHash": "071596a67366302fa423c3d0c4a2ca969704361a1ff05082f77a0543c97e7ef2",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 70,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-22.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-22.json",
-      "contentHash": "c1def665e1707a938bcfaea6f024054b05f02f91d8dedd0f828ec7e395aceaba",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 42,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-23.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-23.json",
-      "contentHash": "8aa81f2d5abc3e27b80798397dd3aacbf2c1e4a2834aa3d8ff71551476670e7e",
+      "contentHash": "568bd0031d43f5fc69c19d332049a4b59484d11b299e620f7f08cacc17bbf7dc",
       "functions": [],
       "classes": [],
       "imports": [],
@@ -540,19 +263,9 @@
       "totalLines": 28,
       "hasStructuralAnalysis": true
     },
-    ".understand-anything/tmp/ua-file-analyzer-input-24.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-24.json",
-      "contentHash": "b080012aaf8a9ed6450b3460b97bd96c0524f36fadb34a978f2cf111ebca1acb",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 84,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-25.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-25.json",
-      "contentHash": "2c327c08ae9184e432ce68a9aa061b15737c2adb0627add618a666b0a9deaf5c",
+    ".understand-anything/tmp/ua-file-analyzer-input-17.json": {
+      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-17.json",
+      "contentHash": "da408640f54bddb434fee11af0267a1c5f3b2a67174d2dcedb8e2c683f9248f2",
       "functions": [],
       "classes": [],
       "imports": [],
@@ -560,354 +273,94 @@
       "totalLines": 42,
       "hasStructuralAnalysis": true
     },
-    ".understand-anything/tmp/ua-file-analyzer-input-26.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-26.json",
-      "contentHash": "08cc2e160d9653d267dd54dfd286312d37af2123ed2a02bbfa8f0be1b98e4e1b",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 35,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-27.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-27.json",
-      "contentHash": "47cb4527e19d71269526fdcebd5b26ff7583e106e631e4755f19894fdcdf2d0b",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 56,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-28.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-28.json",
-      "contentHash": "4066dec978f633a2be0c046e2008af61c72a582ae63e65a421cb3c2d16b8e8ec",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 98,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-29.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-29.json",
-      "contentHash": "80ee2f9379f5061ed846dacf0406e5763d33ec1db6c1a459488a8e054b5dc7f6",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 35,
-      "hasStructuralAnalysis": true
-    },
     ".understand-anything/tmp/ua-file-analyzer-input-3.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-3.json",
-      "contentHash": "c9088cbdc24ee6f3f3a22a4ccdef93866d20b932342a1798765e92460e65629e",
+      "contentHash": "8ec64e303c975783f41c431939fcd424a9c11c84957562988c58e05b94d356fa",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 249,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-30.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-30.json",
-      "contentHash": "87c61bc4f7ca3bc4e703a085974d2315f9c53e94a02236e0aa5d2dc5ac663232",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 147,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-31.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-31.json",
-      "contentHash": "b16f3383b6cb4afef9e06711a78ef624bff4213998f0f04355522d8ad4ea004c",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 147,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-32.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-32.json",
-      "contentHash": "160709545bfe78bd94b97d251702c4635d79d96d97f0e25a292ecc9ac4dc5e27",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 147,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-33.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-33.json",
-      "contentHash": "9bb60bb20e54dce96da9d6a81e77229a5aa6d580378c8de30c16e81a24b5acd8",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 91,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-34.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-34.json",
-      "contentHash": "6f3b0d9ebc4cff2b57173e00f6a8795fcdeb65381b73063b4358ecad143c71ce",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 35,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-35.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-35.json",
-      "contentHash": "e3a7a55848dc5eb8a5fbf6513941f69defb808a70584fe021c507f0b9230c1ad",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 35,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-36.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-36.json",
-      "contentHash": "d05c8db402a9183b81e0d9d729fe87f81db7100418d01da59bd3642482a60d58",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 63,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-37.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-37.json",
-      "contentHash": "dc80b7325226c029b83691b22651eab25f07db1a0b6a417b1c038dd66e2da566",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 91,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-38.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-38.json",
-      "contentHash": "53e01b7c4170d51ccf2af7ac4c4b240868e81d21151bade566817eb0c5150812",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 91,
+      "totalLines": 122,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-39.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-39.json",
-      "contentHash": "bc2f6c70ea825fd146ea2f22a788135ed1830f3b90e156e09170dc5d980539e2",
+      "contentHash": "e5a3ab22123e22b5e1d7ad5f4926d416c88331fce736e8926739162c76f98dea",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 186,
+      "totalLines": 62,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-4.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-4.json",
-      "contentHash": "3037f59c6d8e6cc0bf2ba2570fd986648c1f3d059d930ba3d4cbec483f51a665",
+      "contentHash": "396db87f2fa51413dd5e2b7034dce9c70ebf983bd4edfd108401f165bbb8c4a2",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 200,
+      "totalLines": 108,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-40.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-40.json",
-      "contentHash": "514f35b025d6a6eb5cfcfb57aec623c7e525cc465c6f2843683df0fe00525a0e",
+      "contentHash": "1fff5904e11a96194aeaab3ae998f67617dea4581f8370eb7236c99419676367",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 197,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-41.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-41.json",
-      "contentHash": "4639a6583fac50f950f7edefe94affa03cb6707cc53755a7abf0aa6d99c959c6",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 182,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-42.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-42.json",
-      "contentHash": "3d1c7be62d91ddf6864d51828b163da37931f2e153fe92a6c596255a4a7ba8a7",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 182,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-43.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-43.json",
-      "contentHash": "9ade8004b7369c08a924dfa51704914578b09624555b9ed3ebc5f7caf390fbdf",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 182,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-44.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-44.json",
-      "contentHash": "a53eeeaa7988d82a666e610a33baccc1e0b9d8c5b747d8473dfac1c382b6bff8",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 182,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-45.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-45.json",
-      "contentHash": "3ac35f7cc5fca8c5c1d1f4dfc79b85209670d6771691e10d0f7949c7e70904be",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 182,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-46.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-46.json",
-      "contentHash": "b037b4cdc5d436f22ad3ab5ecb5c6f5b17e861458c43c273af3614deb0b7dee0",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 182,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-47.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-47.json",
-      "contentHash": "974ddd069e9fe9dcc044d3fe792cccd4f59250a9e196c009278a8e98adebb23d",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 182,
+      "totalLines": 73,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-48.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-48.json",
-      "contentHash": "04b7b3ed91d2985d5457e07da5928800465cf103959df0c92fbb460ab302d88c",
+      "contentHash": "9773697ef4c06dbf12b10ad568f56531315b23902cff858acfe0040778a0e1d4",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 182,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-5.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-5.json",
-      "contentHash": "35f491b7c6a28637de3e02f463922f2136c1eea955b17a72ef8075423ed1d127",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 183,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-6.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-6.json",
-      "contentHash": "c3833c4ce731f680eb6af9e991e24003b37ce1e1cbc23b48617295b0f43da275",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 172,
+      "totalLines": 58,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-7.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-7.json",
-      "contentHash": "a8a2d9de49f2688c46f110119b100da74a35f96b19761e060b9e3f933aca158c",
+      "contentHash": "948faa9c1791ee24e94f5b86dd1293f888aa848489e911735a6fd4c83c3ef421",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 165,
+      "totalLines": 80,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-analyzer-input-8.json": {
       "filePath": ".understand-anything/tmp/ua-file-analyzer-input-8.json",
-      "contentHash": "6a59eccb566d04f9c01c3b44090da2fb49f52f38db10c94590308a9d85b5e2e8",
+      "contentHash": "45c5626ab42eea1764e65adc58bc3127ac614ee3124e4da6cd6ccfd80333f922",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 125,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-file-analyzer-input-9.json": {
-      "filePath": ".understand-anything/tmp/ua-file-analyzer-input-9.json",
-      "contentHash": "5a24423ddb48742562cdb85b82c534f8f729904bb3b5695f861e43833c6aea5f",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 118,
+      "totalLines": 84,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-extract-results-17.json": {
       "filePath": ".understand-anything/tmp/ua-file-extract-results-17.json",
-      "contentHash": "b9595c7b8c54df1186b59a89d25347f17f55a066bf08e459c3e87330b17dca1e",
+      "contentHash": "b7786e62b8e17e8a46468288d458896e6e24346147f45dff301ad818a0917bcd",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 504,
+      "totalLines": 230,
       "hasStructuralAnalysis": true
     },
     ".understand-anything/tmp/ua-file-extract-results-3.json": {
       "filePath": ".understand-anything/tmp/ua-file-extract-results-3.json",
-      "contentHash": "848608d7d83909384ac579a51514a9fd8a6352f6dd9ce96811b5ec0b9f1df05a",
+      "contentHash": "f635596a8fe443e28c4b2524cfae9dea9e8a3a5176f7b520c2dd017cb9f1f149",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 3374,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-import-map-input.json": {
-      "filePath": ".understand-anything/tmp/ua-import-map-input.json",
-      "contentHash": "16a30e9fe0f4085feeaee1da1feea78de4b88cd370214739765255cbcad537aa",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 4901,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-import-map-output.json": {
-      "filePath": ".understand-anything/tmp/ua-import-map-output.json",
-      "contentHash": "00ec6a203ad70f218b9d7e86c9625267e0c28bc4b05175b7b0e1caf5d930a0ed",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 1411,
-      "hasStructuralAnalysis": true
-    },
-    ".understand-anything/tmp/ua-scan-files.json": {
-      "filePath": ".understand-anything/tmp/ua-scan-files.json",
-      "contentHash": "8358f7223623055f21b68345a2eebbf89c7b17452352d587bf69ba64ad476ef0",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 4937,
+      "totalLines": 6306,
       "hasStructuralAnalysis": true
     },
     "client/.agents/skills/deploy-to-vercel/resources/deploy-codex.sh": {
@@ -3130,7 +2583,7 @@
     },
     "client/src/app/(private)/settings/components/AccountTab.tsx": {
       "filePath": "client/src/app/(private)/settings/components/AccountTab.tsx",
-      "contentHash": "f20e575859ce7a8da3f7f76efc5f116a994675b56302eb6cffd0cf5b15f3e695",
+      "contentHash": "64bf55b6ed8c967b7ac3f50ad2d49edb14e5313ce1a9d888895b67830448da00",
       "functions": [
         {
           "name": "AccountTab",
@@ -3138,7 +2591,7 @@
             "{\r\n  onDirtyChange,\r\n  onSaveSuccess,\r\n}"
           ],
           "exported": true,
-          "lineCount": 1468
+          "lineCount": 1482
         }
       ],
       "classes": [],
@@ -3200,18 +2653,6 @@
           "source": "@/features/auth/hooks/use-auth",
           "specifiers": [
             "useAuth"
-          ]
-        },
-        {
-          "source": "@/services/axios-client",
-          "specifiers": [
-            "axiosClient"
-          ]
-        },
-        {
-          "source": "@thesvg/react",
-          "specifiers": [
-            "Github"
           ]
         },
         {
@@ -3317,7 +2758,7 @@
       "exports": [
         "AccountTab"
       ],
-      "totalLines": 1565,
+      "totalLines": 1577,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/AchievementCard.tsx": {
@@ -3550,7 +2991,7 @@
     },
     "client/src/app/(private)/settings/components/ConfirmationModal.tsx": {
       "filePath": "client/src/app/(private)/settings/components/ConfirmationModal.tsx",
-      "contentHash": "aedfb4844a74e9b109fbd116fb4deef4fd9144691ad5e88310166b2512dce93e",
+      "contentHash": "cb62f9411dc8081b1b5b54428b411a0eef4de6ac2f0a8f50c0ee47040bfae10a",
       "functions": [
         {
           "name": "ConfirmationModal",
@@ -3558,7 +2999,7 @@
             "{\n  isOpen,\n  onOpenChange,\n  title,\n  description,\n  confirmText = \"Confirm\",\n  cancelText = \"Cancel\",\n  onConfirm,\n  variant = \"primary\",\n  isPending = false,\n  verificationText,\n  verificationPlaceholder = \"Type to confirm\",\n  verificationLabel,\n  blockingError = null,\n}"
           ],
           "exported": true,
-          "lineCount": 182
+          "lineCount": 185
         }
       ],
       "classes": [],
@@ -3583,7 +3024,6 @@
           "source": "lucide-react",
           "specifiers": [
             "AlertTriangle",
-            "ShieldAlert",
             "X"
           ]
         }
@@ -3591,7 +3031,7 @@
       "exports": [
         "ConfirmationModal"
       ],
-      "totalLines": 208,
+      "totalLines": 211,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/EducationSection.tsx": {
@@ -3700,7 +3140,7 @@
     },
     "client/src/app/(private)/settings/components/ExperienceAchievementsSection.tsx": {
       "filePath": "client/src/app/(private)/settings/components/ExperienceAchievementsSection.tsx",
-      "contentHash": "a99fefccc5da173e9d2a58f9490e58e205d88141264f2002d6436bc27195e45c",
+      "contentHash": "18adb6191b96d302dc765fb7ce46b096c8bdebbaf6ce2e320c9a16d0e8644c92",
       "functions": [
         {
           "name": "getCalendarDateValue",
@@ -3724,7 +3164,7 @@
             "{\r\n  index,\r\n  remove,\r\n  errors,\r\n  control,\r\n  setValue,\r\n}"
           ],
           "exported": false,
-          "lineCount": 585
+          "lineCount": 591
         },
         {
           "name": "ExperienceAchievementsSection",
@@ -3815,18 +3255,18 @@
       "exports": [
         "ExperienceAchievementsSection"
       ],
-      "totalLines": 857,
+      "totalLines": 863,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/LinkedAccountsList.tsx": {
       "filePath": "client/src/app/(private)/settings/components/LinkedAccountsList.tsx",
-      "contentHash": "30315d4625085213fd5d7173085e2e908c499b0ff305d79c7c9d6b96831f786f",
+      "contentHash": "21f177a35c06f7309878a3ee164991478d078ff9b5fe241e016e351e52e86c07",
       "functions": [
         {
           "name": "LinkedAccountsList",
           "params": [],
           "exported": true,
-          "lineCount": 839
+          "lineCount": 859
         }
       ],
       "classes": [],
@@ -3850,8 +3290,7 @@
             "Separator",
             "Avatar",
             "toast",
-            "Modal",
-            "Link"
+            "Modal"
           ]
         },
         {
@@ -3877,7 +3316,6 @@
           "source": "lucide-react",
           "specifiers": [
             "Info",
-            "Trash2",
             "PlusCircle",
             "AlertCircle",
             "ExternalLink",
@@ -3900,12 +3338,12 @@
       "exports": [
         "LinkedAccountsList"
       ],
-      "totalLines": 870,
+      "totalLines": 888,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/PersonalInfoTab.tsx": {
       "filePath": "client/src/app/(private)/settings/components/PersonalInfoTab.tsx",
-      "contentHash": "f58c4bf558711be26a3494c4c1c529d7133e091daad30ada776fc9eef3442967",
+      "contentHash": "440d71c234682cbb026828c2456e67185899f5eeb00398ef0788e7ba46cd2ab1",
       "functions": [
         {
           "name": "mapEducationFromDb",
@@ -3937,7 +3375,7 @@
             "{\r\n  onDirtyChange,\r\n  onSaveSuccess,\r\n}"
           ],
           "exported": true,
-          "lineCount": 402
+          "lineCount": 400
         }
       ],
       "classes": [],
@@ -4053,12 +3491,12 @@
       "exports": [
         "PersonalInfoTab"
       ],
-      "totalLines": 508,
+      "totalLines": 506,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/ProfileTab.tsx": {
       "filePath": "client/src/app/(private)/settings/components/ProfileTab.tsx",
-      "contentHash": "99063b7cad3702e88c656705c540de262a8ef43b07dc25dbc8a7aff58d61e85d",
+      "contentHash": "c8df166c7ec6c1117182998f31df4763a8b02d4f0543c1fdcf4c64579ff0e68c",
       "functions": [
         {
           "name": "ProfileTab",
@@ -4160,9 +3598,6 @@
             "TextArea",
             "Description",
             "Input",
-            "InputGroup",
-            "TextField",
-            "FieldError",
             "DatePicker",
             "DateField",
             "Calendar",
@@ -4212,12 +3647,12 @@
       "exports": [
         "ProfileTab"
       ],
-      "totalLines": 833,
+      "totalLines": 830,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/AnalysisScoreCards.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/AnalysisScoreCards.tsx",
-      "contentHash": "c37643c280b171e6a4720cc93956d6a1d145dee836539eb4da259bcf63685a36",
+      "contentHash": "e96d75cc0ab7a96a1dd0c1db63ddd5373b3cfb6fd1a900ac09fa14d2fb12d33f",
       "functions": [
         {
           "name": "AnalysisScoreCards",
@@ -4225,7 +3660,7 @@
             "{\r\n  analysis,\r\n}"
           ],
           "exported": true,
-          "lineCount": 147
+          "lineCount": 83
         }
       ],
       "classes": [],
@@ -4269,20 +3704,20 @@
       "exports": [
         "AnalysisScoreCards"
       ],
-      "totalLines": 159,
+      "totalLines": 95,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/AnalysisStatusBadge.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/AnalysisStatusBadge.tsx",
-      "contentHash": "3dc85e503af9f95861b1d44e4b5995135cb3245a3186ff603603789302824871",
+      "contentHash": "2c335f72aa5f99a087e9f7d0a1324745d24a699c1a869b55fd0506801912a12c",
       "functions": [
         {
           "name": "AnalysisStatusBadge",
           "params": [
-            "{\r\n  status,\r\n  className = \"\",\r\n}"
+            "{\r\n  status,\r\n  band,\r\n  className = \"\",\r\n}"
           ],
           "exported": true,
-          "lineCount": 59
+          "lineCount": 43
         }
       ],
       "classes": [],
@@ -4304,8 +3739,7 @@
           "specifiers": [
             "CheckCircle2",
             "AlertCircle",
-            "Loader2",
-            "BarChart2"
+            "Loader2"
           ]
         },
         {
@@ -4318,12 +3752,12 @@
       "exports": [
         "AnalysisStatusBadge"
       ],
-      "totalLines": 70,
+      "totalLines": 55,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/DetailedAnalysisModal.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/DetailedAnalysisModal.tsx",
-      "contentHash": "45c670fb350f05dba120ea8dc51c6f239aacb3fe0548e8be82239abae4e3acb1",
+      "contentHash": "54670aea1355597795c631cbab5d1d0d920e73c06419088d3a3681d7a8d89ff5",
       "functions": [
         {
           "name": "DetailedAnalysisModal",
@@ -4331,7 +3765,7 @@
             "{\r\n  isOpen,\r\n  onOpenChange,\r\n  analysis,\r\n}"
           ],
           "exported": true,
-          "lineCount": 169
+          "lineCount": 175
         }
       ],
       "classes": [],
@@ -4421,12 +3855,12 @@
       "exports": [
         "DetailedAnalysisModal"
       ],
-      "totalLines": 192,
+      "totalLines": 198,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/InsightSections.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/InsightSections.tsx",
-      "contentHash": "4dfd234351d9ef07aae981987204f130d923ff63f3aa47fd252b0c0445ddbebb",
+      "contentHash": "956f284c834f22f5b8a5b4de263ddef9f9f348a94a5ed6468a909b80146b47cb",
       "functions": [
         {
           "name": "InsightSections",
@@ -4434,7 +3868,7 @@
             "{ analysis }"
           ],
           "exported": true,
-          "lineCount": 91
+          "lineCount": 96
         }
       ],
       "classes": [],
@@ -4478,12 +3912,12 @@
       "exports": [
         "InsightSections"
       ],
-      "totalLines": 110,
+      "totalLines": 115,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/MetricCards.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/MetricCards.tsx",
-      "contentHash": "af8cb6e26cadb649ac5d3fca265276e6cf7ef297ea81df2eedc0af04f2b1cbbb",
+      "contentHash": "d169b10a206dd3646273b063508b2abb94593607f6312980f85b51e4b8247383",
       "functions": [
         {
           "name": "MetricCards",
@@ -4491,7 +3925,7 @@
             "{ analysis }"
           ],
           "exported": true,
-          "lineCount": 67
+          "lineCount": 70
         }
       ],
       "classes": [],
@@ -4507,12 +3941,12 @@
           "specifiers": [
             "Star",
             "GitFork",
-            "Eye",
-            "Users",
             "GitCommit",
             "GitPullRequest",
-            "AlertCircle",
-            "GitBranch"
+            "GitBranch",
+            "Crown",
+            "FileCode2",
+            "CalendarDays"
           ]
         },
         {
@@ -4525,12 +3959,12 @@
       "exports": [
         "MetricCards"
       ],
-      "totalLines": 85,
+      "totalLines": 88,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/RecommendationPanels.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/RecommendationPanels.tsx",
-      "contentHash": "71919377d256ce9abc719ffcd09b61cd250295a5c29fa92f6ace3c4322b2f8ae",
+      "contentHash": "658ed39b9898857c966cb97d73a53647cf4730599595d679638ef8939dc6090b",
       "functions": [
         {
           "name": "RecommendationPanels",
@@ -4538,7 +3972,7 @@
             "{\r\n  analysis,\r\n}"
           ],
           "exported": true,
-          "lineCount": 95
+          "lineCount": 104
         }
       ],
       "classes": [],
@@ -4579,12 +4013,12 @@
       "exports": [
         "RecommendationPanels"
       ],
-      "totalLines": 107,
+      "totalLines": 116,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/SkillTreeVisualization.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/SkillTreeVisualization.tsx",
-      "contentHash": "7947acdad44ceab4b82fa06ec5bc46e37e1a16e0056c26d3d4ec01cb05de7724",
+      "contentHash": "5185df65efd430c88cfb5ca580a5fb61b2e9750ebeeaf7157d6e774e466e4fd1",
       "functions": [
         {
           "name": "SkillTreeVisualization",
@@ -4592,7 +4026,7 @@
             "{ analysis }"
           ],
           "exported": true,
-          "lineCount": 147
+          "lineCount": 141
         }
       ],
       "classes": [],
@@ -4618,8 +4052,6 @@
             "Server",
             "Terminal",
             "ShieldCheck",
-            "CheckCircle2",
-            "HelpCircle",
             "FileCode",
             "Layers",
             "Settings",
@@ -4629,19 +4061,20 @@
         {
           "source": "@/types/repository-analysis.types",
           "specifiers": [
-            "RepositoryAnalysis"
+            "RepositoryAnalysis",
+            "RepositoryEvidenceFinding"
           ]
         }
       ],
       "exports": [
         "SkillTreeVisualization"
       ],
-      "totalLines": 169,
+      "totalLines": 161,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/TechnologyTags.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/TechnologyTags.tsx",
-      "contentHash": "9b431fad370c40f96fb84853c5089f5d0992513195bfbb06032749f814f28717",
+      "contentHash": "d60a61b4427c2605685acb69d4faec6701bf9edf7ade951b5a1c623109ecdebc",
       "functions": [
         {
           "name": "TechnologyTags",
@@ -4649,7 +4082,7 @@
             "{ analysis }"
           ],
           "exported": true,
-          "lineCount": 48
+          "lineCount": 60
         }
       ],
       "classes": [],
@@ -4677,12 +4110,12 @@
       "exports": [
         "TechnologyTags"
       ],
-      "totalLines": 57,
+      "totalLines": 69,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/repository-analysis/VerificationSignals.tsx": {
       "filePath": "client/src/app/(private)/settings/components/repository-analysis/VerificationSignals.tsx",
-      "contentHash": "4cd26153a7763581a6b892716aaa9bc844c90b1fa37bde6ce35c09156d69d655",
+      "contentHash": "a2c75688f802c64f907b14f41c32e548f8bc1c591f8df03e1caa22b0c34b4fc0",
       "functions": [
         {
           "name": "VerificationSignals",
@@ -4690,7 +4123,7 @@
             "{\r\n  analysis,\r\n}"
           ],
           "exported": true,
-          "lineCount": 182
+          "lineCount": 180
         }
       ],
       "classes": [],
@@ -4736,7 +4169,7 @@
       "exports": [
         "VerificationSignals"
       ],
-      "totalLines": 202,
+      "totalLines": 200,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/SettingsSection.tsx": {
@@ -4775,7 +4208,7 @@
     },
     "client/src/app/(private)/settings/components/SignInMethod.tsx": {
       "filePath": "client/src/app/(private)/settings/components/SignInMethod.tsx",
-      "contentHash": "3d4b32e710549ce32497f433a2ff9722de13e9a8a9635e98d863c813301dc906",
+      "contentHash": "7fdcabc8fefd8a94ce208f944b9cb0539bd1cadfafbf7f6988ef950b35c8ab3b",
       "functions": [
         {
           "name": "SignInMethod",
@@ -4783,7 +4216,7 @@
             "{\r\n  onChangePassword: _onChangePassword,\r\n  userEmail = \"developer@cverify.com\",\r\n}"
           ],
           "exported": true,
-          "lineCount": 1541
+          "lineCount": 1554
         }
       ],
       "classes": [],
@@ -4837,7 +4270,8 @@
         {
           "source": "react-hook-form",
           "specifiers": [
-            "useForm"
+            "useForm",
+            "useWatch"
           ]
         },
         {
@@ -4886,7 +4320,7 @@
       "exports": [
         "SignInMethod"
       ],
-      "totalLines": 1584,
+      "totalLines": 1597,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/SocialLinksEditor.tsx": {
@@ -4988,7 +4422,7 @@
     },
     "client/src/app/(private)/settings/components/types.ts": {
       "filePath": "client/src/app/(private)/settings/components/types.ts",
-      "contentHash": "8dff9d6e08abafd375729f83a29fe184b148c6ffc1b781c85f247f0978b476ea",
+      "contentHash": "1b727fd56d79cb9ad09b2ae727e84cd9331e88fbae300c7a4b3c0e549e428533",
       "functions": [],
       "classes": [],
       "imports": [
@@ -5008,7 +4442,7 @@
         "workExperienceEntrySchema",
         "personalInfoSchema"
       ],
-      "totalLines": 133,
+      "totalLines": 153,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/components/UploadDropzone.tsx": {
@@ -5084,13 +4518,13 @@
     },
     "client/src/app/(private)/settings/page.tsx": {
       "filePath": "client/src/app/(private)/settings/page.tsx",
-      "contentHash": "2cbf6a1f7be552b5556ae545efac14554c00429f55d47185ade8ad4a2706f211",
+      "contentHash": "ad1d6ffdc3dc078e7000767e10d6f0c0981ffb5265b2b6a3875a4f1036583db4",
       "functions": [
         {
           "name": "SettingsPage",
           "params": [],
           "exported": true,
-          "lineCount": 264
+          "lineCount": 267
         }
       ],
       "classes": [],
@@ -5152,17 +4586,17 @@
       "exports": [
         "SettingsPage"
       ],
-      "totalLines": 296,
+      "totalLines": 299,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/settings/source-code-providers/page.tsx": {
       "filePath": "client/src/app/(private)/settings/source-code-providers/page.tsx",
-      "contentHash": "7aa5bf3013034a8ab79f793826f943d6240768977ba4f1b04b69b13cc052b71b",
+      "contentHash": "a5c7008a9eda77d63d64ed7e8d92f0c49f06b3834aa7bb0626c3a5cf30e08f3d",
       "functions": [
         {
           "name": "getRiskLevel",
           "params": [
-            "multiplier"
+            "confidence"
           ],
           "exported": false,
           "lineCount": 5
@@ -5171,7 +4605,7 @@
           "name": "SourceCodeProvidersPage",
           "params": [],
           "exported": true,
-          "lineCount": 1020
+          "lineCount": 1234
         }
       ],
       "classes": [],
@@ -5208,13 +4642,8 @@
             "Label",
             "Select",
             "ListBox",
-            "Skeleton"
-          ]
-        },
-        {
-          "source": "@/components/ui/pagination-wrapper",
-          "specifiers": [
-            "PaginationWrapper"
+            "Skeleton",
+            "Link"
           ]
         },
         {
@@ -5227,10 +4656,8 @@
         {
           "source": "lucide-react",
           "specifiers": [
-            "ArrowLeft",
             "Search",
             "RefreshCw",
-            "ExternalLink",
             "Lock",
             "Globe",
             "Star",
@@ -5238,8 +4665,6 @@
             "CheckCircle2",
             "AlertCircle",
             "Info",
-            "FolderTree",
-            "ChevronDown",
             "Sparkles"
           ]
         },
@@ -5298,7 +4723,7 @@
       "exports": [
         "SourceCodeProvidersPage"
       ],
-      "totalLines": 1091,
+      "totalLines": 1301,
       "hasStructuralAnalysis": true
     },
     "client/src/app/(private)/user/layout.tsx": {
@@ -5363,7 +4788,7 @@
     },
     "client/src/app/[username]/page.tsx": {
       "filePath": "client/src/app/[username]/page.tsx",
-      "contentHash": "c298312c143988d4fd52a52b65e834d947b63dd53bfc4e307e232738cf1d2cd2",
+      "contentHash": "150e8c4964be7f27f2b4a3340aa8d8dc88a59668da7d66bc631bb9621089b380",
       "functions": [
         {
           "name": "getPublicProfile",
@@ -5380,7 +4805,7 @@
             "{ params }"
           ],
           "exported": true,
-          "lineCount": 145
+          "lineCount": 148
         }
       ],
       "classes": [],
@@ -5415,6 +4840,12 @@
           ]
         },
         {
+          "source": "next/image",
+          "specifiers": [
+            "Image"
+          ]
+        },
+        {
           "source": "@heroui/react",
           "specifiers": [
             "Typography",
@@ -5438,7 +4869,7 @@
       "exports": [
         "PublicProfilePage"
       ],
-      "totalLines": 184,
+      "totalLines": 188,
       "hasStructuralAnalysis": true
     },
     "client/src/app/auth/callback/google/page.tsx": {
@@ -5470,13 +4901,13 @@
     },
     "client/src/app/auth/reactivate/page.tsx": {
       "filePath": "client/src/app/auth/reactivate/page.tsx",
-      "contentHash": "c94ed65954d9febcbaa8a41926c0fe44f223073298e28f553afce5a3dd296558",
+      "contentHash": "b6fcee3b31426a1002010bf77684b163980bf629252ceb716154c87713ace8e2",
       "functions": [
         {
           "name": "ReactivateContent",
           "params": [],
           "exported": false,
-          "lineCount": 113
+          "lineCount": 114
         },
         {
           "name": "ReactivatePage",
@@ -5548,7 +4979,7 @@
       "exports": [
         "ReactivatePage"
       ],
-      "totalLines": 145,
+      "totalLines": 146,
       "hasStructuralAnalysis": true
     },
     "client/src/app/favicon.ico.bak": {
@@ -5868,7 +5299,7 @@
     },
     "client/src/app/system/status/page.tsx": {
       "filePath": "client/src/app/system/status/page.tsx",
-      "contentHash": "1856873e38f75a096dfd80a96d4b6e3cdb17bcadbe51cdf49378955366d71887",
+      "contentHash": "d25cc7035d4fdfe5c5cd643ac79875607f93864bd47d8d0dff93da2984bd932c",
       "functions": [
         {
           "name": "logDev",
@@ -5895,6 +5326,12 @@
             "useState",
             "useEffect",
             "useCallback"
+          ]
+        },
+        {
+          "source": "next/link",
+          "specifiers": [
+            "Link"
           ]
         },
         {
@@ -5932,7 +5369,7 @@
       "exports": [
         "SystemStatusPage"
       ],
-      "totalLines": 655,
+      "totalLines": 656,
       "hasStructuralAnalysis": true
     },
     "client/src/app/unauthorized/page.tsx": {
@@ -6568,7 +6005,7 @@
     },
     "client/src/components/ui/auth-avatar.tsx": {
       "filePath": "client/src/components/ui/auth-avatar.tsx",
-      "contentHash": "8c5181c70501765b61d5accadd9ef85c23ac205f86de29519305b6dd55e5757d",
+      "contentHash": "12d5d1597ea65a585f6c7eb588db664290fc40400a6a67d3af3b8a28781ffd03",
       "functions": [
         {
           "name": "AuthAvatar",
@@ -6604,7 +6041,6 @@
             "Avatar",
             "Label",
             "Separator",
-            "Button",
             "Chip",
             "Kbd"
           ]
@@ -6646,7 +6082,7 @@
       "exports": [
         "AuthAvatar"
       ],
-      "totalLines": 392,
+      "totalLines": 391,
       "hasStructuralAnalysis": true
     },
     "client/src/components/ui/button.tsx": {
@@ -6678,7 +6114,7 @@
     },
     "client/src/components/ui/card.tsx": {
       "filePath": "client/src/components/ui/card.tsx",
-      "contentHash": "61c2552b44835ba3b566d5f7af18b233c79aa9aa43e84d3dc39fba46e39c848c",
+      "contentHash": "f3e6c14a00044d1000c42d61328cabbd93546e229cd3bf9ec148c821fa2409ba",
       "functions": [
         {
           "name": "Card",
@@ -6706,7 +6142,7 @@
     },
     "client/src/components/ui/dialog-modal.tsx": {
       "filePath": "client/src/components/ui/dialog-modal.tsx",
-      "contentHash": "bbc0a9d75d721a4aafcfe63657c96ff11d0b54ec7b1850ecedeb1d25e9415941",
+      "contentHash": "37add8bf82f010e0216f06f2cd16bbdd12fc7189b8d3eb9eb6f6a830d34a9fc8",
       "functions": [
         {
           "name": "DialogModal",
@@ -6730,8 +6166,7 @@
         {
           "source": "@heroui/react",
           "specifiers": [
-            "Modal",
-            "Typography"
+            "Modal"
           ]
         },
         {
@@ -8632,7 +8067,7 @@
     },
     "client/src/features/auth/security/password-policy.ts": {
       "filePath": "client/src/features/auth/security/password-policy.ts",
-      "contentHash": "865e4514ff0347331ad710578d8b2b2e4f60de4b317564a3bab9c367ddd8dca4",
+      "contentHash": "bb62ff9837771f7285bb87e3c11dd8d23e1748306893742ba8973007437290e6",
       "functions": [
         {
           "name": "evaluatePasswordPolicy",
@@ -10010,7 +9445,7 @@
     },
     "client/src/features/chat/views/chat-view.tsx": {
       "filePath": "client/src/features/chat/views/chat-view.tsx",
-      "contentHash": "515286713b1e07e7a67e03b549feac9ccb18b69f68a00e74610e2b1a84336901",
+      "contentHash": "3959c99d94521e9d33de3ab91cb6125fcce2fc880d9ceff1b3483669c9cb460b",
       "functions": [
         {
           "name": "parseAndSanitizeMarkdown",
@@ -10034,7 +9469,7 @@
           "name": "ChatView",
           "params": [],
           "exported": true,
-          "lineCount": 337
+          "lineCount": 336
         }
       ],
       "classes": [],
@@ -10103,7 +9538,7 @@
       "exports": [
         "ChatView"
       ],
-      "totalLines": 432,
+      "totalLines": 431,
       "hasStructuralAnalysis": true
     },
     "client/src/hooks/use-achievements.ts": {
@@ -12624,12 +12059,12 @@
     },
     "client/src/services/mock-ai-data.json": {
       "filePath": "client/src/services/mock-ai-data.json",
-      "contentHash": "b482900f50746b7fdbe9e92ecac394dc8b48ca26d95443c083b56baf0d2977f6",
+      "contentHash": "9c6f54ef3bfcea973c30404c8e1ed9094b13bdaedaa909a15a8e3c16989daa50",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 328,
+      "totalLines": 169,
       "hasStructuralAnalysis": true
     },
     "client/src/services/profile.service.ts": {
@@ -12671,32 +12106,41 @@
     },
     "client/src/services/repository-analysis.service.ts": {
       "filePath": "client/src/services/repository-analysis.service.ts",
-      "contentHash": "1d4eb38bdbda224d8ee645ac7e1dd40cb9dc98bdcf8ef85d07645ad778a3a4fd",
+      "contentHash": "d66ece41af5b60d4685a8744d145fc56d5a4d295ffc6dc91a5950937d13d19b5",
       "functions": [],
       "classes": [],
       "imports": [
         {
-          "source": "./mock-ai-data.json",
+          "source": "zod",
           "specifiers": [
-            "mockAiData"
+            "z"
+          ]
+        },
+        {
+          "source": "./axios-client",
+          "specifiers": [
+            "axiosClient"
           ]
         },
         {
           "source": "../types/repository-analysis.types",
           "specifiers": [
-            "RepositoryAnalysis"
+            "RepositoryAnalysis",
+            "AnalysisJob",
+            "AnalysisJobEvent"
           ]
         }
       ],
       "exports": [
+        "RepositoryAnalysisSchema",
         "repositoryAnalysisApi"
       ],
-      "totalLines": 42,
+      "totalLines": 169,
       "hasStructuralAnalysis": true
     },
     "client/src/services/source-code-provider.service.ts": {
       "filePath": "client/src/services/source-code-provider.service.ts",
-      "contentHash": "407030f64eaac53fbe8236f8e21d77bc2dee608e67b9fc8e88b3f34464867e4a",
+      "contentHash": "05c4c02269b65f983b7af4841acb3d42d72fe82de608621c8f78c3a3951ab56e",
       "functions": [],
       "classes": [],
       "imports": [
@@ -13080,12 +12524,12 @@
     },
     "client/src/types/repository-analysis.types.ts": {
       "filePath": "client/src/types/repository-analysis.types.ts",
-      "contentHash": "58f23327d152b63465bbd8d5f5f79d3f38a1a8ae5f9a8d8699f4d5a7c6814e06",
+      "contentHash": "9e619ae89f9c82c1b795e5b39d850d3a4e0f3d4654bd14bdd22b7e87faa34582",
       "functions": [],
       "classes": [],
       "imports": [],
       "exports": [],
-      "totalLines": 102,
+      "totalLines": 151,
       "hasStructuralAnalysis": true
     },
     "client/src/types/source-code-provider.types.ts": {
@@ -13184,7 +12628,7 @@
     },
     "CVerify.AI/app/main.py": {
       "filePath": "CVerify.AI/app/main.py",
-      "contentHash": "37e63d84296b836765c9d27862ff56ac253b594134ef376b626255a8e02b8cf0",
+      "contentHash": "11271d58929fc4f6510cd62140bba1477dde0b7933455011d04ff87a19d35b0d",
       "functions": [
         {
           "name": "lifespan",
@@ -13260,6 +12704,12 @@
           ]
         },
         {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
           "source": "json",
           "specifiers": [
             "json"
@@ -13322,6 +12772,12 @@
           ]
         },
         {
+          "source": "app.routes.analysis_router",
+          "specifiers": [
+            "analysis_router"
+          ]
+        },
+        {
           "source": "fastapi",
           "specifiers": [
             "Response"
@@ -13337,7 +12793,7 @@
         "readiness",
         "chat_stream"
       ],
-      "totalLines": 175,
+      "totalLines": 186,
       "hasStructuralAnalysis": true
     },
     "CVerify.AI/app/middleware/__init__.py": {
@@ -13427,18 +12883,19 @@
     },
     "CVerify.AI/app/services/claude_service.py": {
       "filePath": "CVerify.AI/app/services/claude_service.py",
-      "contentHash": "85981aa80cbb94099b54feca21c760066d2e55727353de8b605e60c06ad4e0b3",
+      "contentHash": "aa3e749e747ed622e7c2012721ac5b2735326fbba4f14ec8b2ecd0fb16854354",
       "functions": [],
       "classes": [
         {
           "name": "ClaudeService",
           "methods": [
             "__init__",
-            "stream_chat"
+            "stream_chat",
+            "analyze_repo"
           ],
           "properties": [],
           "exported": true,
-          "lineCount": 44
+          "lineCount": 65
         }
       ],
       "imports": [
@@ -13470,7 +12927,7 @@
       "exports": [
         "ClaudeService"
       ],
-      "totalLines": 52,
+      "totalLines": 73,
       "hasStructuralAnalysis": true
     },
     "CVerify.AI/Dockerfile": {
@@ -32769,7 +32226,7 @@
     },
     "CVerify.Core/Modules/Shared/Persistence/ApplicationDbContext.cs": {
       "filePath": "CVerify.Core/Modules/Shared/Persistence/ApplicationDbContext.cs",
-      "contentHash": "172caf91600bf4d3fbdb9f561248dc9da368e7faecf215dd43103ce45916386c",
+      "contentHash": "05560923965bf6f7adc8c0603741342c14a00b1b5b64c82fc6974590976361bc",
       "functions": [
         {
           "name": "ApplicationDbContext",
@@ -32812,7 +32269,7 @@
           ],
           "returnType": "void",
           "exported": false,
-          "lineCount": 700
+          "lineCount": 757
         }
       ],
       "classes": [
@@ -32859,6 +32316,9 @@
             "UserProfiles",
             "PendingAuthProviders",
             "SourceCodeRepositories",
+            "AnalysisJobs",
+            "AnalysisJobEvents",
+            "AnalysisReports",
             "CareerPreferences",
             "UserSkills",
             "UserPreferredLocations",
@@ -32874,7 +32334,7 @@
             "WorkExperienceLinks"
           ],
           "exported": true,
-          "lineCount": 802
+          "lineCount": 862
         }
       ],
       "imports": [
@@ -32982,6 +32442,9 @@
         "UserProfiles",
         "PendingAuthProviders",
         "SourceCodeRepositories",
+        "AnalysisJobs",
+        "AnalysisJobEvents",
+        "AnalysisReports",
         "CareerPreferences",
         "UserSkills",
         "UserPreferredLocations",
@@ -32997,12 +32460,12 @@
         "WorkExperienceLinks",
         "ApplicationDbContext"
       ],
-      "totalLines": 817,
+      "totalLines": 877,
       "hasStructuralAnalysis": true
     },
     "CVerify.Core/Modules/Shared/Persistence/DbInitializer.cs": {
       "filePath": "CVerify.Core/Modules/Shared/Persistence/DbInitializer.cs",
-      "contentHash": "c34732e0ce6a616677e2bf1485f805aed99e8e438985a4310083370760827a16",
+      "contentHash": "84658bc9ef931681b68006f107c4d58c92d0f88ccc0d4d76a280a869f48de3c6",
       "functions": [
         {
           "name": "InitializeAsync",
@@ -33012,7 +32475,7 @@
           ],
           "returnType": "Task",
           "exported": true,
-          "lineCount": 1737
+          "lineCount": 1781
         },
         {
           "name": "MigrateLegacyGoogleEmailsAsync",
@@ -33044,7 +32507,7 @@
           ],
           "properties": [],
           "exported": true,
-          "lineCount": 1838
+          "lineCount": 1882
         }
       ],
       "imports": [
@@ -33113,7 +32576,7 @@
         "InitializeAsync",
         "DbInitializer"
       ],
-      "totalLines": 1856,
+      "totalLines": 1900,
       "hasStructuralAnalysis": true
     },
     "CVerify.Core/Modules/Shared/Persistence/IdentityRepository.cs": {
@@ -37172,7 +36635,7 @@
     },
     "CVerify.Core/Program.cs": {
       "filePath": "CVerify.Core/Program.cs",
-      "contentHash": "c879dbda5fc141de454dc16188fb67ee93c5ee2e52e3b09ba210399ed9aa9e39",
+      "contentHash": "b6f1189b48a9fe16cb422c55b284f8b71df9b6fb92cc8e30377e31089ea9dfff",
       "functions": [],
       "classes": [],
       "imports": [
@@ -37412,7 +36875,7 @@
         }
       ],
       "exports": [],
-      "totalLines": 496,
+      "totalLines": 499,
       "hasStructuralAnalysis": true
     },
     "CVerify.Core/Properties/launchSettings.json": {

@@ -128,7 +128,15 @@ export const SkillTreeVisualization: React.FC<SkillTreeProps> = ({ analysis }) =
                       Code Evidence & Signals
                     </span>
                     <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                      {finding.evidence.map((ev, evIdx) => (
+                      {((finding.evidence && finding.evidence.length > 0)
+                        ? finding.evidence
+                        : (finding.evidence_signals || []).map((sig: string) => ({
+                            type: "file" as const,
+                            path: null as string | null,
+                            line_range: null as string | null,
+                            signal: sig,
+                          }))
+                      ).map((ev, evIdx: number) => (
                         <div
                           key={evIdx}
                           className="flex items-start gap-2 text-[10.5px] leading-relaxed text-foreground/80 font-mono"

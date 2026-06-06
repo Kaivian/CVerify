@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { axiosClient } from "./axios-client";
-import { type RepositoryAnalysis, type AnalysisJob, type AnalysisJobEvent } from "../types/repository-analysis.types";
+import { type RepositoryAnalysis, type AnalysisJob, type AnalysisJobEvent, type AnalysisTaskEvent } from "../types/repository-analysis.types";
 
 // Runtime Validation Schemas using Zod to isolate client components from LLM schema variations.
 // Uses .nullish().transform() so that missing (undefined) or null properties in legacy responses
@@ -19,6 +19,8 @@ const RepoInfoSchema = z.object({
   forks: z.number().nullish().transform((val) => val ?? 0),
   branches: z.number().nullish().transform((val) => val ?? 1),
   open_prs: z.number().nullish().transform((val) => val ?? 0),
+  repo_type: z.string().nullish().transform((val) => val ?? "ORIGINAL_WORK"),
+  confidence_ceiling: z.number().nullish().transform((val) => val ?? 1.0),
 });
 
 const RepositoryClassificationSchema = z.object({
@@ -74,21 +76,27 @@ const RepositoryProfileDetailSchema = z.object({
     testing: z.object({
       frameworks: z.array(z.string()).nullish().transform((val) => val ?? []),
       has_tests: z.boolean().nullish().transform((val) => val ?? false),
+      confidence: z.number().nullish().transform((val) => val ?? 100),
+      evidence: z.array(z.string()).nullish().transform((val) => val ?? []),
       detail: z.string().nullish().transform((val) => val ?? ""),
-    }).default({ frameworks: [], has_tests: false, detail: "" }),
+    }).default({ frameworks: [], has_tests: false, confidence: 100, evidence: [], detail: "" }),
     observability: z.object({
       logging_configured: z.boolean().nullish().transform((val) => val ?? false),
       metrics_configured: z.boolean().nullish().transform((val) => val ?? false),
+      confidence: z.number().nullish().transform((val) => val ?? 100),
+      evidence: z.array(z.string()).nullish().transform((val) => val ?? []),
       detail: z.string().nullish().transform((val) => val ?? ""),
-    }).default({ logging_configured: false, metrics_configured: false, detail: "" }),
+    }).default({ logging_configured: false, metrics_configured: false, confidence: 100, evidence: [], detail: "" }),
     cicd: z.object({
       configured: z.boolean().nullish().transform((val) => val ?? false),
       providers: z.array(z.string()).nullish().transform((val) => val ?? []),
-    }).default({ configured: false, providers: [] }),
+      confidence: z.number().nullish().transform((val) => val ?? 100),
+      evidence: z.array(z.string()).nullish().transform((val) => val ?? []),
+    }).default({ configured: false, providers: [], confidence: 100, evidence: [] }),
   }).default({
-    testing: { frameworks: [], has_tests: false, detail: "" },
-    observability: { logging_configured: false, metrics_configured: false, detail: "" },
-    cicd: { configured: false, providers: [] }
+    testing: { frameworks: [], has_tests: false, confidence: 100, evidence: [], detail: "" },
+    observability: { logging_configured: false, metrics_configured: false, confidence: 100, evidence: [], detail: "" },
+    cicd: { configured: false, providers: [], confidence: 100, evidence: [] }
   }),
 });
 
@@ -102,11 +110,12 @@ const RepositoryEvidenceItemSchema = z.object({
 
 const RepositoryEvidenceFindingSchema = z.object({
   id: z.string().optional(),
-  category: z.string(),
+  category: z.string().nullish().transform((val) => val ?? "quality"),
   finding: z.string(),
   confidence: z.number().nullish().transform((val) => val ?? 100),
   evidence: z.array(RepositoryEvidenceItemSchema).nullish().transform((val) => val ?? []),
   explanation: z.string().nullish().transform((val) => val ?? ""),
+  impact: z.enum(["positive", "warning", "critical"]).optional(),
 });
 
 const RepositoryNarrativeSchema = z.object({
@@ -121,8 +130,147 @@ const RepositoryNarrativeSchema = z.object({
   })).nullish().transform((val) => val ?? []),
 });
 
-export const RepositoryAnalysisSchema = z.object({
+const ContributorDistributionItemSchema = z.object({
+  author: z.string(),
+  email: z.string(),
+  commits: z.number(),
+  pct: z.number(),
+});
+
+const GitMetricsSchema = z.object({
+  total_commits: z.number().nullish().transform((val) => val ?? 1),
+  user_commit_ratio: z.number().nullish().transform((val) => val ?? 1.0),
+  is_primary_author: z.boolean().nullish().transform((val) => val ?? true),
+  bus_factor: z.number().nullish().transform((val) => val ?? 1),
+  active_contributors: z.number().nullish().transform((val) => val ?? 1),
+  contributor_distribution: z.array(ContributorDistributionItemSchema).nullish().transform((val) => val ?? []),
+});
+
+const QualityMetricsSchema = z.object({
+  files_scanned: z.number().nullish().transform((val) => val ?? 0),
+  files_sampled: z.number().nullish().transform((val) => val ?? 0),
+  skipped_files: z.number().nullish().transform((val) => val ?? 0),
+  coverage_pct: z.number().nullish().transform((val) => val ?? 100.0),
+  prompt_cache_efficiency: z.number().nullish().transform((val) => val ?? 0.0),
+});
+
+const RepositoryAnalysisFactsSchema = z.object({
+  repo: RepoInfoSchema,
+  git_metrics: GitMetricsSchema,
+  quality_metrics: QualityMetricsSchema,
+});
+
+const RiskAssessmentSchema = z.object({
+  risk_level: z.enum(["Low", "Medium", "High"]),
+  risk_score: z.number(),
+  critical_findings_count: z.number(),
+  warning_findings_count: z.number(),
+  explanation: z.string(),
+});
+
+const RepositoryAnalysisAiConclusionsSchema = z.object({
+  classification: RepositoryClassificationSchema.extend({
+    classification_rationale: z.string().optional(),
+    sampled_files: z.array(z.string()).optional(),
+    ignored_files_count: z.number().optional(),
+    confidence_factors: z.array(z.string()).optional(),
+  }).default({}),
+  evidence_points: EvidencePointsSchema.default({}),
+  trust: TrustProfileSchema.default({}),
+  risk_assessment: RiskAssessmentSchema.optional(),
+  positioning: ComparativePositioningSchema.default({}),
+  profile: RepositoryProfileDetailSchema.default({}),
+  findings: z.array(RepositoryEvidenceFindingSchema).nullish().transform((val) => val ?? []),
+  narrative: RepositoryNarrativeSchema.optional(),
+}).strict();
+
+export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
+  const v = val as Record<string, any>;
+  if (v) {
+    if ("scoring" in v || (v.ai_conclusions && "scoring" in v.ai_conclusions)) {
+      console.warn(
+        `[DEPRECATED SCORING WARNING] Legacy scoring payload detected for job ${v.jobId || "unknown"}. Intercepting and pruning legacy fields.`
+      );
+      if ("scoring" in v) delete v.scoring;
+      if (v.ai_conclusions && "scoring" in v.ai_conclusions) delete v.ai_conclusions.scoring;
+    }
+  }
+
+  if (v && (v.facts || v.ai_conclusions)) {
+    const facts = v.facts || {};
+    const ai = v.ai_conclusions || {};
+    
+    return {
+      schemaVersion: v.schemaVersion || "evidence-intelligence-v2",
+      jobId: v.jobId,
+      facts,
+      ai_conclusions: ai,
+      repo: facts.repo || v.repo,
+      classification: ai.classification || v.classification,
+      evidence_points: ai.evidence_points || v.evidence_points,
+      ownership: {
+        total_commits: facts.git_metrics?.total_commits ?? v.ownership?.total_commits ?? 1,
+        user_commit_ratio: facts.git_metrics?.user_commit_ratio ?? v.ownership?.user_commit_ratio ?? 1.0,
+        is_primary_author: facts.git_metrics?.is_primary_author ?? v.ownership?.is_primary_author ?? true,
+        architectural_ownership_pct: v.ownership?.architectural_ownership_pct ?? 100,
+        critical_path_ownership_pct: v.ownership?.critical_path_ownership_pct ?? 100,
+        maintenance_duration_months: v.ownership?.maintenance_duration_months ?? 1,
+        explanation: v.ownership?.explanation ?? ai.trust?.explanation ?? ""
+      },
+      trust: ai.trust || v.trust,
+      positioning: ai.positioning || v.positioning,
+      profile: ai.profile || v.profile,
+      findings: ai.findings || v.findings,
+      narrative: ai.narrative || v.narrative,
+    };
+  } else if (v) {
+    return {
+      schemaVersion: "legacy",
+      jobId: v.jobId,
+      repo: v.repo,
+      classification: v.classification,
+      evidence_points: v.evidence_points,
+      ownership: v.ownership,
+      trust: v.trust,
+      positioning: v.positioning,
+      profile: v.profile,
+      findings: v.findings,
+      narrative: v.narrative,
+      facts: {
+        repo: v.repo,
+        git_metrics: {
+          total_commits: v.ownership?.total_commits ?? 1,
+          user_commit_ratio: v.ownership?.user_commit_ratio ?? 1.0,
+          is_primary_author: v.ownership?.is_primary_author ?? true,
+          bus_factor: 1,
+          active_contributors: 1,
+          contributor_distribution: [],
+        },
+        quality_metrics: {
+          files_scanned: 0,
+          files_sampled: 0,
+          skipped_files: 0,
+          coverage_pct: 100.0,
+          prompt_cache_efficiency: 0.0,
+        }
+      },
+      ai_conclusions: {
+        classification: v.classification,
+        evidence_points: v.evidence_points,
+        trust: v.trust,
+        positioning: v.positioning,
+        profile: v.profile,
+        findings: v.findings,
+        narrative: v.narrative,
+      }
+    };
+  }
+  return val;
+}, z.object({
+  jobId: z.string().optional(),
   schemaVersion: z.string().default("legacy"),
+  facts: RepositoryAnalysisFactsSchema.optional(),
+  ai_conclusions: RepositoryAnalysisAiConclusionsSchema.optional(),
   repo: RepoInfoSchema,
   classification: RepositoryClassificationSchema.default({}),
   evidence_points: EvidencePointsSchema.default({}),
@@ -132,7 +280,7 @@ export const RepositoryAnalysisSchema = z.object({
   profile: RepositoryProfileDetailSchema.default({}),
   findings: z.array(RepositoryEvidenceFindingSchema).nullish().transform((val) => val ?? []),
   narrative: RepositoryNarrativeSchema.optional(),
-});
+}).strict());
 
 export const repositoryAnalysisApi = {
   getActiveJobs: async (): Promise<Array<{ id: string; repositoryId: string; status: string; progress: number; currentStep?: string }>> => {
@@ -150,6 +298,12 @@ export const repositoryAnalysisApi = {
     return response.data;
   },
 
+  getJobSnapshot: async (jobId: string): Promise<RepositoryAnalysis> => {
+    const response = await axiosClient.get<unknown>(`/repository-analyses/jobs/${jobId}/snapshot`);
+    const parsed = RepositoryAnalysisSchema.parse(response.data);
+    return parsed as RepositoryAnalysis;
+  },
+
   getJobEvents: async (jobId: string): Promise<AnalysisJobEvent[]> => {
     const response = await axiosClient.get<AnalysisJobEvent[]>(`/repository-analyses/jobs/${jobId}/events`);
     return response.data;
@@ -164,5 +318,15 @@ export const repositoryAnalysisApi = {
     const response = await axiosClient.get<unknown>(`/repositories/${repositoryId}/analyses/latest`);
     const parsed = RepositoryAnalysisSchema.parse(response.data);
     return parsed as RepositoryAnalysis;
+  },
+
+  retryTask: async (jobId: string, taskId: string): Promise<{ message: string }> => {
+    const response = await axiosClient.post<{ message: string }>(`/repository-analyses/jobs/${jobId}/tasks/${taskId}/retry`);
+    return response.data;
+  },
+
+  getTaskEvents: async (jobId: string, taskId: string): Promise<AnalysisTaskEvent[]> => {
+    const response = await axiosClient.get<AnalysisTaskEvent[]>(`/repository-analyses/jobs/${jobId}/tasks/${taskId}/events`);
+    return response.data;
   }
 };

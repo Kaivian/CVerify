@@ -14,7 +14,8 @@ public record AnalysisJobDto(
     DateTimeOffset? CompletedAt,
     string? ErrorMessage,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset LastUpdatedUtc
+    DateTimeOffset LastUpdatedUtc,
+    System.Collections.Generic.IEnumerable<AnalysisTaskDto> Tasks = null!
 );
 
 public record AnalysisJobEventDto(

@@ -1,5 +1,5 @@
 ---
-trigger: model_decision
+trigger: always_on
 description: Apply before creating or modifying frontend code. Review and follow the project's ESLint, TypeScript, formatting, and code-quality configurations to ensure generated code passes existing linting and static analysis rules.
 ---
 
