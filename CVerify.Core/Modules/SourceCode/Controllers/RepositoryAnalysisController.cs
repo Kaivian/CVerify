@@ -337,4 +337,109 @@ public class RepositoryAnalysisController : ControllerBase
         var events = await _analysisService.GetTaskEventsAsync(CurrentUserId, jobId, taskId);
         return Ok(events);
     }
+
+    [HttpGet("repository-analyses/jobs/{jobId}/costs")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetJobCosts(Guid jobId, [FromServices] ApplicationDbContext context, CancellationToken cancellationToken)
+    {
+        var jobExists = await context.AnalysisJobs.AnyAsync(j => j.Id == jobId && j.UserId == CurrentUserId, cancellationToken);
+        if (!jobExists)
+        {
+            return NotFound(new { Message = "Job not found or access denied." });
+        }
+
+        var executions = await context.AnalysisExecutions
+            .Where(e => e.JobId == jobId)
+            .OrderBy(e => e.CreatedAtUtc)
+            .Select(e => new
+            {
+                e.Id,
+                e.JobId,
+                e.TaskId,
+                e.ExecutionType,
+                e.Provider,
+                e.Model,
+                e.PromptTokens,
+                e.CompletionTokens,
+                e.TotalTokens,
+                e.CachedTokens,
+                e.EstimatedCostUsd,
+                e.DurationMs,
+                e.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var totalCost = executions.Sum(e => e.EstimatedCostUsd);
+        var totalTokens = executions.Sum(e => e.TotalTokens);
+        var totalDuration = executions.Sum(e => e.DurationMs);
+
+        return Ok(new
+        {
+            JobId = jobId,
+            TotalCostUsd = totalCost,
+            TotalTokens = totalTokens,
+            TotalDurationMs = totalDuration,
+            Executions = executions
+        });
+    }
+
+    [HttpGet("repository-analyses/costs/platform-summary")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetPlatformCostSummary([FromServices] ApplicationDbContext context, CancellationToken cancellationToken)
+    {
+        var userId = CurrentUserId;
+        var userJobIds = await context.AnalysisJobs
+            .Where(j => j.UserId == userId)
+            .Select(j => j.Id)
+            .ToListAsync(cancellationToken);
+
+        var executionsQuery = context.AnalysisExecutions
+            .Where(e => userJobIds.Contains(e.JobId));
+
+        var costPerRepository = await context.AnalysisExecutions
+            .Where(e => userJobIds.Contains(e.JobId))
+            .GroupBy(e => e.Job.Repository.Name)
+            .Select(g => new { RepositoryName = g.Key, TotalCostUsd = g.Sum(e => e.EstimatedCostUsd), TotalTokens = g.Sum(e => e.TotalTokens) })
+            .ToListAsync(cancellationToken);
+
+        var costPerUser = await context.AnalysisExecutions
+            .Where(e => userJobIds.Contains(e.JobId))
+            .GroupBy(e => e.Job.User.Email)
+            .Select(g => new { UserEmail = g.Key, TotalCostUsd = g.Sum(e => e.EstimatedCostUsd), TotalTokens = g.Sum(e => e.TotalTokens) })
+            .ToListAsync(cancellationToken);
+
+        var costPerModel = await executionsQuery
+            .GroupBy(e => e.Model)
+            .Select(g => new { ModelName = g.Key, TotalCostUsd = g.Sum(e => e.EstimatedCostUsd), TotalTokens = g.Sum(e => e.TotalTokens) })
+            .ToListAsync(cancellationToken);
+
+        var costPerProvider = await executionsQuery
+            .GroupBy(e => e.Provider)
+            .Select(g => new { ProviderName = g.Key, TotalCostUsd = g.Sum(e => e.EstimatedCostUsd), TotalTokens = g.Sum(e => e.TotalTokens) })
+            .ToListAsync(cancellationToken);
+
+        var monthlyTrends = await executionsQuery
+            .GroupBy(e => new { Year = e.CreatedAtUtc.Year, Month = e.CreatedAtUtc.Month })
+            .Select(g => new 
+            { 
+                Year = g.Key.Year, 
+                Month = g.Key.Month, 
+                TotalCostUsd = g.Sum(e => e.EstimatedCostUsd), 
+                TotalTokens = g.Sum(e => e.TotalTokens) 
+            })
+            .OrderBy(g => g.Year).ThenBy(g => g.Month)
+            .ToListAsync(cancellationToken);
+
+        return Ok(new
+        {
+            CostPerRepository = costPerRepository,
+            CostPerUser = costPerUser,
+            CostPerModel = costPerModel,
+            CostPerProvider = costPerProvider,
+            MonthlyTrends = monthlyTrends
+        });
+    }
 }

@@ -363,12 +363,12 @@ export default function SourceCodeProvidersPage() {
     };
   }, [connectToProgressStream]);
 
-  // Background load reports for verified repositories
+  // Background load reports for completed analyses
   useEffect(() => {
     if (repositories.length === 0) return;
 
     repositories.forEach(async (repo) => {
-      if (repo.isVerified && !loadedReportsRef.current[repo.id] && !activeJobsRef.current[repo.id]) {
+      if (repo.latestAnalysisStatus === "Completed" && !loadedReportsRef.current[repo.id] && !activeJobsRef.current[repo.id]) {
         loadedReportsRef.current[repo.id] = true;
         try {
           const report = await repositoryAnalysisApi.getLatestReport(repo.id);
@@ -525,13 +525,97 @@ export default function SourceCodeProvidersPage() {
 
   const isGlobalSyncing = Object.keys(activeSyncJobs).length > 0;
 
+  const renderSkeletonCard = (isWide = false, key?: string) => (
+    <div
+      key={key}
+      className={`flex flex-col justify-between border border-border/40 rounded-2xl p-6 bg-surface relative w-full gap-4 ${isWide ? "col-span-1 md:col-span-2 min-h-[320px]" : "col-span-1 min-h-[220px]"
+        }`}
+    >
+      {isWide ? (
+        <div className="flex flex-col gap-5 w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
+            <div className="lg:col-span-5 flex flex-col justify-between h-full gap-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Skeleton className="h-5.5 w-2/3 rounded-lg" />
+                  <Skeleton className="h-5 w-16 rounded-md" />
+                </div>
+                <Skeleton className="h-3 w-1/3 rounded-md" />
+                <div className="space-y-2">
+                  <Skeleton className="h-3.5 w-full rounded-lg" />
+                  <Skeleton className="h-3.5 w-4/5 rounded-lg" />
+                </div>
+              </div>
+              <div className="space-y-3 mt-4">
+                <Skeleton className="h-8 w-24 rounded-xl" />
+                <div className="flex gap-2 pt-2 border-t border-border/10">
+                  <Skeleton className="h-8 w-20 rounded-xl" />
+                  <Skeleton className="h-8 w-20 rounded-xl" />
+                </div>
+              </div>
+            </div>
+            <div className="lg:col-span-7 flex flex-col gap-4 lg:border-l lg:border-border/10 lg:pl-6 pt-4 lg:pt-0">
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-4 w-20 rounded-md" />
+                <Skeleton className="h-5 w-16 rounded-md" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Skeleton className="h-12 rounded-xl" />
+                <Skeleton className="h-12 rounded-xl" />
+                <Skeleton className="h-12 rounded-xl" />
+                <Skeleton className="h-12 rounded-xl" />
+              </div>
+              <Skeleton className="h-14 rounded-xl" />
+            </div>
+          </div>
+          <Skeleton className="h-16 w-full rounded-xl mt-2" />
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3">
+            <div className="flex justify-between items-start gap-3">
+              <Skeleton className="h-5 w-2/3 rounded-lg" />
+              <Skeleton className="h-5 w-16 rounded-md" />
+            </div>
+            <Skeleton className="h-3.5 w-full rounded-lg" />
+          </div>
+          <Skeleton className="h-10 rounded-xl" />
+          <div className="flex items-center justify-between pt-3 border-t border-border/10">
+            <Skeleton className="h-6 w-16 rounded-md" />
+            <Skeleton className="h-8 w-20 rounded-xl" />
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderRiskFactors = (factorsJson: string | null) => {
+    if (!factorsJson) return null;
+    try {
+      const factors = JSON.parse(factorsJson);
+      if (!Array.isArray(factors) || factors.length === 0) return null;
+      return (
+        <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-1">
+          {factors.map((factor: string) => (
+            <span key={factor} className="bg-surface-secondary px-1.5 py-0.5 rounded-md border border-border/10">• {factor}</span>
+          ))}
+        </div>
+      );
+    } catch (e) {
+      return null;
+    }
+  };
+
   const renderRepositoryCard = (repo: SourceCodeRepository) => {
     const status = analysisStatuses[repo.id] || "idle";
     const analysisResult = analysisResults[repo.id];
     const provider = providers.find((p) => p.id === repo.authProviderId);
     const providerName = provider?.providerName;
 
-    if (status === "success" && analysisResult) {
+    if (repo.latestAnalysisStatus === "Completed") {
+      if (!analysisResult) {
+        return renderSkeletonCard(true, repo.id);
+      }
       return (
         <div
           key={repo.id}
@@ -701,6 +785,7 @@ export default function SourceCodeProvidersPage() {
                       );
                     })()}
                   </div>
+                  {renderRiskFactors(repo.latestRiskFactorsJson)}
                 </div>
               </div>
 
@@ -814,6 +899,13 @@ export default function SourceCodeProvidersPage() {
               </div>
             </div>
           )}
+
+          {repo.latestRiskFactorsJson && (
+            <div className="mt-2 text-left">
+              <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold block mb-1">Risk Factors</span>
+              {renderRiskFactors(repo.latestRiskFactorsJson)}
+            </div>
+          )}
         </div>
 
         {/* Verification and Trust Indicators / Status Display (only for active loading/error states) */}
@@ -863,15 +955,9 @@ export default function SourceCodeProvidersPage() {
             {/* Verification and Status Badges tucked in footer for idle state */}
             {status === "idle" && (
               <>
-                {repo.isVerified ? (
-                  <Chip size="sm" variant="soft" color="success" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
-                    Verified
-                  </Chip>
-                ) : (
-                  <Chip size="sm" variant="soft" color="default" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
-                    Unverified
-                  </Chip>
-                )}
+                <Chip size="sm" variant="soft" color="default" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
+                  Unverified
+                </Chip>
                 <AnalysisStatusBadge status="idle" className="h-5 px-1.5 rounded-md" />
               </>
             )}
@@ -1362,76 +1448,13 @@ export default function SourceCodeProvidersPage() {
 
           {/* Repositories Cards Grid */}
           {(() => {
-            const renderSkeletonCard = (isWide = false) => (
-              <div
-                className={`flex flex-col justify-between border border-border/40 rounded-2xl p-6 bg-surface relative w-full gap-4 ${isWide ? "col-span-1 md:col-span-2 min-h-[320px]" : "col-span-1 min-h-[220px]"
-                  }`}
-              >
-                {isWide ? (
-                  <div className="flex flex-col gap-5 w-full">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
-                      <div className="lg:col-span-5 flex flex-col justify-between h-full gap-4">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <Skeleton className="h-5.5 w-2/3 rounded-lg" />
-                            <Skeleton className="h-5 w-16 rounded-md" />
-                          </div>
-                          <Skeleton className="h-3 w-1/3 rounded-md" />
-                          <div className="space-y-2">
-                            <Skeleton className="h-3.5 w-full rounded-lg" />
-                            <Skeleton className="h-3.5 w-4/5 rounded-lg" />
-                          </div>
-                        </div>
-                        <div className="space-y-3 mt-4">
-                          <Skeleton className="h-8 w-24 rounded-xl" />
-                          <div className="flex gap-2 pt-2 border-t border-border/10">
-                            <Skeleton className="h-8 w-20 rounded-xl" />
-                            <Skeleton className="h-8 w-20 rounded-xl" />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="lg:col-span-7 flex flex-col gap-4 lg:border-l lg:border-border/10 lg:pl-6 pt-4 lg:pt-0">
-                        <div className="flex justify-between items-center">
-                          <Skeleton className="h-4 w-20 rounded-md" />
-                          <Skeleton className="h-5 w-16 rounded-md" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <Skeleton className="h-12 rounded-xl" />
-                          <Skeleton className="h-12 rounded-xl" />
-                          <Skeleton className="h-12 rounded-xl" />
-                          <Skeleton className="h-12 rounded-xl" />
-                        </div>
-                        <Skeleton className="h-14 rounded-xl" />
-                      </div>
-                    </div>
-                    <Skeleton className="h-16 w-full rounded-xl mt-2" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start gap-3">
-                        <Skeleton className="h-5 w-2/3 rounded-lg" />
-                        <Skeleton className="h-5 w-16 rounded-md" />
-                      </div>
-                      <Skeleton className="h-3.5 w-full rounded-lg" />
-                    </div>
-                    <Skeleton className="h-10 rounded-xl" />
-                    <div className="flex items-center justify-between pt-3 border-t border-border/10">
-                      <Skeleton className="h-6 w-16 rounded-md" />
-                      <Skeleton className="h-8 w-20 rounded-xl" />
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-
             if (loadingRepositories) {
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-flow-row-dense gap-5 w-full">
-                  {renderSkeletonCard(true)}
-                  {renderSkeletonCard(false)}
-                  {renderSkeletonCard(false)}
-                  {renderSkeletonCard(true)}
+                <div className="grid grid-cols-1 md:grid-cols-2 grid-flow-row-dense gap-5 w-full">
+                  {renderSkeletonCard(true, "ske-1")}
+                  {renderSkeletonCard(false, "ske-2")}
+                  {renderSkeletonCard(false, "ske-3")}
+                  {renderSkeletonCard(true, "ske-4")}
                 </div>
               );
             }
@@ -1447,7 +1470,7 @@ export default function SourceCodeProvidersPage() {
 
             return (
               <div className="flex flex-col gap-3 w-full">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-flow-row-dense gap-5 w-full">
+                <div className="grid grid-cols-1 md:grid-cols-2 grid-flow-row-dense gap-5 w-full">
                   {repositories.map((repo) => renderRepositoryCard(repo))}
                 </div>
 
@@ -1456,9 +1479,9 @@ export default function SourceCodeProvidersPage() {
 
                 {/* Loading More Indicator Skeletons */}
                 {loadingMore && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-flow-row-dense gap-5 w-full mt-4">
-                    {renderSkeletonCard(false)}
-                    {renderSkeletonCard(true)}
+                  <div className="grid grid-cols-1 md:grid-cols-2 grid-flow-row-dense gap-5 w-full mt-4">
+                    {renderSkeletonCard(false, "ske-more-1")}
+                    {renderSkeletonCard(true, "ske-more-2")}
                   </div>
                 )}
               </div>

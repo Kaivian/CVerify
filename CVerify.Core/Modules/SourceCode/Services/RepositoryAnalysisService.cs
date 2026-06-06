@@ -102,6 +102,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         _context.AnalysisJobs.Add(job);
 
+        repository.LatestAnalysisStatus = "Pending";
+        repository.LastUpdatedUtc = _timeProvider.GetUtcNow();
+
         var taskTypes = new List<string>();
         try
         {
@@ -303,6 +306,13 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         job.CompletedAt = _timeProvider.GetUtcNow();
         job.LastUpdatedUtc = _timeProvider.GetUtcNow();
 
+        var repo = await _context.SourceCodeRepositories.FirstOrDefaultAsync(r => r.Id == job.RepositoryId);
+        if (repo != null)
+        {
+            repo.LatestAnalysisStatus = "Cancelled";
+            repo.LastUpdatedUtc = _timeProvider.GetUtcNow();
+        }
+
         await SaveEventAsync(jobId, "Cancelled", job.Progress, "Analysis cancelled by user.");
         await _context.SaveChangesAsync();
 
@@ -323,13 +333,14 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         // Verify if job was already cancelled/aborted before starting
         if (job.Status == "Cancelled") return;
 
+        SourceCodeRepository? repo = null;
         try
         {
             // 1. Set to Preparing
             await UpdateJobStateAsync(job, "Preparing", 10.0, "Preparing workspace...", linkedCts.Token);
 
             // 2. Fetch repo details
-            var repo = await _context.SourceCodeRepositories
+            repo = await _context.SourceCodeRepositories
                 .Include(r => r.AuthProvider)
                 .ThenInclude(ap => ap.OAuthCredential)
                 .FirstOrDefaultAsync(r => r.Id == job.RepositoryId, linkedCts.Token);
@@ -538,12 +549,30 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     
                     if (taskResponse.Telemetry != null)
                     {
-                        task.PromptTokens = taskResponse.Telemetry.PromptTokens;
-                        task.CompletionTokens = taskResponse.Telemetry.CompletionTokens;
-                        task.CacheReadTokens = taskResponse.Telemetry.CacheReadTokens;
-                        task.CacheWriteTokens = taskResponse.Telemetry.CacheWriteTokens;
-                        task.EstimatedCostUsd = taskResponse.Telemetry.EstimatedCostUsd;
-                        task.ModelName = taskResponse.Telemetry.ModelName;
+                        var execution = new AnalysisExecution
+                        {
+                            Id = Guid.CreateVersion7(),
+                            JobId = jobId,
+                            TaskId = task.Id,
+                            ExecutionType = "LLM_CALL",
+                            Provider = taskResponse.Telemetry.Provider ?? "Anthropic",
+                            Model = taskResponse.Telemetry.ModelName ?? "unknown",
+                            PromptTokens = taskResponse.Telemetry.PromptTokens ?? 0,
+                            CompletionTokens = taskResponse.Telemetry.CompletionTokens ?? 0,
+                            TotalTokens = (taskResponse.Telemetry.PromptTokens ?? 0) + (taskResponse.Telemetry.CompletionTokens ?? 0),
+                            CachedTokens = taskResponse.Telemetry.CacheReadTokens ?? 0,
+                            EstimatedCostUsd = taskResponse.Telemetry.EstimatedCostUsd ?? 0m,
+                            DurationMs = task.DurationMs ?? 0,
+                            CreatedAtUtc = _timeProvider.GetUtcNow()
+                        };
+                        _context.AnalysisExecutions.Add(execution);
+
+                        task.PromptTokens = (task.PromptTokens ?? 0) + execution.PromptTokens;
+                        task.CompletionTokens = (task.CompletionTokens ?? 0) + execution.CompletionTokens;
+                        task.CacheReadTokens = (task.CacheReadTokens ?? 0) + execution.CachedTokens;
+                        task.CacheWriteTokens = (task.CacheWriteTokens ?? 0) + (taskResponse.Telemetry.CacheWriteTokens ?? 0);
+                        task.EstimatedCostUsd = (task.EstimatedCostUsd ?? 0m) + execution.EstimatedCostUsd;
+                        task.ModelName = execution.Model;
                     }
 
                     await SaveTaskEventAsync(task.Id, "Info", "StepCompleted", $"Completed task {task.TaskType}.");
@@ -717,7 +746,10 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 repo.LastSyncedAt = _timeProvider.GetUtcNow();
             }
 
-            // Extract and save classification & authenticity metadata
+            // Extract and save classification, authenticity, and risk assessment metadata
+            repo.LatestAnalysisStatus = "Completed";
+            repo.LatestAnalysisCompletedAtUtc = _timeProvider.GetUtcNow();
+
             if (reportDoc.RootElement.TryGetProperty("ai_conclusions", out var conclusionsElement))
             {
                 if (conclusionsElement.TryGetProperty("classification", out var classificationProp) &&
@@ -730,6 +762,22 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     authenticityProp.TryGetProperty("type", out var typeProp))
                 {
                     repo.AuthenticityType = typeProp.GetString();
+                }
+
+                if (conclusionsElement.TryGetProperty("risk_assessment", out var riskAssessmentElement))
+                {
+                    if (riskAssessmentElement.TryGetProperty("risk_score", out var scoreProp))
+                    {
+                        repo.LatestRiskScore = scoreProp.GetDouble();
+                    }
+                    if (riskAssessmentElement.TryGetProperty("risk_level", out var levelProp))
+                    {
+                        repo.LatestRiskLevel = levelProp.GetString() ?? "Low";
+                    }
+                    if (riskAssessmentElement.TryGetProperty("top_factors", out var factorsProp))
+                    {
+                        repo.LatestRiskFactorsJson = factorsProp.ToString();
+                    }
                 }
             }
 
@@ -758,6 +806,12 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 freshJob.LastUpdatedUtc = _timeProvider.GetUtcNow();
                 freshJob.ErrorMessage = "The analysis exceeded the maximum execution timeout of 10 minutes.";
 
+                if (repo != null)
+                {
+                    repo.LatestAnalysisStatus = "TimedOut";
+                    repo.LastUpdatedUtc = _timeProvider.GetUtcNow();
+                }
+
                 await SaveEventAsync(jobId, "TimedOut", freshJob.Progress, freshJob.ErrorMessage);
                 await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -772,6 +826,12 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             var freshJob = await _context.AnalysisJobs.FirstOrDefaultAsync(j => j.Id == jobId);
             if (freshJob != null && freshJob.Status != "Cancelled")
             {
+                if (repo != null)
+                {
+                    repo.LatestAnalysisStatus = "Failed";
+                    repo.LastUpdatedUtc = _timeProvider.GetUtcNow();
+                }
+
                 if (freshJob.Status != "Failed")
                 {
                     freshJob.Status = "Failed";
@@ -840,12 +900,6 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             task.CompletedAt = null;
             task.DurationMs = null;
             task.ErrorMessage = null;
-            task.PromptTokens = null;
-            task.CompletionTokens = null;
-            task.CacheReadTokens = null;
-            task.CacheWriteTokens = null;
-            task.EstimatedCostUsd = null;
-            task.ModelName = null;
             task.LastUpdatedUtc = now;
 
             if (task.Id == taskId)
@@ -882,6 +936,13 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         job.CurrentStep = "Queued";
         job.ErrorMessage = null;
         job.LastUpdatedUtc = now;
+
+        var repo = await _context.SourceCodeRepositories.FirstOrDefaultAsync(r => r.Id == job.RepositoryId);
+        if (repo != null)
+        {
+            repo.LatestAnalysisStatus = "Pending";
+            repo.LastUpdatedUtc = now;
+        }
 
         await SaveEventAsync(jobId, "Queued", 0.0, $"Retry initiated for task {targetTask.TaskType}.");
         await _context.SaveChangesAsync();
@@ -1286,6 +1347,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         public int? CacheWriteTokens { get; set; }
         public decimal? EstimatedCostUsd { get; set; }
         public string? ModelName { get; set; }
+        public string? Provider { get; set; }
     }
 
     private class TaskEvent

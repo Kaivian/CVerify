@@ -41,6 +41,11 @@ export interface SourceCodeRepository {
   customSettingsJson: string | null;
   classification: string | null;
   authenticityType: string | null;
+  latestRiskScore: number;
+  latestRiskLevel: string;
+  latestAnalysisStatus: "NeverAnalyzed" | "Pending" | "Completed" | "Failed" | "Cancelled" | "TimedOut";
+  latestAnalysisCompletedAtUtc: string | null;
+  latestRiskFactorsJson: string | null;
   createdAtUtc: string;
   lastSyncedAt: string;
 }

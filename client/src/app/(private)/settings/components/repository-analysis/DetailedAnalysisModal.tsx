@@ -85,7 +85,29 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   repoId,
   onAnalysisComplete,
 }) => {
-  const [viewMode, setViewMode] = useState<"report" | "logs">("report");
+  const [viewMode, setViewMode] = useState<"report" | "logs" | "costs">("report");
+  const [costs, setCosts] = useState<{
+    jobId: string;
+    totalCostUsd: number;
+    totalTokens: number;
+    totalDurationMs: number;
+    executions: Array<{
+      id: string;
+      jobId: string;
+      taskId: string;
+      executionType: string;
+      provider: string;
+      model: string;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      cachedTokens: number;
+      estimatedCostUsd: number;
+      durationMs: number;
+      createdAtUtc: string;
+    }>;
+  } | null>(null);
+  const [loadingCosts, setLoadingCosts] = useState(false);
   const [job, setJob] = useState<AnalysisJob | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [taskEvents, setTaskEvents] = useState<(AnalysisTaskEvent & { taskType?: string })[]>([]);
@@ -127,6 +149,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
       setJob(null);
       setLiveTaskEvents([]);
       setElapsedTime("00:00");
+      setCosts(null);
     }
   }
 
@@ -148,6 +171,25 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   }, [job]);
 
   const activeViewMode = isJobRunning ? "logs" : viewMode;
+
+  // Fetch costs when switching to costs tab
+  useEffect(() => {
+    if (!jobId || !isOpen || viewMode !== "costs") return;
+
+    const loadCosts = async () => {
+      setLoadingCosts(true);
+      try {
+        const costData = await repositoryAnalysisApi.getAnalysisCosts(jobId);
+        setCosts(costData);
+      } catch (err) {
+        console.error("Failed to load cost metrics:", err);
+      } finally {
+        setLoadingCosts(false);
+      }
+    };
+
+    loadCosts();
+  }, [jobId, isOpen, viewMode]);
 
   // Load snapshot on mount for instant recovery
   useEffect(() => {
@@ -1015,6 +1057,125 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     );
   };
 
+  const renderCostsView = () => {
+    if (loadingCosts) {
+      return (
+        <div className="flex flex-col items-center justify-center h-[300px] gap-4">
+          <Spinner size="lg" />
+          <Typography className="text-muted text-xs">
+            Loading cost observability metrics...
+          </Typography>
+        </div>
+      );
+    }
+
+    if (!costs || !costs.executions || costs.executions.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-48 border border-border bg-background/40 rounded-xl p-4 text-muted text-xs font-sans">
+          <Coins className="size-5 mb-2 opacity-50" />
+          <span>No granular cost execution records found for this job.</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-6 text-left font-sans w-full">
+        {/* Cost Metrics Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col justify-between min-h-[120px]">
+            <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
+              Cumulative Estimated Cost
+            </span>
+            <strong className="text-2xl text-success font-black font-mono mt-2 block">
+              ${costs.totalCostUsd.toFixed(6)}
+            </strong>
+            <span className="text-[10px] text-muted-foreground mt-1">Based on exact token metrics</span>
+          </div>
+
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col justify-between min-h-[120px]">
+            <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
+              Total Processed Tokens
+            </span>
+            <strong className="text-2xl text-foreground font-black font-mono mt-2 block">
+              {costs.totalTokens.toLocaleString()}
+            </strong>
+            <span className="text-[10px] text-muted-foreground mt-1">Prompt and Completion combined</span>
+          </div>
+
+          <div className="p-5 border border-border/80 bg-surface rounded-2xl flex flex-col justify-between min-h-[120px]">
+            <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider block">
+              Cumulative API Duration
+            </span>
+            <strong className="text-2xl text-foreground font-black font-mono mt-2 block">
+              {(costs.totalDurationMs / 1000).toFixed(2)}s
+            </strong>
+            <span className="text-[10px] text-muted-foreground mt-1">Total model latency</span>
+          </div>
+        </div>
+
+        {/* Detailed Ledger Table */}
+        <div className="border border-border/80 bg-surface rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-border/80 bg-surface-secondary/40">
+            <span className="text-[10px] text-foreground uppercase font-extrabold tracking-wider">
+              AI Execution Ledger
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border/80 bg-surface-secondary/20 text-muted-foreground uppercase text-[9px] font-extrabold">
+                  <th className="px-5 py-3 font-sans">Task & Model</th>
+                  <th className="px-5 py-3 font-sans">Type</th>
+                  <th className="px-5 py-3 font-sans text-right">Prompt Tokens</th>
+                  <th className="px-5 py-3 font-sans text-right">Completion Tokens</th>
+                  <th className="px-5 py-3 font-sans text-right">Cached Read</th>
+                  <th className="px-5 py-3 font-sans text-right font-bold">Estimated Cost</th>
+                  <th className="px-5 py-3 font-sans text-right">Duration</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {costs.executions.map((exec) => {
+                  const matchingTask = job?.tasks?.find(t => t.id === exec.taskId);
+                  const taskTypeName = matchingTask ? (FRIENDLY_NAMES[matchingTask.taskType] || matchingTask.taskType) : "Core Agent Step";
+                  return (
+                    <tr key={exec.id} className="hover:bg-surface-secondary/10 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="font-bold text-foreground">{taskTypeName}</div>
+                        <div className="text-[10px] text-muted mt-0.5 font-mono capitalize">
+                          {exec.provider} / {exec.model.replace("claude-3-", "")}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Chip size="sm" variant="soft" className="h-5 text-[8.5px] font-extrabold uppercase rounded-md">
+                          {exec.executionType}
+                        </Chip>
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-mono text-muted-foreground">
+                        {exec.promptTokens.toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-mono text-muted-foreground">
+                        {exec.completionTokens.toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-mono text-success-soft">
+                        {exec.cachedTokens > 0 ? exec.cachedTokens.toLocaleString() : "-"}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-mono font-bold text-success">
+                        ${exec.estimatedCostUsd.toFixed(6)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-mono text-muted-foreground">
+                        {(exec.durationMs / 1000).toFixed(2)}s
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Modal.Backdrop
       isOpen={isOpen}
@@ -1067,6 +1228,17 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                   >
                     <Terminal size={13} className="mr-1" />
                     Traces & Logs
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setViewMode("costs")}
+                    className={`rounded-lg px-3.5 py-1 text-xs font-bold ${activeViewMode === "costs"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "bg-transparent text-muted hover:text-foreground"
+                      }`}
+                  >
+                    <Coins size={13} className="mr-1" />
+                    Cost Metrics
                   </Button>
                 </div>
               )}
@@ -1200,6 +1372,8 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
               </div>
             ) : activeViewMode === "report" && localAnalysis ? (
               renderBentoGrid()
+            ) : activeViewMode === "costs" ? (
+              renderCostsView()
             ) : (
               /* Observability split logs view mode */
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[450px]">

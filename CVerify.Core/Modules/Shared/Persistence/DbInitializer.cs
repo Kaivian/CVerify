@@ -173,6 +173,21 @@ public static class DbInitializer
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'authenticity_type') THEN
                         ALTER TABLE source_code_repositories ADD COLUMN authenticity_type VARCHAR(255);
                     END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'latest_risk_score') THEN
+                        ALTER TABLE source_code_repositories ADD COLUMN latest_risk_score DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'latest_risk_level') THEN
+                        ALTER TABLE source_code_repositories ADD COLUMN latest_risk_level VARCHAR(50) NOT NULL DEFAULT 'Low';
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'latest_analysis_status') THEN
+                        ALTER TABLE source_code_repositories ADD COLUMN latest_analysis_status VARCHAR(50) NOT NULL DEFAULT 'NeverAnalyzed';
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'latest_analysis_completed_at_utc') THEN
+                        ALTER TABLE source_code_repositories ADD COLUMN latest_analysis_completed_at_utc TIMESTAMP WITH TIME ZONE;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'latest_risk_factors_json') THEN
+                        ALTER TABLE source_code_repositories ADD COLUMN latest_risk_factors_json JSONB;
+                    END IF;
                 END IF;
             END $$;
 
@@ -311,6 +326,11 @@ public static class DbInitializer
                 custom_settings_json TEXT,
                 classification VARCHAR(255),
                 authenticity_type VARCHAR(255),
+                latest_risk_score DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                latest_risk_level VARCHAR(50) NOT NULL DEFAULT 'Low',
+                latest_analysis_status VARCHAR(50) NOT NULL DEFAULT 'NeverAnalyzed',
+                latest_analysis_completed_at_utc TIMESTAMP WITH TIME ZONE,
+                latest_risk_factors_json JSONB,
                 created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
                 last_synced_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 CONSTRAINT fk_source_code_repositories_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
@@ -323,6 +343,8 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_accessible ON source_code_repositories(is_accessible) WHERE is_accessible = TRUE;
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_classification ON source_code_repositories(classification) WHERE classification IS NOT NULL;
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_authenticity_type ON source_code_repositories(authenticity_type) WHERE authenticity_type IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_latest_risk_score ON source_code_repositories(latest_risk_score);
+            CREATE INDEX IF NOT EXISTS idx_source_code_repositories_latest_analysis_status ON source_code_repositories(latest_analysis_status);
 
             -- Stores active/inactive historical password credentials to prevent reuse
             CREATE TABLE IF NOT EXISTS password_credentials (
@@ -1496,6 +1518,27 @@ public static class DbInitializer
                 CONSTRAINT fk_analysis_task_results_task FOREIGN KEY (task_id) REFERENCES analysis_tasks(id) ON DELETE CASCADE
             );
 
+            -- Stores detailed executions for AI/tool tasks
+            CREATE TABLE IF NOT EXISTS analysis_executions (
+                id UUID PRIMARY KEY,
+                job_id UUID NOT NULL,
+                task_id UUID NOT NULL,
+                execution_type VARCHAR(50) NOT NULL DEFAULT 'LLM_CALL',
+                provider VARCHAR(50) NOT NULL,
+                model VARCHAR(100) NOT NULL,
+                prompt_tokens INTEGER NOT NULL,
+                completion_tokens INTEGER NOT NULL,
+                total_tokens INTEGER NOT NULL,
+                cached_tokens INTEGER NOT NULL,
+                estimated_cost_usd NUMERIC(10, 6) NOT NULL,
+                duration_ms BIGINT NOT NULL,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_analysis_executions_task FOREIGN KEY (task_id) REFERENCES analysis_tasks(id) ON DELETE CASCADE,
+                CONSTRAINT fk_analysis_executions_job FOREIGN KEY (job_id) REFERENCES analysis_jobs(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_analysis_executions_task_id ON analysis_executions(task_id);
+            CREATE INDEX IF NOT EXISTS idx_analysis_executions_job_id ON analysis_executions(job_id);
+
             -- Stores detailed events for active analysis tasks
             CREATE TABLE IF NOT EXISTS analysis_task_events (
                 id UUID PRIMARY KEY,
@@ -1984,7 +2027,7 @@ public static class DbInitializer
         try
         {
             var repos = await context.SourceCodeRepositories
-                .Where(r => r.Classification == null || r.AuthenticityType == null)
+                .Where(r => r.Classification == null || r.AuthenticityType == null || r.LatestAnalysisStatus == "NeverAnalyzed")
                 .ToListAsync();
 
             if (!repos.Any())
@@ -2021,6 +2064,23 @@ public static class DbInitializer
                             {
                                 repo.AuthenticityType = typeProp.GetString();
                             }
+
+                            if (aiConclusionsProp.TryGetProperty("risk_assessment", out var riskAssessmentProp))
+                            {
+                                if (riskAssessmentProp.TryGetProperty("risk_score", out var scoreProp))
+                                {
+                                    repo.LatestRiskScore = scoreProp.GetDouble();
+                                }
+                                if (riskAssessmentProp.TryGetProperty("risk_level", out var levelProp))
+                                {
+                                    repo.LatestRiskLevel = levelProp.GetString() ?? "Low";
+                                }
+                                if (riskAssessmentProp.TryGetProperty("top_factors", out var factorsProp))
+                                {
+                                    repo.LatestRiskFactorsJson = factorsProp.ToString();
+                                }
+                            }
+                            repo.LatestAnalysisStatus = "Completed";
                         }
                     }
                     catch (Exception ex)

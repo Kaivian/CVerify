@@ -170,12 +170,23 @@ export interface RepositoryAnalysisFacts {
   quality_metrics: QualityMetrics;
 }
 
+export interface RiskAssessmentDimensions {
+  security: number;
+  maintainability: number;
+  architecture: number;
+  operational: number;
+  dependency: number;
+  evidence_uncertainty: number;
+}
+
 export interface RiskAssessment {
   risk_level: "Low" | "Medium" | "High";
   risk_score: number;
-  critical_findings_count: number;
-  warning_findings_count: number;
+  critical_findings_count?: number;
+  warning_findings_count?: number;
   explanation: string;
+  top_factors?: string[];
+  dimensions?: RiskAssessmentDimensions;
 }
 
 export interface RepositoryAnalysisAiConclusions {
