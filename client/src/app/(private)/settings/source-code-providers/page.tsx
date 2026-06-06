@@ -377,6 +377,7 @@ export default function SourceCodeProvidersPage() {
         } catch (err) {
           loadedReportsRef.current[repo.id] = false;
           console.error(`Failed to load report for repository ${repo.id}:`, err);
+          setAnalysisStatuses((prev) => ({ ...prev, [repo.id]: "error" }));
         }
       }
     });
@@ -614,8 +615,76 @@ export default function SourceCodeProvidersPage() {
 
     if (repo.latestAnalysisStatus === "Completed") {
       if (!analysisResult) {
+        if (status === "error") {
+          return (
+            <div
+              key={repo.id}
+              className="col-span-1 md:col-span-2 flex flex-col border border-danger/30 rounded-2xl p-6 bg-surface relative w-full"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+                {/* Left Compartment: Core Details & Repo Stats */}
+                <div className="lg:col-span-5 flex flex-col justify-between text-left">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="shrink-0 text-foreground/80">
+                          {providerName === "github" ? <Github className="size-5" /> : <Gitlab className="size-5 text-[#FC6D26]" />}
+                        </span>
+                        <Link href={repo.htmlUrl || "#"} target="_blank" rel="noopener noreferrer" className="min-w-0">
+                          <Typography.Heading level={4} className="font-extrabold truncate text-foreground hover:text-accent transition-colors">
+                            {repo.name}
+                          </Typography.Heading>
+                        </Link>
+                      </div>
+                      <Chip size="sm" color="default" variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
+                        Corrupted Data
+                      </Chip>
+                    </div>
+                    <span className="text-[10px] text-muted block">
+                      Owner: <strong className="text-foreground">{repo.owner}</strong>
+                    </span>
+                    <p className="text-xs text-muted leading-relaxed">
+                      {repo.description || "No description provided."}
+                    </p>
+                  </div>
+                  <div className="space-y-3 mt-4">
+                    <div className="flex items-center gap-2 pt-2.5 border-t border-border/15">
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        className="text-xs font-bold rounded-xl"
+                        onClick={() => {
+                          setRepoToReanalyze({ id: repo.id, name: repo.name, owner: repo.owner });
+                          setIsReanalyzeConfirmOpen(true);
+                        }}
+                      >
+                        <RefreshCw size={12} className="shrink-0" />
+                        <span>Reanalyze</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Compartment: Corrupted Warning */}
+                <div className="lg:col-span-7 flex flex-col items-center justify-center border-l border-border/20 pl-6 text-center gap-3">
+                  <AlertTriangle className="size-8 text-danger animate-pulse" />
+                  <span className="text-xs font-bold text-foreground">Analysis Data Corrupted</span>
+                  <span className="text-[10px] text-muted-foreground max-w-xs leading-normal">
+                    The AI snapshot response failed to satisfy the strict V2 contract validation checks.
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        }
         return renderSkeletonCard(true, repo.id);
       }
+
+      const totalEvidence = analysisResult.sections?.reduce((sum, s) => sum + s.items.length, 0) ?? 0;
+      const trustScorePct = ((analysisResult.classification?.trustScore ?? 0) * 100).toFixed(0);
+      const primaryDomain = analysisResult.classification?.primaryDomain || "Unclassified";
+      const riskLevel = analysisResult.risk?.level ?? "low";
+
       return (
         <div
           key={repo.id}
@@ -744,7 +813,7 @@ export default function SourceCodeProvidersPage() {
                 <div className="flex flex-col justify-between p-3 rounded-xl border border-border/40 bg-surface-secondary/30">
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Evidence Strength</span>
                   <span className="text-sm font-black text-foreground font-mono mt-1">
-                    {analysisResult.evidence_points?.total ?? 0} <span className="text-[10px] text-muted font-normal">EP</span>
+                    {totalEvidence} <span className="text-[10px] text-muted font-normal">Signals</span>
                   </span>
                 </div>
 
@@ -752,7 +821,7 @@ export default function SourceCodeProvidersPage() {
                 <div className="flex flex-col justify-between p-3 rounded-xl border border-border/40 bg-surface-secondary/30">
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Trust Level</span>
                   <span className="text-sm font-black text-foreground font-mono mt-1">
-                    {analysisResult.trust?.confidence ?? 0}%
+                    {trustScorePct}%
                   </span>
                 </div>
 
@@ -760,7 +829,7 @@ export default function SourceCodeProvidersPage() {
                 <div className="flex flex-col justify-between p-3 rounded-xl border border-border/40 bg-surface-secondary/30">
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Classification</span>
                   <span className="text-sm font-bold text-foreground truncate block mt-1">
-                    {analysisResult.classification?.primary_type ?? "Unclassified"}
+                    {primaryDomain}
                   </span>
                 </div>
 
@@ -769,7 +838,6 @@ export default function SourceCodeProvidersPage() {
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold mb-1">Risk Level</span>
                   <div>
                     {(() => {
-                      const riskLevel = analysisResult.ai_conclusions?.risk_assessment?.risk_level ?? "Low";
                       const getRiskColor = (level: string) => {
                         switch (level.toLowerCase()) {
                           case "high": return "danger";
@@ -785,7 +853,13 @@ export default function SourceCodeProvidersPage() {
                       );
                     })()}
                   </div>
-                  {renderRiskFactors(repo.latestRiskFactorsJson)}
+                  {analysisResult.risk?.reasons && analysisResult.risk.reasons.length > 0 && (
+                    <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-1">
+                      {analysisResult.risk.reasons.slice(0, 2).map((reason: string) => (
+                        <span key={reason} className="bg-surface-secondary px-1.5 py-0.5 rounded-md border border-border/10 truncate max-w-[120px]">• {reason}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -809,7 +883,7 @@ export default function SourceCodeProvidersPage() {
           <div className="p-4 rounded-xl border border-border/40 bg-surface-secondary/15 mt-5 text-left">
             <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold block mb-1">AI Summary</span>
             <p className="text-[11.5px] text-muted leading-relaxed">
-              {analysisResult.narrative?.recruiter_summary || analysisResult.trust?.explanation || "No summary available."}
+              {analysisResult.narrative?.recruiter_summary || (analysisResult.risk?.reasons && analysisResult.risk.reasons.join(", ")) || "No summary available."}
             </p>
           </div>
         </div>

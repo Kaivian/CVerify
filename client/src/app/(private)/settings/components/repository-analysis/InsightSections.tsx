@@ -16,53 +16,76 @@ interface InsightSectionsProps {
 }
 
 export const InsightSections: React.FC<InsightSectionsProps> = ({ analysis }) => {
-  const {
-    profile = {
-      technologies: [],
-      skills: {},
-      architecture: { patterns: [], explanation: "" },
-      engineering_practices: {
-        testing: { frameworks: [], has_tests: false, detail: "" },
-        observability: { logging_configured: false, metrics_configured: false, detail: "" },
-        cicd: { configured: false, providers: [] }
-      }
-    },
-    trust = { classification: "personal_authentic", confidence: 100, rule_flags: [], ai_findings: [], explanation: "" },
-    ownership = { user_commit_ratio: 1, total_commits: 1, is_primary_author: true, architectural_ownership_pct: 100, critical_path_ownership_pct: 100, maintenance_duration_months: 1, explanation: "" }
-  } = analysis;
+  const classification = analysis.classification || {
+    primaryDomain: "Unknown",
+    subDomain: "General",
+    confidence: 0,
+    isVerified: false,
+    trustScore: 0
+  };
 
-  const testObservations = profile.engineering_practices.testing.has_tests
-    ? `Testing framework detected: ${profile.engineering_practices.testing.frameworks.join(", ") || "Yes"}. ${profile.engineering_practices.testing.detail}`
-    : "Critical lack of testing. No unit tests, integration tests, or mock suites detected in the source code.";
+  const risk = analysis.risk || {
+    score: 0,
+    level: "low",
+    reasons: []
+  };
 
-  const docObservations = profile.engineering_practices.observability.detail || "Standard project documentation. Core README files, build guides, and basic instructions are present.";
+  const sections = analysis.sections || [];
+  const engineeringSection = sections.find((s) => s.type === "engineering_practices");
+  const securitySection = sections.find((s) => s.type === "security_findings");
+  const architectureSection = sections.find((s) => s.type === "architecture_insights");
+
+  // Helper to stringify items for legacy rendering
+  const getItemText = (item: any): string => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") {
+      return item.content ? `${item.title}: ${item.content}` : (item.title || "");
+    }
+    return "";
+  };
+
+  const engineeringItems = engineeringSection?.items?.map(getItemText) || [];
+  const securityItems = securitySection?.items?.map(getItemText) || [];
+  const architectureItems = architectureSection?.items?.map(getItemText) || [];
+  
+  const gitMetrics = analysis.facts?.git_metrics || {
+    total_commits: 0,
+    user_commit_ratio: 1.0,
+    is_primary_author: true,
+    bus_factor: 1,
+    active_contributors: 1
+  };
+
+  const testObservations = engineeringItems.find(item => item.toLowerCase().includes("test") || item.toLowerCase().includes("spec"))
+    || "No specific testing infrastructure details noted in practices list.";
+
+  const docObservations = engineeringItems.find(item => item.toLowerCase().includes("doc") || item.toLowerCase().includes("readme"))
+    || "Standard workspace configuration and practices detected.";
 
   const insightBlocks = [
     {
       title: "Code Quality Assessment",
       icon: <Code className="size-4.5 text-primary" />,
-      note: ownership.explanation,
-      status: ownership.user_commit_ratio >= 0.7 ? "Good" : "Needs Review",
+      note: `Git commit ratio is ${(gitMetrics.user_commit_ratio * 100).toFixed(0)}% across a total of ${gitMetrics.total_commits} commits.`,
+      status: gitMetrics.user_commit_ratio >= 0.7 ? "Good" : "Needs Review",
     },
     {
       title: "Architecture Observations",
       icon: <Layers className="size-4.5 text-success" />,
-      note: profile.architecture.explanation,
-      status: profile.architecture.patterns.length > 0 ? "Strong" : "Standard",
+      note: architectureItems.join(". ") || "Standard structure configuration.",
+      status: architectureItems.length > 0 ? "Strong" : "Standard",
     },
     {
       title: "Security & Validation",
       icon: <Shield className="size-4.5 text-danger" />,
-      note: trust.rule_flags.length > 0
-        ? `Contains anomalies (${trust.rule_flags.length} flags). Security is impacted by unverified commits and patterns.`
-        : "No critical credentials or high-risk authentication breaches detected.",
-      status: trust.rule_flags.length > 1 ? "Attention Required" : "Secure",
+      note: securityItems.join(". ") || "No critical credentials or high-risk authentication breaches detected.",
+      status: securityItems.length > 0 ? "Attention Required" : "Secure",
     },
     {
       title: "Testing Coverage",
       icon: <BadgeAlert className="size-4.5 text-warning" />,
       note: testObservations,
-      status: profile.engineering_practices.testing.has_tests ? "Pass" : "Fail",
+      status: testObservations.toLowerCase().includes("no ") || testObservations.toLowerCase().includes("lack") ? "Fail" : "Pass",
     },
     {
       title: "Documentation Quality",
@@ -73,8 +96,8 @@ export const InsightSections: React.FC<InsightSectionsProps> = ({ analysis }) =>
     {
       title: "Maintainability Indicators",
       icon: <Wrench className="size-4.5 text-muted-foreground" />,
-      note: ownership.explanation,
-      status: trust.confidence >= 60 ? "Stable" : "Review Recommended",
+      note: risk.reasons?.join(". ") || "Stable workspace maintainability indicators.",
+      status: risk.score <= 30 ? "Stable" : "Review Recommended",
     },
   ];
 
@@ -111,4 +134,5 @@ export const InsightSections: React.FC<InsightSectionsProps> = ({ analysis }) =>
     </div>
   );
 };
+
 export default InsightSections;

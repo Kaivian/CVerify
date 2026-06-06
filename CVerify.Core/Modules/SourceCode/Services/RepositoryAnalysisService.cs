@@ -337,6 +337,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         try
         {
             // 1. Set to Preparing
+            job.StartedAt = _timeProvider.GetUtcNow();
             await UpdateJobStateAsync(job, "Preparing", 10.0, "Preparing workspace...", linkedCts.Token);
 
             // 2. Fetch repo details
@@ -721,62 +722,73 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
             _context.AnalysisReports.Add(report);
 
-            // Mark repository as verified based on trust confidence in final report
+            // Mark repository as verified and extract metadata based on schema version
             using var reportDoc = JsonDocument.Parse(finalReportJson);
-            JsonElement confidenceProp = default;
-            bool hasConfidence = false;
-
-            if (reportDoc.RootElement.TryGetProperty("ai_conclusions", out var aiConclusionsProp) &&
-                aiConclusionsProp.TryGetProperty("trust", out var trustProp) &&
-                trustProp.TryGetProperty("confidence", out confidenceProp))
-            {
-                hasConfidence = true;
-            }
-            else if (reportDoc.RootElement.TryGetProperty("trust", out var rootTrustProp) &&
-                     rootTrustProp.TryGetProperty("confidence", out confidenceProp))
-            {
-                hasConfidence = true;
-            }
-
-            if (hasConfidence)
-            {
-                var confidence = confidenceProp.GetDouble();
-                repo.IsVerified = confidence >= 50.0;
-                repo.TrustScore = confidence / 100.0;
-                repo.LastSyncedAt = _timeProvider.GetUtcNow();
-            }
-
-            // Extract and save classification, authenticity, and risk assessment metadata
+            
             repo.LatestAnalysisStatus = "Completed";
             repo.LatestAnalysisCompletedAtUtc = _timeProvider.GetUtcNow();
 
-            if (reportDoc.RootElement.TryGetProperty("ai_conclusions", out var conclusionsElement))
+            bool isV2 = reportDoc.RootElement.TryGetProperty("schemaVersion", out var schemaVersionProp) && 
+                         schemaVersionProp.GetString() == "v2";
+
+            if (isV2)
             {
-                if (conclusionsElement.TryGetProperty("classification", out var classificationProp) &&
-                    classificationProp.TryGetProperty("primary_type", out var primaryTypeProp))
+                ParseV2ReportMetadata(repo, reportDoc.RootElement);
+            }
+            else
+            {
+                // Legacy parser (v1/v3)
+                JsonElement confidenceProp = default;
+                bool hasConfidence = false;
+
+                if (reportDoc.RootElement.TryGetProperty("ai_conclusions", out var aiConclusionsProp) &&
+                    aiConclusionsProp.TryGetProperty("trust", out var trustProp) &&
+                    trustProp.TryGetProperty("confidence", out confidenceProp))
                 {
-                    repo.Classification = primaryTypeProp.GetString();
+                    hasConfidence = true;
+                }
+                else if (reportDoc.RootElement.TryGetProperty("trust", out var rootTrustProp) &&
+                         rootTrustProp.TryGetProperty("confidence", out confidenceProp))
+                {
+                    hasConfidence = true;
                 }
 
-                if (conclusionsElement.TryGetProperty("authenticity", out var authenticityProp) &&
-                    authenticityProp.TryGetProperty("type", out var typeProp))
+                if (hasConfidence)
                 {
-                    repo.AuthenticityType = typeProp.GetString();
+                    var confidence = confidenceProp.GetDouble();
+                    repo.IsVerified = confidence >= 50.0;
+                    repo.TrustScore = confidence / 100.0;
+                    repo.LastSyncedAt = _timeProvider.GetUtcNow();
                 }
 
-                if (conclusionsElement.TryGetProperty("risk_assessment", out var riskAssessmentElement))
+                if (reportDoc.RootElement.TryGetProperty("ai_conclusions", out var conclusionsElement))
                 {
-                    if (riskAssessmentElement.TryGetProperty("risk_score", out var scoreProp))
+                    if (conclusionsElement.TryGetProperty("classification", out var classificationProp) &&
+                        classificationProp.TryGetProperty("primary_type", out var primaryTypeProp))
                     {
-                        repo.LatestRiskScore = scoreProp.GetDouble();
+                        repo.Classification = primaryTypeProp.GetString();
                     }
-                    if (riskAssessmentElement.TryGetProperty("risk_level", out var levelProp))
+
+                    if (conclusionsElement.TryGetProperty("authenticity", out var authenticityProp) &&
+                        authenticityProp.TryGetProperty("type", out var typeProp))
                     {
-                        repo.LatestRiskLevel = levelProp.GetString() ?? "Low";
+                        repo.AuthenticityType = typeProp.GetString();
                     }
-                    if (riskAssessmentElement.TryGetProperty("top_factors", out var factorsProp))
+
+                    if (conclusionsElement.TryGetProperty("risk_assessment", out var riskAssessmentElement))
                     {
-                        repo.LatestRiskFactorsJson = factorsProp.ToString();
+                        if (riskAssessmentElement.TryGetProperty("risk_score", out var scoreProp))
+                        {
+                            repo.LatestRiskScore = scoreProp.GetDouble();
+                        }
+                        if (riskAssessmentElement.TryGetProperty("risk_level", out var levelProp))
+                        {
+                            repo.LatestRiskLevel = levelProp.GetString() ?? "Low";
+                        }
+                        if (riskAssessmentElement.TryGetProperty("top_factors", out var factorsProp))
+                        {
+                            repo.LatestRiskFactorsJson = factorsProp.ToString();
+                        }
                     }
                 }
             }
@@ -934,6 +946,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         job.Status = "Queued";
         job.Progress = 0.0;
         job.CurrentStep = "Queued";
+        job.StartedAt = null;
+        job.CompletedAt = null;
         job.ErrorMessage = null;
         job.LastUpdatedUtc = now;
 
@@ -1327,6 +1341,46 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             job.CreatedAtUtc,
             job.LastUpdatedUtc
         );
+    }
+
+    private void ParseV2ReportMetadata(SourceCodeRepository repo, JsonElement root)
+    {
+        if (root.TryGetProperty("classification", out var classificationProp))
+        {
+            if (classificationProp.TryGetProperty("isVerified", out var isVerifiedProp))
+            {
+                repo.IsVerified = isVerifiedProp.GetBoolean();
+            }
+            if (classificationProp.TryGetProperty("trustScore", out var trustScoreProp))
+            {
+                repo.TrustScore = trustScoreProp.GetDouble();
+            }
+            if (classificationProp.TryGetProperty("primaryDomain", out var primaryDomainProp))
+            {
+                repo.Classification = primaryDomainProp.GetString();
+            }
+        }
+
+        if (root.TryGetProperty("risk", out var riskProp))
+        {
+            if (riskProp.TryGetProperty("score", out var scoreProp))
+            {
+                repo.LatestRiskScore = scoreProp.GetDouble();
+            }
+            if (riskProp.TryGetProperty("level", out var levelProp))
+            {
+                var levelStr = levelProp.GetString();
+                if (!string.IsNullOrEmpty(levelStr))
+                {
+                    repo.LatestRiskLevel = char.ToUpper(levelStr[0]) + levelStr.Substring(1);
+                }
+            }
+            if (riskProp.TryGetProperty("reasons", out var reasonsProp))
+            {
+                repo.LatestRiskFactorsJson = reasonsProp.ToString();
+            }
+        }
+        repo.LastSyncedAt = _timeProvider.GetUtcNow();
     }
 
     private class TaskExecuteResponse

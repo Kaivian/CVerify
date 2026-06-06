@@ -6,8 +6,9 @@ import logging
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, Any, Tuple, List
+from typing import AsyncGenerator, Any, Tuple, List, Literal
 import redis.asyncio as redis
+from pydantic import BaseModel, Field, ValidationError
 from app.config import settings
 
 from app.github.technology_detector import TechnologyDetector
@@ -15,6 +16,33 @@ from app.github.code_sampler import CodeSampler, CodeSamplingOptions
 from app.prompts.github_prompt_factory import GitHubPromptFactory
 from app.services.claude_service import ClaudeService
 from app.github.repo_classifier import classify_repository
+
+class ClassificationV2(BaseModel):
+    primaryDomain: str
+    subDomain: str
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    isVerified: bool
+    trustScore: float = Field(..., ge=0.0, le=1.0)
+
+class SectionV2(BaseModel):
+    type: Literal["engineering_practices", "security_findings", "architecture_insights"]
+    items: List[str]
+
+class RiskV2(BaseModel):
+    score: float = Field(..., ge=0.0, le=100.0)
+    level: Literal["low", "medium", "high"]
+    reasons: List[str]
+
+class ReportV2Contract(BaseModel):
+    schemaVersion: Literal["v2"]
+    repoId: str
+    classification: ClassificationV2
+    sections: List[SectionV2]
+    risk: RiskV2
+
+    model_config = {
+        "extra": "allow"
+    }
 
 logger = logging.getLogger("github_analysis_orchestrator")
 
@@ -344,7 +372,12 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             "files_scanned": files_scanned,
             "files_sampled": files_sampled,
             "skipped_files": skipped_files,
-            "coverage_pct": coverage_pct
+            "coverage_pct": coverage_pct,
+            
+            # Trust and Adversarial metrics
+            "unverified_commits_count": getattr(classification, "unverified_commits_count", 0),
+            "timestamp_compression_ratio": getattr(classification, "timestamp_compression_ratio", 0.0),
+            "uncalibrated_identities_count": getattr(classification, "uncalibrated_identities_count", 0)
         }
 
         with open(meta_path, "w", encoding="utf-8") as f_out:
@@ -910,6 +943,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         temp_dir_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "temp_clones"))
         job_dir = os.path.join(temp_dir_base, job_id)
         meta_path = os.path.join(job_dir, "meta.json")
+        clone_dir = os.path.join(job_dir, "repo")
 
         if not os.path.exists(meta_path):
             raise Exception("Workspace metadata not found. Repository Structure task must run first.")
@@ -925,6 +959,30 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         security_data = partial_results.get("SecurityAnalysis", {})
         class_task_data = partial_results.get("RepositoryClassification", {})
         summary_data = partial_results.get("RepositorySummary", {})
+
+        # Strict file-based CI/CD detection
+        cicd_files_exist = False
+        if meta.get("is_cloned") and os.path.exists(clone_dir):
+            workflows_dir = os.path.join(clone_dir, ".github", "workflows")
+            if os.path.isdir(workflows_dir):
+                try:
+                    w_files = os.listdir(workflows_dir)
+                    if any(os.path.isfile(os.path.join(workflows_dir, f)) for f in w_files):
+                        cicd_files_exist = True
+                except Exception:
+                    pass
+            if not cicd_files_exist:
+                for f in ("Jenkinsfile", "jenkinsfile"):
+                    if os.path.isfile(os.path.join(clone_dir, f)):
+                        cicd_files_exist = True
+                        break
+            if not cicd_files_exist:
+                for f in (".gitlab-ci.yml", ".gitlab-ci.yaml"):
+                    if os.path.isfile(os.path.join(clone_dir, f)):
+                        cicd_files_exist = True
+                        break
+
+        cicd_ok = cicd_files_exist
 
         repo_type = meta.get("repo_type", "ORIGINAL_WORK")
         confidence_ceiling = meta.get("confidence_ceiling", 1.0)
@@ -1015,8 +1073,8 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                     "detail": quality_data.get("observability", {}).get("detail", "")
                 },
                 "cicd": {
-                    "configured": quality_data.get("cicd", {}).get("configured", False),
-                    "providers": quality_data.get("cicd", {}).get("providers", [])
+                    "configured": cicd_ok,
+                    "providers": quality_data.get("cicd", {}).get("providers", []) if cicd_ok else []
                 }
             }
         }
@@ -1095,7 +1153,6 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         arch_critical = sum(1 for f in findings if ("architecture" in f.get("finding", "").lower() or "structure" in f.get("finding", "").lower()) and f.get("impact") == "critical")
         arch_warning = sum(1 for f in findings if ("architecture" in f.get("finding", "").lower() or "structure" in f.get("finding", "").lower()) and f.get("impact") == "warning")
 
-        cicd_ok = quality_data.get("cicd", {}).get("configured", False)
         has_tests = quality_data.get("testing", {}).get("has_tests", False)
         logging_ok = quality_data.get("observability", {}).get("logging_configured", False)
         metrics_ok = quality_data.get("observability", {}).get("metrics_configured", False)
@@ -1170,9 +1227,236 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             }
         }
 
-        # Structure the payload strictly separating facts from ai conclusions
+        # 1. TRUTH CALIBRATION LAYER & CONFLICT RESOLUTION
+        conflict_resolution_log = []
+        
+        # Authority Ranking: Git Logs (S_git: highest) -> GitHub API (S_api: medium) -> LLM Inference (S_llm: advisory)
+        calibrated_skills = {}
+        
+        # Reconcile LLM Inferred Skills (S_llm) with Configuration Files (S_git)
+        # S_git holds technologies from technology detector config files walk
+        detected_tech_set = {t.lower() for t in technologies}
+        
+        # If it was a list of dicts from skills_data, handle it:
+        if isinstance(skills_data.get("skills"), list):
+            calibrated_skills_list = []
+            for s_item in skills_data.get("skills", []):
+                cat = s_item.get("category", "backend")
+                skill = s_item.get("skill", "")
+                skill_lower = skill.lower()
+                has_config_support = False
+                for tech in detected_tech_set:
+                    if tech in skill_lower or skill_lower in tech:
+                        has_config_support = True
+                        break
+                
+                if has_config_support or skill in ("Git", "GitHub", "CI/CD"):
+                    calibrated_skills_list.append(s_item)
+                else:
+                    msg = f"Rejected LLM skill inference '{skill}': Unsupported by configuration files dependency references."
+                    conflict_resolution_log.append(msg)
+                    logger.info(msg, extra=extra_log)
+            
+            # Rebuild profile skills
+            skills_dict = {}
+            for s_item in calibrated_skills_list:
+                c_cat = s_item.get("category", "backend")
+                s_name = s_item.get("skill")
+                if c_cat not in skills_dict:
+                    skills_dict[c_cat] = []
+                skills_dict[c_cat].append(s_name)
+            profile_info["skills"] = skills_dict
+
+        # Reconcile Git logs (S_git) vs GitHub API (S_api) for user ownership
+        user_git_ratio = ownership_info.get("user_commit_ratio", 1.0)
+        is_primary_git = ownership_info.get("is_primary_author", True)
+        
+        # Check scenario: API claims user is primary, but Git log says mismatch
+        # If Git log has low contribution ratio (<0.20), override API's claims
+        if user_git_ratio < 0.20 and is_primary_git:
+            ownership_info["is_primary_author"] = False
+            msg = "Ownership Conflict Resolved: Overrode primary author flag to False. Git logs indicate contribution ratio is under 20% despite API metrics."
+            conflict_resolution_log.append(msg)
+            logger.info(msg, extra=extra_log)
+
+        # 2. EXPLICIT UNCERTAINTY & ADVERSARIAL METRICS DECOMPOSITION
+        unverified_commits = meta.get("unverified_commits_count", 0)
+        compression_ratio = meta.get("timestamp_compression_ratio", 0.0)
+        uncalibrated_identities = meta.get("uncalibrated_identities_count", 0)
+        
+        # Calculate Variance (Stability parameter)
+        # Stable: High commits count, long age. Variable: Small commits count.
+        total_c = ownership_info.get("total_commits", 1)
+        variance = round(100.0 / (total_c + 1), 2)
+        
+        # Calculate Sampling Bias Risk (ratio of skipped to scanned files)
+        files_sc = meta.get("files_scanned", 1)
+        files_sa = meta.get("files_sampled", 1)
+        sampling_bias = round(1.0 - (files_sa / max(1, files_sc)), 4)
+        
+        # Calculate Adversarial Risk
+        # Triggered by timestamp compression, unverified commits, or mismatch author emails
+        adv_score = 0.0
+        if compression_ratio > 0.1:
+            adv_score += 40.0
+        if uncalibrated_identities > 2:
+            adv_score += 30.0
+        if unverified_commits > 0:
+            # Scale with unverified percentage
+            pct_unverified = unverified_commits / max(1, total_c)
+            adv_score += pct_unverified * 30.0
+        adversarial_risk = min(100.0, round(adv_score, 1))
+
+        # Adjust main trust confidence based on adversarial risk
+        final_trust_confidence = float(trust_info.get("confidence", 100))
+        if adversarial_risk > 30.0:
+            final_trust_confidence = max(10.0, final_trust_confidence - (adversarial_risk * 0.5))
+            trust_info["confidence"] = round(final_trust_confidence, 1)
+
+        # Force isVerified confidence adjustments if CI/CD not configured
+        if not cicd_ok:
+            final_trust_confidence = max(10.0, final_trust_confidence - 20.0)
+            trust_info["confidence"] = round(final_trust_confidence, 1)
+
+        is_verified = final_trust_confidence >= 50.0
+
+        # 3. STRUCTURED CALIBRATED TRUST GRAPH GENERATION
+        # Nodes: Developer, Repository, Skill, Evidence
+        # Edges: Owns, Demonstrates, Uses, Verifies, Attributes
+        nodes = [
+            {"id": "developer", "type": "developer", "data": {"label": f"Developer ({repo_owner})", "ratio": user_git_ratio}},
+            {"id": "repository", "type": "repository", "data": {"label": f"Repository ({repo_owner}/{repo_name})", "type": repo_type}}
+        ]
+        edges = [
+            {"id": "dev-owns-repo", "source": "developer", "target": "repository", "label": "Owns", "weight": user_git_ratio}
+        ]
+        
+        # Add verified skill nodes (calibrated)
+        skill_index = 0
+        for cat, list_skills in profile_info.get("skills", {}).items():
+            for s_name in list_skills:
+                node_id = f"skill-{skill_index}"
+                nodes.append({"id": node_id, "type": "skill", "data": {"label": s_name, "category": cat}})
+                edges.append({"id": f"dev-has-{node_id}", "source": "developer", "target": node_id, "label": "Demonstrates", "weight": round(final_trust_confidence / 100.0, 2)})
+                edges.append({"id": f"repo-uses-{node_id}", "source": "repository", "target": node_id, "label": "Uses"})
+                skill_index += 1
+                
+        # Add verified evidence nodes (signed commits / verified code files)
+        evidence_index = 0
+        for f in findings:
+            finding_name = f.get("finding", "Practice Citation")
+            node_id = f"evidence-{evidence_index}"
+            nodes.append({"id": node_id, "type": "evidence", "data": {"label": finding_name, "category": f.get("category", "quality")}})
+            # Link evidence to developer/repo
+            edges.append({"id": f"ev-supports-{node_id}", "source": node_id, "target": "repository", "label": "Verifies"})
+            evidence_index += 1
+
+        trust_graph = {
+            "nodes": nodes,
+            "edges": edges
+        }
+
+        # Build sections for v2 schema
+        testing_frameworks = quality_data.get("testing", {}).get("frameworks", [])
+        cicd_providers = quality_data.get("cicd", {}).get("providers", []) if cicd_ok else []
+        
+        eng_items = [
+            {
+                "title": "Testing",
+                "content": f"{', '.join(testing_frameworks) if testing_frameworks else 'None'} ({'configured' if has_tests else 'not configured'})"
+            },
+            {
+                "title": "Observability",
+                "content": f"Logging is {'configured' if logging_ok else 'not configured'}, Metrics are {'configured' if metrics_ok else 'not configured'}"
+            },
+            {
+                "title": "CI/CD",
+                "content": f"{'Configured (' + ', '.join(cicd_providers) + ')' if cicd_ok else 'Not configured'}"
+            }
+        ]
+        for f in findings:
+            if f.get("category") == "quality":
+                eng_items.append({
+                    "title": f.get('finding', 'Quality Finding'),
+                    "content": f.get('explanation', '')
+                })
+
+        sec_items = []
+        for v in security_data.get("vulnerabilities", []):
+            sec_items.append({
+                "title": f"Vulnerability: {v.get('vulnerability')} ({v.get('impact')})",
+                "content": v.get('explanation', '')
+            })
+        for f in findings:
+            if f.get("category") == "security":
+                sec_items.append({
+                    "title": f.get('finding', 'Security Finding'),
+                    "content": f.get('explanation', '')
+                })
+        if not sec_items:
+            sec_items.append({
+                "title": "Security Findings",
+                "content": "No critical security vulnerabilities or warning findings detected."
+            })
+
+        arch_items = []
+        for p in arch_data.get("patterns", []):
+            if isinstance(p, dict) and p.get("pattern"):
+                arch_items.append({
+                    "title": p.get('pattern'),
+                    "content": "Detected architectural design pattern configured in the workspace."
+                })
+            elif isinstance(p, str):
+                arch_items.append({
+                    "title": p,
+                    "content": "Detected architectural design pattern configured in the workspace."
+                })
+        if arch_data.get("explanation"):
+            arch_items.append({
+                "title": "Architecture Explanation",
+                "content": arch_data.get('explanation')
+            })
+        for f in findings:
+            if f.get("category") == "architecture":
+                arch_items.append({
+                    "title": f.get('finding', 'Architecture Finding'),
+                    "content": f.get('explanation', '')
+                })
+        if not arch_items:
+            arch_items.append({
+                "title": "Architectural Insights",
+                "content": "No specialized architectural insights detected."
+            })
+
+        sections = [
+            {"type": "engineering_practices", "items": eng_items},
+            {"type": "security_findings", "items": sec_items},
+            {"type": "architecture_insights", "items": arch_items}
+        ]
+
+        classification_v2 = {
+            "primaryDomain": class_primary_type if class_primary_type else "Unknown",
+            "subDomain": ", ".join(technologies[:2]) if technologies else "General",
+            "confidence": min(1.0, max(0.0, float(class_confidence))),
+            "isVerified": is_verified,
+            "trustScore": min(1.0, max(0.0, float(final_trust_confidence) / 100.0))
+        }
+
+        risk_v2 = {
+            "score": min(100.0, max(0.0, float(overall_score))),
+            "level": risk_level.lower(),
+            "reasons": top_factors
+        }
+
+        # Structure the payload strictly satisfying the v2 contract, plus legacy fields
         report_dict = {
-            "schemaVersion": "evidence-intelligence-v2",
+            "schemaVersion": "v2",
+            "repoId": str(repository_id),
+            "classification": classification_v2,
+            "sections": sections,
+            "risk": risk_v2,
+            
+            # Legacy fields for backward compatibility
             "facts": {
                 "repo": repo_info,
                 "git_metrics": {
@@ -1188,7 +1472,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                     "files_sampled": meta.get("files_sampled", 0),
                     "skipped_files": meta.get("skipped_files", 0),
                     "coverage_pct": meta.get("coverage_pct", 100.0),
-                    "prompt_cache_efficiency": 0.82 # calculated or static target threshold
+                    "prompt_cache_efficiency": 0.82
                 }
             },
             "ai_conclusions": {
@@ -1202,15 +1486,33 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 "risk_assessment": risk_assessment,
                 "positioning": {
                     "benchmark_group": classification_dict.get("benchmark_group", "unclassified"),
-                    "percentile_rank": int(modified_confidence),
                     "peer_group_size": 100,
                     "relative_strengths": [s.get("strength") for s in summary_data.get("top_strengths", [])][:3]
                 },
                 "profile": profile_info,
                 "findings": findings,
                 "narrative": narrative_info
+            },
+            "trust_intelligence": {
+                "uncertainty_metrics": {
+                    "variance": variance,
+                    "sampling_bias_risk": sampling_bias,
+                    "adversarial_manipulation_risk": adversarial_risk,
+                    "unverified_commits": unverified_commits,
+                    "timestamp_compression_ratio": compression_ratio,
+                    "uncalibrated_identities": uncalibrated_identities
+                },
+                "conflict_resolution_log": conflict_resolution_log,
+                "trust_graph": trust_graph
             }
         }
+
+        # Pydantic v2 contract enforcement validation check
+        try:
+            ReportV2Contract.model_validate(report_dict)
+        except ValidationError as val_err:
+            logger.error(f"Report V2 Contract validation failure: {val_err}", extra=extra_log)
+            raise ValueError(f"Report V2 Contract validation failure: {val_err}")
 
         # Workspace lifecycle clean up tracking
         if delete_workspace:

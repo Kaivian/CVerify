@@ -19,11 +19,29 @@ interface VerificationSignalsProps {
 export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
   analysis,
 }) => {
-  const {
-    trust = { classification: "personal_authentic", confidence: 100, rule_flags: [], ai_findings: [], explanation: "" },
-    ownership = { user_commit_ratio: 1, total_commits: 1, is_primary_author: true, architectural_ownership_pct: 100, critical_path_ownership_pct: 100, maintenance_duration_months: 1, explanation: "" },
-    narrative = { recruiter_summary: "", top_strengths: [], limitations: [] }
-  } = analysis;
+  const classification = analysis.classification || {
+    primaryDomain: "Unknown",
+    subDomain: "General",
+    confidence: 0,
+    isVerified: false,
+    trustScore: 0
+  };
+
+  const risk = analysis.risk || {
+    score: 0,
+    level: "low",
+    reasons: []
+  };
+
+  const gitMetrics = analysis.facts?.git_metrics || {
+    total_commits: 0,
+    user_commit_ratio: 1.0,
+    is_primary_author: true,
+    bus_factor: 1,
+    active_contributors: 1
+  };
+
+  const narrative = analysis.narrative || { recruiter_summary: "", top_strengths: [], limitations: [] };
 
   const getClassificationBadge = (repoType?: string) => {
     if (!repoType) return null;
@@ -45,17 +63,16 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
     }
   };
 
-  const totalFlagsCount = trust.rule_flags.length + trust.ai_findings.length;
+  const totalFlagsCount = risk.reasons.length;
 
   return (
     <div className="space-y-6 text-left font-sans select-none">
       {/* Top Banner: Verification Verdict */}
       <div
-        className={`flex items-start gap-4 p-5 rounded-2xl border ${
-          totalFlagsCount > 0
+        className={`flex items-start gap-4 p-5 rounded-2xl border ${totalFlagsCount > 0
             ? "bg-warning/5 border-warning/20 text-warning"
             : "bg-success/5 border-success/20 text-success"
-        }`}
+          }`}
       >
         <div className="p-2 rounded-xl bg-background border border-current/10 shrink-0">
           {totalFlagsCount > 0 ? (
@@ -70,12 +87,12 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
           </Typography>
           <div className="flex flex-wrap items-center gap-2">
             <Typography type="body-sm" className="font-extrabold text-foreground text-sm capitalize">
-              {trust.classification.replace(/_/g, " ")}
+              {classification.primaryDomain.replace(/_/g, " ")}
             </Typography>
             {getClassificationBadge(analysis.repo.repo_type)}
           </div>
           <Typography type="body-xs" className="text-muted leading-relaxed mt-1">
-            {narrative?.recruiter_summary || trust.explanation}
+            {narrative?.recruiter_summary || (risk.reasons.length > 0 ? risk.reasons.join(". ") : "No anomalies detected.")}
           </Typography>
         </div>
       </div>
@@ -92,10 +109,10 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
           </div>
           <div className="mt-2 text-left">
             <Typography className="text-sm font-extrabold text-foreground capitalize">
-              {ownership.is_primary_author ? "Primary Author" : "Collaborator"}
+              {gitMetrics.is_primary_author ? "Primary Author" : "Collaborator"}
             </Typography>
             <span className="text-[10px] text-muted block mt-0.5">
-              Architectural Share: <strong>{ownership.architectural_ownership_pct}%</strong>
+              Bus Factor: <strong>{gitMetrics.bus_factor}</strong>
             </span>
           </div>
         </div>
@@ -110,10 +127,10 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
           </div>
           <div className="mt-2 text-left">
             <Typography className="text-sm font-extrabold text-foreground">
-              {(ownership.user_commit_ratio * 100).toFixed(0)}% User Commits
+              {(gitMetrics.user_commit_ratio * 100).toFixed(0)}% User Commits
             </Typography>
             <span className="text-[10px] text-muted block mt-0.5">
-              Critical Path Share: <strong>{ownership.critical_path_ownership_pct}%</strong>
+              Active Contributors: <strong>{gitMetrics.active_contributors}</strong>
             </span>
           </div>
         </div>
@@ -128,10 +145,10 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
           </div>
           <div className="mt-2 text-left">
             <Typography className="text-sm font-extrabold text-foreground">
-              {ownership.total_commits} Total Commits
+              {gitMetrics.total_commits} Total Commits
             </Typography>
             <span className="text-[10px] text-muted block mt-0.5">
-              Active over <strong>{ownership.maintenance_duration_months}</strong> months
+              Author Ratio: <strong>{(gitMetrics.user_commit_ratio * 100).toFixed(1)}%</strong>
             </span>
           </div>
         </div>
@@ -146,10 +163,10 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
           </div>
           <div className="mt-2 text-left">
             <Typography className="text-sm font-extrabold text-foreground">
-              {trust.confidence}% Confidence
+              {Math.round(classification.confidence * 100)}% Confidence
             </Typography>
             <span className="text-[10px] text-muted block mt-0.5">
-              Status: <strong>{trust.confidence >= 70 ? "Clear Profile" : "Unverified"}</strong>
+              Status: <strong>{classification.isVerified ? "Verified Profile" : "Unverified"}</strong>
             </span>
           </div>
         </div>
@@ -160,7 +177,7 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
         <div className="flex items-center gap-2 mb-4 border-b border-border/20 pb-3">
           <AlertTriangle className="size-4 text-warning shrink-0" />
           <Typography type="body-sm" className="font-extrabold text-foreground uppercase tracking-wider text-[10px]">
-            Rule-Based & AI Trust Findings ({totalFlagsCount})
+            AI Trust Findings & Gaps ({totalFlagsCount})
           </Typography>
         </div>
 
@@ -170,53 +187,29 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
           </Typography>
         ) : (
           <div className="space-y-4">
-            {/* Rule-Based Flags */}
-            {trust.rule_flags.length > 0 && (
-              <div className="space-y-2 text-left">
-                <Typography type="body-xs" className="font-bold text-foreground/80 text-[10px] uppercase tracking-wide">
-                  Deterministic Rule Violations
-                </Typography>
-                <div className="space-y-2">
-                  {trust.rule_flags.map((flag, idx) => (
-                    <div
-                      key={`rule-${idx}`}
-                      className="p-3 rounded-xl border border-danger/15 bg-danger/5 flex items-center justify-between text-xs"
-                    >
-                      <span className="font-medium text-foreground">{flag}</span>
-                      <Chip size="sm" color="danger" variant="soft" className="h-4.5 px-1.5 text-[8.5px] font-extrabold uppercase">
-                        Failed Rule
-                      </Chip>
-                    </div>
-                  ))}
-                </div>
+            <div className="space-y-2 text-left">
+              <Typography type="body-xs" className="font-bold text-foreground/80 text-[10px] uppercase tracking-wide">
+                Detected Flags & Risk Reasons
+              </Typography>
+              <div className="space-y-2">
+                {risk.reasons.map((reason, idx) => (
+                  <div
+                    key={`risk-reason-${idx}`}
+                    className="p-3 rounded-xl border border-warning/15 bg-warning/5 flex items-center justify-between text-xs"
+                  >
+                    <span className="font-medium text-foreground">{reason}</span>
+                    <Chip size="sm" color="warning" variant="soft" className="h-4.5 px-1.5 text-[8.5px] font-extrabold uppercase">
+                      Risk Flag
+                    </Chip>
+                  </div>
+                ))}
               </div>
-            )}
-
-            {/* AI Trust Findings */}
-            {trust.ai_findings.length > 0 && (
-              <div className="space-y-2 text-left">
-                <Typography type="body-xs" className="font-bold text-foreground/80 text-[10px] uppercase tracking-wide">
-                  AI Stylistic Observations & Heuristics
-                </Typography>
-                <div className="space-y-2">
-                  {trust.ai_findings.map((finding, idx) => (
-                    <div
-                      key={`ai-${idx}`}
-                      className="p-3 rounded-xl border border-warning/15 bg-warning/5 flex items-center justify-between text-xs"
-                    >
-                      <span className="font-medium text-foreground">{finding}</span>
-                      <Chip size="sm" color="warning" variant="soft" className="h-4.5 px-1.5 text-[8.5px] font-extrabold uppercase">
-                        AI Flag
-                      </Chip>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         )}
       </Card>
     </div>
   );
 };
+
 export default VerificationSignals;

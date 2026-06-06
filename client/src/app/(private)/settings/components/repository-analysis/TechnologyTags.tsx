@@ -7,19 +7,7 @@ interface TechnologyTagsProps {
 }
 
 export const TechnologyTags: React.FC<TechnologyTagsProps> = ({ analysis }) => {
-  const {
-    repo,
-    profile = {
-      technologies: [],
-      skills: {},
-      architecture: { patterns: [], explanation: "" },
-      engineering_practices: {
-        testing: { frameworks: [], has_tests: false, detail: "" },
-        observability: { logging_configured: false, metrics_configured: false, detail: "" },
-        cicd: { configured: false, providers: [] }
-      }
-    }
-  } = analysis;
+  const repo = analysis.repo;
 
   return (
     <div className="space-y-4.5 text-left font-sans select-none">
@@ -29,7 +17,7 @@ export const TechnologyTags: React.FC<TechnologyTagsProps> = ({ analysis }) => {
           Codebase Languages
         </Typography>
         <div className="flex flex-wrap gap-2">
-          {Object.entries(repo.languages).map(([lang, pct]) => (
+          {Object.entries(repo.languages || {}).map(([lang, pct]) => (
             <Chip
               key={lang}
               variant="soft"
@@ -43,26 +31,28 @@ export const TechnologyTags: React.FC<TechnologyTagsProps> = ({ analysis }) => {
         </div>
       </div>
 
-      {/* Categorized Stacks from Profile Skills */}
-      {Object.entries(profile.skills).map(([category, skills]) => (
-        <div key={category} className="space-y-2">
+      {/* Categorized Stacks from Topics */}
+      {repo.topics && repo.topics.length > 0 && (
+        <div className="space-y-2">
           <Typography type="body-xs" className="text-muted font-bold uppercase tracking-wider text-[9px]">
-            {category} Stacks & Frameworks
+            Repository Topics & Tags
           </Typography>
           <div className="flex flex-wrap gap-2">
-            {skills.map((skillName) => (
+            {repo.topics.map((topic) => (
               <Chip
-                key={skillName}
+                key={topic}
                 variant="soft"
                 color="default"
                 className="h-6.5 text-xs font-medium px-2.5 bg-foreground/5 text-foreground/80 hover:bg-foreground/10 border border-border/40"
               >
-                {skillName}
+                {topic}
               </Chip>
             ))}
           </div>
         </div>
-      ))}
+      )}
     </div>
   );
 };
+
+export default TechnologyTags;

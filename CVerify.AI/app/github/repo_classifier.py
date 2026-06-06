@@ -31,6 +31,11 @@ class RepoClassification:
     bus_factor: int = 1
     active_contributors: int = 1
 
+    # Trust & Uncertainty Metrics
+    unverified_commits_count: int = 0
+    timestamp_compression_ratio: float = 0.0
+    uncalibrated_identities_count: int = 0
+
 async def classify_repository(
     repo_owner: str,
     repo_name: str,
@@ -133,6 +138,47 @@ async def classify_repository(
         except Exception as e:
             logger.warning(f"Failed to fetch contributors list: {e}", extra=extra_log)
 
+        # Fetch commits to analyze history and calculate verification/compression metrics
+        commits = []
+        try:
+            commits_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/commits"
+            commits_resp = await client.get(commits_url, params={"per_page": 100})
+            if commits_resp.status_code == 200:
+                commits = commits_resp.json()
+        except Exception as e:
+            logger.warning(f"Failed to pre-fetch commits in classifier: {e}", extra=extra_log)
+
+        unverified_commits_count = 0
+        uncalibrated_identities_count = 0
+        timestamp_compression_ratio = 0.0
+        commit_dates = []
+
+        if isinstance(commits, list):
+            for c in commits:
+                # 1. Unverified signature check
+                verified = c.get("commit", {}).get("verification", {}).get("verified", False)
+                if not verified:
+                    unverified_commits_count += 1
+                
+                # 2. Uncalibrated identity check
+                if not c.get("author"):
+                    uncalibrated_identities_count += 1
+
+                # Extract date for compression ratio check
+                date_str = c.get("commit", {}).get("author", {}).get("date")
+                if date_str:
+                    try:
+                        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                        commit_dates.append(dt)
+                    except Exception:
+                        pass
+
+            # 3. Timestamp compression check
+            commit_dates.sort()
+            if len(commit_dates) > 1:
+                compressed_count = sum(1 for i in range(1, len(commit_dates)) if (commit_dates[i] - commit_dates[i-1]).total_seconds() <= 1.0)
+                timestamp_compression_ratio = round(compressed_count / (len(commit_dates) - 1), 4)
+
         total_commits = 0
         user_commit_ratio = 1.0
         is_primary_author = True
@@ -176,7 +222,7 @@ async def classify_repository(
             if bus_factor == 0:
                 bus_factor = 1
         else:
-            total_commits = 1
+            total_commits = len(commits) if len(commits) > 0 else 1
             user_commit_ratio = 1.0
             is_primary_author = True
             contributor_distribution = [{"username": username or "developer", "commit_ratio": 1.0}]
@@ -194,7 +240,10 @@ async def classify_repository(
             "is_primary_author": is_primary_author,
             "contributor_distribution": contributor_distribution,
             "bus_factor": bus_factor,
-            "active_contributors": active_contributors
+            "active_contributors": active_contributors,
+            "unverified_commits_count": unverified_commits_count,
+            "timestamp_compression_ratio": timestamp_compression_ratio,
+            "uncalibrated_identities_count": uncalibrated_identities_count
         }
 
         # Case 2 & 3: Repository is a Fork
@@ -260,13 +309,7 @@ async def classify_repository(
         # Personal Original Work or Cloned/Dumped (Case 1 vs Case 4)
         red_flags = []
         try:
-            # Fetch commits to analyze history
-            commits_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/commits"
-            commits_resp = await client.get(commits_url, params={"per_page": 100})
-            commits_resp.raise_for_status()
-            commits = commits_resp.json()
             total_commits_fetched = len(commits)
-
             # Age in days
             created_at_str = repo_data.get("created_at")
             created_at_dt = datetime.strptime(created_at_str, "%Y-%m-%dT%H:%M:%SZ")

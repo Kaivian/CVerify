@@ -23,113 +23,6 @@ const RepoInfoSchema = z.object({
   confidence_ceiling: z.number().nullish().transform((val) => val ?? 1.0),
 });
 
-const RepositoryAuthenticitySchema = z.object({
-  type: z.string().nullish().transform((val) => val ?? "ORIGINAL_WORK"),
-  confidence_ceiling: z.number().nullish().transform((val) => val ?? 1.0),
-  confidence_modifier: z.number().nullish().transform((val) => val ?? 1.0),
-  rationale: z.string().nullish().transform((val) => val ?? ""),
-  red_flags: z.array(z.string()).nullish().transform((val) => val ?? []),
-});
-
-const RepositoryClassificationSchema = z.object({
-  primary_type: z.string().nullish().transform((val) => val ?? "Unclassified"),
-  all_types: z.array(z.string()).nullish().transform((val) => val ?? []),
-  confidence: z.number().nullish().transform((val) => val ?? 0.8),
-  evidence: z.array(z.string()).nullish().transform((val) => val ?? []),
-  schema_version: z.string().nullish().transform((val) => val ?? "1.0"),
-  classifier_version: z.string().nullish().transform((val) => val ?? "2026.06"),
-  complexity: z.enum(["low", "medium", "high"]).catch("medium").optional(),
-  benchmark_group: z.string().nullish().transform((val) => val ?? "unclassified").optional(),
-});
-
-const EvidencePointsSchema = z.object({
-  total: z.number().nullish().transform((val) => val ?? 0),
-  breakdown: z.record(z.number()).nullish().transform((val) => val ?? {}),
-});
-
-const OwnershipDetailsSchema = z.object({
-  user_commit_ratio: z.number().nullish().transform((val) => val ?? 1.0),
-  total_commits: z.number().nullish().transform((val) => val ?? 1),
-  is_primary_author: z.boolean().nullish().transform((val) => val ?? true),
-  architectural_ownership_pct: z.number().nullish().transform((val) => val ?? 100),
-  critical_path_ownership_pct: z.number().nullish().transform((val) => val ?? 100),
-  maintenance_duration_months: z.number().nullish().transform((val) => val ?? 1),
-  explanation: z.string().nullish().transform((val) => val ?? ""),
-});
-
-const TrustProfileSchema = z.object({
-  classification: z.enum(["personal_authentic", "fork_rebranded", "template_dump", "collaboration"]).catch("personal_authentic"),
-  confidence: z.number().nullish().transform((val) => val ?? 100),
-  rule_flags: z.array(z.string()).nullish().transform((val) => val ?? []),
-  ai_findings: z.array(z.string()).nullish().transform((val) => val ?? []),
-  explanation: z.string().nullish().transform((val) => val ?? ""),
-});
-
-const ComparativePositioningSchema = z.object({
-  benchmark_group: z.string().nullish().transform((val) => val ?? "unclassified"),
-  percentile_rank: z.number().nullish().transform((val) => val ?? 0),
-  peer_group_size: z.number().nullish().transform((val) => val ?? 1),
-  relative_strengths: z.array(z.string()).nullish().transform((val) => val ?? []),
-});
-
-const TechnologyItemSchema = z.object({
-  name: z.string(),
-  type: z.enum(["language", "framework", "database", "library", "infrastructure"]).catch("library"),
-});
-
-const RepositoryProfileDetailSchema = z.object({
-  technologies: z.array(TechnologyItemSchema).nullish().transform((val) => val ?? []),
-  skills: z.record(z.array(z.string())).nullish().transform((val) => val ?? {}),
-  architecture: z.object({
-    patterns: z.array(z.string()).nullish().transform((val) => val ?? []),
-    explanation: z.string().nullish().transform((val) => val ?? ""),
-  }).default({ patterns: [], explanation: "" }),
-  engineering_practices: z.object({
-    testing: z.object({
-      frameworks: z.array(z.string()).nullish().transform((val) => val ?? []),
-      has_tests: z.boolean().nullish().transform((val) => val ?? false),
-      confidence: z.number().nullish().transform((val) => val ?? 100),
-      evidence: z.array(z.string()).nullish().transform((val) => val ?? []),
-      detail: z.string().nullish().transform((val) => val ?? ""),
-    }).default({ frameworks: [], has_tests: false, confidence: 100, evidence: [], detail: "" }),
-    observability: z.object({
-      logging_configured: z.boolean().nullish().transform((val) => val ?? false),
-      metrics_configured: z.boolean().nullish().transform((val) => val ?? false),
-      confidence: z.number().nullish().transform((val) => val ?? 100),
-      evidence: z.array(z.string()).nullish().transform((val) => val ?? []),
-      detail: z.string().nullish().transform((val) => val ?? ""),
-    }).default({ logging_configured: false, metrics_configured: false, confidence: 100, evidence: [], detail: "" }),
-    cicd: z.object({
-      configured: z.boolean().nullish().transform((val) => val ?? false),
-      providers: z.array(z.string()).nullish().transform((val) => val ?? []),
-      confidence: z.number().nullish().transform((val) => val ?? 100),
-      evidence: z.array(z.string()).nullish().transform((val) => val ?? []),
-    }).default({ configured: false, providers: [], confidence: 100, evidence: [] }),
-  }).default({
-    testing: { frameworks: [], has_tests: false, confidence: 100, evidence: [], detail: "" },
-    observability: { logging_configured: false, metrics_configured: false, confidence: 100, evidence: [], detail: "" },
-    cicd: { configured: false, providers: [], confidence: 100, evidence: [] }
-  }),
-});
-
-const RepositoryEvidenceItemSchema = z.object({
-  id: z.string().optional(),
-  type: z.enum(["file", "dependency", "structure", "commit"]).catch("file"),
-  path: z.string().nullable(),
-  line_range: z.string().nullable(),
-  signal: z.string(),
-});
-
-const RepositoryEvidenceFindingSchema = z.object({
-  id: z.string().optional(),
-  category: z.string().nullish().transform((val) => val ?? "quality"),
-  finding: z.string(),
-  confidence: z.number().nullish().transform((val) => val ?? 100),
-  evidence: z.array(RepositoryEvidenceItemSchema).nullish().transform((val) => val ?? []),
-  explanation: z.string().nullish().transform((val) => val ?? ""),
-  impact: z.enum(["positive", "warning", "critical"]).optional(),
-});
-
 const RepositoryNarrativeSchema = z.object({
   recruiter_summary: z.string().nullish().transform((val) => val ?? ""),
   top_strengths: z.array(z.object({
@@ -172,162 +65,177 @@ const RepositoryAnalysisFactsSchema = z.object({
   quality_metrics: QualityMetricsSchema,
 });
 
-const RiskAssessmentDimensionsSchema = z.object({
-  security: z.number(),
-  maintainability: z.number(),
-  architecture: z.number(),
-  operational: z.number(),
-  dependency: z.number(),
-  evidence_uncertainty: z.number(),
+const UncertaintyMetricsSchema = z.object({
+  variance: z.number().nullish().transform((val) => val ?? 0),
+  sampling_bias_risk: z.number().nullish().transform((val) => val ?? 0),
+  adversarial_manipulation_risk: z.number().nullish().transform((val) => val ?? 0),
+  unverified_commits: z.number().nullish().transform((val) => val ?? 0),
+  timestamp_compression_ratio: z.number().nullish().transform((val) => val ?? 0),
+  uncalibrated_identities: z.number().nullish().transform((val) => val ?? 0),
 });
 
-const RiskAssessmentSchema = z.object({
-  risk_level: z.enum(["Low", "Medium", "High"]),
-  risk_score: z.number(),
-  critical_findings_count: z.number().nullish().transform((val) => val ?? 0),
-  warning_findings_count: z.number().nullish().transform((val) => val ?? 0),
-  explanation: z.string(),
-  top_factors: z.array(z.string()).nullish().transform((val) => val ?? []),
-  dimensions: RiskAssessmentDimensionsSchema.optional(),
+const TrustGraphSchema = z.object({
+  nodes: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    data: z.record(z.any()),
+  })).nullish().transform((val) => val ?? []),
+  edges: z.array(z.object({
+    id: z.string(),
+    source: z.string(),
+    target: z.string(),
+    label: z.string().optional(),
+    weight: z.number().optional(),
+  })).nullish().transform((val) => val ?? []),
 });
 
-const RepositoryAnalysisAiConclusionsSchema = z.object({
-  authenticity: RepositoryAuthenticitySchema.optional(),
-  classification: RepositoryClassificationSchema.extend({
-    classification_rationale: z.string().optional(),
-    sampled_files: z.array(z.string()).optional(),
-    ignored_files_count: z.number().optional(),
-    confidence_factors: z.array(z.string()).optional(),
-  }).default({}),
-  evidence_points: EvidencePointsSchema.default({}),
-  trust: TrustProfileSchema.default({}),
-  risk_assessment: RiskAssessmentSchema.optional(),
-  positioning: ComparativePositioningSchema.default({}),
-  profile: RepositoryProfileDetailSchema.default({}),
-  findings: z.array(RepositoryEvidenceFindingSchema).nullish().transform((val) => val ?? []),
-  narrative: RepositoryNarrativeSchema.optional(),
-}).strict();
+const TrustIntelligenceSchema = z.object({
+  uncertainty_metrics: UncertaintyMetricsSchema.default({
+    variance: 0,
+    sampling_bias_risk: 0,
+    adversarial_manipulation_risk: 0,
+    unverified_commits: 0,
+    timestamp_compression_ratio: 0,
+    uncalibrated_identities: 0,
+  }),
+  conflict_resolution_log: z.array(z.string()).nullish().transform((val) => val ?? []),
+  trust_graph: TrustGraphSchema.default({ nodes: [], edges: [] }),
+});
+
+const RepositoryClassificationSchema = z.object({
+  primaryDomain: z.string().nullish().transform((val) => val ?? "Unknown"),
+  subDomain: z.string().nullish().transform((val) => val ?? "General"),
+  confidence: z.number().min(0.0).max(1.0).nullish().transform((val) => val ?? 0.0),
+  isVerified: z.boolean().nullish().transform((val) => val ?? false),
+  trustScore: z.number().min(0.0).max(1.0).nullish().transform((val) => val ?? 0.0),
+});
+
+const RepositorySectionSchema = z.object({
+  type: z.enum(["engineering_practices", "security_findings", "architecture_insights"]),
+  items: z.array(
+    z.union([
+      z.string(),
+      z.object({
+        title: z.string(),
+        content: z.string(),
+      }),
+    ])
+  ).nullish().transform((val) => val ?? []),
+});
+
+const RepositoryRiskSchema = z.object({
+  score: z.number().min(0.0).max(100.0).nullish().transform((val) => val ?? 0.0),
+  level: z.enum(["low", "medium", "high"]).catch("low"),
+  reasons: z.array(z.string()).nullish().transform((val) => val ?? []),
+});
 
 export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
   const v = val as Record<string, any>;
-  if (v) {
-    if ("scoring" in v || (v.ai_conclusions && "scoring" in v.ai_conclusions)) {
-      console.warn(
-        `[DEPRECATED SCORING WARNING] Legacy scoring payload detected for job ${v.jobId || "unknown"}. Intercepting and pruning legacy fields.`
-      );
-      if ("scoring" in v) delete v.scoring;
-      if (v.ai_conclusions && "scoring" in v.ai_conclusions) delete v.ai_conclusions.scoring;
-    }
-  }
+  if (!v) return v;
 
-  if (v && (v.facts || v.ai_conclusions)) {
-    const facts = v.facts || {};
-    const ai = v.ai_conclusions || {};
+  // Support V2 structure where fields might be nested inside ai_conclusions
+  let classification = v.classification || v.ai_conclusions?.classification || v.classificationV2;
+  let sections = v.sections || v.ai_conclusions?.sections || v.sectionsV2;
+  let risk = v.risk || v.ai_conclusions?.risk || v.riskV2;
+  const narrative = v.narrative || v.ai_conclusions?.narrative;
+  const repo = v.repo || v.facts?.repo;
+  const repoId = v.repoId || v.repositoryId || "";
 
-    // Auto-backfill authenticity if missing
-    if (!ai.authenticity) {
-      ai.authenticity = {
-        type: facts.repo?.repo_type ?? v.repo?.repo_type ?? "ORIGINAL_WORK",
-        confidence_ceiling: facts.repo?.confidence_ceiling ?? v.repo?.confidence_ceiling ?? 1.0,
-        confidence_modifier: 1.0,
-        rationale: ai.classification?.classification_rationale ?? "",
-        red_flags: ai.classification?.confidence_factors ?? []
-      };
-    }
-    
-    return {
-      schemaVersion: v.schemaVersion || "evidence-intelligence-v2",
-      jobId: v.jobId,
-      facts,
-      ai_conclusions: ai,
-      authenticity: ai.authenticity,
-      repo: facts.repo || v.repo,
-      classification: ai.classification || v.classification,
-      evidence_points: ai.evidence_points || v.evidence_points,
-      ownership: {
-        total_commits: facts.git_metrics?.total_commits ?? v.ownership?.total_commits ?? 1,
-        user_commit_ratio: facts.git_metrics?.user_commit_ratio ?? v.ownership?.user_commit_ratio ?? 1.0,
-        is_primary_author: facts.git_metrics?.is_primary_author ?? v.ownership?.is_primary_author ?? true,
-        architectural_ownership_pct: v.ownership?.architectural_ownership_pct ?? 100,
-        critical_path_ownership_pct: v.ownership?.critical_path_ownership_pct ?? 100,
-        maintenance_duration_months: v.ownership?.maintenance_duration_months ?? 1,
-        explanation: v.ownership?.explanation ?? ai.trust?.explanation ?? ""
-      },
-      trust: ai.trust || v.trust,
-      positioning: ai.positioning || v.positioning,
-      profile: ai.profile || v.profile,
-      findings: ai.findings || v.findings,
-      narrative: ai.narrative || v.narrative,
+  // Map classification properties to satisfy RepositoryClassificationSchema
+  if (classification) {
+    classification = {
+      primaryDomain: classification.primaryDomain || classification.primary_type || "Unknown",
+      subDomain: classification.subDomain || classification.sub_type || classification.benchmark_group || "General",
+      confidence: classification.confidence !== undefined ? classification.confidence : 0.0,
+      isVerified: classification.isVerified !== undefined ? classification.isVerified : false,
+      trustScore: classification.trustScore !== undefined ? classification.trustScore : (classification.confidence || 0.0)
     };
-  } else if (v) {
-    const legacyAuthenticity = {
-      type: v.repo?.repo_type ?? "ORIGINAL_WORK",
-      confidence_ceiling: v.repo?.confidence_ceiling ?? 1.0,
-      confidence_modifier: 1.0,
-      rationale: v.classification?.classification_rationale ?? "",
-      red_flags: v.classification?.confidence_factors ?? []
-    };
-
-    return {
-      schemaVersion: "legacy",
-      jobId: v.jobId,
-      repo: v.repo,
-      classification: v.classification,
-      evidence_points: v.evidence_points,
-      ownership: v.ownership,
-      trust: v.trust,
-      positioning: v.positioning,
-      profile: v.profile,
-      findings: v.findings,
-      narrative: v.narrative,
-      authenticity: legacyAuthenticity,
-      facts: {
-        repo: v.repo,
-        git_metrics: {
-          total_commits: v.ownership?.total_commits ?? 1,
-          user_commit_ratio: v.ownership?.user_commit_ratio ?? 1.0,
-          is_primary_author: v.ownership?.is_primary_author ?? true,
-          bus_factor: 1,
-          active_contributors: 1,
-          contributor_distribution: [],
-        },
-        quality_metrics: {
-          files_scanned: 0,
-          files_sampled: 0,
-          skipped_files: 0,
-          coverage_pct: 100.0,
-          prompt_cache_efficiency: 0.0,
-        }
-      },
-      ai_conclusions: {
-        classification: v.classification,
-        evidence_points: v.evidence_points,
-        trust: v.trust,
-        positioning: v.positioning,
-        profile: v.profile,
-        findings: v.findings,
-        narrative: v.narrative,
-        authenticity: legacyAuthenticity,
-      }
+  } else {
+    classification = {
+      primaryDomain: "Unknown",
+      subDomain: "General",
+      confidence: 0.0,
+      isVerified: false,
+      trustScore: 0.0
     };
   }
-  return val;
+
+  // Map sections or fallback
+  if (!sections || !Array.isArray(sections)) {
+    sections = [];
+  }
+
+  // Map risk properties to satisfy RepositoryRiskSchema
+  if (risk) {
+    risk = {
+      score: risk.score !== undefined ? risk.score : 0.0,
+      level: risk.level || risk.risk_level || "low",
+      reasons: risk.reasons || (risk.explanation ? [risk.explanation] : [])
+    };
+  } else {
+    risk = {
+      score: 0.0,
+      level: "low",
+      reasons: []
+    };
+  }
+
+  // Ensure facts has a valid structure
+  const facts = v.facts || {
+    repo: repo,
+    git_metrics: {
+      total_commits: 1,
+      user_commit_ratio: 1.0,
+      is_primary_author: true,
+      bus_factor: 1,
+      active_contributors: 1,
+      contributor_distribution: []
+    },
+    quality_metrics: {
+      files_scanned: 0,
+      files_sampled: 0,
+      skipped_files: 0,
+      coverage_pct: 100.0,
+      prompt_cache_efficiency: 0.0
+    }
+  };
+
+  return {
+    ...v,
+    repoId,
+    repo,
+    classification,
+    sections,
+    risk,
+    facts,
+    narrative
+  };
 }, z.object({
   jobId: z.string().optional(),
-  schemaVersion: z.string().default("legacy"),
-  facts: RepositoryAnalysisFactsSchema.optional(),
-  ai_conclusions: RepositoryAnalysisAiConclusionsSchema.optional(),
-  authenticity: RepositoryAuthenticitySchema.optional(),
+  schemaVersion: z.string().nullish().transform((val) => val ?? "v2"),
+  repoId: z.string().nullish().transform((val) => val ?? ""),
   repo: RepoInfoSchema,
-  classification: RepositoryClassificationSchema.default({}),
-  evidence_points: EvidencePointsSchema.default({}),
-  ownership: OwnershipDetailsSchema.default({}),
-  trust: TrustProfileSchema.default({}),
-  positioning: ComparativePositioningSchema.default({}),
-  profile: RepositoryProfileDetailSchema.default({}),
-  findings: z.array(RepositoryEvidenceFindingSchema).nullish().transform((val) => val ?? []),
+  classification: RepositoryClassificationSchema,
+  sections: z.array(RepositorySectionSchema).nullish().transform((val) => val ?? []),
+  risk: RepositoryRiskSchema,
+  facts: RepositoryAnalysisFactsSchema,
+  trust_intelligence: TrustIntelligenceSchema.optional(),
   narrative: RepositoryNarrativeSchema.optional(),
-}).strict());
+}));
+
+export const logSchemaAnomaly = (error: z.ZodError, rawData: any) => {
+  console.error("[Schema Observability Anomaly]", {
+    message: "API payload failed to satisfy the contract",
+    issues: error.issues.map(i => ({
+      path: i.path.join("."),
+      message: i.message,
+      code: i.code
+    })),
+    jobId: rawData?.jobId,
+    repoId: rawData?.repoId || rawData?.facts?.repo?.id,
+    timestamp: new Date().toISOString()
+  });
+};
 
 export const repositoryAnalysisApi = {
   getActiveJobs: async (): Promise<Array<{ id: string; repositoryId: string; status: string; progress: number; currentStep?: string }>> => {
@@ -347,8 +255,12 @@ export const repositoryAnalysisApi = {
 
   getJobSnapshot: async (jobId: string): Promise<RepositoryAnalysis> => {
     const response = await axiosClient.get<unknown>(`/repository-analyses/jobs/${jobId}/snapshot`);
-    const parsed = RepositoryAnalysisSchema.parse(response.data);
-    return parsed as RepositoryAnalysis;
+    const parseResult = RepositoryAnalysisSchema.safeParse(response.data);
+    if (!parseResult.success) {
+      logSchemaAnomaly(parseResult.error, response.data);
+      throw parseResult.error;
+    }
+    return parseResult.data as RepositoryAnalysis;
   },
 
   getJobEvents: async (jobId: string): Promise<AnalysisJobEvent[]> => {
@@ -363,8 +275,12 @@ export const repositoryAnalysisApi = {
 
   getLatestReport: async (repositoryId: string): Promise<RepositoryAnalysis> => {
     const response = await axiosClient.get<unknown>(`/repositories/${repositoryId}/analyses/latest`);
-    const parsed = RepositoryAnalysisSchema.parse(response.data);
-    return parsed as RepositoryAnalysis;
+    const parseResult = RepositoryAnalysisSchema.safeParse(response.data);
+    if (!parseResult.success) {
+      logSchemaAnomaly(parseResult.error, response.data);
+      throw parseResult.error;
+    }
+    return parseResult.data as RepositoryAnalysis;
   },
 
   retryTask: async (jobId: string, taskId: string): Promise<{ message: string }> => {

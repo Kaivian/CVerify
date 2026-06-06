@@ -38,27 +38,27 @@ export interface RepositoryEvidenceFinding {
 }
 
 export interface RepositoryClassification {
-  primary_type: string; // e.g. "SaaS Platform"
-  all_types: string[];  // e.g. ["SaaS Platform", "AI Project"]
+  primaryDomain: string;
+  subDomain: string;
   confidence: number;
-  evidence: string[];
-  schema_version: string;
-  classifier_version: string;
-  complexity?: "low" | "medium" | "high";
-  benchmark_group?: string; // e.g. "saas_platforms"
+  isVerified: boolean;
+  trustScore: number;
 }
 
-export interface RepositoryAuthenticity {
-  type: string;
-  confidence_ceiling: number;
-  confidence_modifier: number;
-  rationale: string;
-  red_flags: string[];
+export interface RepositorySectionItem {
+  title: string;
+  content: string;
 }
 
-export interface EvidencePoints {
-  total: number;
-  breakdown: Record<string, number>;
+export interface RepositorySection {
+  type: "engineering_practices" | "security_findings" | "architecture_insights";
+  items: Array<string | RepositorySectionItem>;
+}
+
+export interface RepositoryRisk {
+  score: number;
+  level: "low" | "medium" | "high";
+  reasons: string[];
 }
 
 export interface OwnershipDetails {
@@ -170,58 +170,30 @@ export interface RepositoryAnalysisFacts {
   quality_metrics: QualityMetrics;
 }
 
-export interface RiskAssessmentDimensions {
-  security: number;
-  maintainability: number;
-  architecture: number;
-  operational: number;
-  dependency: number;
-  evidence_uncertainty: number;
-}
-
-export interface RiskAssessment {
-  risk_level: "Low" | "Medium" | "High";
-  risk_score: number;
-  critical_findings_count?: number;
-  warning_findings_count?: number;
-  explanation: string;
-  top_factors?: string[];
-  dimensions?: RiskAssessmentDimensions;
-}
-
-export interface RepositoryAnalysisAiConclusions {
-  authenticity?: RepositoryAuthenticity;
-  classification: RepositoryClassification & {
-    classification_rationale?: string;
-    sampled_files?: string[];
-    ignored_files_count?: number;
-    confidence_factors?: string[];
-  };
-  evidence_points: EvidencePoints;
-  trust: TrustProfile;
-  risk_assessment?: RiskAssessment;
-  positioning: ComparativePositioning;
-  profile: RepositoryProfileDetail;
-  findings: RepositoryEvidenceFinding[];
-  narrative?: RepositoryNarrative;
-}
-
 export interface RepositoryAnalysis {
   jobId?: string;
-  schemaVersion?: string;
-  facts?: RepositoryAnalysisFacts;
-  ai_conclusions?: RepositoryAnalysisAiConclusions;
-  authenticity?: RepositoryAuthenticity;
-  
-  // For backwards compatibility:
+  schemaVersion: string;
+  repoId: string;
   repo: RepoInfo;
   classification: RepositoryClassification;
-  evidence_points: EvidencePoints;
-  ownership: OwnershipDetails;
-  trust: TrustProfile;
-  positioning: ComparativePositioning;
-  profile: RepositoryProfileDetail;
-  findings: RepositoryEvidenceFinding[];
+  sections: RepositorySection[];
+  risk: RepositoryRisk;
+  facts: RepositoryAnalysisFacts;
+  trust_intelligence?: {
+    uncertainty_metrics: {
+      variance: number;
+      sampling_bias_risk: number;
+      adversarial_manipulation_risk: number;
+      unverified_commits: number;
+      timestamp_compression_ratio: number;
+      uncalibrated_identities: number;
+    };
+    conflict_resolution_log: string[];
+    trust_graph: {
+      nodes: Array<{ id: string; type: string; data: Record<string, any> }>;
+      edges: Array<{ id: string; source: string; target: string; label?: string; weight?: number }>;
+    };
+  };
   narrative?: RepositoryNarrative;
 }
 
