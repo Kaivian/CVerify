@@ -1882,7 +1882,7 @@ export default function CvManagementCenter() {
                       <div className="flex flex-col gap-1 min-w-0">
                         <span className="font-bold text-foreground text-xs">Prerequisites Missing</span>
                         <span className="text-[10px] text-muted-foreground leading-relaxed">
-                          An analyzed repository is required for AI evaluation.
+                          An analyzed repository linked to your CV is required for AI evaluation.
                         </span>
                       </div>
                     </div>

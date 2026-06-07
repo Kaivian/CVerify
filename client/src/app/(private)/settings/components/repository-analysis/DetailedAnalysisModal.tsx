@@ -200,6 +200,88 @@ const nodeTypes = {
   evidence: CustomTrustNode,
 };
 
+const deriveTrustGraph = (localAnalysis: RepositoryAnalysis | null): { nodes: any[]; edges: any[] } | null => {
+  if (!localAnalysis) return null;
+
+  const nodes: any[] = [];
+  const edges: any[] = [];
+
+  // 1. Root Developer Node
+  nodes.push({
+    id: "developer-root",
+    type: "developer",
+    data: {
+      label: localAnalysis.cvSynthesis?.title || "Developer Profile",
+      category: "developer",
+    },
+  });
+
+  // 2. Root Repository Node
+  const trustScore = localAnalysis.classification?.trustScore ?? 0;
+  const trustScorePct = Math.round(trustScore > 1 ? trustScore : trustScore * 100);
+  nodes.push({
+    id: "repo-root",
+    type: "repository",
+    data: {
+      label: localAnalysis.repo?.name || "Repository",
+      trustScore: trustScorePct,
+    },
+  });
+
+  // Edge: Developer -> Repository
+  edges.push({
+    id: "dev-to-repo",
+    source: "developer-root",
+    target: "repo-root",
+    label: "contributes",
+  });
+
+  // 3. Skill Nodes
+  const skills = localAnalysis.cvSynthesis?.skills || [];
+  skills.forEach((skill) => {
+    const skillId = `skill-${skill}`;
+    nodes.push({
+      id: skillId,
+      type: "skill",
+      data: {
+        label: skill,
+        category: "skill",
+      },
+    });
+
+    edges.push({
+      id: `repo-to-skill-${skill}`,
+      source: "repo-root",
+      target: skillId,
+    });
+  });
+
+  // 4. Evidence Finding Nodes
+  const findings = localAnalysis.findings || (localAnalysis as any).ai_conclusions?.findings || [];
+  findings.forEach((finding: any, idx: number) => {
+    const findingId = `finding-${finding.title || idx}`;
+    nodes.push({
+      id: findingId,
+      type: "evidence",
+      data: {
+        label: finding.title || finding.finding || `Finding #${idx}`,
+        category: finding.category || "quality",
+        confidence: finding.confidence || 90,
+        explanation: finding.explanation || "",
+        impact: finding.impact || "positive",
+      },
+    });
+
+    edges.push({
+      id: `finding-to-repo-${finding.title || idx}`,
+      source: findingId,
+      target: "repo-root",
+    });
+  });
+
+  return { nodes, edges };
+};
+
 interface TrustGraphViewProps {
   shadowClass?: string; // Add if needed, keeping consistent with standard React Flow types
   trustGraph: {
@@ -233,11 +315,15 @@ const TrustGraphView: React.FC<TrustGraphViewProps> = ({ trustGraph, localAnalys
 
   // Initialize graph data once loaded
   useEffect(() => {
-    console.log("TrustGraphView trustGraph received:", trustGraph);
-    if (trustGraph) {
+    if (trustGraph && trustGraph.nodes && trustGraph.nodes.length > 0) {
       initializeGraph(trustGraph.nodes, trustGraph.edges);
+    } else if (localAnalysis) {
+      const derived = deriveTrustGraph(localAnalysis);
+      if (derived) {
+        initializeGraph(derived.nodes, derived.edges);
+      }
     }
-  }, [trustGraph, initializeGraph]);
+  }, [trustGraph, localAnalysis, initializeGraph]);
 
   console.log("TrustGraphView nodes in store:", nodes);
   console.log("TrustGraphView edges in store:", edges);
@@ -272,7 +358,7 @@ const TrustGraphView: React.FC<TrustGraphViewProps> = ({ trustGraph, localAnalys
     return nodes.find((n) => n.id === selectedNodeId) || null;
   }, [nodes, selectedNodeId]);
 
-  if (!trustGraph || !trustGraph.nodes || trustGraph.nodes.length === 0) {
+  if (nodes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center border border-border bg-background/40 rounded-xl p-4 text-muted text-xs font-sans">
         <Share2 className="size-5 mb-2 opacity-50" />
@@ -431,8 +517,8 @@ const TrustGraphView: React.FC<TrustGraphViewProps> = ({ trustGraph, localAnalys
     }
 
     if (selectedNode.type === "evidence") {
-      const findings = (localAnalysis as any)?.ai_conclusions?.findings || [];
-      const matchingFinding = findings.find((f: any) => f?.finding === selectedNode.data.label);
+      const findings = localAnalysis?.findings || (localAnalysis as any)?.ai_conclusions?.findings || [];
+      const matchingFinding = findings.find((f: any) => (f?.finding || f?.title) === selectedNode.data.label);
       const isSecurity = selectedNode.data.category === "security";
       const impact = matchingFinding?.impact || (isSecurity ? "warning" : "positive");
       const explanation = matchingFinding?.explanation || "Evidence verify signal matches structural configurations and authentic contributor patterns.";

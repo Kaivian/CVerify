@@ -69,8 +69,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         {
             missingFields.Add(new MissingFieldDto(
                 "Repositories",
-                "Source Code Repositories",
-                "At least one analyzed repository is required for AI code capability & engineering telemetry evaluation.",
+                "CV-Linked Source Code Repositories",
+                "At least one analyzed repository that is linked to your CV is required for AI code capability & engineering telemetry evaluation.",
                 IsRequired: true
             ));
         }
@@ -182,7 +182,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         var readiness = await GetReadinessStatusAsync(userId, cancellationToken);
         if (!readiness.IsReady)
         {
-            throw new BusinessRuleException("PROFILE_INCOMPLETE", "At least one analyzed repository is required. Please connect and analyze a repository first.");
+            throw new BusinessRuleException("PROFILE_INCOMPLETE", "At least one analyzed repository linked to your CV is required. Please connect, analyze, and link a repository to your CV first.");
         }
 
         var lastRepoAnalysisAt = await _repositoryProvider.GetLastRepositoryAnalysisAtAsync(userId, cancellationToken);

@@ -1709,13 +1709,40 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             using (var reportDoc = JsonDocument.Parse(finalReportJson))
             {
                 var root = reportDoc.RootElement;
-                if (root.TryGetProperty("trust_score", out var trustProp))
+
+                // 1. Parse trustScore (V2: classification.trustScore [0.0-1.0], V1: trust_score.score [0.0-100.0])
+                if (root.TryGetProperty("classification", out var classificationProp) &&
+                    classificationProp.TryGetProperty("trustScore", out var trustScoreProp))
                 {
-                    if (trustProp.TryGetProperty("score", out var scoreProp)) trustScore = scoreProp.GetDouble();
+                    trustScore = trustScoreProp.GetDouble() * 100.0;
+                }
+                else if (root.TryGetProperty("trust_score", out var trustProp) &&
+                         trustProp.TryGetProperty("score", out var scoreProp))
+                {
+                    trustScore = scoreProp.GetDouble();
                 }
 
-                if (root.TryGetProperty("ingestion", out var ingestionProp) && 
-                    ingestionProp.TryGetProperty("language_distribution", out var langProp))
+                // 2. Parse language distribution (V2: facts.repo.languages / repo.languages, V1: ingestion.language_distribution)
+                JsonElement langProp = default;
+                bool hasLangs = false;
+                if (root.TryGetProperty("facts", out var factsProp) &&
+                    factsProp.TryGetProperty("repo", out var repoProp) &&
+                    repoProp.TryGetProperty("languages", out langProp))
+                {
+                    hasLangs = true;
+                }
+                else if (root.TryGetProperty("repo", out repoProp) &&
+                         repoProp.TryGetProperty("languages", out langProp))
+                {
+                    hasLangs = true;
+                }
+                else if (root.TryGetProperty("ingestion", out var ingestionProp) &&
+                         ingestionProp.TryGetProperty("language_distribution", out langProp))
+                {
+                    hasLangs = true;
+                }
+
+                if (hasLangs && langProp.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var prop in langProp.EnumerateObject())
                     {
@@ -1723,8 +1750,39 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     }
                 }
 
-                if (root.TryGetProperty("architecture", out var archProp) && 
-                    archProp.TryGetProperty("patterns", out var patProp))
+                // 3. Parse architecture patterns from individual task result or aggregated report
+                var archResult = results.FirstOrDefault(r => r.Task.TaskType == "ArchitectureAnalysis");
+                if (archResult != null && !string.IsNullOrEmpty(archResult.ResultData))
+                {
+                    try
+                    {
+                        using var archDoc = JsonDocument.Parse(archResult.ResultData);
+                        var archRoot = archDoc.RootElement;
+                        var dataProp = archRoot.TryGetProperty("data", out var dProp) ? dProp : archRoot;
+                        if (dataProp.TryGetProperty("patterns", out var patProp) && patProp.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var item in patProp.EnumerateArray())
+                            {
+                                if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("pattern", out var pNameProp))
+                                {
+                                    var pat = pNameProp.GetString();
+                                    if (!string.IsNullOrEmpty(pat)) patterns.Add(pat);
+                                }
+                                else if (item.ValueKind == JsonValueKind.String)
+                                {
+                                    var pat = item.GetString();
+                                    if (!string.IsNullOrEmpty(pat)) patterns.Add(pat);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "ProjectIntelligenceDataAsync: Failed to parse architecture patterns from individual task result.");
+                    }
+                }
+                else if (root.TryGetProperty("architecture", out var archProp) && 
+                         archProp.TryGetProperty("patterns", out var patProp))
                 {
                     foreach (var item in patProp.EnumerateArray())
                     {
@@ -1735,16 +1793,27 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     }
                 }
 
+                // 4. Parse qualityScore and cloneRiskClassification
                 if (root.TryGetProperty("code_quality", out var qProp) && 
                     qProp.TryGetProperty("overall_score", out var oScoreProp))
                 {
                     qualityScore = oScoreProp.GetDouble();
+                }
+                else
+                {
+                    qualityScore = trustScore; // Fallback to trust score
                 }
 
                 if (root.TryGetProperty("fraud_signals", out var fraudProp) && 
                     fraudProp.TryGetProperty("clone_classification", out var cloneProp))
                 {
                     cloneRiskClassification = cloneProp.GetString() ?? "clean";
+                }
+                else if (root.TryGetProperty("risk", out var riskProp) &&
+                         riskProp.TryGetProperty("level", out var levelProp))
+                {
+                    var level = levelProp.GetString()?.ToLowerInvariant();
+                    cloneRiskClassification = level == "high" ? "suspicious" : "clean";
                 }
             }
 

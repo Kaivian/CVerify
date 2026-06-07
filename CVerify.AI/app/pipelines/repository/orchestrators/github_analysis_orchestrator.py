@@ -47,15 +47,15 @@ class RiskV2(BaseModel):
     reasons: List[str]
 
 class CvHighlight(BaseModel):
-    signal: str
-    impact: str
+    signal: str = Field(..., max_length=100)
+    impact: str = ""
 
 class CvSynthesisContract(BaseModel):
     schemaVersion: Literal["v2"] = "v2"
-    title: str
+    title: str = Field(..., max_length=40)
     skills: List[str]
-    summary: str
-    highlights: List[CvHighlight]
+    summary: str = Field(..., min_length=25, max_length=550)
+    highlights: List[CvHighlight] = Field(..., max_length=3)
     ownershipProfile: Literal["High contribution profile", "Standard contribution profile", "Low contribution profile", "External contributor context"]
 
     @field_validator("summary")
@@ -80,6 +80,9 @@ class ReportV2Contract(BaseModel):
     risk: RiskV2
     cvSynthesis: Optional[CvSynthesisContract] = None
     evidenceStrength: Optional[EvidenceStrengthContract] = None
+    findings: List[dict] = Field(default_factory=list)
+    daily_commits: Optional[dict[str, int]] = None
+    user_daily_commits: Optional[dict[str, int]] = None
 
     model_config = {
         "extra": "allow"
@@ -1829,11 +1832,33 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         peak_weekday = max(weekday_dist, key=weekday_dist.__getitem__, default=1)
         weekday_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-        # Burst detection: >10 commits in a single day
+        # Extract unique human contributors (excluding bots)
+        from app.pipelines.repository.github.identity_resolver import ContributorIdentityResolver
+        resolver = ContributorIdentityResolver(
+            github_username=meta.get("username"),
+            github_email_hashes=meta.get("user_email_hashes"),
+            repository_owner_login=meta.get("repository_owner_login"),
+            authenticated_user_login=meta.get("authenticated_user_login"),
+            owner_verified=meta.get("owner_verified", False)
+        )
+
+        human_authors = set()
+        for email in authors:
+            if not resolver.is_bot(email, ""):
+                human_authors.add(email.lower().strip())
+        
+        is_single_author_fallback = len(human_authors) <= 1 and meta.get("owner_verified", False)
+
+        # Daily commit distribution for heatmap
         day_counts: dict[str, int] = {}
-        for dt in timestamps:
+        user_day_counts: dict[str, int] = {}
+        for dt, author in zip(timestamps, authors):
             day_key = dt.strftime("%Y-%m-%d")
             day_counts[day_key] = day_counts.get(day_key, 0) + 1
+            if is_single_author_fallback or resolver.is_user(author, None):
+                user_day_counts[day_key] = user_day_counts.get(day_key, 0) + 1
+
+        # Burst detection: >10 commits in a single day
         burst_days = [day for day, cnt in day_counts.items() if cnt > 10]
 
         # Commit type ratios from messages (secondary cross-validation)
@@ -1850,7 +1875,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         base_freq = min(100.0, commits_per_week * 10)
         commit_frequency_score = round(max(0.0, base_freq - consistency_penalty), 1)
 
-        # Feature complexity growth: rough proxy â€” ratio of commits touching >5 files
+        # Feature complexity growth: rough proxy — ratio of commits touching >5 files
         multi_file_ratio = 0.0  # populated later by CommitDiff if available
         diff_cache = self._read_task_cache(job_id, "CommitDiff")
         if diff_cache.get("commits"):
@@ -1889,6 +1914,8 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 },
                 "burst_days": burst_days[:5],
                 "timeline_signals": timeline_signals,
+                "daily_commits": day_counts,
+                "user_daily_commits": user_day_counts,
             },
             "telemetry": None,
             "events": [{
@@ -3486,24 +3513,71 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         unique_items = UnifiedEvidenceEngine.deduplicate_and_validate(raw_items, filenames)
         ev_strength = UnifiedEvidenceEngine.calculate_evidence_strength(unique_items)
 
-        # Convert back to legacy findings structure for downstream compatibility
+        # Convert findings using ranking strategy and character limits
         findings = []
         for item in unique_items:
-            if item.type in ("engineering_practices", "security_findings"):
+            if item.type in ("engineering_practices", "security_findings", "architecture_insights"):
+                impact_map = {"critical": 3.0, "high": 2.5, "medium": 2.0, "warning": 2.0, "low": 1.0, "info": 1.0, "positive": 1.0}
+                severity = item.severity.lower() if item.severity else "info"
+                impact_str = "critical" if severity == "critical" else "warning" if severity in ("medium", "high", "warning") else "positive"
+                
+                impact_score = impact_map.get(severity, 1.0)
+                confidence_score = float(item.confidence or 0.8)
+                rank_weight = (impact_score * 0.6) + (confidence_score * 0.4)
+                
                 findings.append({
-                    "finding": item.title,
-                    "title": item.title,
-                    "category": "quality" if item.type == "engineering_practices" else "security",
-                    "explanation": item.content,
-                    "impact": "critical" if item.severity == "critical" else "warning" if item.severity == "medium" else "positive",
-                    "confidence": int(item.confidence * 100),
-                    "evidence_signals": item.evidence_signals
+                    "finding": item.title[:30] if item.title else "",
+                    "title": item.title[:30] if item.title else "",
+                    "category": "security" if item.type == "security_findings" else "quality",
+                    "explanation": item.content[:200] if item.content else "",
+                    "impact": impact_str,
+                    "confidence": int(confidence_score * 100),
+                    "evidence_signals": item.evidence_signals or [],
+                    "_rank_weight": rank_weight
                 })
 
+        # Sort and select Top 5 overall findings
+        findings.sort(key=lambda x: x["_rank_weight"], reverse=True)
+        for f in findings:
+            f.pop("_rank_weight", None)
+        findings = findings[:5]
+
+        # Limit security vulnerabilities array to Top 3
+        vulnerabilities = security_data.get("vulnerabilities", [])
+        if isinstance(vulnerabilities, list):
+            vuln_severity_map = {"critical": 3, "high": 2, "medium": 1, "warning": 1, "low": 0}
+            vulnerabilities.sort(key=lambda x: vuln_severity_map.get(str(x.get("severity", "low")).lower(), 0), reverse=True)
+            vulnerabilities = vulnerabilities[:3]
+            security_data["vulnerabilities"] = vulnerabilities
+
+        # Truncate and clean CV Synthesis details
+        if cv_synthesis_data:
+            if "highlights" in cv_synthesis_data and isinstance(cv_synthesis_data["highlights"], list):
+                cv_synthesis_data["highlights"] = cv_synthesis_data["highlights"][:3]
+                for hl in cv_synthesis_data["highlights"]:
+                    if isinstance(hl, dict) and "signal" in hl and hl["signal"]:
+                        hl["signal"] = hl["signal"][:100]
+            if "title" in cv_synthesis_data and cv_synthesis_data["title"]:
+                cv_synthesis_data["title"] = cv_synthesis_data["title"][:40]
+            if "summary" in cv_synthesis_data and cv_synthesis_data["summary"]:
+                cv_synthesis_data["summary"] = cv_synthesis_data["summary"][:150]
+
+        # Load timeline cached data for heatmap
+        timeline_data = partial_results.get("CommitTimeline", {})
+        if isinstance(timeline_data, dict) and "data" in timeline_data:
+            timeline_data = timeline_data["data"]
+        daily_commits = timeline_data.get("daily_commits", {}) if isinstance(timeline_data, dict) else {}
+        user_daily_commits = timeline_data.get("user_daily_commits", {}) if isinstance(timeline_data, dict) else {}
+
+        # Clean up facts.repo
+        if isinstance(repo_info, dict):
+            repo_info.pop("topics", None)
+            repo_info.pop("fork", None)
+
         narrative_info = {
-            "recruiter_summary": summary_data.get("recruiter_summary", ""),
-            "top_strengths": [{"strength": s.get("strength"), "rationale": s.get("rationale")} for s in summary_data.get("top_strengths", [])],
-            "limitations": [{"limitation": l.get("limitation"), "rationale": l.get("rationale")} for l in summary_data.get("limitations", [])]
+            "recruiter_summary": summary_data.get("recruiter_summary", "")[:900],
+            "top_strengths": [{"strength": s.get("strength"), "rationale": s.get("rationale")} for s in summary_data.get("top_strengths", [])][:3],
+            "limitations": [{"limitation": l.get("limitation"), "rationale": l.get("rationale")} for l in summary_data.get("limitations", [])][:3]
         }
 
         # Determine risk level and score based on configuration-driven weights
@@ -3826,6 +3900,10 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             "risk": risk_v2,
             "cvSynthesis": cv_synthesis_data if cv_synthesis_data else None,
             "evidenceStrength": ev_strength,
+            "findings": findings,
+            "narrative": narrative_info,
+            "daily_commits": daily_commits,
+            "user_daily_commits": user_daily_commits,
             
             # Legacy fields for backward compatibility
             "facts": {
@@ -3845,24 +3923,6 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                     "coverage_pct": meta.get("coverage_pct", 100.0),
                     "prompt_cache_efficiency": 0.82
                 }
-            },
-            "ai_conclusions": {
-                "authenticity": authenticity_info,
-                "classification": classification_dict,
-                "evidence_points": {
-                    "total": len(findings) * 5,
-                    "breakdown": {f.get("category", "quality"): 5 for f in findings}
-                },
-                "trust": trust_info,
-                "risk_assessment": risk_assessment,
-                "positioning": {
-                    "benchmark_group": classification_dict.get("benchmark_group", "unclassified"),
-                    "peer_group_size": 100,
-                    "relative_strengths": [s.get("strength") for s in summary_data.get("top_strengths", [])][:3]
-                },
-                "profile": profile_info,
-                "findings": findings,
-                "narrative": narrative_info
             },
             "trust_intelligence": {
                 "uncertainty_metrics": {
