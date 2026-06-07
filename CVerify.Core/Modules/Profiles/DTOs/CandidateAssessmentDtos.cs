@@ -3,9 +3,16 @@ using System.Collections.Generic;
 
 namespace CVerify.API.Modules.Profiles.DTOs;
 
+public record MissingFieldDto(
+    string FieldKey,
+    string DisplayLabel,
+    string RecommendationMessage,
+    bool IsRequired
+);
+
 public record CandidateReadinessDto(
     bool IsReady,
-    List<string> MissingFields,
+    List<MissingFieldDto> MissingFields,
     double CompletenessScore,
     bool RequiresReassessment,
     DateTimeOffset? LastAssessmentAt,

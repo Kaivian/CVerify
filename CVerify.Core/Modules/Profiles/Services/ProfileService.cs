@@ -132,6 +132,7 @@ public class ProfileService : IProfileService
         profile.ProfileVisibility = request.ProfileVisibility;
         profile.RecruiterVisibility = request.RecruiterVisibility;
         profile.AiTalentDiscovery = request.AiTalentDiscovery;
+        profile.AiSuggestionsJson = request.AiSuggestionsJson;
         profile.UpdatedAt = DateTimeOffset.UtcNow;
         profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
 
@@ -678,6 +679,7 @@ public class ProfileService : IProfileService
             profile.CreatedAt,
             profile.UpdatedAt,
             profile.Version,
+            profile.AiSuggestionsJson,
             socialLinks
         );
     }

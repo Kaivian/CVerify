@@ -74,6 +74,7 @@ import { CvLivePreview } from "./components/CvLivePreview";
 import { CVPreview } from "./components/CVPreview";
 import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
 import type { SourceCodeRepository } from "@/types/source-code-provider.types";
+import { RequiredFieldsMissingModal } from "@/components/ui/RequiredFieldsMissingModal";
 
 // Mock Sample Data for testing the standard A4 template
 const SAMPLE_DATA = {
@@ -222,14 +223,16 @@ export default function CvManagementCenter() {
 
   // Sync tab search param with editor state on mount/update
   const tabParam = searchParams?.get("tab") as CvSectionId | null;
-  useEffect(() => {
+  const [prevTabParam, setPrevTabParam] = useState<CvSectionId | null>(null);
+  if (tabParam !== prevTabParam) {
+    setPrevTabParam(tabParam);
     if (tabParam && ["basic-info", "skills", "projects", "experience", "education", "achievements", "preferences"].includes(tabParam)) {
       setActiveTab(tabParam);
       setViewState("editor");
     } else {
       setViewState("overview");
     }
-  }, [tabParam]);
+  }
   const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
   const [isSaving, setIsSaving] = useState(false);
   const [mobileShowPreview, setMobileShowPreview] = useState(false);
@@ -267,7 +270,22 @@ export default function CvManagementCenter() {
 
   const [activeDetailTab, setActiveDetailTab] = useState<string>("summary");
 
+  const [isRequiredFieldsModalOpen, setIsRequiredFieldsModalOpen] = useState(false);
+
   const handleTriggerAssessment = async () => {
+    if (readiness && readiness.missingFields && readiness.missingFields.length > 0) {
+      setIsRequiredFieldsModalOpen(true);
+      return;
+    }
+
+    try {
+      await triggerAssessment();
+    } catch (err: any) {
+      toast.danger(err.message || "Failed to run candidate assessment.");
+    }
+  };
+
+  const handleForceTriggerAssessment = async () => {
     try {
       await triggerAssessment();
     } catch (err: any) {
@@ -369,6 +387,7 @@ export default function CvManagementCenter() {
         company: profile.company || "",
         birthDate: profile.birthDate ? profile.birthDate.split("T")[0] : "",
         socialLinks: profile.socialLinks || [],
+        aiSuggestionsJson: profile.aiSuggestionsJson || null,
       };
 
       const timer = setTimeout(() => {
@@ -651,6 +670,7 @@ export default function CvManagementCenter() {
           recruiterVisibility: profile?.recruiterVisibility ?? true,
           aiTalentDiscovery: profile?.aiTalentDiscovery || "disabled",
           socialLinks: payload.socialLinks || [],
+          aiSuggestionsJson: payload.aiSuggestionsJson || null,
           version: profile?.version || 0,
         });
 
@@ -667,6 +687,7 @@ export default function CvManagementCenter() {
           company: response.company || "",
           birthDate: response.birthDate ? response.birthDate.split("T")[0] : "",
           socialLinks: response.socialLinks || [],
+          aiSuggestionsJson: response.aiSuggestionsJson || null,
         };
 
         setBaselines((prev) => ({ ...prev, "basic-info": updatedBasic }));
@@ -1541,7 +1562,7 @@ export default function CvManagementCenter() {
 
   const renderOverview = () => {
     // Dynamically calculate completeness status per section
-    const isBasicInfoFilled = !(!drafts["basic-info"].fullName || !drafts["basic-info"].publicEmail || !drafts["basic-info"].bio);
+    const isBasicInfoFilled = !!(drafts["basic-info"].fullName && drafts["basic-info"].username);
     const isSkillsFilled = !(!drafts["skills"].targetSkills || drafts["skills"].targetSkills.length === 0);
     const isProjectsFilled = repositories.length > 0;
     const isExperienceFilled = drafts["experience"] && drafts["experience"].length > 0;
@@ -1855,14 +1876,24 @@ export default function CvManagementCenter() {
                 </div>
 
                 {readiness && !readiness.isReady ? (
-                  <div className="flex gap-2.5 items-start text-xs">
-                    <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <span className="font-bold text-foreground">Required Fields Missing</span>
-                      <span className="text-[10px] text-danger bg-danger/5 px-2.5 py-1 rounded-lg font-semibold leading-relaxed wrap-break-word">
-                        Missing: {readiness.missingFields.join(", ")}
-                      </span>
+                  <div className="flex flex-col gap-2 mt-1">
+                    <div className="flex gap-2.5 items-start text-xs">
+                      <AlertCircle className="size-4 text-danger shrink-0 mt-0.5" />
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="font-bold text-foreground text-xs">Prerequisites Missing</span>
+                        <span className="text-[10px] text-muted-foreground leading-relaxed">
+                          An analyzed repository is required for AI evaluation.
+                        </span>
+                      </div>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-xl border border-border/30 h-8 cursor-pointer mt-1 font-bold text-xs select-none w-full"
+                      onPress={() => setIsRequiredFieldsModalOpen(true)}
+                    >
+                      View Prerequisites
+                    </Button>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
@@ -1970,7 +2001,7 @@ export default function CvManagementCenter() {
 
   const renderEditor = () => {
     // Dynamically calculate completeness status per section
-    const isBasicInfoFilled = !!(drafts["basic-info"].fullName && drafts["basic-info"].publicEmail && drafts["basic-info"].bio);
+    const isBasicInfoFilled = !!(drafts["basic-info"].fullName && drafts["basic-info"].username);
     const isSkillsFilled = !!(drafts["skills"].targetSkills && drafts["skills"].targetSkills.length > 0);
     const isProjectsFilled = repositories.length > 0;
     const isExperienceFilled = drafts["experience"] && drafts["experience"].length > 0;
@@ -2291,6 +2322,16 @@ export default function CvManagementCenter() {
             </div>
           </Card>
         </div>
+      )}
+
+      {readiness && (
+        <RequiredFieldsMissingModal
+          isOpen={isRequiredFieldsModalOpen}
+          onOpenChange={setIsRequiredFieldsModalOpen}
+          missingFields={readiness.missingFields}
+          onProceedAnyway={handleForceTriggerAssessment}
+          isProceeding={latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'}
+        />
       )}
 
     </div>

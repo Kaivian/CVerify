@@ -48,6 +48,8 @@ public record UpdateProfileRequest(
 
     List<string>? SocialLinks,
 
+    string? AiSuggestionsJson,
+
     [Required]
     uint Version // Optimistic concurrency token (xmin)
 );
@@ -71,6 +73,7 @@ public record ProfileResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     uint Version,
+    string? AiSuggestionsJson,
     List<string> SocialLinks
 );
 
