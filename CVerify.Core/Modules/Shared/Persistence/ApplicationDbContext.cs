@@ -79,6 +79,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<PasswordCredential> PasswordCredentials => Set<PasswordCredential>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrganizationAuthority> OrganizationAuthorities => Set<OrganizationAuthority>();
+    public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
     public DbSet<VerificationLink> VerificationLinks => Set<VerificationLink>();
     public DbSet<OrganizationVerification> OrganizationVerifications => Set<OrganizationVerification>();
@@ -158,6 +159,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<PasswordCredential>().Property(pc => pc.Id).ValueGeneratedNever();
         modelBuilder.Entity<Organization>().Property(o => o.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationAuthority>().Property(oa => oa.Id).ValueGeneratedNever();
+        modelBuilder.Entity<OrganizationMembership>().Property(om => om.Id).ValueGeneratedNever();
         modelBuilder.Entity<OtpVerification>().Property(ov => ov.Id).ValueGeneratedNever();
         modelBuilder.Entity<VerificationLink>().Property(vl => vl.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationVerification>().Property(ov => ov.Id).ValueGeneratedNever();
@@ -625,6 +627,21 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(oa => oa.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // OrganizationMembership configurations
+        modelBuilder.Entity<OrganizationMembership>(entity =>
+        {
+            entity.ToTable("organization_memberships");
+            entity.HasOne(om => om.Organization)
+                  .WithMany()
+                  .HasForeignKey(om => om.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(om => om.User)
+                  .WithMany()
+                  .HasForeignKey(om => om.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(om => new { om.OrganizationId, om.UserId }).IsUnique();
         });
 
         // Workspace configurations
