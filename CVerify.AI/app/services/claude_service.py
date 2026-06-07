@@ -199,16 +199,6 @@ class ClaudeService:
                 if event.type == "content_block_delta" and event.delta.type == "text_delta":
                     token_text = event.delta.text
                     text_chunks.append(token_text)
-                    
-                    # Decoupled real-time token streaming to frontend
-                    if job_id:
-                        await UIStreamingManager().enqueue_ui_event(
-                            job_id=job_id,
-                            task_type=task_type,
-                            task_status="Running",
-                            message="Streaming LLM response...",
-                            token_chunk=token_text
-                        )
                 elif event.type == "message_start":
                     input_tokens = getattr(event.message.usage, "input_tokens", 0) or 0
                     cache_creation = getattr(event.message.usage, "cache_creation_input_tokens", 0) or 0

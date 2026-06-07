@@ -8,7 +8,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import AsyncGenerator, Any, Tuple, List, Literal, Optional, Union
 import redis.asyncio as redis
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.config import settings
 
 from app.github.technology_detector import TechnologyDetector
@@ -51,6 +51,16 @@ class CvSynthesisContract(BaseModel):
     summary: str
     highlights: List[CvHighlight]
     ownershipProfile: Literal["High contribution profile", "Standard contribution profile", "Low contribution profile", "External contributor context"]
+
+    @field_validator("summary")
+    @classmethod
+    def validate_summary_length(cls, v: str) -> str:
+        # Hard validation bounds to reject extreme outliers, keeping the orchestrator retry loop safe.
+        if len(v) < 100:
+            raise ValueError("CV summary is too short (must be at least 100 characters).")
+        if len(v) > 550:
+            raise ValueError("CV summary is too long (must be under 550 characters).")
+        return v
 
 class ReportV2Contract(BaseModel):
     schemaVersion: Literal["v2"]
@@ -1003,8 +1013,9 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         skills = []
         user_commit_ratio = 1.0
         total_commits = 1
-        raw_summary = "No summary available."
+        general_repo_summary = ""
         findings = []
+        ownership_explanation = ""
 
         # Read RepositoryClassification result
         class_file = os.path.join(job_dir, "RepositoryClassification_result.json")
@@ -1039,6 +1050,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                     ownership = commits_data.get("ownership", {})
                     user_commit_ratio = ownership.get("user_commit_ratio", user_commit_ratio)
                     total_commits = ownership.get("total_commits", total_commits)
+                    ownership_explanation = ownership.get("explanation", "")
             except Exception as e:
                 logger.warning(f"Failed to read commits cache: {e}", extra={"correlation_id": correlation_id})
 
@@ -1048,7 +1060,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             try:
                 with open(summary_file, "r", encoding="utf-8") as f:
                     summary_data = json.load(f)
-                    raw_summary = summary_data.get("recruiter_summary", raw_summary)
+                    general_repo_summary = summary_data.get("recruiter_summary", "")
                     for strength in summary_data.get("top_strengths", []):
                         if strength.get("strength"):
                             findings.append({"finding": strength.get("strength"), "impact": "positive"})
@@ -1095,13 +1107,13 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 "events": []
             }
 
-        # Prepare input payload for Claude
+        # Prepare input payload for Claude (excluding general summary to prevent leakage)
         input_payload = {
             "repo_name": repo_name,
             "classification": classification,
             "skills": skills,
             "ownershipProfile": ownership_profile,
-            "rawSummary": raw_summary,
+            "ownership_explanation": ownership_explanation,
             "findings": findings
         }
 
@@ -1122,15 +1134,48 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 telemetry = attempt_telemetry
                 parsed = self._extract_json(raw_text, correlation_id)
                 
-                # Validation check using Pydantic model
+                # Validation check using Pydantic model (enforces hard validation boundaries: [100, 550])
                 CvSynthesisContract.model_validate(parsed)
+                cv_summary = parsed.get("summary", "")
+
+                # Similarity guard using SequenceMatcher
+                import difflib
+                similarity = difflib.SequenceMatcher(None, general_repo_summary.lower(), cv_summary.lower()).ratio()
+
+                # Soft warning range: Target is [250, 450] characters.
+                is_invalid_length = not (250 <= len(cv_summary) <= 450)
+                is_too_similar = similarity > 0.6
+
+                if (is_invalid_length or is_too_similar) and attempt < max_attempts:
+                    reasons = []
+                    if is_invalid_length:
+                        reasons.append(f"length of {len(cv_summary)} characters is outside target range [250, 450]")
+                    if is_too_similar:
+                        reasons.append(f"similarity ratio of {similarity:.2f} is too high (> 0.6)")
+                    
+                    err_msg = f"Soft validation warning: " + " and ".join(reasons)
+                    logger.warning(err_msg, extra={"correlation_id": correlation_id})
+                    raise ValueError(err_msg)
+
+                # Log warnings on final attempt if minor violations remain but accept it
+                if is_invalid_length or is_too_similar:
+                    reasons = []
+                    if is_invalid_length:
+                        reasons.append(f"length {len(cv_summary)} is outside [250, 450]")
+                    if is_too_similar:
+                        reasons.append(f"similarity {similarity:.2f} is high")
+                    logger.warning(
+                        f"CV Synthesis final attempt accepted with minor violations: " + ", ".join(reasons),
+                        extra={"correlation_id": correlation_id}
+                    )
+
                 parsed_data = parsed
             except Exception as e:
                 logger.warning(f"CV Synthesis attempt {attempt} failed validation: {e}", extra={"correlation_id": correlation_id})
                 if attempt < max_attempts:
-                    # Append error log to user prompt for self-correction retry
+                    # Append error details to user prompt for self-correction retry
                     user_prompt += f"\n\nYOUR PREVIOUS RESPONSE FAILED VALIDATION: {str(e)}\n"
-                    user_prompt += "Please fix the structure and ensure all Pydantic constraints are met exactly. Return ONLY valid JSON."
+                    user_prompt += "Please fix the structure, adjust length to 250-450 characters, and ensure CV summary uses completely different phrasing than any general summary. Return ONLY valid JSON."
                 else:
                     await self.publish_task_event(job_id, "CvSynthesis", "Validation failed twice. Falling back to deterministic builder.", "Warning")
 

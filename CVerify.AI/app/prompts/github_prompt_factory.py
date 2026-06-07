@@ -154,7 +154,7 @@ class GitHubPromptFactory(IPromptFactory):
         }
     ],
     "narrative": {
-        "recruiter_summary": "string summary (Must follow the 3-5 sentences recruiter summary contract: Sentence 1: purpose of repo, Sentence 2: languages/frameworks, Sentence 3: architecture pattern, Sentence 4: quality signal, Sentence 5: standout or red flag)",
+        "recruiter_summary": "string summary (A detailed, technical explanation of the repository. Detail the repository's purpose, design, architecture patterns, and technology stack in depth with no strict length limit.)",
         "top_strengths": [
             { "strength": "string name", "rationale": "string details (1-2 sentences. Ground in technical observation)" }
         ],
@@ -364,7 +364,7 @@ Remember to return ONLY the raw JSON string. Do not include markdown code block 
 {
     "schemaVersion": "2.0.0",
     "data": {
-        "recruiter_summary": "string summary (Must follow the 3-5 sentences recruiter summary contract: Sentence 1: purpose of repo, Sentence 2: languages/frameworks, Sentence 3: architecture pattern, Sentence 4: quality signal, Sentence 5: standout or red flag)",
+        "recruiter_summary": "string summary (A detailed, technical explanation of the repository. Detail the repository's purpose, design, architecture patterns, and technology stack in depth with no strict length limit.)",
         "top_strengths": [
             {
                 "strength": "string name",
@@ -395,7 +395,10 @@ Here are the sampled file contents:
 Please generate the narrative report. You must strictly match the following JSON Schema:
 {schema}
 
-Remember to return ONLY the raw JSON string. Do not include markdown code block syntax.
+Remember:
+1. Under 'recruiter_summary', provide a comprehensive, technically detailed explanation of the repository's purpose, design, implementation, and overall domain. Feel free to explain in depth; there is no strict length limit.
+2. Structure the 'recruiter_summary' text into clean, readable sections separated by double newlines (\n\n) (for example, separate the overall summary, key subsystems/architecture, and quality signals into distinct paragraphs).
+3. Return ONLY the raw JSON string. Do not include markdown code block syntax.
 """
 
     def get_commits_user_prompt(self, input_data: Any) -> str:

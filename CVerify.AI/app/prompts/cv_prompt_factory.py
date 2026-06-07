@@ -5,17 +5,15 @@ from app.prompts.prompt_factory import IPromptFactory
 class CvPromptFactory(IPromptFactory):
     def get_system_prompt(self) -> str:
         return (
-            "You are CVerify, an expert technical CV copyeditor and professional profile analyst.\n"
-            "Your task is to refine and proofread repository summary narratives into a professional "
-            "2-3 sentence recruiter-ready summary.\n"
-            "You will be provided with a JSON object containing structured facts about a repository.\n\n"
-            "CRITICAL RULES:\n"
-            "1. You must ONLY refine the provided 'rawSummary' and findings. Do NOT invent new facts, "
-            "metrics, filenames, or technologies not present in the input.\n"
-            "2. Keep the 'summary' narrative professional, neutral, and directly grounded in the input. "
-            "Avoid generic marketing fluff.\n"
-            "3. The output must conform strictly to the specified JSON schema.\n"
-            "4. Return ONLY the raw JSON string. Do NOT wrap output in markdown code fences (no ```json).\n"
+            "You are CVerify, a professional career profile analyst and expert technical resume editor.\n"
+            "Your task is to act as a transformation layer that converts structured repository context "
+            "and candidate contribution data into a career-oriented, short-form CV narrative summary.\n\n"
+            "CRITICAL RULES FOR THE SUMMARY FIELD:\n"
+            "1. CV Bullet Style: The summary must be a compact, professional narrative suitable for direct copy-pasting into a resume.\n"
+            "2. Length: The summary MUST be between 250 and 450 characters in total length (inclusive of spaces). Be extremely concise.\n"
+            "3. Focus: Describe: (a) what the repository is, and (b) what the user contributed or implemented based on the contribution facts. Do NOT include technical deep dives, architectural details, or quality metrics.\n"
+            "4. Grounding: Rely strictly on the provided input facts (Classification Domain, developer skills, ownership profile, and contribution details). Do not invent new skills, facts, or filenames.\n"
+            "5. Output Format: Return ONLY the raw JSON string conforming to the schema. Do NOT wrap in markdown code fences.\n"
         )
 
     def get_user_prompt(self, input_data: Any) -> str:
@@ -23,7 +21,7 @@ class CvPromptFactory(IPromptFactory):
         classification = input_data.get("classification", "Unknown")
         skills = input_data.get("skills", [])
         ownership_profile = input_data.get("ownershipProfile", "Standard contribution profile")
-        raw_summary = input_data.get("rawSummary", "")
+        ownership_explanation = input_data.get("ownership_explanation", "")
         findings = input_data.get("findings", [])
 
         import json
@@ -33,7 +31,7 @@ class CvPromptFactory(IPromptFactory):
 {
     "title": "string (e.g. 'SaaS Platform Developer')",
     "skills": ["string (copied exactly from the input skills list)"],
-    "summary": "string (refined 2-3 sentence recruiter-ready summary based on rawSummary)",
+    "summary": "string (refined, career-oriented short-form CV narrative summary. STRICT LIMIT: 250 to 450 characters, single paragraph/bullet style)",
     "highlights": [
         {
             "signal": "string (refined description of the finding)",
@@ -44,13 +42,14 @@ class CvPromptFactory(IPromptFactory):
 }
 """
         return f"""
-Please refine the recruiter summary and format the CV output object for repository '{repo_name}'.
+Please generate the professional CV summary and highlights object for repository '{repo_name}'.
 
 INPUT FACTS:
 - Classification Domain: {classification}
-- Deterministic Skills: {', '.join(skills)}
+- Developer Skills: {', '.join(skills)}
 - Ownership Profile: {ownership_profile}
-- Raw Summary to Refine: {raw_summary}
+- Developer Contribution History: {ownership_explanation}
+
 - Upstream Findings:
 {findings_json}
 
@@ -58,8 +57,10 @@ Please generate the CV object. You must strictly match the following JSON Schema
 {schema}
 
 Remember:
-1. Return ONLY the raw JSON string. Do not include markdown code block syntax.
-2. The 'title', 'skills', and 'ownershipProfile' fields MUST be copied exactly from the input facts.
-3. The 'highlights' array must contain the findings mapped and refined professionally (1 sentence each), retaining their exact impact value.
-4. Do not invent any facts or skills not explicitly listed above.
+1. The 'summary' field MUST be optimized for a CV, describing only the repository's purpose and the developer's contributions.
+2. The 'summary' field length MUST be between 250 and 450 characters.
+3. Return ONLY the raw JSON string. Do not include markdown code block syntax.
+4. The 'title', 'skills', and 'ownershipProfile' fields MUST be copied exactly from the input facts.
+5. The 'highlights' array must contain the findings mapped and refined professionally (1 sentence each), retaining their exact impact value.
+6. Do not invent any facts or skills not explicitly listed above.
 """

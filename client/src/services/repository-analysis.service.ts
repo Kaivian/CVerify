@@ -26,12 +26,12 @@ const RepoInfoSchema = z.object({
 const RepositoryNarrativeSchema = z.object({
   recruiter_summary: z.string().nullish().transform((val) => val ?? ""),
   top_strengths: z.array(z.object({
-    strength: z.string(),
-    rationale: z.string(),
+    strength: z.string().nullish().transform((val) => val ?? ""),
+    rationale: z.string().nullish().transform((val) => val ?? ""),
   })).nullish().transform((val) => val ?? []),
   limitations: z.array(z.object({
-    limitation: z.string(),
-    rationale: z.string(),
+    limitation: z.string().nullish().transform((val) => val ?? ""),
+    rationale: z.string().nullish().transform((val) => val ?? ""),
   })).nullish().transform((val) => val ?? []),
 });
 
@@ -105,9 +105,9 @@ const TrustIntelligenceSchema = z.object({
 const RepositoryClassificationSchema = z.object({
   primaryDomain: z.string().nullish().transform((val) => val ?? "Unknown"),
   subDomain: z.string().nullish().transform((val) => val ?? "General"),
-  confidence: z.number().min(0.0).max(1.0).nullish().transform((val) => val ?? 0.0),
+  confidence: z.number().nullish().transform((val) => val ?? 0.0),
   isVerified: z.boolean().nullish().transform((val) => val ?? false),
-  trustScore: z.number().min(0.0).max(1.0).nullish().transform((val) => val ?? 0.0),
+  trustScore: z.number().nullish().transform((val) => val ?? 0.0),
 });
 
 const RepositorySectionSchema = z.object({
@@ -116,17 +116,31 @@ const RepositorySectionSchema = z.object({
     z.union([
       z.string(),
       z.object({
-        title: z.string(),
-        content: z.string(),
+        title: z.string().nullish().transform((val) => val ?? ""),
+        content: z.string().nullish().transform((val) => val ?? ""),
       }),
     ])
   ).nullish().transform((val) => val ?? []),
 });
 
 const RepositoryRiskSchema = z.object({
-  score: z.number().min(0.0).max(100.0).nullish().transform((val) => val ?? 0.0),
+  score: z.number().nullish().transform((val) => val ?? 0.0),
   level: z.enum(["low", "medium", "high"]).catch("low"),
   reasons: z.array(z.string()).nullish().transform((val) => val ?? []),
+});
+
+const CvHighlightSchema = z.object({
+  signal: z.string().nullish().transform((val) => val ?? ""),
+  impact: z.string().nullish().transform((val) => val ?? ""),
+});
+
+const CvSynthesisSchema = z.object({
+  schemaVersion: z.string().nullish().transform((val) => val ?? "v2"),
+  title: z.string().nullish().transform((val) => val ?? "Software Developer"),
+  summary: z.string().nullish().transform((val) => val ?? ""),
+  skills: z.array(z.string()).nullish().transform((val) => val ?? []),
+  highlights: z.array(CvHighlightSchema).nullish().transform((val) => val ?? []),
+  ownershipProfile: z.string().nullish().transform((val) => val ?? ""),
 });
 
 export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
@@ -137,6 +151,7 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
   let classification = v.classification || v.ai_conclusions?.classification || v.classificationV2;
   let sections = v.sections || v.ai_conclusions?.sections || v.sectionsV2;
   let risk = v.risk || v.ai_conclusions?.risk || v.riskV2;
+  const cvSynthesis = v.cvSynthesis || v.ai_conclusions?.cvSynthesis || v.cvSynthesisV2;
   const narrative = v.narrative || v.ai_conclusions?.narrative;
   const repo = v.repo || v.facts?.repo;
   const repoId = v.repoId || v.repositoryId || "";
@@ -182,7 +197,7 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
 
   // Ensure facts has a valid structure
   const facts = v.facts || {
-    repo: repo,
+    repo,
     git_metrics: {
       total_commits: 1,
       user_commit_ratio: 1.0,
@@ -208,7 +223,8 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
     sections,
     risk,
     facts,
-    narrative
+    narrative,
+    cvSynthesis
   };
 }, z.object({
   jobId: z.string().optional(),
@@ -219,8 +235,9 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
   sections: z.array(RepositorySectionSchema).nullish().transform((val) => val ?? []),
   risk: RepositoryRiskSchema,
   facts: RepositoryAnalysisFactsSchema,
-  trust_intelligence: TrustIntelligenceSchema.optional(),
-  narrative: RepositoryNarrativeSchema.optional(),
+  trust_intelligence: TrustIntelligenceSchema.nullable().optional(),
+  narrative: RepositoryNarrativeSchema.nullable().optional(),
+  cvSynthesis: CvSynthesisSchema.nullable().optional(),
 }));
 
 export const logSchemaAnomaly = (error: z.ZodError, rawData: any) => {
