@@ -101,35 +101,126 @@ export interface AttachmentResponse {
   createdAt: string;
 }
 
-export interface CareerPreferenceResponse {
+export interface DeclaredCareerPreference {
   userId: string;
   availableForHire: boolean;
   preferredLanguage: string;
   jobTitlePreferences: string | null;
   salaryExpectations: number | null;
   remotePreference: string | null;
-  openToWorkStatus: string | null;
+  openToWorkStatus: string;
+  openToRelocation: boolean;
+  leadershipTrack: string;
+  companyStagePreferences: string[];
+  preferredIndustries: string[];
+  targetSkills: string[];
+  preferredWorkEnvironments: string[];
+  workStyles: string[];
+  companyValues: string[];
+  expectedSalaryMin?: number | null;
+  expectedSalaryMax?: number | null;
+  expectedSalaryCurrency?: string | null;
+  expectedSalaryType?: string | null;
+  expectedSalaryNegotiable: boolean;
+  isExpectedSalaryVisible: boolean;
+  workPreferenceNotes?: string | null;
+  desiredJobPositions: string[];
   skills: string[];
   preferredLocations: string[];
   employmentPreferences: string[];
   version: number;
 }
 
+// Retain alias for backward compatibility
+export type CareerPreferenceResponse = DeclaredCareerPreference;
+
+export interface AiInferredPreference {
+  inferredPrimaryRole: string | null;
+  inferredSeniority: string | null;
+  inferredSkills: string[];
+  inferredSalaryMin: number | null;
+  inferredSalaryMax: number | null;
+  inferredSalaryCurrency: string | null;
+  inferredIndustries: string[];
+  confidenceScore: number;
+  synthesisRationale: string | null;
+  lastAnalyzedAt: string;
+}
+
+export interface CareerReadinessActionItem {
+  id: string;
+  message: string;
+  impactScore: number;
+}
+
+export interface CareerReadinessReport {
+  discoverabilityScore: number;
+  discoverabilityStatus: string;
+  completenessPercent: number;
+  actionItems: CareerReadinessActionItem[];
+}
+
+export interface CareerPreferencesDashboardResponse {
+  declaredPreferences: DeclaredCareerPreference;
+  aiInferredPreferences: AiInferredPreference | null;
+  readinessReport: CareerReadinessReport;
+}
+
 export interface UpdateCareerPreferenceRequest {
-  availableForHire: boolean;
-  preferredLanguage: string;
-  jobTitlePreferences: string | null;
-  salaryExpectations: number | null;
-  remotePreference: string | null;
-  openToWorkStatus: string | null;
-  skills: string[];
-  preferredLocations: string[];
-  employmentPreferences: string[];
+  availableForHire?: boolean;
+  preferredLanguage?: string;
+  jobTitlePreferences?: string | null;
+  salaryExpectations?: number | null;
+  remotePreference?: string | null;
+  openToWorkStatus?: string;
+  openToRelocation?: boolean;
+  leadershipTrack?: string;
+  companyStagePreferences?: string[];
+  preferredIndustries?: string[];
+  targetSkills?: string[];
+  preferredWorkEnvironments?: string[];
+  workStyles?: string[];
+  companyValues?: string[];
+  desiredJobPositions?: string[];
+  skills?: string[];
+  preferredLocations?: string[];
+  employmentPreferences?: string[];
+  expectedSalaryMin?: number | null;
+  expectedSalaryMax?: number | null;
+  expectedSalaryCurrency?: string | null;
+  expectedSalaryType?: string | null;
+  expectedSalaryNegotiable?: boolean;
+  isExpectedSalaryVisible?: boolean;
+  workPreferenceNotes?: string | null;
+  version: number;
+}
+
+export interface AcceptAiSuggestionsRequest {
+  acceptRoles: boolean;
+  acceptSkills: boolean;
   version: number;
 }
 
 export interface ReorderItemsRequest {
   orderedIds: string[];
+}
+
+export interface PublicCareerPreference {
+  availableForHire: boolean;
+  preferredLanguage: string;
+  employmentPreferences: string[];
+  preferredWorkEnvironments: string[];
+  workStyles: string[];
+  companyValues: string[];
+  preferredLocations: string[];
+  desiredJobPositions: string[];
+  expectedSalaryMin?: number | null;
+  expectedSalaryMax?: number | null;
+  expectedSalaryCurrency?: string | null;
+  expectedSalaryType?: string | null;
+  expectedSalaryNegotiable: boolean;
+  isExpectedSalaryVisible: boolean;
+  workPreferenceNotes?: string | null;
 }
 
 export interface PublicProfileResponse {
@@ -142,6 +233,7 @@ export interface PublicProfileResponse {
   company: string | null;
   location: string | null;
   socialLinks: string[];
+  careerPreference?: PublicCareerPreference | null;
 }
 
 export interface WorkExperienceAchievement {

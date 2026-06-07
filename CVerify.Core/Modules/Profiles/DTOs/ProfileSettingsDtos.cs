@@ -168,33 +168,129 @@ public record AcademicAchievementResponse(
     AttachmentResponse? Attachment
 );
 
-public record UpdateCareerPreferenceRequest(
+public record DeclaredCareerPreferenceDto(
+    Guid UserId,
     bool AvailableForHire,
-
-    [Required]
-    [MaxLength(10)]
     string PreferredLanguage,
+    string? JobTitlePreferences,
+    decimal? SalaryExpectations,
+    string? RemotePreference,
+    string OpenToWorkStatus,
+    bool OpenToRelocation,
+    string LeadershipTrack,
+    List<string> CompanyStagePreferences,
+    List<string> PreferredIndustries,
+    List<string> TargetSkills,
+    List<string> PreferredWorkEnvironments,
+    List<string> WorkStyles,
+    List<string> CompanyValues,
+    decimal? ExpectedSalaryMin,
+    decimal? ExpectedSalaryMax,
+    string? ExpectedSalaryCurrency,
+    string? ExpectedSalaryType,
+    bool ExpectedSalaryNegotiable,
+    bool IsExpectedSalaryVisible,
+    string? WorkPreferenceNotes,
+    List<string> DesiredJobPositions,
+    List<string> Skills,
+    List<string> PreferredLocations,
+    List<string> EmploymentPreferences,
+    uint Version
+);
+
+public record AiInferredPreferenceDto(
+    string? InferredPrimaryRole,
+    string? InferredSeniority,
+    List<string> InferredSkills,
+    decimal? InferredSalaryMin,
+    decimal? InferredSalaryMax,
+    string? InferredSalaryCurrency,
+    List<string> InferredIndustries,
+    decimal ConfidenceScore,
+    string? SynthesisRationale,
+    DateTimeOffset LastAnalyzedAt
+);
+
+public record CareerReadinessActionItem(
+    string Id,
+    string Message,
+    int ImpactScore
+);
+
+public record CareerReadinessReportDto(
+    int DiscoverabilityScore,
+    string DiscoverabilityStatus,
+    int CompletenessPercent,
+    List<CareerReadinessActionItem> ActionItems
+);
+
+public record CareerPreferencesDashboardResponse(
+    DeclaredCareerPreferenceDto DeclaredPreferences,
+    AiInferredPreferenceDto? AiInferredPreferences,
+    CareerReadinessReportDto ReadinessReport
+);
+
+public record UpdateCareerPreferenceRequest(
+    bool? AvailableForHire,
+
+    [MaxLength(10)]
+    string? PreferredLanguage,
 
     [MaxLength(255)]
-    string? JobTitlePreferences, // e.g. "Software Engineer, Tech Lead" or mapped dynamically
+    string? JobTitlePreferences,
 
     [Range(0.0, 999999999999.99, ErrorMessage = "Salary expectations must be positive.")]
     decimal? SalaryExpectations,
 
     [MaxLength(20)]
-    string? RemotePreference, // "remote", "hybrid", "onsite"
+    string? RemotePreference,
 
     [MaxLength(20)]
-    string? OpenToWorkStatus, // "active", "casual", "closed"
+    string? OpenToWorkStatus,
 
+    bool? OpenToRelocation,
+
+    [MaxLength(30)]
+    string? LeadershipTrack,
+
+    List<string>? CompanyStagePreferences,
+    List<string>? PreferredIndustries,
+    List<string>? TargetSkills,
+    List<string>? PreferredWorkEnvironments,
+    List<string>? WorkStyles,
+    List<string>? CompanyValues,
+    List<string>? DesiredJobPositions,
     List<string>? Skills,
     List<string>? PreferredLocations,
-    List<string>? EmploymentPreferences, // e.g. "fulltime", "parttime", "contract"
+    List<string>? EmploymentPreferences,
+
+    [Range(0.0, 999999999999.99, ErrorMessage = "Minimum salary cannot be negative.")]
+    decimal? ExpectedSalaryMin,
+
+    [Range(0.0, 999999999999.99, ErrorMessage = "Maximum salary cannot be negative.")]
+    decimal? ExpectedSalaryMax,
+
+    [MaxLength(10)] string? ExpectedSalaryCurrency,
+    [MaxLength(20)] string? ExpectedSalaryType,
+    bool? ExpectedSalaryNegotiable,
+    bool? IsExpectedSalaryVisible,
+
+    [MaxLength(2000, ErrorMessage = "Notes cannot exceed 2000 characters.")]
+    string? WorkPreferenceNotes,
 
     [Required]
     uint Version // Optimistic concurrency token (xmin)
 );
 
+public record AcceptAiSuggestionsRequest(
+    bool AcceptRoles,
+    bool AcceptSkills,
+
+    [Required]
+    uint Version
+);
+
+// Retained for backward compatibility
 public record CareerPreferenceResponse(
     Guid UserId,
     bool AvailableForHire,
@@ -206,7 +302,18 @@ public record CareerPreferenceResponse(
     List<string> Skills,
     List<string> PreferredLocations,
     List<string> EmploymentPreferences,
-    uint Version
+    uint Version,
+    List<string> PreferredWorkEnvironments,
+    List<string> WorkStyles,
+    List<string> CompanyValues,
+    List<string> DesiredJobPositions,
+    decimal? ExpectedSalaryMin,
+    decimal? ExpectedSalaryMax,
+    string? ExpectedSalaryCurrency,
+    string? ExpectedSalaryType,
+    bool ExpectedSalaryNegotiable,
+    bool IsExpectedSalaryVisible,
+    string? WorkPreferenceNotes
 );
 
 public record AttachmentResponse(

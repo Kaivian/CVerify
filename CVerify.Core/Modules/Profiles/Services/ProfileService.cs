@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using CVerify.API.Modules.Auth.Services;
 using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Shared.Diagnostics;
@@ -287,6 +286,51 @@ public class ProfileService : IProfileService
 
         var signedAvatarUrl = await GetSignedAvatarUrlAsync(profile.User?.AvatarUrl, cancellationToken);
 
+        var careerPreference = await _context.CareerPreferences
+            .FirstOrDefaultAsync(cp => cp.UserId == profile.UserId, cancellationToken);
+
+        PublicCareerPreferenceDto? publicCareerPreference = null;
+        if (careerPreference != null)
+        {
+            var employmentPrefs = await _context.UserEmploymentPreferences
+                .Where(uep => uep.UserId == profile.UserId)
+                .Select(uep => uep.PreferenceName)
+                .ToListAsync(cancellationToken);
+
+            var preferredLocations = await _context.UserPreferredLocations
+                .Where(upl => upl.UserId == profile.UserId)
+                .Select(upl => upl.Location)
+                .ToListAsync(cancellationToken);
+
+            var preferredWorkEnvironments = careerPreference.PreferredWorkEnvironments ?? new List<string>();
+            var workStyles = careerPreference.WorkStyles ?? new List<string>();
+            var companyValues = careerPreference.CompanyValues ?? new List<string>();
+            var desiredJobPositions = careerPreference.DesiredJobPositions ?? new List<string>();
+
+            decimal? expectedSalaryMin = careerPreference.IsExpectedSalaryVisible ? careerPreference.ExpectedSalaryMin : null;
+            decimal? expectedSalaryMax = careerPreference.IsExpectedSalaryVisible ? careerPreference.ExpectedSalaryMax : null;
+            string? expectedSalaryCurrency = careerPreference.IsExpectedSalaryVisible ? careerPreference.ExpectedSalaryCurrency : null;
+            string? expectedSalaryType = careerPreference.IsExpectedSalaryVisible ? careerPreference.ExpectedSalaryType : null;
+
+            publicCareerPreference = new PublicCareerPreferenceDto(
+                careerPreference.AvailableForHire,
+                careerPreference.PreferredLanguage,
+                employmentPrefs,
+                preferredWorkEnvironments,
+                workStyles,
+                companyValues,
+                preferredLocations,
+                desiredJobPositions,
+                expectedSalaryMin,
+                expectedSalaryMax,
+                expectedSalaryCurrency,
+                expectedSalaryType,
+                careerPreference.ExpectedSalaryNegotiable,
+                careerPreference.IsExpectedSalaryVisible,
+                careerPreference.WorkPreferenceNotes
+            );
+        }
+
         return new PublicProfileResponse(
             profile.UserId,
             profile.Username ?? profile.User?.Username ?? string.Empty,
@@ -296,7 +340,8 @@ public class ProfileService : IProfileService
             profile.Headline,
             profile.Company,
             profile.Location,
-            socialLinks
+            socialLinks,
+            publicCareerPreference
         );
     }
 
@@ -413,7 +458,6 @@ public class ProfileService : IProfileService
         }
 
         var user = await _context.Users
-            .Include(u => u.AuthProviders)
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
         if (user == null)
@@ -421,10 +465,14 @@ public class ProfileService : IProfileService
             throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
         }
 
-        var provider = user.AuthProviders
-            .FirstOrDefault(ap => ap.ProviderName.ToLower() == canonicalName && ap.DeletedAt == null);
+        var providerAvatarUrl = await _context.Database
+            .SqlQueryRaw<string>(
+                "SELECT provider_avatar_url AS \"Value\" FROM auth_providers WHERE user_id = {0} AND LOWER(provider_name) = {1} AND deleted_at IS NULL LIMIT 1",
+                userId,
+                canonicalName)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (provider == null || string.IsNullOrEmpty(provider.ProviderAvatarUrl))
+        if (string.IsNullOrEmpty(providerAvatarUrl))
         {
             throw new BusinessRuleException("PROVIDER_AVATAR_MISSING", $"No connected {providerName} account or provider avatar URL found.");
         }
@@ -444,7 +492,7 @@ public class ProfileService : IProfileService
             }
         }
 
-        user.AvatarUrl = provider.ProviderAvatarUrl;
+        user.AvatarUrl = providerAvatarUrl;
         user.AvatarSource = canonicalName switch
         {
             "google" => AvatarSource.Google,
@@ -462,13 +510,13 @@ public class ProfileService : IProfileService
             UserId = userId,
             ActionType = "SYNC_AVATAR",
             OldStateJson = JsonSerializer.Serialize(new { Source = "Manual" }),
-            NewStateJson = JsonSerializer.Serialize(new { Source = canonicalName, Url = provider.ProviderAvatarUrl }),
+            NewStateJson = JsonSerializer.Serialize(new { Source = canonicalName, Url = providerAvatarUrl }),
             CreatedAt = DateTimeOffset.UtcNow
         };
         _context.ProfileActivityLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return (provider.ProviderAvatarUrl, provider.ProviderAvatarUrl);
+        return (providerAvatarUrl, providerAvatarUrl);
     }
 
     public async Task DeleteAvatarAsync(
@@ -514,5 +562,23 @@ public class ProfileService : IProfileService
         };
         _context.ProfileActivityLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private static List<string> SafeDeserializeList(string? json, string fieldName)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return new List<string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"[JSON Deserialization Warning] Failed to deserialize career preference field '{fieldName}': {ex.Message}. Falling back to empty list.");
+            return new List<string>();
+        }
     }
 }

@@ -1128,11 +1128,11 @@ export default function SourceCodeProvidersPage() {
                       setSelectedProviderId(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-full min-w-40"
                     variant="secondary"
                     aria-label="Account"
                   >
-                    <Select.Trigger className="bg-surface border border-border text-xs">
+                    <Select.Trigger className="bg-surface border border-border text-xs items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1176,11 +1176,11 @@ export default function SourceCodeProvidersPage() {
                       setLanguageFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-auto min-w-35"
                     variant="secondary"
                     aria-label="Language"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1222,11 +1222,11 @@ export default function SourceCodeProvidersPage() {
                       setCategoryFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-auto min-w-37"
                     variant="secondary"
                     aria-label="Category"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1268,11 +1268,11 @@ export default function SourceCodeProvidersPage() {
                       setVisibilityFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-auto min-w-32"
                     variant="secondary"
                     aria-label="Visibility"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1319,11 +1319,11 @@ export default function SourceCodeProvidersPage() {
                       setSortBy(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-auto min-w-38"
                     variant="secondary"
                     aria-label="Sort By"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>

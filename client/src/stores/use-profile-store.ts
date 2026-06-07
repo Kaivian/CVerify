@@ -11,6 +11,7 @@ import {
   type UpdateCareerPreferenceRequest,
   type WorkExperienceRequest,
   type WorkExperienceResponse,
+  type CareerPreferencesDashboardResponse,
 } from '@/types/profile.types';
 
 interface AxiosErrorLike {
@@ -30,7 +31,7 @@ interface ProfileState {
   profile: ProfileResponse | null;
   education: EducationEntryResponse[];
   achievements: AcademicAchievementResponse[];
-  career: CareerPreferenceResponse | null;
+  career: CareerPreferencesDashboardResponse | null;
   loading: Record<string, boolean>;
   fetched: Record<string, boolean>;
   error: string | null;
@@ -59,7 +60,8 @@ interface ProfileState {
   reorderWorkExperiences: (ids: string[]) => Promise<void>;
 
   fetchCareer: () => Promise<void>;
-  updateCareer: (data: UpdateCareerPreferenceRequest) => Promise<CareerPreferenceResponse>;
+  updateCareer: (data: UpdateCareerPreferenceRequest) => Promise<CareerPreferencesDashboardResponse>;
+  acceptAiSuggestions: (acceptRoles: boolean, acceptSkills: boolean) => Promise<CareerPreferencesDashboardResponse>;
   setError: (error: string | null) => void;
 }
 
@@ -400,6 +402,23 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       throw err;
     } finally {
       set((state) => ({ loading: { ...state.loading, updateCareer: false } }));
+    }
+  },
+
+  acceptAiSuggestions: async (acceptRoles, acceptSkills) => {
+    const currentCareer = get().career;
+    const version = currentCareer?.declaredPreferences?.version ?? 0;
+    set((state) => ({ loading: { ...state.loading, acceptAiSuggestions: true }, error: null }));
+    try {
+      const updated = await profileApi.acceptAiSuggestions({ acceptRoles, acceptSkills, version });
+      set({ career: updated });
+      return updated;
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, 'Failed to accept AI suggestions.');
+      set({ error: errMsg });
+      throw err;
+    } finally {
+      set((state) => ({ loading: { ...state.loading, acceptAiSuggestions: false } }));
     }
   },
 }));

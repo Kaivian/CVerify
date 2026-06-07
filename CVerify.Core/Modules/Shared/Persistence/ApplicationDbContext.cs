@@ -106,6 +106,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<AnalysisTaskEvent> AnalysisTaskEvents => Set<AnalysisTaskEvent>();
     public DbSet<AnalysisExecution> AnalysisExecutions => Set<AnalysisExecution>();
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
+    public DbSet<AiInferredPreference> AiInferredPreferences => Set<AiInferredPreference>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
     public DbSet<UserPreferredLocation> UserPreferredLocations => Set<UserPreferredLocation>();
     public DbSet<UserEmploymentPreference> UserEmploymentPreferences => Set<UserEmploymentPreference>();
@@ -133,6 +134,7 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<UserProfile>().Property(up => up.UserId).ValueGeneratedNever();
         modelBuilder.Entity<CareerPreference>().Property(cp => cp.UserId).ValueGeneratedNever();
+        modelBuilder.Entity<AiInferredPreference>().Property(ap => ap.UserId).ValueGeneratedNever();
         modelBuilder.Entity<UserSkill>().Property(us => us.Id).ValueGeneratedNever();
         modelBuilder.Entity<UserPreferredLocation>().Property(upl => upl.Id).ValueGeneratedNever();
         modelBuilder.Entity<UserEmploymentPreference>().Property(uep => uep.Id).ValueGeneratedNever();
@@ -792,6 +794,25 @@ public class ApplicationDbContext : DbContext
                   .WithOne()
                   .HasForeignKey<CareerPreference>(cp => cp.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(cp => cp.DesiredJobPositions).HasMethod("gin");
+            entity.HasIndex(cp => cp.TargetSkills).HasMethod("gin");
+        });
+
+        // AiInferredPreference configurations
+        modelBuilder.Entity<AiInferredPreference>(entity =>
+        {
+            entity.ToTable("ai_inferred_preferences");
+            entity.HasQueryFilter(ap => ap.DeletedAt == null);
+            entity.Property(ap => ap.Version)
+                  .HasColumnName("xmin")
+                  .HasColumnType("xid")
+                  .ValueGeneratedOnAddOrUpdate()
+                  .IsConcurrencyToken();
+            entity.HasOne(ap => ap.User)
+                  .WithOne()
+                  .HasForeignKey<AiInferredPreference>(ap => ap.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(ap => ap.InferredSkills).HasMethod("gin");
         });
 
         // UserSkill configurations
