@@ -77,6 +77,9 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS organization_recovery_claims CASCADE;
                 DROP TABLE IF EXISTS approved_recovery_sessions CASCADE;
                 DROP TABLE IF EXISTS workspace_members CASCADE;
+                DROP TABLE IF EXISTS pending_organization_ownerships CASCADE;
+                DROP TABLE IF EXISTS workspace_invitations CASCADE;
+                DROP TABLE IF EXISTS organization_credentials CASCADE;
                 DROP TABLE IF EXISTS workspaces CASCADE;
                 DROP TABLE IF EXISTS messages CASCADE;
                 DROP TABLE IF EXISTS conversations CASCADE;
@@ -383,6 +386,21 @@ public static class DbInitializer
             CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_username_active ON organizations(username) WHERE deleted_at IS NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_tax_code_active ON organizations(tax_code) WHERE deleted_at IS NULL;
 
+            -- Stores organization credentials for company-level workspace logins
+            CREATE TABLE IF NOT EXISTS organization_credentials (
+                organization_id UUID PRIMARY KEY,
+                username CITEXT NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+                lockout_end TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_organization_credentials_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_credentials_username_active ON organization_credentials(username) WHERE deleted_at IS NULL;
+
+
             -- Stores organization verification records
             CREATE TABLE IF NOT EXISTS organization_verifications (
                 id UUID PRIMARY KEY,
@@ -434,6 +452,37 @@ public static class DbInitializer
                 CONSTRAINT fk_workspace_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_members_workspace_user ON workspace_members(workspace_id, user_id);
+
+            -- Stores pending organization ownerships
+            CREATE TABLE IF NOT EXISTS pending_organization_ownerships (
+                id UUID PRIMARY KEY,
+                organization_id UUID NOT NULL,
+                owner_email CITEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                consumed_at TIMESTAMP WITH TIME ZONE,
+                consumed_by_user_id UUID,
+                CONSTRAINT fk_pending_organization_ownerships_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+                CONSTRAINT fk_pending_organization_ownerships_user FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_org_ownership_unique ON pending_organization_ownerships(organization_id, owner_email) WHERE consumed_at IS NULL;
+
+            -- Stores workspace invitations
+            CREATE TABLE IF NOT EXISTS workspace_invitations (
+                id UUID PRIMARY KEY,
+                workspace_id UUID NOT NULL,
+                invitee_email CITEXT NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                invited_by_user_id UUID,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                consumed_at TIMESTAMP WITH TIME ZONE,
+                consumed_by_user_id UUID,
+                CONSTRAINT fk_workspace_invitations_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                CONSTRAINT fk_workspace_invitations_invited_by FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_workspace_invitations_consumed_by FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_invitations_unique ON workspace_invitations(workspace_id, invitee_email) WHERE consumed_at IS NULL;
 
             -- Stores organization recovery claims
             CREATE TABLE IF NOT EXISTS organization_recovery_claims (
@@ -791,6 +840,16 @@ public static class DbInitializer
                     ALTER TABLE organizations ADD COLUMN representative_identity VARCHAR(255);
                 END IF;
 
+                -- Safely provision initial_admin_assigned_at column to organizations if missing
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'organizations' AND column_name = 'initial_admin_assigned_at'
+                ) THEN
+                    ALTER TABLE organizations ADD COLUMN initial_admin_assigned_at TIMESTAMP WITH TIME ZONE;
+                END IF;
+
+
                 -- Safely rename organization_members to organization_authorities if it exists
                 IF EXISTS (
                     SELECT 1 
@@ -1072,7 +1131,8 @@ public static class DbInitializer
             -- Manages long-lived refresh tokens for maintaining user sessions securely
             CREATE TABLE IF NOT EXISTS refresh_tokens (
                 id UUID PRIMARY KEY,
-                user_id UUID NOT NULL,
+                user_id UUID,
+                organization_id UUID,
                 token VARCHAR(255) NOT NULL,
                 expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -1083,7 +1143,8 @@ public static class DbInitializer
                 session_id UUID NOT NULL,
                 remember_me BOOLEAN NOT NULL DEFAULT FALSE,
                 replaced_by_token_id UUID,
-                CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_refresh_tokens_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
             );
 
             -- Ensure ip_address column exists on refresh_tokens (in case table was created from older schema)
@@ -1143,6 +1204,22 @@ public static class DbInitializer
                     WHERE table_name='refresh_tokens' AND column_name='replaced_by_token_id'
                 ) THEN
                     ALTER TABLE refresh_tokens ADD COLUMN replaced_by_token_id UUID;
+                END IF;
+            END $$;
+
+            -- Ensure user_id is nullable on refresh_tokens
+            ALTER TABLE refresh_tokens ALTER COLUMN user_id DROP NOT NULL;
+
+            -- Ensure organization_id column exists on refresh_tokens
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name='refresh_tokens' AND column_name='organization_id'
+                ) THEN
+                    ALTER TABLE refresh_tokens ADD COLUMN organization_id UUID;
+                    ALTER TABLE refresh_tokens ADD CONSTRAINT fk_refresh_tokens_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
                 END IF;
             END $$;
 
@@ -1905,11 +1982,16 @@ public static class DbInitializer
             -- =========================================================
 
             -- Seed Tier 1 Organization
-            INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status)
-            SELECT '01900000-0000-0000-0000-000000000001'::uuid, 'FPT Software Tier 1 Test', '1111111111', 'tier1@testbusiness.com', 'tier1-business', TRUE, 1, 'active'
+            INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status, initial_admin_assigned_at)
+            SELECT '01900000-0000-0000-0000-000000000001'::uuid, 'FPT Software Tier 1 Test', '1111111111', 'tier1@testbusiness.com', 'tier1-business', TRUE, 1, 'active', NOW()
             WHERE NOT EXISTS (SELECT 1 FROM organizations WHERE tax_code = '1111111111');
 
-            -- Seed Tier 1 Owner User
+            -- Seed Tier 1 Organization Credential
+            INSERT INTO organization_credentials (organization_id, username, password_hash)
+            SELECT '01900000-0000-0000-0000-000000000001'::uuid, 'tier1-business', crypt('TestPassword123', gen_salt('bf', 10))
+            WHERE NOT EXISTS (SELECT 1 FROM organization_credentials WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid);
+
+            -- Seed Tier 1 Owner User (Standard User)
             INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
             SELECT '01900000-0000-0000-0000-000000000002'::uuid, 'owner1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Business Owner', 'ACTIVE', NOW()
             WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'owner1@testbusiness.com');
@@ -1918,11 +2000,6 @@ public static class DbInitializer
             INSERT INTO user_roles (user_id, role_id)
             SELECT '01900000-0000-0000-0000-000000000002'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
             WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-000000000002'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
-
-            -- Seed Tier 1 Organization Authority
-            INSERT INTO organization_authorities (id, organization_id, user_id, role)
-            SELECT '01900000-0000-0000-0000-000000000003'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'organization_owner'
-            WHERE NOT EXISTS (SELECT 1 FROM organization_authorities WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
 
             -- Seed Tier 1 Workspace
             INSERT INTO workspaces (id, organization_id, display_name, slug, status)
@@ -1935,11 +2012,16 @@ public static class DbInitializer
             WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000004'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
 
             -- Seed Tier 2 Organization
-            INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status)
-            SELECT '01900000-0000-0000-0000-000000000011'::uuid, 'FPT Software Tier 2 Test', '2222222222', 'tier2@testbusiness.com', 'tier2-business', TRUE, 2, 'active'
+            INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status, initial_admin_assigned_at)
+            SELECT '01900000-0000-0000-0000-000000000011'::uuid, 'FPT Software Tier 2 Test', '2222222222', 'tier2@testbusiness.com', 'tier2-business', TRUE, 2, 'active', NOW()
             WHERE NOT EXISTS (SELECT 1 FROM organizations WHERE tax_code = '2222222222');
 
-            -- Seed Tier 2 Owner User
+            -- Seed Tier 2 Organization Credential
+            INSERT INTO organization_credentials (organization_id, username, password_hash)
+            SELECT '01900000-0000-0000-0000-000000000011'::uuid, 'tier2-business', crypt('TestPassword123', gen_salt('bf', 10))
+            WHERE NOT EXISTS (SELECT 1 FROM organization_credentials WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid);
+
+            -- Seed Tier 2 Owner User (Standard User)
             INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
             SELECT '01900000-0000-0000-0000-000000000012'::uuid, 'owner2@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 2 Business Owner', 'ACTIVE', NOW()
             WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'owner2@testbusiness.com');
@@ -1948,11 +2030,6 @@ public static class DbInitializer
             INSERT INTO user_roles (user_id, role_id)
             SELECT '01900000-0000-0000-0000-000000000012'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
             WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-000000000012'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
-
-            -- Seed Tier 2 Organization Authority
-            INSERT INTO organization_authorities (id, organization_id, user_id, role)
-            SELECT '01900000-0000-0000-0000-000000000013'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'organization_owner'
-            WHERE NOT EXISTS (SELECT 1 FROM organization_authorities WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
 
             -- Seed Tier 2 Workspace
             INSERT INTO workspaces (id, organization_id, display_name, slug, status)

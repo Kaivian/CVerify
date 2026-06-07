@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/use-auth';
 import {
     Card, Typography, Button, TextField,
-    InputGroup, Input, Form, Label, toast, Spinner
+    Input, Form, Label, toast, Spinner, InputGroup
 } from "@heroui/react";
-import { Eye, EyeOff, LayoutTemplate, Sparkles } from 'lucide-react';
+import { LayoutTemplate, Sparkles, Eye, EyeOff } from 'lucide-react';
 import PasswordStrengthMeter from '../components/password-strength-meter';
 import { evaluatePasswordStrength } from '../security/password-policy';
 
@@ -30,6 +30,16 @@ function WorkspaceSetupContent() {
   
   // Realtime handles suggestions
   const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  // Route entry parameter validation
+  useEffect(() => {
+    if (!verificationToken || !email) {
+      toast.danger("Access Denied", {
+        description: "Invalid or missing workspace setup session."
+      });
+      router.replace('/company-verification');
+    }
+  }, [verificationToken, email, router]);
 
   useEffect(() => {
     if (!email) return;
@@ -60,12 +70,17 @@ function WorkspaceSetupContent() {
   }, [email]);
 
   const isWorkspaceInvalid = workspaceName.length > 0 && !workspaceName.match(/^[a-z0-9_]{3,30}$/);
-  const isPasswordValid = evaluatePasswordStrength(password, "enterprise").percentage === 100;
+  const isPasswordValid = evaluatePasswordStrength(password, "default").percentage === 100;
+  const isPasswordsMatch = password === confirmPassword;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!workspaceName || !password || !confirmPassword) return;
-    if (isWorkspaceInvalid || !isPasswordValid || password !== confirmPassword) return;
+    if (!workspaceName || isWorkspaceInvalid) return;
+    if (!password || !isPasswordValid) return;
+    if (!isPasswordsMatch) {
+      toast.danger("Mismatch", { description: "Passwords do not match." });
+      return;
+    }
 
     setIsLoading(true);
     const result = await setupWorkspace({
@@ -78,14 +93,23 @@ function WorkspaceSetupContent() {
     setIsLoading(false);
 
     if (result.success) {
-      toast.success("Workspace Established", {
-        description: `Successfully provisioned company workspace: ${workspaceName}`
+      toast.success("Company created successfully", {
+        description: "Please sign in or create an account to claim ownership."
       });
-      router.push(callbackUrl);
+      router.replace(`/login?email=${encodeURIComponent(email)}`);
     } else {
-      toast.danger("Setup Failed", {
-        description: result.error?.message || "Failed to provision organization workspace."
-      });
+      const isExpired = result.error?.code === "TOKEN_EXPIRED" || result.error?.message?.toLowerCase().includes("expired");
+      if (isExpired) {
+        toast.danger("Session Expired", {
+          description: "Your workspace setup token has expired. Please restart the onboarding process."
+        });
+        setWorkspaceName("");
+        router.replace('/company-verification');
+      } else {
+        toast.danger("Setup Failed", {
+          description: result.error?.message || "Failed to provision organization workspace."
+        });
+      }
     }
   };
 
@@ -106,6 +130,12 @@ function WorkspaceSetupContent() {
         </div>
 
         <Form className="w-full flex flex-col gap-5" onSubmit={handleSubmit}>
+          {/* Descriptive Disclaimer */}
+          <div className="p-3.5 bg-surface-secondary border border-border rounded-xl text-xs text-muted leading-relaxed">
+            <strong className="text-foreground font-semibold block mb-0.5">Workspace Credentials:</strong>
+            This password establishes credentials for the Workspace login page (using slug + password). The ownership verification email is only used as a contact to automatically bootstrap admin permissions on registration, and is not a company user account or authenticated identity.
+          </div>
+
           <TextField isRequired name="workspaceName" isInvalid={isWorkspaceInvalid}>
             <Label className="text-sm font-medium text-foreground/80 pb-1">Workspace Handle</Label>
             <Input
@@ -142,15 +172,17 @@ function WorkspaceSetupContent() {
             </div>
           )}
 
+          {/* Password fields */}
           <TextField isRequired name="password" type="password">
             <Label className="text-sm font-medium text-foreground/80 pb-1">Workspace Password</Label>
             <InputGroup>
               <InputGroup.Input
-                className="h-12"
+                className="h-12 text-sm"
                 type={isVisible ? "text" : "password"}
-                placeholder="Password (min 12 chars)"
+                placeholder="Workspace password (min 8 chars)"
                 value={password}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                disabled={isLoading}
               />
               <InputGroup.Suffix>
                 <Button
@@ -159,23 +191,25 @@ function WorkspaceSetupContent() {
                   size="sm"
                   className="text-muted hover:bg-transparent"
                   onPress={() => setIsVisible(!isVisible)}
+                  isDisabled={isLoading}
                 >
                   {isVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
                 </Button>
               </InputGroup.Suffix>
             </InputGroup>
-            <PasswordStrengthMeter value={password} policyId="enterprise" />
+            <PasswordStrengthMeter value={password} policyId="default" />
           </TextField>
 
           <TextField isRequired name="confirmPassword" type="password">
-            <Label className="text-sm font-medium text-foreground/80 pb-1">Confirm Password</Label>
+            <Label className="text-sm font-medium text-foreground/80 pb-1">Confirm Workspace Password</Label>
             <InputGroup>
               <InputGroup.Input
-                className="h-12"
+                className="h-12 text-sm"
                 type={isConfirmVisible ? "text" : "password"}
-                placeholder="Repeat your password"
+                placeholder="Repeat workspace password"
                 value={confirmPassword}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
+                disabled={isLoading}
               />
               <InputGroup.Suffix>
                 <Button
@@ -184,6 +218,7 @@ function WorkspaceSetupContent() {
                   size="sm"
                   className="text-muted hover:bg-transparent"
                   onPress={() => setIsConfirmVisible(!isConfirmVisible)}
+                  isDisabled={isLoading}
                 >
                   {isConfirmVisible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
                 </Button>
@@ -195,7 +230,7 @@ function WorkspaceSetupContent() {
             type="submit"
             fullWidth
             isPending={isLoading}
-            isDisabled={!workspaceName || isWorkspaceInvalid || !password || !isPasswordValid || password !== confirmPassword || isLoading}
+            isDisabled={!workspaceName || isWorkspaceInvalid || !password || !isPasswordValid || !isPasswordsMatch || isLoading}
             className="h-12 rounded-xl bg-foreground text-background font-semibold mt-2 flex items-center justify-center gap-2"
           >
             {isLoading && <Spinner color="current" size="sm" />}

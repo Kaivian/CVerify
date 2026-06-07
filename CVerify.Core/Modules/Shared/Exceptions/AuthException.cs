@@ -22,6 +22,7 @@ public static class AuthErrorCodes
     public const string EmailAlreadyExists = "AUTH_EMAIL_ALREADY_EXISTS";
     public const string AccountConflict = "AUTH_ACCOUNT_CONFLICT";
     public const string InvalidToken = "AUTH_INVALID_TOKEN";
+    public const string InvalidOtp = "AUTH_INVALID_OTP";
     public const string ExpiredToken = "AUTH_EXPIRED_TOKEN";
     public const string TokenAlreadyConsumed = "AUTH_TOKEN_ALREADY_CONSUMED";
     public const string PasswordTooWeak = "AUTH_PASSWORD_TOO_WEAK";

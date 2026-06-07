@@ -10,9 +10,13 @@ public class RefreshToken
     [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public Guid Id { get; set; } = Guid.CreateVersion7();
 
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
     [ForeignKey(nameof(UserId))]
-    public virtual User User { get; set; } = null!;
+    public virtual User? User { get; set; }
+
+    public Guid? OrganizationId { get; set; }
+    [ForeignKey(nameof(OrganizationId))]
+    public virtual Organization? Organization { get; set; }
 
     [Required]
     [MaxLength(255)]

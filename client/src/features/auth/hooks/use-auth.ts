@@ -496,27 +496,15 @@ export const useAuth = () => {
     setAuthError(null);
     try {
       const response = await authApi.setupWorkspace(payload);
-      const user: User = {
-        id: response.id,
-        email: response.email,
-        fullName: response.fullName,
-        avatarUrl: response.avatarUrl,
-        role: normalizeRole(response.roles),
-        permissions: response.permissions,
-        isEmailVerified: response.isEmailVerified,
-        passwordChangedAt: response.passwordChangedAt,
-        hasPassword: response.hasPassword,
-      };
-      login(user);
-      setAuthStatusAndNextStep(response.status, response.nextStep);
-      return { success: true, user, nextStep: response.nextStep };
+      setLoading(false);
+      return { success: true, data: response };
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
       setLoading(false);
       return { success: false, error: parsedError };
     }
-  }, [setLoading, login, setAuthStatusAndNextStep]);
+  }, [setLoading]);
 
   // Company Login
   const companyLogin = useCallback(async (payload: CompanyLoginPayload) => {
@@ -633,9 +621,8 @@ export const useAuth = () => {
     payload: {
       step2Token: string;
       organizationUsername: string;
-      password: string;
-      confirmPassword: string;
       companyDisplayName: string;
+      password?: string;
     },
     idempotencyKey: string
   ) => {
@@ -643,28 +630,15 @@ export const useAuth = () => {
     setAuthError(null);
     try {
       const response = await authApi.completeOnboarding(payload, idempotencyKey);
-      const user: User = {
-        id: response.id,
-        email: response.email,
-        fullName: response.fullName,
-        avatarUrl: response.avatarUrl,
-        role: normalizeRole(response.roles),
-        permissions: response.permissions,
-        isEmailVerified: response.isEmailVerified,
-        passwordChangedAt: response.passwordChangedAt,
-        hasPassword: response.hasPassword,
-      };
-      login(user);
-      setAuthStatusAndNextStep(response.status, response.nextStep);
       setLoading(false);
-      return { success: true, user, nextStep: response.nextStep };
+      return { success: true, data: response };
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
       setLoading(false);
       return { success: false, error: parsedError };
     }
-  }, [setLoading, login, setAuthStatusAndNextStep]);
+  }, [setLoading]);
 
   // Delete account action
   const deleteAccount = useCallback(async () => {

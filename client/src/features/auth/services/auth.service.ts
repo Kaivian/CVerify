@@ -16,6 +16,7 @@ import {
   type InitiateDeletionRequest,
   type DeletionInitiationResponse,
   type ReactivateRequest,
+  type SetupWorkspaceResponseData,
 } from '../../../types/auth.types';
 import { type z } from 'zod';
 import {
@@ -202,8 +203,8 @@ export const authApi = {
   /**
    * Finalize organization workspace and owner password
    */
-  setupWorkspace: async (payload: SetupWorkspacePayload): Promise<LoginResponseData> => {
-    const response = await axiosClient.post<LoginResponseData>('/auth/setup-workspace', payload);
+  setupWorkspace: async (payload: SetupWorkspacePayload): Promise<SetupWorkspaceResponseData> => {
+    const response = await axiosClient.post<SetupWorkspaceResponseData>('/auth/setup-workspace', payload);
     return response.data;
   },
 
@@ -301,13 +302,12 @@ export const authApi = {
     payload: {
       step2Token: string;
       organizationUsername: string;
-      password: string;
-      confirmPassword: string;
       companyDisplayName: string;
+      password?: string;
     },
     idempotencyKey: string
-  ): Promise<LoginResponseData> => {
-    const response = await axiosClient.post<LoginResponseData>('/auth/onboarding/complete', payload, {
+  ): Promise<SetupWorkspaceResponseData> => {
+    const response = await axiosClient.post<SetupWorkspaceResponseData>('/auth/onboarding/complete', payload, {
       headers: {
         'X-Idempotency-Key': idempotencyKey
       }
