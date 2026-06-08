@@ -13,6 +13,7 @@ from app.monitoring.observability import (
     UIProgressEvent
 )
 from app.monitoring.ai_cost_tracker import AiCostTracker
+from app.services.token_accounting_service import TokenAccountingService, NormalizedTokenUsage
 
 class TestObservabilityCore(unittest.IsolatedAsyncioTestCase):
     async def test_trace_context_propagation(self):
@@ -221,6 +222,92 @@ class TestObservabilityCore(unittest.IsolatedAsyncioTestCase):
         }
         with self.assertRaises(ValueError):
             UIProgressEvent(**invalid_data)
+
+
+class TestTokenAccounting(unittest.TestCase):
+    def test_anthropic_extraction(self):
+        """Verify extraction from Anthropic and standard usage objects."""
+        # Mock usage object with Anthropic input/output tokens
+        class MockAnthropicUsage:
+            def __init__(self, input_tokens, output_tokens):
+                self.input_tokens = input_tokens
+                self.output_tokens = output_tokens
+
+        usage = MockAnthropicUsage(input_tokens=150, output_tokens=75)
+        prompt, completion, total = TokenAccountingService.extract_from_provider_usage(usage)
+        self.assertEqual(prompt, 150)
+        self.assertEqual(completion, 75)
+        self.assertIsNone(total)
+
+        # Mock standard OpenAI-like usage object
+        class MockOpenAIUsage:
+            def __init__(self, prompt_tokens, completion_tokens, total_tokens):
+                self.prompt_tokens = prompt_tokens
+                self.completion_tokens = completion_tokens
+                self.total_tokens = total_tokens
+
+        usage_std = MockOpenAIUsage(prompt_tokens=200, completion_tokens=100, total_tokens=300)
+        prompt, completion, total = TokenAccountingService.extract_from_provider_usage(usage_std)
+        self.assertEqual(prompt, 200)
+        self.assertEqual(completion, 100)
+        self.assertEqual(total, 300)
+
+    def test_normalization_and_cost_calculation(self):
+        """Verify normalization, cost calculation, and mismatch detection."""
+        # 1. Normalization with matching total tokens
+        usage = TokenAccountingService.normalize_usage(
+            model="claude-3-5-sonnet-20241022",
+            prompt_tokens=1000,
+            completion_tokens=500,
+            total_tokens=1500,
+            cache_creation_tokens=200,
+            cache_read_tokens=300
+        )
+        self.assertEqual(usage.prompt_tokens, 1000)
+        self.assertEqual(usage.completion_tokens, 500)
+        self.assertEqual(usage.total_tokens, 1500)
+        self.assertEqual(usage.cache_read_tokens, 300)
+        self.assertEqual(usage.cache_write_tokens, 200)
+        self.assertFalse(usage.token_mismatch_detected)
+
+        # Check Claude 3.5 Sonnet cost calculation
+        # base_input = max(0, 1000 - 300 - 200) = 500
+        # cost = (500 * 3.00) + (200 * 3.75) + (300 * 0.30) + (500 * 15.00) all per M
+        # cost = (500 * 0.000003) + (200 * 0.00000375) + (300 * 0.0000003) + (500 * 0.000015)
+        # cost = 0.0015 + 0.00075 + 0.00009 + 0.0075 = 0.00984
+        self.assertAlmostEqual(usage.estimated_cost_usd, 0.00984)
+
+        # 2. Normalization with mismatched total tokens
+        usage_mismatch = TokenAccountingService.normalize_usage(
+            model="claude-3-5-sonnet-20241022",
+            prompt_tokens=1000,
+            completion_tokens=500,
+            total_tokens=2000, # mismatched
+        )
+        self.assertTrue(usage_mismatch.token_mismatch_detected)
+        self.assertEqual(usage_mismatch.total_tokens, 2000)
+
+        # 3. Pricing checks for other models
+        usage_haiku = TokenAccountingService.normalize_usage(
+            model="claude-3-haiku-20240307",
+            prompt_tokens=1000,
+            completion_tokens=500
+        )
+        # input: 1000 * 0.8 / M = 0.0008
+        # output: 500 * 4.0 / M = 0.002
+        # total = 0.0028
+        self.assertAlmostEqual(usage_haiku.estimated_cost_usd, 0.0028)
+
+        usage_opus = TokenAccountingService.normalize_usage(
+            model="claude-3-opus-20240229",
+            prompt_tokens=1000,
+            completion_tokens=500
+        )
+        # input: 1000 * 15 / M = 0.015
+        # output: 500 * 75 / M = 0.0375
+        # total = 0.0525
+        self.assertAlmostEqual(usage_opus.estimated_cost_usd, 0.0525)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ from typing import AsyncGenerator
 from anthropic import AsyncAnthropic
 from app.config import settings
 from app.monitoring.ai_cost_tracker import AiCostTracker
+from app.services.token_accounting_service import TokenAccountingService
 
 logger = logging.getLogger("claude_service")
 
@@ -103,36 +104,59 @@ class ClaudeService:
 
             stream = await retry_with_exponential_backoff(get_stream, correlation_id=correlation_id)
             
-            # Since the stream object yields events, we consume them
-            input_tokens = 0
-            output_tokens = 0
+            prompt_tokens = 0
+            completion_tokens = 0
+            total_tokens = None
+            cache_creation = 0
+            cache_read = 0
 
             async for event in stream:
                 if event.type == "content_block_delta" and event.delta.type == "text_delta":
                     yield event.delta.text
                 elif event.type == "message_start":
-                    input_tokens = getattr(event.message.usage, "input_tokens", 0)
+                    p, c, t = TokenAccountingService.extract_from_provider_usage(event.message.usage)
+                    prompt_tokens = p
+                    cache_creation = getattr(event.message.usage, "cache_creation_input_tokens", 0) or 0
+                    cache_read = getattr(event.message.usage, "cache_read_input_tokens", 0) or 0
                 elif event.type == "message_delta":
-                    output_tokens = getattr(event.usage, "output_tokens", 0)
+                    p, c, t = TokenAccountingService.extract_from_provider_usage(event.usage)
+                    completion_tokens = c
+                    if t is not None:
+                        total_tokens = t
 
             duration = int((time.perf_counter() - start_time) * 1000)
             
+            # Normalize token usage
+            normalized = TokenAccountingService.normalize_usage(
+                model=settings.claude_model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cache_creation_tokens=cache_creation,
+                cache_read_tokens=cache_read
+            )
+
             # Record cost
             cost = self.cost_tracker.record_usage(
                 model=settings.claude_model,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                correlation_id=correlation_id
+                input_tokens=normalized.prompt_tokens,
+                output_tokens=normalized.completion_tokens,
+                cache_creation_tokens=normalized.cache_write_tokens,
+                cache_read_tokens=normalized.cache_read_tokens,
+                correlation_id=correlation_id,
+                total_tokens=normalized.total_tokens
             )
 
             logger.info(
-                f"Conversational chat stream finished. Tokens: In={input_tokens}, Out={output_tokens}, Cost=${cost:.6f}, Duration={duration}ms",
+                f"Conversational chat stream finished. Tokens: In={normalized.prompt_tokens}, Out={normalized.completion_tokens}, Total={normalized.total_tokens}, Cost=${cost:.6f}, Duration={duration}ms",
                 extra={
                     "correlation_id": correlation_id,
                     "duration_ms": duration,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "estimated_cost_usd": float(cost)
+                    "input_tokens": normalized.prompt_tokens,
+                    "output_tokens": normalized.completion_tokens,
+                    "total_tokens": normalized.total_tokens,
+                    "estimated_cost_usd": float(cost),
+                    "token_mismatch_flag": normalized.token_mismatch_detected
                 }
             )
 
@@ -189,8 +213,9 @@ class ClaudeService:
 
             stream = await retry_with_exponential_backoff(get_stream, correlation_id=correlation_id)
             
-            input_tokens = 0
-            output_tokens = 0
+            prompt_tokens = 0
+            completion_tokens = 0
+            total_tokens = None
             cache_creation = 0
             cache_read = 0
             text_chunks = []
@@ -200,50 +225,69 @@ class ClaudeService:
                     token_text = event.delta.text
                     text_chunks.append(token_text)
                 elif event.type == "message_start":
-                    input_tokens = getattr(event.message.usage, "input_tokens", 0) or 0
+                    p, c, t = TokenAccountingService.extract_from_provider_usage(event.message.usage)
+                    prompt_tokens = p
                     cache_creation = getattr(event.message.usage, "cache_creation_input_tokens", 0) or 0
                     cache_read = getattr(event.message.usage, "cache_read_input_tokens", 0) or 0
                 elif event.type == "message_delta":
-                    output_tokens = getattr(event.usage, "output_tokens", 0) or 0
+                    p, c, t = TokenAccountingService.extract_from_provider_usage(event.usage)
+                    completion_tokens = c
+                    if t is not None:
+                        total_tokens = t
 
             full_text = "".join(text_chunks)
             duration = int((time.perf_counter() - start_time) * 1000)
             
+            # Normalize token usage
+            normalized = TokenAccountingService.normalize_usage(
+                model=settings.claude_model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cache_creation_tokens=cache_creation,
+                cache_read_tokens=cache_read
+            )
+
             # Record cost
             cost = self.cost_tracker.record_execution(
                 correlation_id=correlation_id,
                 model=settings.claude_model,
                 execution_type="llm_call",
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                cache_creation_tokens=cache_creation,
-                cache_read_tokens=cache_read,
-                duration_ms=duration
+                input_tokens=normalized.prompt_tokens,
+                output_tokens=normalized.completion_tokens,
+                cache_creation_tokens=normalized.cache_write_tokens,
+                cache_read_tokens=normalized.cache_read_tokens,
+                duration_ms=duration,
+                total_tokens=normalized.total_tokens
             )
 
             telemetry = {
-                "promptTokens": input_tokens,
-                "completionTokens": output_tokens,
-                "cacheReadTokens": cache_read,
-                "cacheWriteTokens": cache_creation,
+                "promptTokens": normalized.prompt_tokens,
+                "completionTokens": normalized.completion_tokens,
+                "totalTokens": normalized.total_tokens,
+                "cacheReadTokens": normalized.cache_read_tokens,
+                "cacheWriteTokens": normalized.cache_write_tokens,
                 "estimatedCostUsd": float(cost),
                 "modelName": settings.claude_model,
                 "provider": "Anthropic",
-                "durationMs": duration
+                "durationMs": duration,
+                "tokenMismatchFlag": normalized.token_mismatch_detected
             }
 
             logger.info(
-                f"Claude telemetry call successful. Tokens: In={input_tokens} (CacheWrite={cache_creation}, CacheRead={cache_read}), Out={output_tokens}, Cost=${cost:.6f}, Duration={duration}ms",
+                f"Claude telemetry call successful. Tokens: In={normalized.prompt_tokens} (CacheWrite={normalized.cache_write_tokens}, CacheRead={normalized.cache_read_tokens}), Out={normalized.completion_tokens}, Total={normalized.total_tokens}, Cost=${cost:.6f}, Duration={duration}ms",
                 extra={
                     "eventType": "llm_call_end",
                     "status": "success",
                     "correlation_id": correlation_id,
                     "duration_ms": duration,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "cache_creation_input_tokens": cache_creation,
-                    "cache_read_input_tokens": cache_read,
-                    "estimated_cost_usd": float(cost)
+                    "input_tokens": normalized.prompt_tokens,
+                    "output_tokens": normalized.completion_tokens,
+                    "total_tokens": normalized.total_tokens,
+                    "cache_creation_input_tokens": normalized.cache_write_tokens,
+                    "cache_read_input_tokens": normalized.cache_read_tokens,
+                    "estimated_cost_usd": float(cost),
+                    "token_mismatch_flag": normalized.token_mismatch_detected
                 }
             )
             return full_text, telemetry

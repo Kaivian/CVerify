@@ -810,11 +810,8 @@ export const CareerTab: React.FC<CareerTabProps> = ({
                     className="cursor-pointer"
                   >
                     {({ isSelected }) => (
-                      <Switch.Control
-                        className={`w-10 h-5.5 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}
-                      >
+                      <Switch.Control>
                         <Switch.Thumb
-                          className={`w-4 h-4 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[20px]" : "left-0.5"}`}
                         />
                       </Switch.Control>
                     )}
@@ -1045,12 +1042,8 @@ export const CareerTab: React.FC<CareerTabProps> = ({
                         className="cursor-pointer"
                       >
                         {({ isSelected }) => (
-                          <Switch.Control
-                            className={`w-10 h-5.5 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}
-                          >
-                            <Switch.Thumb
-                              className={`w-4 h-4 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[20px]" : "left-0.5"}`}
-                            />
+                          <Switch.Control>
+                            <Switch.Thumb />
                           </Switch.Control>
                         )}
                       </Switch>
@@ -1079,12 +1072,8 @@ export const CareerTab: React.FC<CareerTabProps> = ({
                         className="cursor-pointer"
                       >
                         {({ isSelected }) => (
-                          <Switch.Control
-                            className={`w-10 h-5.5 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}
-                          >
-                            <Switch.Thumb
-                              className={`w-4 h-4 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[20px]" : "left-0.5"}`}
-                            />
+                          <Switch.Control>
+                            <Switch.Thumb />
                           </Switch.Control>
                         )}
                       </Switch>

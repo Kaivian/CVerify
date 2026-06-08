@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using CVerify.API.Modules.Shared.Domain.Entities;
 
 namespace CVerify.API.Modules.SourceCode.Entities;
 
@@ -21,6 +22,12 @@ public class AnalysisExecution
 
     [ForeignKey(nameof(TaskId))]
     public virtual AnalysisTask Task { get; set; } = null!;
+
+    [Required]
+    public Guid UserId { get; set; }
+
+    [ForeignKey(nameof(UserId))]
+    public virtual User User { get; set; } = null!;
 
     [Required]
     [MaxLength(50)]

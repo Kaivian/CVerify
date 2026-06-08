@@ -151,5 +151,74 @@ class TestContractValidation(unittest.TestCase):
         except ValidationError as e:
             self.fail(f"ValidationError raised unexpectedly on dictionary section items: {e}")
 
+    def test_json_repair_scanner(self):
+        """Verifies that the internal JSON repair scanner correctly fixes malformed JSON."""
+        from app.orchestrators.github_analysis_orchestrator import GitHubAnalysisOrchestrator
+        orchestrator = GitHubAnalysisOrchestrator()
+        
+        test_cases = [
+            (
+                r'{"evidence": ["Uses "Streams API" in UserService.java"]}',
+                {"evidence": ["Uses \"Streams API\" in UserService.java"]}
+            ),
+            (
+                '{"summary": "Line 1.\nLine 2."}',
+                {"summary": "Line 1.\nLine 2."}
+            ),
+            (
+                r'{"skills": ["Java", "C#",], "meta": {"a": 1,}}',
+                {"skills": ["Java", "C#"], "meta": {"a": 1}}
+            ),
+            (
+                r'{"msg": "He said \"hello\""}',
+                {"msg": 'He said "hello"'}
+            ),
+            (
+                r'{"my "key"": "val"}',
+                {"my \"key\"": "val"}
+            ),
+            (
+                r'{"path": "client\\package.json"}',
+                {"path": "client\\package.json"}
+            ),
+            (
+                r'{"path": "client\package.json"}',
+                {"path": "client\\package.json"}
+            ),
+            (
+                r'{"path": "C:\Users\LucFr\.gemini\temp"}',
+                {"path": r"C:\Users\LucFr\.gemini\temp"}
+            ),
+            (
+                r'{"path": "C:\Users\LucFr\.gemini\temp\new\path"}',
+                {"path": r"C:\Users\LucFr\.gemini\temp\new\path"}
+            ),
+            (
+                r'{"a": {"b": [1, 2, "hello"',
+                {"a": {"b": [1, 2, "hello"]}}
+            ),
+            (
+                r'{"a": {"b": [1, 2, 3',
+                {"a": {"b": [1, 2, 3]}}
+            ),
+            (
+                r'{"a": {"b": [1, 2, 3, ',
+                {"a": {"b": [1, 2, 3]}}
+            ),
+            (
+                r'{"schemaVersion": "2.0.0", "data": {"skills": [{"skill": "Monorepo", "evidence": ["CVerify.sln',
+                {"schemaVersion": "2.0.0", "data": {"skills": [{"skill": "Monorepo", "evidence": ["CVerify.sln"]}]}}
+            )
+        ]
+        
+        for raw, expected in test_cases:
+            repaired = orchestrator._repair_json_string(raw)
+            try:
+                import json
+                parsed = json.loads(repaired)
+                self.assertEqual(parsed, expected)
+            except Exception as e:
+                self.fail(f"Failed to parse repaired JSON: {repaired}. Error: {e}")
+
 if __name__ == "__main__":
     unittest.main()

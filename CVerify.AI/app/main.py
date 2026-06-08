@@ -226,6 +226,7 @@ async def readiness():
 
 @app.post("/api/v1/chat/stream")
 async def chat_stream(
+    request: Request,
     request_data: ChatStreamRequest,
     correlation_id: str = Depends(verify_hmac_signature)
 ):
@@ -234,18 +235,37 @@ async def chat_stream(
     logger.info(f"Initiated AI stream request processing", extra=extra_log)
     
     async def sse_generator():
+        # Emit STARTED status event
+        yield f"data: {json.dumps({'status': 'STARTED'})}\n\n"
+        
+        interrupted = True
         try:
             msg_list = [{"role": msg.role, "content": msg.content} for msg in request_data.messages]
             
             async for token in claude_service.stream_chat(msg_list, correlation_id):
-                # Send the token in clean JSON SSE formatting
-                yield f"data: {json.dumps({'token': token})}\n\n"
+                if await request.is_disconnected():
+                    logger.warning("Client disconnected from chat stream", extra=extra_log)
+                    yield f"data: {json.dumps({'status': 'ABORTED', 'event': 'AI_STREAM_ABORTED'})}\n\n"
+                    return
+                
+                # Send the token in clean JSON SSE formatting with status STREAMING
+                yield f"data: {json.dumps({'status': 'STREAMING', 'token': token})}\n\n"
             
+            interrupted = False
+            # Emit COMPLETED status event
+            yield f"data: {json.dumps({'status': 'COMPLETED'})}\n\n"
             # Send done frame to close client loop
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Error yielding SSE stream: {e}", extra=extra_log)
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'status': 'FAILED', 'error': str(e)})}\n\n"
+        finally:
+            if interrupted:
+                logger.warning("Stream was interrupted or aborted", extra=extra_log)
+                try:
+                    yield f"data: {json.dumps({'status': 'ABORTED', 'event': 'AI_STREAM_ABORTED'})}\n\n"
+                except Exception:
+                    pass
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
