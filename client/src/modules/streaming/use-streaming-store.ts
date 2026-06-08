@@ -106,6 +106,8 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
         costUsd: raw.costUsd,
         jsonData: raw.jsonData,
         chunk: raw.chunk,
+        modelName: raw.modelName,
+        provider: raw.provider,
       };
     }
 
@@ -133,6 +135,8 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
         inputTokens: raw.promptTokens,
         outputTokens: raw.completionTokens,
         costUsd: raw.estimatedCostUsd,
+        modelName: raw.modelName,
+        provider: raw.provider,
       };
     }
 

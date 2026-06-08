@@ -265,6 +265,75 @@ public class StreamingController : ControllerBase
         }
     }
 
+    [HttpGet("sessions/{id}/costs")]
+    public async Task<IActionResult> GetSessionCosts(Guid id)
+    {
+        var session = await _dbContext.AiStreamingSessions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == id && s.UserId == CurrentUserId);
+
+        if (session == null)
+        {
+            return NotFound(new { Message = "Streaming session not found or access denied." });
+        }
+
+        var metrics = await _dbContext.AiStreamingMetrics
+            .AsNoTracking()
+            .Where(m => m.SessionId == id)
+            .ToListAsync();
+
+        var stages = await _dbContext.AiStreamingStages
+            .AsNoTracking()
+            .Where(s => s.SessionId == id)
+            .ToListAsync();
+
+        var executions = new List<object>();
+        var groupedMetrics = metrics.GroupBy(m => m.StageId);
+
+        foreach (var group in groupedMetrics)
+        {
+            var stageId = group.Key ?? "Orchestrator";
+            var stage = stages.FirstOrDefault(s => s.StageId == stageId);
+
+            var inputTokens = (int)group.Where(m => m.MetricName == "input_tokens" || m.MetricName == "prompt_tokens").Sum(m => m.MetricValue);
+            var outputTokens = (int)group.Where(m => m.MetricName == "output_tokens" || m.MetricName == "completion_tokens").Sum(m => m.MetricValue);
+            var costUsd = (decimal)group.Where(m => m.MetricName == "cost_usd").Sum(m => m.MetricValue);
+            var duration = stage?.DurationMs ?? 0;
+
+            if (inputTokens > 0 || outputTokens > 0 || costUsd > 0)
+            {
+                executions.Add(new
+                {
+                    id = Guid.NewGuid().ToString(),
+                    jobId = id.ToString(),
+                    taskId = stageId,
+                    executionType = "llm_call",
+                    provider = session.Provider ?? "Anthropic",
+                    model = session.ModelName ?? "claude-haiku-4-5-20251001",
+                    promptTokens = inputTokens,
+                    completionTokens = outputTokens,
+                    totalTokens = inputTokens + outputTokens,
+                    cachedTokens = 0,
+                    estimatedCostUsd = costUsd,
+                    durationMs = duration
+                });
+            }
+        }
+
+        var totalCost = session.TotalCostUsd ?? 0m;
+        var totalTokens = (session.TotalInputTokens ?? 0) + (session.TotalOutputTokens ?? 0);
+        var totalDuration = stages.Sum(s => s.DurationMs ?? 0);
+
+        return Ok(new
+        {
+            jobId = id.ToString(),
+            totalCostUsd = totalCost,
+            totalTokens = totalTokens,
+            totalDurationMs = totalDuration,
+            executions = executions
+        });
+    }
+
     [HttpPost("sessions/{sessionId}/stages/{stageId}/retry")]
     public async Task<IActionResult> RetryStage(Guid sessionId, string stageId)
     {

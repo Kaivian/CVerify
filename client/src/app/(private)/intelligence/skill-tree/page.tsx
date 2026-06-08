@@ -298,107 +298,93 @@ export default function SkillTreePage() {
 
   return (
     <div className="space-y-6 font-sans">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start text-left">
-        
-        {/* LEFT COLUMN: Filters + Strong Domains & Gaps */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Filters Card */}
-          <Card className="p-4 space-y-4 border border-border/40 bg-surface rounded-2xl shadow-xs">
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-foreground">Search</span>
-              <div className="relative w-full">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                <Input
-                  placeholder="Filter by skill..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 h-8"
-                />
-              </div>
+      
+      {/* TOP SECTION: Search, Filters & Verified Domains */}
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 items-stretch text-left">
+        {/* Search & Categories (4/10) */}
+        <Card className="lg:col-span-4 p-5 border border-border/40 bg-surface rounded-2xl shadow-xs flex flex-col gap-4">
+          {/* Search */}
+          <div className="space-y-1.5 w-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-foreground">Search</span>
+            <div className="relative w-full">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+              <Input
+                placeholder="Filter by skill..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 h-8"
+              />
             </div>
-
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-foreground">Filter Categories</span>
-              <div className="flex flex-col gap-1.5">
-                {["Domain", "Subdomain", "Technology", "Framework", "Library", "Tool", "Methodology"].map(cat => (
-                  <Checkbox
+          </div>
+          {/* Categories */}
+          <div className="space-y-2 w-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-foreground">Filter Categories</span>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {["Domain", "Subdomain", "Technology", "Framework", "Library", "Tool", "Methodology"].map(cat => {
+                const isSelected = selectedCategories.includes(cat);
+                return (
+                  <Chip
                     key={cat}
-                    isSelected={selectedCategories.includes(cat)}
-                    onChange={() => {
+                    variant={isSelected ? "primary" : "soft"}
+                    color={isSelected ? "accent" : "default"}
+                    className={`cursor-pointer hover:opacity-80 active:scale-95 transition-all text-[9px] font-extrabold uppercase h-5.5 px-2 select-none ${isSelected ? "border-none" : "border-border/60"}`}
+                    onClick={() => {
                       setSelectedCategories(prev =>
                         prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
                       );
                     }}
-                    className="text-xs"
                   >
-                    <span className="text-[11px] font-light text-foreground/80">{cat}</span>
-                  </Checkbox>
+                    {cat}
+                  </Chip>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+
+        {/* Verified Domains (6/10) */}
+        <Card className="lg:col-span-6 p-5 border border-border/40 bg-surface rounded-2xl shadow-xs flex flex-col justify-between">
+          <div className="space-y-3.5">
+            <span className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+              <TrendingUp size={12} className="text-accent" />
+              <span>Verified Domains ({domainProfiles.length})</span>
+            </span>
+            <div className="w-full h-px bg-border/20" />
+            {domainProfiles.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">No verified domains analyzed.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {domainProfiles.map((dom: any, idx: number) => (
+                  <div 
+                    key={idx} 
+                    className="p-3 bg-surface-secondary/35 border border-border/20 rounded-xl flex items-center justify-between gap-3 shadow-xs hover:border-accent/40 transition-all duration-200"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <h4 className="font-bold text-foreground text-xs truncate" title={dom.domainName}>
+                        {dom.domainName}
+                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-muted/20 text-muted-foreground tracking-wider">
+                          {dom.seniority}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="relative size-9 shrink-0 flex items-center justify-center bg-surface border border-border/40 rounded-full font-mono text-xs font-black text-accent shadow-2xs">
+                      {Math.round(dom.score)}
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>
-          </Card>
+            )}
+          </div>
+        </Card>
+      </div>
 
-          {/* Strong Domains & Unverified Gaps */}
-          <Card className="p-4 space-y-5 border border-border/40 bg-surface rounded-2xl shadow-xs">
-            {/* Strongest Domains list */}
-            <div className="space-y-2.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                <TrendingUp size={12} className="text-accent" />
-                <span>Verified Domains ({domainProfiles.length})</span>
-              </span>
-              <div className="w-full h-px bg-border/20" />
-              {domainProfiles.length === 0 ? (
-                <p className="text-[10px] text-muted-foreground">No domains analyzed.</p>
-              ) : (
-                <div className="space-y-2">
-                  {domainProfiles.map((dom: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center text-xs leading-normal">
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-foreground/90 truncate max-w-[140px]">{dom.domainName}</span>
-                        <span className="text-[8px] text-muted-foreground uppercase font-bold">{dom.seniority}</span>
-                      </div>
-                      <Chip size="sm" variant="soft" color="accent" className="h-5 text-[9px] font-bold px-1.5 border-none bg-accent/10 text-accent">
-                        Score: {Math.round(dom.score)}
-                      </Chip>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Unverified Skills (Gaps) */}
-            <div className="space-y-2.5 pt-3 border-t border-border/20">
-              <span className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                <AlertCircle size={12} className="text-warning" />
-                <span>Unverified Target Skills ({unverifiedSkills.length})</span>
-              </span>
-              <p className="text-[9px] text-muted-foreground leading-relaxed -mt-1 font-light">
-                Declared in CV but currently lacking verifiable codebase proof.
-              </p>
-              <div className="w-full h-px bg-border/20" />
-              {unverifiedSkills.length === 0 ? (
-                <p className="text-[10px] text-muted-foreground">All declared skills successfully verified!</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1 scrollbar-thin">
-                  {unverifiedSkills.map((skill: any, idx: number) => (
-                    <Chip
-                      key={idx}
-                      size="sm"
-                      variant="soft"
-                      color="warning"
-                      className="h-5 text-[9px] font-extrabold px-1.5 bg-warning/10 text-warning border-none uppercase"
-                    >
-                      {skill.skillName}
-                    </Chip>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
-
-        {/* CENTER COLUMN: Skill Tree Structure */}
-        <Card className="lg:col-span-5 p-5 min-h-[600px] max-h-[800px] overflow-y-auto border border-border/40 bg-surface rounded-2xl shadow-xs scrollbar-thin scrollbar-thumb-border">
+      {/* LOWER SECTION: Hierarchy Map vs Details */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start text-left">
+        {/* LEFT COLUMN: Skill Tree Structure */}
+        <Card className="lg:col-span-7 p-5 min-h-[600px] max-h-[800px] overflow-y-auto border border-border/40 bg-surface rounded-2xl shadow-xs scrollbar-thin scrollbar-thumb-border">
           <div className="flex justify-between items-center pb-3 border-b border-border/20 mb-3">
             <span className="text-[10px] font-black uppercase tracking-wider text-foreground">Hierarchy Map</span>
             <span className="text-[9px] text-muted-foreground font-bold">Root nodes expanded by default</span>
@@ -417,7 +403,7 @@ export default function SkillTreePage() {
         </Card>
 
         {/* RIGHT COLUMN: Node Detail Drawer & Learning Roadmap */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-5 space-y-6">
           {/* Selection Detail Card */}
           <Card className="p-5 min-h-[380px] border border-border/40 bg-surface rounded-2xl shadow-xs">
             {selectedNode ? (
@@ -466,6 +452,7 @@ export default function SkillTreePage() {
                   <span className="text-[9px] font-black uppercase tracking-wider text-foreground">Proficiency Indicator</span>
                   <div className="space-y-1">
                     <ProgressBar
+                      aria-label="Skill Proficiency Indicator"
                       value={
                         selectedNode.proficiencyLevel.toLowerCase() === "expert" ? 95 :
                           selectedNode.proficiencyLevel.toLowerCase() === "practitioner" ? 70 :
@@ -535,6 +522,37 @@ export default function SkillTreePage() {
                         <strong>Action:</strong> {rec.action}
                       </p>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Unverified Target Skills Card */}
+          <Card className="p-4 border border-border/40 bg-surface rounded-2xl shadow-xs text-left">
+            <div className="space-y-2.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                <AlertCircle size={12} className="text-warning" />
+                <span>Unverified Target Skills ({unverifiedSkills.length})</span>
+              </span>
+              <p className="text-[9px] text-muted-foreground leading-relaxed -mt-1 font-light">
+                Declared in CV but currently lacking verifiable codebase proof.
+              </p>
+              <div className="w-full h-px bg-border/20" />
+              {unverifiedSkills.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground">All declared skills successfully verified!</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1 scrollbar-thin">
+                  {unverifiedSkills.map((skill: any, idx: number) => (
+                    <Chip
+                      key={idx}
+                      size="sm"
+                      variant="soft"
+                      color="warning"
+                      className="h-5 text-[9px] font-extrabold px-1.5 bg-warning/10 text-warning border-none uppercase"
+                    >
+                      {skill.skillName}
+                    </Chip>
                   ))}
                 </div>
               )}

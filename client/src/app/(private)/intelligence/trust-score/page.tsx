@@ -51,17 +51,34 @@ export default function TrustScorePage() {
   const trustScoreRaw = trustMetrics?.candidateTrustScore ?? 0;
   const trustScore = trustScoreRaw <= 1 ? Math.round(trustScoreRaw * 100) : Math.round(trustScoreRaw);
 
-  const getTrustBadgeColor = (level: string) => {
-    switch (level?.toLowerCase()) {
-      case "high":
-        return "success";
-      case "medium":
-        return "warning";
-      case "low":
-        return "danger";
-      default:
-        return "default";
+  const getTrustBadgeColor = (level: any) => {
+    if (level === undefined || level === null) {
+      return "default";
     }
+
+    if (typeof level === "string") {
+      const normalized = level.trim().toLowerCase();
+      if (normalized === "high") return "success";
+      if (normalized === "medium") return "warning";
+      if (normalized === "low") return "danger";
+
+      const parsedNum = parseFloat(normalized);
+      if (!isNaN(parsedNum)) {
+        level = parsedNum;
+      }
+    }
+
+    if (typeof level === "number") {
+      if (level >= 70 || (level >= 0.7 && level <= 1.0)) {
+        return "success";
+      }
+      if (level >= 40 || (level >= 0.4 && level < 0.7)) {
+        return "warning";
+      }
+      return "danger";
+    }
+
+    return "default";
   };
 
   const getCloneRiskBadge = (risk: string) => {
@@ -190,7 +207,7 @@ export default function TrustScorePage() {
                   <span className="font-extrabold text-foreground">{skillRatio}% Match</span>
                   <span className="text-[9px] text-muted-foreground">Threshold: 50%</span>
                 </div>
-                <ProgressBar value={skillRatio} color="accent" size="sm" />
+                <ProgressBar aria-label="Verified Skill Ratio Match Percentage" value={skillRatio} color="accent" size="sm" />
               </div>
             </Card>
 
@@ -207,7 +224,7 @@ export default function TrustScorePage() {
                   <span className="font-extrabold text-foreground">{repoRatio}% Cleared</span>
                   <span className="text-[9px] text-muted-foreground">Threshold: 80%</span>
                 </div>
-                <ProgressBar value={repoRatio} color="success" size="sm" />
+                <ProgressBar aria-label="Verified Repo Ratio Cleared Percentage" value={repoRatio} color="success" size="sm" />
               </div>
             </Card>
 
@@ -224,7 +241,7 @@ export default function TrustScorePage() {
                   <span className="font-extrabold text-foreground">{evidenceRatio}% Density</span>
                   <span className="text-[9px] text-muted-foreground">Threshold: 60%</span>
                 </div>
-                <ProgressBar value={evidenceRatio} color="warning" size="sm" />
+                <ProgressBar aria-label="Evidence Density Ratio Percentage" value={evidenceRatio} color="warning" size="sm" />
               </div>
             </Card>
 

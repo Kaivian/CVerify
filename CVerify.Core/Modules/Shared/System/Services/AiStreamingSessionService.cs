@@ -365,4 +365,93 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             chunk: chunk
         );
     }
+
+    public async Task<(global::System.Collections.Generic.List<string> Events, DateTimeOffset LatestTimestamp, string SessionStatus)> GetFormattedHistoryAsync(Guid sessionId)
+    {
+        var session = await _dbContext.AiStreamingSessions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == sessionId);
+
+        if (session == null)
+        {
+            return (new global::System.Collections.Generic.List<string>(), DateTimeOffset.MinValue, "Pending");
+        }
+
+        var events = new global::System.Collections.Generic.List<string>();
+        var latestTimestamp = DateTimeOffset.MinValue;
+        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        // 1. Fetch and format stages
+        var stages = await _dbContext.AiStreamingStages
+            .AsNoTracking()
+            .Where(s => s.SessionId == sessionId)
+            .OrderBy(s => s.StartedAt ?? DateTimeOffset.MinValue)
+            .ToListAsync();
+
+        foreach (var stage in stages)
+        {
+            var eventType = stage.Status == "Completed" ? "STAGE_COMPLETED" :
+                            stage.Status == "Failed" ? "STAGE_FAILED" :
+                            stage.Status == "Running" ? "STAGE_STARTED" : "STAGE_PROGRESS";
+
+            var stageTimestamp = stage.CompletedAt ?? stage.StartedAt ?? session.CreatedAtUtc;
+            if (stageTimestamp > latestTimestamp)
+            {
+                latestTimestamp = stageTimestamp;
+            }
+
+            var ev = new
+            {
+                sessionId = sessionId.ToString(),
+                pipelineId = session.PipelineId,
+                eventType = eventType,
+                status = stage.Status,
+                timestamp = stageTimestamp.ToString("o"),
+                progress = stage.Progress,
+                message = stage.Description,
+                stageId = stage.StageId,
+                parentStageId = stage.ParentStageId,
+                durationMs = stage.DurationMs,
+                jsonData = stage.Details,
+                modelName = session.ModelName,
+                provider = session.Provider
+            };
+
+            events.Add(JsonSerializer.Serialize(ev, jsonOptions));
+        }
+
+        // 2. Fetch and format logs
+        var logs = await _dbContext.AiStreamingLogs
+            .AsNoTracking()
+            .Where(l => l.SessionId == sessionId)
+            .OrderBy(l => l.Timestamp)
+            .ToListAsync();
+
+        foreach (var log in logs)
+        {
+            if (log.Timestamp > latestTimestamp)
+            {
+                latestTimestamp = log.Timestamp;
+            }
+
+            var ev = new
+            {
+                sessionId = sessionId.ToString(),
+                pipelineId = session.PipelineId,
+                eventType = "LOG_EVENT",
+                status = session.Status,
+                timestamp = log.Timestamp.ToString("o"),
+                message = log.Message,
+                stageId = log.StageId,
+                logLevel = log.LogLevel,
+                logComponent = log.Component,
+                modelName = session.ModelName,
+                provider = session.Provider
+            };
+
+            events.Add(JsonSerializer.Serialize(ev, jsonOptions));
+        }
+
+        return (events, latestTimestamp, session.Status);
+    }
 }

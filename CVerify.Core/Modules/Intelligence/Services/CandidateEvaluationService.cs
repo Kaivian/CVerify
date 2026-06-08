@@ -11,6 +11,8 @@ using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Profiles.Services;
 using CVerify.API.Modules.Intelligence.Services;
 
+using Microsoft.Extensions.Logging;
+
 namespace CVerify.API.Modules.Intelligence.Services;
 
 public interface ICandidateEvaluationService
@@ -24,15 +26,18 @@ public class CandidateEvaluationService : ICandidateEvaluationService
     private readonly ApplicationDbContext _context;
     private readonly ICareerReadinessEngine _readinessEngine;
     private readonly ITrustEngineService _trustEngine;
+    private readonly ILogger<CandidateEvaluationService> _logger;
 
     public CandidateEvaluationService(
         ApplicationDbContext context,
         ICareerReadinessEngine readinessEngine,
-        ITrustEngineService trustEngine)
+        ITrustEngineService trustEngine,
+        ILogger<CandidateEvaluationService> logger)
     {
         _context = context;
         _readinessEngine = readinessEngine;
         _trustEngine = trustEngine;
+        _logger = logger;
     }
 
     public async Task<CandidateEvaluationSnapshot> EvaluateAndSnapshotCandidateAsync(Guid candidateId, CancellationToken cancellationToken = default)
@@ -270,6 +275,8 @@ public class CandidateEvaluationService : ICandidateEvaluationService
             }
         }
 
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         var projectionList = consolidated.Values.ToList();
         var capabilitiesJson = JsonSerializer.Serialize(projectionList);
 
@@ -294,7 +301,110 @@ public class CandidateEvaluationService : ICandidateEvaluationService
             projection.ProjectedAt = DateTimeOffset.UtcNow;
         }
 
+        // Synchronize consolidated capabilities to CandidateCapability & CandidateCapabilityScore tables
+        var existingCaps = await _context.CandidateCapabilities
+            .Include(cc => cc.CapabilityNode)
+            .Where(cc => cc.CandidateId == candidateId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var newSlugs = projectionList.Select(p => p.Slug).ToHashSet();
+
+        // 1. Remove old capabilities not in the new list
+        var toRemove = existingCaps.Where(ec => !newSlugs.Contains(ec.CapabilityNode.Slug)).ToList();
+        int removedCount = toRemove.Count;
+        if (toRemove.Any())
+        {
+            var toRemoveIds = toRemove.Select(r => r.Id).ToList();
+            var scoresToRemove = await _context.CandidateCapabilityScores
+                .Where(s => toRemoveIds.Contains(s.CandidateCapabilityId))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            
+            _context.CandidateCapabilityScores.RemoveRange(scoresToRemove);
+            _context.CandidateCapabilities.RemoveRange(toRemove);
+        }
+
+        // 2. Add / Update capabilities
+        var languages = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "C#", "TypeScript", "JavaScript", "Python", "Go", "Java", "C++", "C", "Ruby", "Rust", "Swift", "Kotlin", "PHP", "HTML", "CSS", "SQL" };
+        var frameworks = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "React", "Next.js", "Angular", "Vue", "Django", "Spring", "Express", "ASP.NET Core", "Laravel", "Flask" };
+        int addedCount = 0;
+        int updatedCount = 0;
+
+        foreach (var item in projectionList)
+        {
+            var node = await _context.CapabilityNodes
+                .FirstOrDefaultAsync(n => n.Slug == item.Slug, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (node == null)
+            {
+                string category = "Library";
+                if (languages.Contains(item.Name)) category = "Language";
+                else if (frameworks.Contains(item.Name)) category = "Framework";
+
+                node = new CapabilityNode
+                {
+                    Id = Guid.CreateVersion7(),
+                    Name = item.Name,
+                    Slug = item.Slug,
+                    Category = category,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                _context.CapabilityNodes.Add(node);
+            }
+
+            var candCap = existingCaps.FirstOrDefault(cc => cc.CapabilityNode.Slug == item.Slug);
+            if (candCap == null)
+            {
+                candCap = new CandidateCapability
+                {
+                    Id = Guid.CreateVersion7(),
+                    CandidateId = candidateId,
+                    CapabilityNodeId = node.Id,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                };
+                _context.CandidateCapabilities.Add(candCap);
+                addedCount++;
+            }
+            else
+            {
+                candCap.UpdatedAt = DateTimeOffset.UtcNow;
+                updatedCount++;
+            }
+
+            var score = await _context.CandidateCapabilityScores
+                .FirstOrDefaultAsync(s => s.CandidateCapabilityId == candCap.Id, cancellationToken)
+                .ConfigureAwait(false);
+
+            string expertise = item.Score >= 80 ? "Architecture" : item.Score >= 60 ? "Production" : "Conceptual";
+
+            if (score == null)
+            {
+                score = new CandidateCapabilityScore
+                {
+                    CandidateCapabilityId = candCap.Id,
+                    ExpertiseLevel = expertise,
+                    ProficiencyScore = item.Score,
+                    RecencyIndex = 1.0,
+                    CalculatedAt = DateTimeOffset.UtcNow
+                };
+                _context.CandidateCapabilityScores.Add(score);
+            }
+            else
+            {
+                score.ExpertiseLevel = expertise;
+                score.ProficiencyScore = item.Score;
+                score.CalculatedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
         await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        stopwatch.Stop();
+
+        _logger.LogInformation("Capability sync completed for CandidateId: {CandidateId} in {DurationMs}ms. Action: Consolidate, ConsolidatedCount: {ConsolidatedCount}, AddedCount: {AddedCount}, UpdatedCount: {UpdatedCount}, RemovedCount: {RemovedCount}", 
+            candidateId, stopwatch.ElapsedMilliseconds, projectionList.Count, addedCount, updatedCount, removedCount);
 
         return snapshot;
     }

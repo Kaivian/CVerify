@@ -4,6 +4,9 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
+using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Intelligence.Services;
 
 namespace CVerify.API.Modules.Intelligence.BackgroundWorkers;
@@ -33,6 +36,54 @@ public class CandidateRankingProjectionWorker : BackgroundService
         catch (OperationCanceledException)
         {
             return;
+        }
+
+        // 2. Perform one-time backfill of historical candidate capability data
+        try
+        {
+            _logger.LogInformation("Running historical candidate capability data backfill... Action: Backfill");
+            using var backfillScope = _serviceProvider.CreateScope();
+            var backfillContext = backfillScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var evaluationService = backfillScope.ServiceProvider.GetRequiredService<ICandidateEvaluationService>();
+            
+            // Find all active non-deleted candidates who have a completed assessment but 0 candidate capability records
+            var candidatesToBackfill = await backfillContext.UserProfiles
+                .Where(up => up.DeletedAt == null && up.User.DeletedAt == null)
+                .Where(up => backfillContext.CandidateAssessments.Any(ca => ca.UserId == up.UserId && ca.Status == "Completed"))
+                .Where(up => !backfillContext.CandidateCapabilities.Any(cc => cc.CandidateId == up.UserId))
+                .Select(up => up.UserId)
+                .ToListAsync(stoppingToken)
+                .ConfigureAwait(false);
+
+            _logger.LogInformation("Found {Count} candidates requiring capability backfill. Action: Backfill", candidatesToBackfill.Count);
+
+            int backfillSuccessCount = 0;
+            int backfillFailureCount = 0;
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            foreach (var candidateId in candidatesToBackfill)
+            {
+                if (stoppingToken.IsCancellationRequested) break;
+
+                try
+                {
+                    _logger.LogInformation("Backfilling capability data for candidate {CandidateId}... Action: Backfill", candidateId);
+                    await evaluationService.EvaluateAndSnapshotCandidateAsync(candidateId, stoppingToken).ConfigureAwait(false);
+                    backfillSuccessCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to backfill capability data for candidate {CandidateId}. Action: Backfill", candidateId);
+                    backfillFailureCount++;
+                }
+            }
+            stopwatch.Stop();
+            _logger.LogInformation("Historical capability data backfill completed in {DurationMs}ms. Action: Backfill, TotalProcessed: {Total}, Success: {Success}, Failure: {Failure}",
+                stopwatch.ElapsedMilliseconds, candidatesToBackfill.Count, backfillSuccessCount, backfillFailureCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred during historical capability data backfill. Action: Backfill");
         }
 
         while (!stoppingToken.IsCancellationRequested)

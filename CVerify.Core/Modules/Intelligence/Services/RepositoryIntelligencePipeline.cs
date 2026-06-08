@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Persistence;
 
+using Microsoft.Extensions.Logging;
+
 namespace CVerify.API.Modules.Intelligence.Services;
 
 public interface IRepositoryIntelligencePipeline
@@ -21,19 +23,25 @@ public class RepositoryIntelligencePipeline : IRepositoryIntelligencePipeline
     private readonly ITrustEngineService _trustEngine;
     private readonly IOutboxPublisher _outboxPublisher;
     private readonly ICandidateEvaluationService _evaluationService;
+    private readonly ICandidateRankingProjectionService _rankingProjectionService;
+    private readonly ILogger<RepositoryIntelligencePipeline> _logger;
 
     public RepositoryIntelligencePipeline(
         ApplicationDbContext context,
         ICapabilityGraphService capabilityService,
         ITrustEngineService trustEngine,
         IOutboxPublisher outboxPublisher,
-        ICandidateEvaluationService evaluationService)
+        ICandidateEvaluationService evaluationService,
+        ICandidateRankingProjectionService rankingProjectionService,
+        ILogger<RepositoryIntelligencePipeline> logger)
     {
         _context = context;
         _capabilityService = capabilityService;
         _trustEngine = trustEngine;
         _outboxPublisher = outboxPublisher;
         _evaluationService = evaluationService;
+        _rankingProjectionService = rankingProjectionService;
+        _logger = logger;
     }
 
     public async Task ExecutePipelineAsync(Guid candidateId, Guid repositoryId)
@@ -272,6 +280,10 @@ public class RepositoryIntelligencePipeline : IRepositoryIntelligencePipeline
 
             await _context.SaveChangesAsync().ConfigureAwait(false);
             _outboxPublisher.Enqueue("SearchProjectionsUpdatedEvent", new { CandidateId = candidateId });
+
+            // Rebuild global ranking projections immediately
+            _logger.LogInformation("Rebuilding candidate ranking projections after repository intelligence pipeline execution. CandidateId: {CandidateId}, Action: Rebuild", candidateId);
+            await _rankingProjectionService.RebuildRankingProjectionsAsync().ConfigureAwait(false);
         }
     }
 

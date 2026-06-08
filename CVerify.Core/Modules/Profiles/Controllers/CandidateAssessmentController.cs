@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
 using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Services;
+using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.Modules.Profiles.Controllers;
 
@@ -21,13 +22,16 @@ public class CandidateAssessmentController : ControllerBase
 {
     private readonly ICandidateAssessmentService _assessmentService;
     private readonly IConnectionMultiplexer _redis;
+    private readonly IAiStreamingSessionService _streamingSessionService;
 
     public CandidateAssessmentController(
         ICandidateAssessmentService assessmentService,
-        IConnectionMultiplexer redis)
+        IConnectionMultiplexer redis,
+        IAiStreamingSessionService streamingSessionService)
     {
         _assessmentService = assessmentService;
         _redis = redis;
+        _streamingSessionService = streamingSessionService;
     }
 
     private Guid CurrentUserId
@@ -60,6 +64,7 @@ public class CandidateAssessmentController : ControllerBase
     {
         var stages = new[]
         {
+            new { Id = "Initialize", Name = "Initialization", Description = "Spinning up secure assessment environment and fetching workspace context." },
             new { Id = "FetchLine1", Name = "Retrieve Repository Artifacts", Description = "Fetches verified static analysis, provenance, and git telemetry artifacts for the candidate's active repositories." },
             new { Id = "ConsolidateLine1", Name = "Consolidate Repository Signals", Description = "Merges multidimensional capability signals, code quality scores, and commit telemetry across all repositories." },
             new { Id = "L2-001", Name = "Skill Taxonomy Mapping", Description = "Normalizes raw project-level skills against the global CVerify technical skill taxonomy." },
@@ -76,7 +81,8 @@ public class CandidateAssessmentController : ControllerBase
             new { Id = "L2-012", Name = "Role Recommendation Engine", Description = "Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect)." },
             new { Id = "L2-013", Name = "Executive Summary Generation", Description = "Generates a comprehensive recruiter-friendly assessment narrative and executive summary." },
             new { Id = "L2-016", Name = "Skill Tree Generation", Description = "Constructs a validated, hierarchical taxonomy of skills and capabilities based on code and profile evidence." },
-            new { Id = "L2-014", Name = "AI Profile Composition", Description = "Assembles and serializes the final verified candidate profile and calibrated score index." }
+            new { Id = "L2-014", Name = "AI Profile Composition", Description = "Assembles and serializes the final verified candidate profile and calibrated score index." },
+            new { Id = "L2-015", Name = "Candidate Improvement Engine", Description = "Generates personalized capability improvement plans and score optimization pathways." }
         };
         return Ok(stages);
     }
@@ -239,15 +245,6 @@ public class CandidateAssessmentController : ControllerBase
         Response.Headers.Append("Connection", "keep-alive");
 
         var latest = await _assessmentService.GetLatestAssessmentAsync(CurrentUserId, HttpContext.RequestAborted);
-        var terminalStates = new[] { "Completed", "Failed" };
-
-        if (latest != null && terminalStates.Contains(latest.Status))
-        {
-            await Response.WriteAsync("data: [DONE]\n\n", HttpContext.RequestAborted);
-            await Response.Body.FlushAsync(HttpContext.RequestAborted);
-            return;
-        }
-
         if (latest == null)
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
@@ -255,6 +252,25 @@ public class CandidateAssessmentController : ControllerBase
             return;
         }
 
+        var terminalStates = new[] { "Completed", "Failed", "Cancelled" };
+
+        // 1. Fetch, format and replay history from DB
+        var (historicalEvents, latestHistoricalTimestamp, sessionStatus) = await _streamingSessionService.GetFormattedHistoryAsync(latest.Id);
+        
+        foreach (var ev in historicalEvents)
+        {
+            await Response.WriteAsync($"data: {ev}\n\n", HttpContext.RequestAborted);
+        }
+        await Response.Body.FlushAsync(HttpContext.RequestAborted);
+
+        if (terminalStates.Contains(sessionStatus))
+        {
+            await Response.WriteAsync("data: [DONE]\n\n", HttpContext.RequestAborted);
+            await Response.Body.FlushAsync(HttpContext.RequestAborted);
+            return;
+        }
+
+        // 2. Subscribe to Redis for live events with timestamp deduplication
         var sub = _redis.GetSubscriber();
         var channel = $"candidate:assessment:progress:{userId}";
         var channelQueue = System.Threading.Channels.Channel.CreateUnbounded<string>();
@@ -281,11 +297,34 @@ public class CandidateAssessmentController : ControllerBase
             {
                 var message = await channelQueue.Reader.ReadAsync(HttpContext.RequestAborted);
 
+                // Deduplicate live events by timestamp to prevent duplicate playback
+                DateTimeOffset eventTimestamp = DateTimeOffset.MinValue;
+                using (var doc = JsonDocument.Parse(message))
+                {
+                    if (doc.RootElement.TryGetProperty("timestamp", out var tsProp))
+                    {
+                        if (tsProp.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(tsProp.GetString(), out var parsedTs))
+                        {
+                            eventTimestamp = parsedTs;
+                        }
+                        else if (tsProp.ValueKind == JsonValueKind.Number && tsProp.TryGetDouble(out var epochSecs))
+                        {
+                            eventTimestamp = DateTimeOffset.FromUnixTimeSeconds((long)epochSecs);
+                        }
+                    }
+                }
+
+                if (eventTimestamp != DateTimeOffset.MinValue && eventTimestamp <= latestHistoricalTimestamp)
+                {
+                    // Skip duplicate event that was already replayed from history
+                    continue;
+                }
+
                 await Response.WriteAsync($"data: {message}\n\n", HttpContext.RequestAborted);
                 await Response.Body.FlushAsync(HttpContext.RequestAborted);
 
-                using var doc = JsonDocument.Parse(message);
-                var statusPropExists = doc.RootElement.TryGetProperty("status", out var statusProp) || doc.RootElement.TryGetProperty("Status", out statusProp);
+                using var docCheck = JsonDocument.Parse(message);
+                var statusPropExists = docCheck.RootElement.TryGetProperty("status", out var statusProp) || docCheck.RootElement.TryGetProperty("Status", out statusProp);
                 if (statusPropExists)
                 {
                     var status = statusProp.GetString();
