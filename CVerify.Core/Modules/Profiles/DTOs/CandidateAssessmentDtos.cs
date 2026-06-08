@@ -25,6 +25,7 @@ public record CandidateAssessmentResponse(
     Guid UserId,
     string Status,
     double OverallScore,
+    double TrustLevel,
     string? CareerLevel,
     string? CareerLevelLabel,
     string? PrimaryTendency,

@@ -893,6 +893,26 @@ public class BackgroundCandidateAssessmentBackfillProcessor : BackgroundService
                         ca.SummaryHeadline = summaryHeadline;
                         ca.SummaryParagraph = summaryParagraph;
 
+                        // Synchronize backfilled scores to the CandidateProfile JSON artifact for backward compatibility
+                        if (existingProfileArtifact != null)
+                        {
+                            try
+                            {
+                                var node = System.Text.Json.Nodes.JsonNode.Parse(existingProfileArtifact.JsonData);
+                                if (node != null)
+                                {
+                                    node["candidateScore"] = sCandidate;
+                                    node["trustLevel"] = tCandidate;
+                                    existingProfileArtifact.JsonData = node.ToJsonString();
+                                    context.Entry(existingProfileArtifact).State = EntityState.Modified;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Failed to synchronize backfilled scores to CandidateProfile JSON artifact for assessment {AssessmentId}.", ca.Id);
+                            }
+                        }
+
                         context.Entry(ca).State = EntityState.Modified;
                         await context.SaveChangesAsync(stoppingToken);
 

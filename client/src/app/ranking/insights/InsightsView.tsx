@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Lightbulb,
   ArrowUp,
+  ArrowDown,
   ArrowRight,
   Calendar,
   Globe,
@@ -393,13 +394,29 @@ export function InsightsView() {
                         {eng.fullName}
                       </span>
                     </div>
-                    {hasDelta ? (
+                    {eng.rankDelta > 0 ? (
                       <span className="text-success text-[10px] font-black flex items-center gap-0.5 select-none shrink-0">
                         <ArrowUp className="size-2.5 stroke-3" />
                         <span>{eng.rankDelta}</span>
                       </span>
+                    ) : (!eng.previousGlobalRankPosition || eng.previousGlobalRankPosition === 0) ? (
+                      <span className="bg-success/15 text-success border border-success/35 px-1.5 py-0.5 rounded-md text-[8px] font-black tracking-widest leading-none select-none shrink-0">
+                        NEW
+                      </span>
+                    ) : eng.rankDelta < 0 ? (
+                      <span className="text-danger text-[10px] font-black flex items-center gap-0.5 select-none shrink-0">
+                        <ArrowDown className="size-2.5 stroke-3" />
+                        <span>{Math.abs(eng.rankDelta)}</span>
+                      </span>
                     ) : (
-                      <span className="text-muted-foreground text-[10px] font-bold select-none shrink-0">—</span>
+                      <Tooltip delay={0}>
+                        <Tooltip.Trigger className="inline-flex items-center cursor-help shrink-0">
+                          <span className="text-muted-foreground text-[10px] font-bold select-none">—</span>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content className="max-w-xs bg-surface border border-border p-2 shadow-md rounded-lg text-[9px] font-semibold leading-relaxed text-muted-foreground normal-case">
+                          Rank unchanged
+                        </Tooltip.Content>
+                      </Tooltip>
                     )}
                   </div>
                 );

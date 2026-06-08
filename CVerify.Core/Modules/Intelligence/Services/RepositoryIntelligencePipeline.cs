@@ -71,53 +71,89 @@ public class RepositoryIntelligencePipeline : IRepositoryIntelligencePipeline
             await _context.SaveChangesAsync().ConfigureAwait(false);
         }
 
-        // Add Evidence Artifact
-        var artifact = new EvidenceArtifact
+        // Add Evidence Artifact (idempotent lookup)
+        var externalIdentifier = repo.HtmlUrl ?? repo.Name;
+        var artifact = await _context.EvidenceArtifacts
+            .FirstOrDefaultAsync(a => a.SourceId == source.Id && a.ExternalIdentifier == externalIdentifier)
+            .ConfigureAwait(false);
+
+        Guid artifactId;
+        if (artifact == null)
         {
-            Id = Guid.CreateVersion7(),
-            SourceId = source.Id,
-            ExternalIdentifier = repo.HtmlUrl ?? repo.Name,
-            ArtifactType = "CodeRepository",
-            Payload = JsonSerializer.Serialize(new
+            artifact = new EvidenceArtifact
             {
-                repo.Name,
-                repo.PrimaryLanguage,
-                repo.StarsCount,
-                repo.ForksCount
-            }),
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        _context.EvidenceArtifacts.Add(artifact);
-
-        // Add Evidence Claim
-        var claim = new EvidenceClaim
+                Id = Guid.CreateVersion7(),
+                SourceId = source.Id,
+                ExternalIdentifier = externalIdentifier,
+                ArtifactType = "CodeRepository",
+                Payload = JsonSerializer.Serialize(new
+                {
+                    repo.Name,
+                    repo.PrimaryLanguage,
+                    repo.StarsCount,
+                    repo.ForksCount
+                }),
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            _context.EvidenceArtifacts.Add(artifact);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
+            artifactId = artifact.Id;
+        }
+        else
         {
-            Id = Guid.CreateVersion7(),
-            CandidateId = candidateId,
-            EvidenceArtifactId = artifact.Id,
-            AssertionType = "AuthoredCode",
-            ConfidenceScore = repo.IsVerified ? 0.95 : 0.60,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        _context.EvidenceClaims.Add(claim);
+            artifactId = artifact.Id;
+        }
 
-        // Add Verification
-        var verification = new EvidenceVerification
+        // Add Evidence Claim (idempotent lookup)
+        var claim = await _context.EvidenceClaims
+            .FirstOrDefaultAsync(c => c.CandidateId == candidateId && c.EvidenceArtifactId == artifactId)
+            .ConfigureAwait(false);
+
+        Guid claimId;
+        if (claim == null)
         {
-            Id = Guid.CreateVersion7(),
-            EvidenceClaimId = claim.Id,
-            VerificationType = "GPG_Signature",
-            Status = repo.IsVerified ? "Verified" : "Pending",
-            VerificationLog = JsonSerializer.Serialize(new { repo.LatestAnalysisStatus, repo.LatestRiskLevel }),
-            VerifiedAt = repo.IsVerified ? DateTimeOffset.UtcNow : null,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        _context.EvidenceVerifications.Add(verification);
-        await _context.SaveChangesAsync().ConfigureAwait(false);
+            claim = new EvidenceClaim
+            {
+                Id = Guid.CreateVersion7(),
+                CandidateId = candidateId,
+                EvidenceArtifactId = artifactId,
+                AssertionType = "AuthoredCode",
+                ConfidenceScore = repo.IsVerified ? 0.95 : 0.60,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            _context.EvidenceClaims.Add(claim);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
+            claimId = claim.Id;
+        }
+        else
+        {
+            claimId = claim.Id;
+        }
+
+        // Add Verification (idempotent lookup)
+        var verification = await _context.EvidenceVerifications
+            .FirstOrDefaultAsync(v => v.EvidenceClaimId == claimId)
+            .ConfigureAwait(false);
+
+        if (verification == null)
+        {
+            verification = new EvidenceVerification
+            {
+                Id = Guid.CreateVersion7(),
+                EvidenceClaimId = claimId,
+                VerificationType = "GPG_Signature",
+                Status = repo.IsVerified ? "Verified" : "Pending",
+                VerificationLog = JsonSerializer.Serialize(new { repo.LatestAnalysisStatus, repo.LatestRiskLevel }),
+                VerifiedAt = repo.IsVerified ? DateTimeOffset.UtcNow : null,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            _context.EvidenceVerifications.Add(verification);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
+        }
 
         // Emit outbox events
         _outboxPublisher.Enqueue("RepositorySyncedEvent", new { CandidateId = candidateId, RepositoryId = repositoryId });
-        _outboxPublisher.Enqueue("EvidenceArtifactGeneratedEvent", new { CandidateId = candidateId, ArtifactId = artifact.Id });
+        _outboxPublisher.Enqueue("EvidenceArtifactGeneratedEvent", new { CandidateId = candidateId, ArtifactId = artifactId });
 
         // 2. Capability Extraction: Map repo language to Graph Node
         var languageNode = await _capabilityService.ResolveCapabilityAsync(repo.PrimaryLanguage ?? "Unknown").ConfigureAwait(false);
@@ -211,80 +247,13 @@ public class RepositoryIntelligencePipeline : IRepositoryIntelligencePipeline
         // 4. Update Candidate Evaluation Snapshot and Capability Projection
         await _evaluationService.EvaluateAndSnapshotCandidateAsync(candidateId).ConfigureAwait(false);
 
-        // 5. Update Search Projections
-        var user = await _context.Users.FindAsync(candidateId).ConfigureAwait(false);
-        if (user != null)
-        {
-            var searchProj = await _context.CandidateSearchProfiles
-                .FirstOrDefaultAsync(p => p.CandidateId == candidateId)
-                .ConfigureAwait(false);
+        // 5. Update Search Projections (Delegated to CandidateEvaluationService)
+        await _evaluationService.UpdateSearchProfileAsync(candidateId).ConfigureAwait(false);
+        _outboxPublisher.Enqueue("SearchProjectionsUpdatedEvent", new { CandidateId = candidateId });
 
-            var projection = await _context.CandidateCapabilityProjections
-                .FirstOrDefaultAsync(p => p.CandidateId == candidateId)
-                .ConfigureAwait(false);
-
-            var capsJson = projection?.CapabilitiesJson ?? "[]";
-            var projectionItems = string.IsNullOrEmpty(capsJson)
-                ? new List<ProjectedCapabilityItem>()
-                : JsonSerializer.Deserialize<List<ProjectedCapabilityItem>>(capsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-
-            if (searchProj == null)
-            {
-                searchProj = new CandidateSearchProfile
-                {
-                    CandidateId = candidateId,
-                    FullName = user.FullName,
-                    Headline = "Verified Software Engineer",
-                    Location = "Remote",
-                    TrustScore = trustProj.AggregateScore,
-                    TrustTier = trustProj.TrustTier,
-                    CapabilitiesJson = capsJson,
-                    SearchEmbedding = new float[1536], // Mock empty embedding, resolved asynchronously by CVerify.AI
-                    LastProjectedAt = DateTimeOffset.UtcNow
-                };
-                _context.CandidateSearchProfiles.Add(searchProj);
-            }
-            else
-            {
-                searchProj.FullName = user.FullName;
-                searchProj.TrustScore = trustProj.AggregateScore;
-                searchProj.TrustTier = trustProj.TrustTier;
-                searchProj.CapabilitiesJson = capsJson;
-                searchProj.LastProjectedAt = DateTimeOffset.UtcNow;
-            }
-
-            // Update Match Projection
-            var matchProj = await _context.CandidateMatchProjections
-                .FirstOrDefaultAsync(p => p.CandidateId == candidateId)
-                .ConfigureAwait(false);
-
-            var verifiedCaps = projectionItems.Where(i => i.Source == "Verified").Select(i => i.Name).ToList();
-
-            if (matchProj == null)
-            {
-                matchProj = new CandidateMatchProjection
-                {
-                    CandidateId = candidateId,
-                    ProfileSummary = $"Developer with verified capabilities in {string.Join(", ", verifiedCaps)}.",
-                    NormalizedCapabilities = Array.Empty<Guid>(),
-                    LastProjectedAt = DateTimeOffset.UtcNow
-                };
-                _context.CandidateMatchProjections.Add(matchProj);
-            }
-            else
-            {
-                matchProj.ProfileSummary = $"Developer with verified capabilities in {string.Join(", ", verifiedCaps)}.";
-                matchProj.NormalizedCapabilities = Array.Empty<Guid>();
-                matchProj.LastProjectedAt = DateTimeOffset.UtcNow;
-            }
-
-            await _context.SaveChangesAsync().ConfigureAwait(false);
-            _outboxPublisher.Enqueue("SearchProjectionsUpdatedEvent", new { CandidateId = candidateId });
-
-            // Rebuild global ranking projections immediately
-            _logger.LogInformation("Rebuilding candidate ranking projections after repository intelligence pipeline execution. CandidateId: {CandidateId}, Action: Rebuild", candidateId);
-            await _rankingProjectionService.RebuildRankingProjectionsAsync().ConfigureAwait(false);
-        }
+        // Rebuild global ranking projections immediately
+        _logger.LogInformation("Rebuilding candidate ranking projections after repository intelligence pipeline execution. CandidateId: {CandidateId}, Action: Rebuild", candidateId);
+        await _rankingProjectionService.RebuildRankingProjectionsAsync().ConfigureAwait(false);
     }
 
     private class ProjectedCapabilityItem

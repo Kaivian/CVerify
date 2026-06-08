@@ -328,6 +328,7 @@ export interface CandidateAssessmentResponse {
   userId: string;
   status: string;
   overallScore: number;
+  trustLevel: number;
   careerLevel: string | null;
   careerLevelLabel: string | null;
   primaryTendency: string | null;

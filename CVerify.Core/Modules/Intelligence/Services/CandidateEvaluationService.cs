@@ -19,6 +19,7 @@ public interface ICandidateEvaluationService
 {
     Task<CandidateEvaluationSnapshot> EvaluateAndSnapshotCandidateAsync(Guid candidateId, CancellationToken cancellationToken = default);
     Task<CandidateCapabilityIntelligence> GetCapabilityIntelligenceAsync(Guid candidateId, bool forceRefresh = false, CancellationToken cancellationToken = default);
+    Task UpdateSearchProfileAsync(Guid candidateId, CancellationToken cancellationToken = default);
 }
 
 public class CandidateEvaluationService : ICandidateEvaluationService
@@ -481,6 +482,79 @@ public class CandidateEvaluationService : ICandidateEvaluationService
             TargetWorkplaceType = targetWorkplaceType,
             CalculatedAt = projection?.ProjectedAt ?? DateTimeOffset.UtcNow
         };
+    }
+
+    public async Task UpdateSearchProfileAsync(Guid candidateId, CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users.FindAsync(new object[] { candidateId }, cancellationToken).ConfigureAwait(false);
+        if (user == null) return;
+
+        var searchProj = await _context.CandidateSearchProfiles
+            .FirstOrDefaultAsync(p => p.CandidateId == candidateId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var projection = await _context.CandidateCapabilityProjections
+            .FirstOrDefaultAsync(p => p.CandidateId == candidateId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var trustProj = await _trustEngine.RecalculateCandidateTrustAsync(candidateId).ConfigureAwait(false);
+
+        var capsJson = projection?.CapabilitiesJson ?? "[]";
+        var projectionItems = string.IsNullOrEmpty(capsJson)
+            ? new List<ProjectedCapabilityItem>()
+            : JsonSerializer.Deserialize<List<ProjectedCapabilityItem>>(capsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+
+        if (searchProj == null)
+        {
+            searchProj = new CandidateSearchProfile
+            {
+                CandidateId = candidateId,
+                FullName = user.FullName,
+                Headline = "Verified Software Engineer",
+                Location = "Remote",
+                TrustScore = (int)trustProj.AggregateScore,
+                TrustTier = trustProj.TrustTier,
+                CapabilitiesJson = capsJson,
+                SearchEmbedding = new float[1536], // Mock empty embedding, resolved asynchronously by CVerify.AI
+                LastProjectedAt = DateTimeOffset.UtcNow
+            };
+            _context.CandidateSearchProfiles.Add(searchProj);
+        }
+        else
+        {
+            searchProj.FullName = user.FullName;
+            searchProj.TrustScore = (int)trustProj.AggregateScore;
+            searchProj.TrustTier = trustProj.TrustTier;
+            searchProj.CapabilitiesJson = capsJson;
+            searchProj.LastProjectedAt = DateTimeOffset.UtcNow;
+        }
+
+        // Update Match Projection
+        var matchProj = await _context.CandidateMatchProjections
+            .FirstOrDefaultAsync(p => p.CandidateId == candidateId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var verifiedCaps = projectionItems.Where(i => i.Source == "Verified").Select(i => i.Name).ToList();
+
+        if (matchProj == null)
+        {
+            matchProj = new CandidateMatchProjection
+            {
+                CandidateId = candidateId,
+                ProfileSummary = $"Developer with verified capabilities in {string.Join(", ", verifiedCaps)}.",
+                NormalizedCapabilities = Array.Empty<Guid>(),
+                LastProjectedAt = DateTimeOffset.UtcNow
+            };
+            _context.CandidateMatchProjections.Add(matchProj);
+        }
+        else
+        {
+            matchProj.ProfileSummary = $"Developer with verified capabilities in {string.Join(", ", verifiedCaps)}.";
+            matchProj.NormalizedCapabilities = Array.Empty<Guid>();
+            matchProj.LastProjectedAt = DateTimeOffset.UtcNow;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private class ProjectedCapabilityItem

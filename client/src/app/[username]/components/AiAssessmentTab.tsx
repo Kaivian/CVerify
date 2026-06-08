@@ -239,16 +239,16 @@ function mapToViewModel(
   // Determine if it is a legacy version (e.g. candidate-profile-v1 which lacked detailed capability vector or other dimensions)
   const isLegacy = schemaVersion !== 'candidate-profile-v2' || !profileData?.capabilityVector;
 
-  const score = assessment.overallScore ?? profileData?.candidateScore ?? 0;
-  const careerLevel = assessment.careerLevel ?? profileData?.careerLevel ?? 'L2';
-  const careerLevelLabel = assessment.careerLevelLabel ?? profileData?.careerLevelLabel ?? 'Middle';
+  const score = assessment?.overallScore ?? profileData?.candidateScore ?? 0;
+  const careerLevel = assessment?.careerLevel ?? profileData?.careerLevel ?? 'L2';
+  const careerLevelLabel = assessment?.careerLevelLabel ?? profileData?.careerLevelLabel ?? 'Middle';
   const careerLevelConfidence = profileData?.careerLevelConfidence ?? profileData?.displayConfidence ?? 0.8;
-  const primaryAffinity = assessment.primaryTendency ?? profileData?.primaryTendency ?? '';
-  const workingStyle = assessment.primaryWorkingStyle ?? profileData?.primaryWorkingStyle ?? '';
-  const headline = assessment.summaryHeadline ?? profileData?.recruiterHeadline ?? '';
-  const summary = assessment.summaryParagraph ?? profileData?.fullSummary ?? '';
+  const primaryAffinity = assessment?.primaryTendency ?? profileData?.primaryTendency ?? '';
+  const workingStyle = assessment?.primaryWorkingStyle ?? profileData?.primaryWorkingStyle ?? '';
+  const headline = assessment?.summaryHeadline ?? profileData?.recruiterHeadline ?? '';
+  const summary = assessment?.summaryParagraph ?? profileData?.fullSummary ?? '';
 
-  const trustScore = profileData?.trustLevel ?? profileData?.trustScoreMetrics?.candidateTrustScore ?? 0;
+  const trustScore = assessment?.trustLevel ?? profileData?.trustLevel ?? profileData?.trustScoreMetrics?.candidateTrustScore ?? 0;
   const verifiedSkillRatio = profileData?.trustScoreMetrics?.verifiedSkillRatio ?? 0;
   const verifiedRepositoryRatio = profileData?.trustScoreMetrics?.verifiedRepositoryRatio ?? 0;
   const verifiedEvidenceRatio = profileData?.trustScoreMetrics?.verifiedEvidenceRatio ?? 0;
