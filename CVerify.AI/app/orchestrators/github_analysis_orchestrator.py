@@ -10,6 +10,8 @@ from typing import AsyncGenerator, Any, Tuple, List, Literal, Optional, Union
 import redis.asyncio as redis
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.config import settings
+from app.orchestrators.unified_evidence import UnifiedEvidenceEngine
+
 
 from app.github.technology_detector import TechnologyDetector
 from app.github.code_sampler import CodeSampler, CodeSamplingOptions
@@ -62,6 +64,10 @@ class CvSynthesisContract(BaseModel):
             raise ValueError("CV summary is too long (must be under 550 characters).")
         return v
 
+class EvidenceStrengthContract(BaseModel):
+    score: float
+    label: str
+
 class ReportV2Contract(BaseModel):
     schemaVersion: Literal["v2"]
     repoId: str
@@ -69,6 +75,7 @@ class ReportV2Contract(BaseModel):
     sections: List[SectionV2]
     risk: RiskV2
     cvSynthesis: Optional[CvSynthesisContract] = None
+    evidenceStrength: Optional[EvidenceStrengthContract] = None
 
     model_config = {
         "extra": "allow"
@@ -1516,32 +1523,28 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             skills_dict[cat].append(skill_name)
         profile_info["skills"] = skills_dict
 
+        # Extract, normalize, validate, and deduplicate findings using UnifiedEvidenceEngine
+        raw_items = []
+        raw_items.extend(UnifiedEvidenceEngine.normalize_quality(quality_data))
+        raw_items.extend(UnifiedEvidenceEngine.normalize_security(security_data))
+        raw_items.extend(UnifiedEvidenceEngine.normalize_architecture(arch_data))
+
+        unique_items = UnifiedEvidenceEngine.deduplicate_and_validate(raw_items, filenames)
+        ev_strength = UnifiedEvidenceEngine.calculate_evidence_strength(unique_items)
+
+        # Convert back to legacy findings structure for downstream compatibility
         findings = []
-        for f in quality_data.get("findings", []):
-            if isinstance(f, dict):
-                f["category"] = "quality"
-                findings.append(f)
-
-        for f in security_data.get("findings", []):
-            if isinstance(f, dict):
-                f["category"] = "security"
-                findings.append(f)
-
-        filenames_set = set(filenames)
-        for f in findings:
-            ev_sigs = f.get("evidence_signals", [])
-            for sig in ev_sigs:
-                has_file_ref = False
-                sig_lower = sig.lower()
-                for fname in filenames_set:
-                    if fname.lower() in sig_lower:
-                        has_file_ref = True
-                        break
-                if not has_file_ref:
-                    if "package.json" in sig_lower or "requirements.txt" in sig_lower or "go.mod" in sig_lower:
-                        has_file_ref = True
-                if not has_file_ref:
-                    logger.warning(f"Hallucinated evidence signal detected in finding '{f.get('finding')}': '{sig}' not in files.", extra=extra_log)
+        for item in unique_items:
+            if item.type in ("engineering_practices", "security_findings"):
+                findings.append({
+                    "finding": item.title,
+                    "title": item.title,
+                    "category": "quality" if item.type == "engineering_practices" else "security",
+                    "explanation": item.content,
+                    "impact": "critical" if item.severity == "critical" else "warning" if item.severity == "medium" else "positive",
+                    "confidence": int(item.confidence * 100),
+                    "evidence_signals": item.evidence_signals
+                })
 
         narrative_info = {
             "recruiter_summary": summary_data.get("recruiter_summary", ""),
@@ -1784,7 +1787,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             "edges": edges
         }
 
-        # Build sections for v2 schema
+        # Build sections for v2 schema using unique, validated evidence
         testing_frameworks = quality_data.get("testing", {}).get("frameworks", [])
         cicd_providers = quality_data.get("cicd", {}).get("providers", []) if cicd_ok else []
         
@@ -1802,24 +1805,19 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 "content": f"{'Configured (' + ', '.join(cicd_providers) + ')' if cicd_ok else 'Not configured'}"
             }
         ]
-        for f in findings:
-            if f.get("category") == "quality":
+        for item in unique_items:
+            if item.type == "engineering_practices":
                 eng_items.append({
-                    "title": f.get('finding', 'Quality Finding'),
-                    "content": f.get('explanation', '')
+                    "title": item.title,
+                    "content": item.content
                 })
 
         sec_items = []
-        for v in security_data.get("vulnerabilities", []):
-            sec_items.append({
-                "title": f"Vulnerability: {v.get('vulnerability')} ({v.get('impact')})",
-                "content": v.get('explanation', '')
-            })
-        for f in findings:
-            if f.get("category") == "security":
+        for item in unique_items:
+            if item.type == "security_findings":
                 sec_items.append({
-                    "title": f.get('finding', 'Security Finding'),
-                    "content": f.get('explanation', '')
+                    "title": item.title,
+                    "content": item.content
                 })
         if not sec_items:
             sec_items.append({
@@ -1828,28 +1826,17 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             })
 
         arch_items = []
-        for p in arch_data.get("patterns", []):
-            if isinstance(p, dict) and p.get("pattern"):
+        for item in unique_items:
+            if item.type == "architecture_insights":
                 arch_items.append({
-                    "title": p.get('pattern'),
-                    "content": "Detected architectural design pattern configured in the workspace."
-                })
-            elif isinstance(p, str):
-                arch_items.append({
-                    "title": p,
-                    "content": "Detected architectural design pattern configured in the workspace."
+                    "title": item.title,
+                    "content": item.content
                 })
         if arch_data.get("explanation"):
             arch_items.append({
                 "title": "Architecture Explanation",
                 "content": arch_data.get('explanation')
             })
-        for f in findings:
-            if f.get("category") == "architecture":
-                arch_items.append({
-                    "title": f.get('finding', 'Architecture Finding'),
-                    "content": f.get('explanation', '')
-                })
         if not arch_items:
             arch_items.append({
                 "title": "Architectural Insights",
@@ -1884,6 +1871,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             "sections": sections,
             "risk": risk_v2,
             "cvSynthesis": cv_synthesis_data if cv_synthesis_data else None,
+            "evidenceStrength": ev_strength,
             
             # Legacy fields for backward compatibility
             "facts": {

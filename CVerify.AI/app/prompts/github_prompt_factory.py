@@ -255,7 +255,7 @@ Please generate an architectural report. You must strictly match the following J
 
 Remember:
 1. Return ONLY the raw JSON string. Do not include markdown code block syntax.
-2. Limit the patterns array to a maximum of 10 of the most relevant architectural patterns observed.
+2. Include only significant architectural patterns that are clearly implemented in the codebase. Return between 0 and 10 patterns, depending on what is actually observed. Avoid listing generic patterns to fill the array.
 """
 
     def get_quality_user_prompt(self, input_data: Any) -> str:
@@ -311,7 +311,7 @@ Please generate a code quality report. You must strictly match the following JSO
 
 Remember:
 1. Return ONLY the raw JSON string. Do not include markdown code block syntax.
-2. Limit the findings array to a maximum of 5 of the most critical quality findings.
+2. Return between 0 and 5 of the most critical quality findings. Only include genuine, significant quality findings. Avoid minor style issues or filler to meet the limit.
 """
 
     def get_security_user_prompt(self, input_data: Any) -> str:
@@ -358,7 +358,7 @@ Please generate a security report. You must strictly match the following JSON Sc
 
 Remember:
 1. Return ONLY the raw JSON string. Do not include markdown code block syntax.
-2. Limit the vulnerabilities array to a maximum of 5 entries and the findings array to a maximum of 5 of the most critical security findings.
+2. Limit the vulnerabilities array to a maximum of 5 entries and the findings array to a maximum of 5 of the most critical security findings. Include only genuine, verified security concerns. Do not list the same security issue in both the vulnerabilities and findings arrays. Return between 0 and 5 entries for each, depending on what is actually observed.
 """
 
     def get_summary_user_prompt(self, input_data: Any) -> str:
