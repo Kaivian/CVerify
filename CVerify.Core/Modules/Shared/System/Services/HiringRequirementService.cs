@@ -18,14 +18,14 @@ namespace CVerify.API.Modules.Shared.System.Services;
 
 public class HiringRequirementService : IHiringRequirementService
 {
-    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<(Guid requirementId, string artifactType), CancellationTokenSource> _activeGenerations = new();
-
     private readonly ApplicationDbContext _context;
     private readonly ICapabilityCatalogService _catalogService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IHmacSignatureService _hmacService;
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<HiringRequirementService> _logger;
+    private readonly IAiStreamingSessionService _streamingSessionService;
+    private readonly IAiCancellationManager _cancellationManager;
 
     public HiringRequirementService(
         ApplicationDbContext context,
@@ -33,7 +33,9 @@ public class HiringRequirementService : IHiringRequirementService
         IHttpClientFactory httpClientFactory,
         IHmacSignatureService hmacService,
         IConnectionMultiplexer redis,
-        ILogger<HiringRequirementService> logger)
+        ILogger<HiringRequirementService> logger,
+        IAiStreamingSessionService streamingSessionService,
+        IAiCancellationManager cancellationManager)
     {
         _context = context;
         _catalogService = catalogService;
@@ -41,6 +43,8 @@ public class HiringRequirementService : IHiringRequirementService
         _hmacService = hmacService;
         _redis = redis;
         _logger = logger;
+        _streamingSessionService = streamingSessionService;
+        _cancellationManager = cancellationManager;
     }
 
     public async Task<HiringRequirement> CreateDraftAsync(CreateHiringRequirementRequestDto request, Guid userId, CancellationToken cancellationToken)
@@ -557,7 +561,7 @@ public class HiringRequirementService : IHiringRequirementService
         return vector;
     }
 
-    public async Task GenerateArtifactsAsync(Guid id, CancellationToken cancellationToken)
+    public async Task GenerateArtifactsAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
         var req = await _context.HiringRequirements
             .Include(r => r.BusinessOutcomes)
@@ -582,6 +586,10 @@ public class HiringRequirementService : IHiringRequirementService
 
         req.Status = "Generating";
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Initialize unified streaming session
+        await _streamingSessionService.CreateSessionAsync(req.Id, "jd-generation", userId, req.WorkspaceId, "Claude 3.5 Sonnet", "Anthropic", "1.0.0");
+        await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Running");
 
         // Broadcast starting progress
         await PublishProgressAsync(req.Id, "Running", "Initialize", "Initiating requirement artifacts generation...", 0.0);
@@ -665,14 +673,38 @@ public class HiringRequirementService : IHiringRequirementService
                         throw new Exception($"AI Stream Stage Failed: {message}");
                     }
 
-                    // Forward to client channel
-                    await PublishRawProgressAsync(req.Id, eventData);
+                    // Forward to client channel and save in DB
+                    await _streamingSessionService.UpdateSessionProgressAsync(req.Id, percentage, step);
+                    
+                    string? detailsJson = root.TryGetProperty("jsonData", out var jsonProp) ? jsonProp.GetString() : null;
+                    await _streamingSessionService.UpsertStageAsync(req.Id, step, step, status, percentage, message, detailsJson: detailsJson);
+                    
+                    var logLevel = status == "Failed" ? "Error" : status == "Completed" ? "Success" : "Info";
+                    await _streamingSessionService.AddLogAsync(req.Id, step, logLevel, "FastApiStream", message);
+
+                    // Handle typing chunk if present
+                    if (root.TryGetProperty("chunk", out var chunkProp))
+                    {
+                        var chunk = chunkProp.GetString();
+                        if (!string.IsNullOrEmpty(chunk))
+                        {
+                            await _streamingSessionService.StreamTextChunkAsync(req.Id, step, chunk);
+                        }
+                    }
+
+                    // Save telemetry metrics if present
+                    if (root.TryGetProperty("inputTokens", out var inTokProp) && inTokProp.ValueKind == JsonValueKind.Number)
+                        await _streamingSessionService.AddMetricAsync(req.Id, step, "input_tokens", inTokProp.GetDouble());
+                    if (root.TryGetProperty("outputTokens", out var outTokProp) && outTokProp.ValueKind == JsonValueKind.Number)
+                        await _streamingSessionService.AddMetricAsync(req.Id, step, "output_tokens", outTokProp.GetDouble());
+                    if (root.TryGetProperty("costUsd", out var costProp) && costProp.ValueKind == JsonValueKind.Number)
+                        await _streamingSessionService.AddMetricAsync(req.Id, step, "cost_usd", costProp.GetDouble());
 
                     // Save artifact when received
-                    if (root.TryGetProperty("artifactType", out var artTypeProp) && root.TryGetProperty("jsonData", out var jsonProp))
+                    if (root.TryGetProperty("artifactType", out var artTypeProp) && root.TryGetProperty("jsonData", out var jsonPayloadProp))
                     {
                         var artifactType = artTypeProp.GetString();
-                        var jsonData = jsonProp.GetString();
+                        var jsonData = jsonPayloadProp.GetString();
 
                         if (!string.IsNullOrEmpty(artifactType) && !string.IsNullOrEmpty(jsonData))
                         {
@@ -685,6 +717,7 @@ public class HiringRequirementService : IHiringRequirementService
             // Publish completed event
             req.Status = "Ready";
             await _context.SaveChangesAsync(cancellationToken);
+            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Completed", summaryData: "{}");
             await PublishProgressAsync(req.Id, "Completed", "RequirementArtifactsComposer", "All hiring requirement artifacts generated successfully.", 100.0);
         }
         catch (Exception ex)
@@ -696,29 +729,23 @@ public class HiringRequirementService : IHiringRequirementService
             }
             catch {}
             _logger.LogError(ex, "Error generating artifacts for hiring requirement {RequirementId}", req.Id);
+            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Failed", errorMessage: ex.Message);
             await PublishProgressAsync(req.Id, "Failed", "Failed", ex.Message, 100.0);
             throw;
         }
     }
 
-    public async Task GenerateArtifactAsync(Guid id, string artifactType, CancellationToken cancellationToken)
+    public async Task GenerateArtifactAsync(Guid id, string artifactType, Guid userId, CancellationToken cancellationToken)
     {
-        if (_activeGenerations.ContainsKey((id, artifactType)))
-        {
-            throw new InvalidOperationException($"An AI generation job is already active for the {artifactType} artifact of this requirement.");
-        }
+        var linkedToken = _cancellationManager.Register(id, cancellationToken);
 
-        var existingDbArt = await _context.RequirementArtifacts.FirstOrDefaultAsync(ra => ra.HiringRequirementId == id && ra.ArtifactType == artifactType, cancellationToken);
+        var existingDbArt = await _context.RequirementArtifacts.FirstOrDefaultAsync(ra => ra.HiringRequirementId == id && ra.ArtifactType == artifactType, linkedToken);
         if (existingDbArt != null && (existingDbArt.Status == "Generating" || existingDbArt.Status == "Regenerating"))
         {
             throw new InvalidOperationException($"An AI generation job is already active in the database (Status: {existingDbArt.Status}) for this artifact.");
         }
 
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (!_activeGenerations.TryAdd((id, artifactType), cts))
-        {
-            throw new InvalidOperationException($"An AI generation job is already active for the {artifactType} artifact of this requirement.");
-        }
+        var cts = new { Token = linkedToken };
 
         try
         {
@@ -756,6 +783,10 @@ public class HiringRequirementService : IHiringRequirementService
                 });
             }
             await _context.SaveChangesAsync(cts.Token);
+
+            // Initialize unified streaming session
+            await _streamingSessionService.CreateSessionAsync(req.Id, "jd-generation", userId, req.WorkspaceId, "Claude 3.5 Sonnet", "Anthropic", "1.0.0");
+            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Running");
 
             await PublishProgressAsync(req.Id, "Running", "Initialize", $"Initiating requirement artifact ({artifactType}) generation...", 0.0);
 
@@ -836,12 +867,37 @@ public class HiringRequirementService : IHiringRequirementService
                         throw new Exception($"AI Stream Stage Failed: {message}");
                     }
 
-                    await PublishRawProgressAsync(req.Id, eventData);
+                    // Forward to client channel and save in DB
+                    await _streamingSessionService.UpdateSessionProgressAsync(req.Id, percentage, step);
+                    
+                    string? detailsJson = root.TryGetProperty("jsonData", out var jsonProp) ? jsonProp.GetString() : null;
+                    await _streamingSessionService.UpsertStageAsync(req.Id, step, step, status, percentage, message, detailsJson: detailsJson);
+                    
+                    var logLevel = status == "Failed" ? "Error" : status == "Completed" ? "Success" : "Info";
+                    await _streamingSessionService.AddLogAsync(req.Id, step, logLevel, "FastApiStream", message);
 
-                    if (root.TryGetProperty("artifactType", out var artTypeProp) && root.TryGetProperty("jsonData", out var jsonProp))
+                    // Handle typing chunk if present
+                    if (root.TryGetProperty("chunk", out var chunkProp))
+                    {
+                        var chunk = chunkProp.GetString();
+                        if (!string.IsNullOrEmpty(chunk))
+                        {
+                            await _streamingSessionService.StreamTextChunkAsync(req.Id, step, chunk);
+                        }
+                    }
+
+                    // Save telemetry metrics if present
+                    if (root.TryGetProperty("inputTokens", out var inTokProp) && inTokProp.ValueKind == JsonValueKind.Number)
+                        await _streamingSessionService.AddMetricAsync(req.Id, step, "input_tokens", inTokProp.GetDouble());
+                    if (root.TryGetProperty("outputTokens", out var outTokProp) && outTokProp.ValueKind == JsonValueKind.Number)
+                        await _streamingSessionService.AddMetricAsync(req.Id, step, "output_tokens", outTokProp.GetDouble());
+                    if (root.TryGetProperty("costUsd", out var costProp) && costProp.ValueKind == JsonValueKind.Number)
+                        await _streamingSessionService.AddMetricAsync(req.Id, step, "cost_usd", costProp.GetDouble());
+
+                    if (root.TryGetProperty("artifactType", out var artTypeProp) && root.TryGetProperty("jsonData", out var jsonPayloadProp))
                     {
                         var returnedType = artTypeProp.GetString();
-                        var jsonData = jsonProp.GetString();
+                        var jsonData = jsonPayloadProp.GetString();
 
                         if (!string.IsNullOrEmpty(returnedType) && !string.IsNullOrEmpty(jsonData))
                         {
@@ -851,12 +907,11 @@ public class HiringRequirementService : IHiringRequirementService
                 }
             }
 
-            _activeGenerations.TryRemove((id, artifactType), out _);
+            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Completed", summaryData: "{}");
             await PublishProgressAsync(req.Id, "Completed", "RequirementArtifactsComposer", $"Artifact {artifactType} generated successfully.", 100.0);
         }
         catch (OperationCanceledException)
         {
-            _activeGenerations.TryRemove((id, artifactType), out _);
             _logger.LogInformation("Artifact {ArtifactType} generation cancelled for requirement {RequirementId}", artifactType, id);
 
             var art = await _context.RequirementArtifacts.FirstOrDefaultAsync(ra => ra.HiringRequirementId == id && ra.ArtifactType == artifactType, CancellationToken.None);
@@ -867,11 +922,11 @@ public class HiringRequirementService : IHiringRequirementService
                 await _context.SaveChangesAsync(CancellationToken.None);
             }
 
+            await _streamingSessionService.UpdateSessionStatusAsync(id, "Cancelled");
             await PublishProgressAsync(id, "Cancelled", "Cancelled", "Generation cancelled by user.", 100.0);
         }
         catch (Exception ex)
         {
-            _activeGenerations.TryRemove((id, artifactType), out _);
             _logger.LogError(ex, "Error generating {ArtifactType} for hiring requirement {RequirementId}", artifactType, id);
 
             var art = await _context.RequirementArtifacts.FirstOrDefaultAsync(ra => ra.HiringRequirementId == id && ra.ArtifactType == artifactType, CancellationToken.None);
@@ -882,35 +937,45 @@ public class HiringRequirementService : IHiringRequirementService
                 await _context.SaveChangesAsync(CancellationToken.None);
             }
 
+            await _streamingSessionService.UpdateSessionStatusAsync(id, "Failed", errorMessage: ex.Message);
             await PublishProgressAsync(id, "Failed", "Failed", ex.Message, 100.0);
             throw;
+        }
+        finally
+        {
+            _cancellationManager.Unregister(id);
         }
     }
 
     public async Task CancelGenerationAsync(Guid id, string artifactType)
     {
-        if (_activeGenerations.TryRemove((id, artifactType), out var cts))
+        // 1. Set Redis cancellation key for Python AI service
+        try
         {
-            try
-            {
-                cts.Cancel();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to request cancellation for active generation of requirement {RequirementId}", id);
-            }
+            var db = _redis.GetDatabase();
+            await db.StringSetAsync($"ai:cancel:{id}", "true", TimeSpan.FromMinutes(5));
         }
-        else
+        catch (Exception ex)
         {
-            var art = await _context.RequirementArtifacts.FirstOrDefaultAsync(ra => ra.HiringRequirementId == id && ra.ArtifactType == artifactType);
-            if (art != null && (art.Status == "Generating" || art.Status == "Regenerating"))
-            {
-                art.Status = "Cancelled";
-                art.UpdatedAt = DateTimeOffset.UtcNow;
-                await _context.SaveChangesAsync();
-                await PublishProgressAsync(id, "Cancelled", "Cancelled", "Generation cancelled.", 100.0);
-            }
+            _logger.LogError(ex, "Failed to set Redis cancellation key for requirement {RequirementId}", id);
         }
+
+        // 2. Cancel C# token via IAiCancellationManager
+        _cancellationManager.Cancel(id);
+
+        // 3. Update unified streaming session status
+        await _streamingSessionService.UpdateSessionStatusAsync(id, "Cancelled");
+
+        // 4. Update the artifact record in the DB
+        var art = await _context.RequirementArtifacts.FirstOrDefaultAsync(ra => ra.HiringRequirementId == id && ra.ArtifactType == artifactType);
+        if (art != null && (art.Status == "Generating" || art.Status == "Regenerating"))
+        {
+            art.Status = "Cancelled";
+            art.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        await PublishProgressAsync(id, "Cancelled", "Cancelled", "Generation cancelled by user.", 100.0);
     }
 
     private async Task SaveArtifactAsync(Guid requirementId, string artifactType, string jsonData, CancellationToken cancellationToken)
@@ -1087,6 +1152,14 @@ public class HiringRequirementService : IHiringRequirementService
 
     private async Task PublishProgressAsync(Guid reqId, string status, string step, string message, double percentage)
     {
+        // 1. Persist using the unified service
+        await _streamingSessionService.UpdateSessionProgressAsync(reqId, percentage, step);
+        await _streamingSessionService.UpsertStageAsync(reqId, step, step, status, percentage, message);
+        
+        var logLevel = status == "Failed" ? "Error" : status == "Completed" ? "Success" : "Info";
+        await _streamingSessionService.AddLogAsync(reqId, step, logLevel, "HiringRequirementService", message);
+
+        // 2. Broadcast via legacy Redis channel
         var progress = new
         {
             status = status,

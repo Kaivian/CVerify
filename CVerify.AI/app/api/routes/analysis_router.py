@@ -386,5 +386,15 @@ async def generate_artifact_stream_endpoint(
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
 
+@router.post("/api/v1/analysis/jobs/{job_id}/cancel")
+async def cancel_job_endpoint(job_id: str):
+    from app.core.monitoring.observability import UIStreamingManager
+    redis_client = UIStreamingManager()._redis_client
+    await redis_client.set(f"ai:cancel:{job_id}", "true", ex=300)
+    logger.info(f"Registered cancellation signal for job {job_id} in Redis.")
+    return {"status": "Cancelled", "jobId": job_id}
+
+
+
 
 

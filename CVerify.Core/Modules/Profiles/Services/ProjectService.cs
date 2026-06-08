@@ -267,7 +267,8 @@ public class ProjectService : IProjectService
 
         if (project == null)
         {
-            throw new ResourceNotFoundException("PROJECT_NOT_FOUND", "Project not found.");
+            // Idempotent delete: return success even if already deleted
+            return;
         }
 
         _context.ProjectEntries.Remove(project);

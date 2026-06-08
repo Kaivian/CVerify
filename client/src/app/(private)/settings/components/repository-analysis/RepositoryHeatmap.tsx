@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Typography } from "@heroui/react";
+import { Typography, Tooltip } from "@heroui/react";
 import { Info, AlertTriangle, RefreshCw } from "lucide-react";
 
 interface RepositoryHeatmapProps {
@@ -35,6 +35,13 @@ export const RepositoryHeatmap: React.FC<RepositoryHeatmapProps> = ({
     }
     return dates;
   }, []);
+
+  const { startYear, endYear } = useMemo(() => {
+    if (dateRange.length === 0) return { startYear: "", endYear: "" };
+    const start = dateRange[0].getFullYear();
+    const end = dateRange[dateRange.length - 1].getFullYear();
+    return { startYear: String(start), endYear: String(end) };
+  }, [dateRange]);
 
   const activeData = showUserOnly ? userDailyCommits : dailyCommits;
 
@@ -139,28 +146,47 @@ export const RepositoryHeatmap: React.FC<RepositoryHeatmapProps> = ({
           <span></span>
         </div>
 
-        {/* Calendar Cells */}
-        <div className="grid grid-flow-col grid-rows-7 gap-[3px] h-[88px] py-[2px]">
-          {isLoading
-            ? Array.from({ length: 371 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="w-[10px] h-[10px] rounded-[1.5px] bg-neutral-100 dark:bg-neutral-800 animate-pulse"
-                />
-              ))
-            : dateRange.map((date, idx) => {
-                const dateStr = date.toISOString().split("T")[0];
-                const count = activeData ? activeData[dateStr] ?? 0 : 0;
-                return (
+        {/* Calendar Cells Container */}
+        <div className="flex flex-col gap-1.5 flex-1">
+          {/* Calendar Cells */}
+          <div className="grid grid-flow-col grid-rows-7 gap-[3px] h-[88px] py-[2px]">
+            {isLoading
+              ? Array.from({ length: 371 }).map((_, i) => (
                   <div
-                    key={idx}
-                    title={`${count} commits on ${formatDate(date)}`}
-                    className={`w-[10px] h-[10px] rounded-[1.5px] transition-colors duration-200 cursor-help ${getCellColor(
-                      count
-                    )}`}
+                    key={i}
+                    className="w-[10px] h-[10px] rounded-[1.5px] bg-neutral-100 dark:bg-neutral-800 animate-pulse"
                   />
-                );
-              })}
+                ))
+              : dateRange.map((date, idx) => {
+                  const dateStr = date.toISOString().split("T")[0];
+                  const count = activeData ? activeData[dateStr] ?? 0 : 0;
+                  const tooltipText = `${count} ${count === 1 ? "commit" : "commits"} on ${formatDate(date)}`;
+                  return (
+                    <Tooltip key={idx} delay={50}>
+                      <Tooltip.Trigger>
+                        <div
+                          className={`w-[10px] h-[10px] rounded-[1.5px] transition-colors duration-200 cursor-help ${getCellColor(
+                            count
+                          )}`}
+                        />
+                      </Tooltip.Trigger>
+                      <Tooltip.Content className="bg-surface border border-border/80 p-2 shadow-md rounded-lg max-w-xs select-none">
+                        <span className="text-[10px] font-bold text-foreground">
+                          {tooltipText}
+                        </span>
+                      </Tooltip.Content>
+                    </Tooltip>
+                  );
+                })}
+          </div>
+
+          {/* Year labels beneath the calendar */}
+          {!isLoading && !isLegacy && (
+            <div className="flex justify-between text-[9px] text-muted-foreground font-mono px-1">
+              <span>{startYear}</span>
+              {startYear !== endYear && <span>{endYear}</span>}
+            </div>
+          )}
         </div>
       </div>
 

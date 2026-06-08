@@ -444,6 +444,11 @@ export const hiringRequirementService = {
   async getDiscoveryRuns(id: string): Promise<CandidateDiscoveryRun[]> {
     const response = await axiosClient.get<CandidateDiscoveryRun[]>(`/v1/hiring-requirements/${id}/candidate-matches/discover/runs`);
     return response.data;
+  },
+
+  async cancelDiscovery(id: string): Promise<{ status: string }> {
+    const response = await axiosClient.post<{ status: string }>(`/v1/hiring-requirements/${id}/candidate-matches/discover/cancel`);
+    return response.data;
   }
 };
 

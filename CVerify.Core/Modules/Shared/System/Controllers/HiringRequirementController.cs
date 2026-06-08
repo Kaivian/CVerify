@@ -176,6 +176,7 @@ public class HiringRequirementController : ControllerBase
             }
 
             // Trigger asynchronously
+            var userId = CurrentUserId;
             var scopeFactory = _scopeFactory;
             _ = Task.Run(async () =>
             {
@@ -183,7 +184,7 @@ public class HiringRequirementController : ControllerBase
                 {
                     using var scope = scopeFactory.CreateScope();
                     var scopedService = scope.ServiceProvider.GetRequiredService<IHiringRequirementService>();
-                    await scopedService.GenerateArtifactsAsync(id, CancellationToken.None);
+                    await scopedService.GenerateArtifactsAsync(id, userId, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
@@ -315,6 +316,7 @@ public class HiringRequirementController : ControllerBase
                 return NotFound(new { message = "Hiring requirement not found." });
             }
 
+            var userId = CurrentUserId;
             var scopeFactory = _scopeFactory;
             _ = Task.Run(async () =>
             {
@@ -322,7 +324,7 @@ public class HiringRequirementController : ControllerBase
                 {
                     using var scope = scopeFactory.CreateScope();
                     var scopedService = scope.ServiceProvider.GetRequiredService<IHiringRequirementService>();
-                    await scopedService.GenerateArtifactAsync(id, request.ArtifactType, CancellationToken.None);
+                    await scopedService.GenerateArtifactAsync(id, request.ArtifactType, userId, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
@@ -399,6 +401,20 @@ public class HiringRequirementController : ControllerBase
         }
     }
 
+    [HttpPost("{id}/candidate-matches/discover/cancel")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CancelDiscovery(Guid id)
+    {
+        var success = await _candidateMatchService.CancelDiscoveryAsync(id);
+        if (!success)
+        {
+            return BadRequest(new { Message = "Discovery run could not be cancelled." });
+        }
+        return Ok(new { Message = "Discovery run cancelled successfully." });
+    }
+
     [HttpGet("{id}/candidate-matches/discover/runs")]
     [ProducesResponseType(typeof(List<CandidateDiscoveryRunDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -466,7 +482,7 @@ public class HiringRequirementController : ControllerBase
             Response.Headers.Append("Connection", "keep-alive");
 
             var sub = _redis.GetSubscriber();
-            var channel = $"hiring:requirement:progress:{id}";
+            var channel = $"ai:streaming:progress:{id}";
             var channelQueue = global::System.Threading.Channels.Channel.CreateUnbounded<string>();
 
             void RedisMessageHandler(RedisChannel rc, RedisValue value)
