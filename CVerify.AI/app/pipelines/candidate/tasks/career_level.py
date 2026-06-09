@@ -15,8 +15,18 @@ def calculate_vector_scores(context: PipelineContext) -> Dict[str, float]:
     skill_proficiencies = context.skillProficiencies or []
     repository_assessments = context.repositoryAssessments or []
     
+    # Get unique skill names from repository attributions to evaluate Skill Depth
+    unique_repo_skills = set()
+    for ra in repository_assessments:
+        for attr in ra.get("skillAttributions", []):
+            sname = attr.get("skillName")
+            if sname:
+                unique_repo_skills.add(sname)
+
+    all_skills = list(set(cv_skills) | unique_repo_skills)
+    
     from app.pipelines.candidate.helpers import _get_normalized_name
-    for skill_name in cv_skills:
+    for skill_name in all_skills:
         prof = next((p for p in skill_proficiencies if p.get("skill", "").lower() == skill_name.lower()), None)
         supporting_repos = []
         norm_skill_name = _get_normalized_name(skill_name)
@@ -29,20 +39,31 @@ def calculate_vector_scores(context: PipelineContext) -> Dict[str, float]:
             
     sd_score = a_sd * math.log1p(b_sd * raw_skills)
 
-    # 2. Ownership (Bounded Ratio)
-    total_size = 0.0
-    weighted_ownership = 0.0
+    # 2. Ownership (Logarithmic Scale - authoritative formula matching scoring_policy)
+    a_own, b_own = 22.0, 0.2
+    raw_ownership = 0.0
     for ra in repository_assessments:
+        repo_score = 0.0
+        capabilities = ra.get("capabilities") or []
+        for cap in capabilities:
+            diff_score = float(cap.get("difficultyScore", 1.0))
+            if diff_score <= 1.0:
+                diff_score *= 10.0
+            
+            maturity = cap.get("maturity", "Basic")
+            maturity_mult = 0.5 if maturity == "Basic" else 1.0 if maturity == "Intermediate" else 1.5 if maturity == "Advanced" else 2.0
+            repo_score += diff_score * maturity_mult
+            
         sig = ra.get("intelligenceSignal", {})
-        own_sig = float(sig.get("ownershipSignal", 0.0))
-        if own_sig > 1.0:
-            own_sig /= 100.0
+        ownership_signal = float(sig.get("ownershipSignal", 0.0))
+        if ownership_signal > 1.0:
+            ownership_signal /= 100.0
+        if ownership_signal == 0.0:
+            ownership_signal = 1.0
+            
+        raw_ownership += ownership_signal * repo_score
         
-        size = float(len(ra.get("capabilities", []))) + 1.0
-        total_size += size
-        weighted_ownership += own_sig * size
-        
-    ownership_score = (weighted_ownership / total_size) if total_size > 0 else 1.0
+    ownership_score = a_own * math.log1p(b_own * raw_ownership)
 
     # 3. Architecture (Exponential Pattern Index)
     base_arch_score = 0.0
@@ -122,7 +143,12 @@ def calculate_vector_scores(context: PipelineContext) -> Dict[str, float]:
         "ownershipScore": round(ownership_score, 2),
         "architectureScore": round(arch_score, 2),
         "problemSolvingScore": round(problem_solving_score, 2),
-        "impactScore": round(impact_score, 2)
+        "impactScore": round(impact_score, 2),
+        "rawSkillDepth": round(raw_skills, 2),
+        "rawOwnership": round(raw_ownership, 2),
+        "rawArchitecture": round(base_arch_score, 2),
+        "rawProblemSolving": round(ps_raw, 2),
+        "rawImpact": round(total_months, 2)
     }
 
 
@@ -149,7 +175,9 @@ class CareerLevelMapper(BaseTask):
             "candidateScore", "estimatedLevel", "estimatedLevelLabel",
             "scoreBreakdown", "levelEvidence", "levelRationale",
             "skillDepthScore", "ownershipScore", "architectureScore",
-            "problemSolvingScore", "impactScore"
+            "problemSolvingScore", "impactScore",
+            "rawSkillDepth", "rawOwnership", "rawArchitecture",
+            "rawProblemSolving", "rawImpact"
         ]
 
     def __init__(self):

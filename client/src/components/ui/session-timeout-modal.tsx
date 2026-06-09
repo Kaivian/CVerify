@@ -27,14 +27,14 @@ export const SessionTimeoutModal: React.FC<SessionTimeoutModalProps> = ({
   const isCritical = countdown <= 30;
 
   return (
-    <Modal.Backdrop 
-      isOpen={isOpen} 
+    <Modal.Backdrop
+      isOpen={isOpen}
       onOpenChange={(open) => { if (!open) onLogout(); }}
       isDismissable={false}
       className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in"
     >
-      <Modal.Container 
-        placement="center" 
+      <Modal.Container
+        placement="center"
         className="fixed inset-0 flex items-center justify-center z-50 p-4"
       >
         <Modal.Dialog className="bg-overlay border border-border shadow-modal rounded-2xl max-w-sm w-full mx-auto overflow-hidden outline-hidden animate-scale-up z-50">
@@ -54,8 +54,8 @@ export const SessionTimeoutModal: React.FC<SessionTimeoutModalProps> = ({
             <Typography type="h4" className="font-bold text-foreground mb-1 tracking-tight">
               Session Expiring Soon
             </Typography>
-            
-            <Typography type="body-sm" className="text-muted-foreground leading-relaxed mb-4">
+
+            <Typography type="body-sm" className="text-muted-foreground leading-relaxed mb-4 text-center">
               You have been inactive for a while. For security, your session will automatically lock in:
             </Typography>
 
@@ -72,7 +72,7 @@ export const SessionTimeoutModal: React.FC<SessionTimeoutModalProps> = ({
               {formatTime(countdown)}
             </Typography>
           </Modal.Body>
-          
+
           <Modal.Footer className="flex flex-col sm:flex-row gap-2 px-6 pb-6 pt-2 border-none">
             <Button
               variant="bordered"

@@ -346,4 +346,20 @@ public class CandidateAssessmentController : ControllerBase
             await sub.UnsubscribeAsync(channel, RedisMessageHandler);
         }
     }
+
+    [HttpPost("v1/admin/candidate-assessments/reprocess")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ReprocessAllAssessments(CancellationToken cancellationToken)
+    {
+        await _assessmentService.ReprocessAllAssessmentsAsync(cancellationToken);
+        return Ok(new { Message = "Batch reprocessing of candidate assessments completed successfully." });
+    }
+
+    [HttpPost("v1/admin/candidate-assessments/{assessmentId}/reprocess")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ReprocessAssessment(Guid assessmentId, CancellationToken cancellationToken)
+    {
+        await _assessmentService.ReprocessAssessmentAsync(assessmentId, cancellationToken);
+        return Ok(new { Message = $"Assessment {assessmentId} reprocessed successfully." });
+    }
 }

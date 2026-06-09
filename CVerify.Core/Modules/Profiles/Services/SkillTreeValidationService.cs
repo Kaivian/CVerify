@@ -98,8 +98,8 @@ public class SkillTreeValidationService : ISkillTreeValidationService
             supportingEvidenceJson = JsonSerializer.Serialize(evProp);
         }
 
-        // Compute stable hashed Guid ID for the node using the candidate ID and the hierarchical path slug
-        var nodeId = GenerateStableGuid(candidateId, slug);
+        // Compute stable hashed Guid ID for the node using the assessment ID and the hierarchical path slug
+        var nodeId = GenerateStableGuid(assessmentId, slug);
 
         var node = new CandidateSkillTreeNode
         {
@@ -166,10 +166,10 @@ public class SkillTreeValidationService : ISkillTreeValidationService
         }
     }
 
-    private static Guid GenerateStableGuid(Guid candidateId, string pathSlug)
+    private static Guid GenerateStableGuid(Guid assessmentId, string pathSlug)
     {
         using var md5 = MD5.Create();
-        var key = $"{candidateId.ToString().ToLowerInvariant()}:{pathSlug.ToLowerInvariant().Trim('/')}";
+        var key = $"{assessmentId.ToString().ToLowerInvariant()}:{pathSlug.ToLowerInvariant().Trim('/')}";
         var inputBytes = Encoding.UTF8.GetBytes(key);
         var hashBytes = md5.ComputeHash(inputBytes);
         return new Guid(hashBytes);

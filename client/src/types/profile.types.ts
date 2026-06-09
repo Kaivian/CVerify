@@ -347,6 +347,10 @@ export interface CandidateAssessmentResponse {
   failureReason: string | null;
   createdAtUtc: string;
   completedAtUtc: string | null;
+  calculationMode: string | null;
+  inputFeatureSetHash: string | null;
+  evidenceCompleteness: string | null;
+  cloneRiskClassification: string | null;
 }
 
 export interface CandidateAssessmentArtifactDto {

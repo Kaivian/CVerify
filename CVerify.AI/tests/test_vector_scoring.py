@@ -109,7 +109,7 @@ def test_vector_scoring_computations():
     scores = calculate_vector_scores(context)
     
     # Assertions based on growth equations:
-    assert scores["ownershipScore"] == 0.85  # Singular repo ownership proxy
+    assert abs(scores["ownershipScore"] - 24.46) < 0.5  # Tolerance-based check for logarithmic ownership scale
     assert scores["architectureScore"] > 0.0  # DI pattern multiplier should scale up
     assert scores["problemSolvingScore"] > 0.0  # Complexity score sigmoid response
     assert scores["impactScore"] > 0.0  # Google + Senior power law compounding duration

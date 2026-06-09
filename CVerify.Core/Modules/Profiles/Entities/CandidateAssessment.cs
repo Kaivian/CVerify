@@ -85,6 +85,18 @@ public class CandidateAssessment
     public double ExecutionStrength { get; set; } = 0.0;
     public double TrustLevel { get; set; } = 0.0;
 
+    [MaxLength(50)]
+    public string? CalculationMode { get; set; }
+
+    [MaxLength(100)]
+    public string? InputFeatureSetHash { get; set; }
+
+    [MaxLength(50)]
+    public string? EvidenceCompleteness { get; set; }
+
+    [MaxLength(50)]
+    public string? CloneRiskClassification { get; set; }
+
     public virtual ICollection<CandidateAssessmentArtifact> Artifacts { get; set; } = new List<CandidateAssessmentArtifact>();
     public virtual ICollection<CandidateSkill> Skills { get; set; } = new List<CandidateSkill>();
     public virtual ICollection<CandidateDomainProfile> DomainProfiles { get; set; } = new List<CandidateDomainProfile>();

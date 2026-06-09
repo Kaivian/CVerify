@@ -1047,13 +1047,16 @@ export default function CvManagementCenter() {
     });
 
     // Grouping skills for capability clusters
-    const langSkills = rawSkills.filter((item: any) =>
+    const sortedLangSkills = [...(rawSkills.filter((item: any) =>
       item.skillName && ['react', 'typescript', 'next.js', 'javascript', 'python', 'c#', '.net core', 'node.js', 'css', 'tailwind css', 'three.js', 'glsl'].includes(item.skillName.toLowerCase())
-    ) || [];
+    ) || [])].sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
 
-    const systemSkills = rawSkills.filter((item: any) =>
+    const sortedSystemSkills = [...(rawSkills.filter((item: any) =>
       item.skillName && !['react', 'typescript', 'next.js', 'javascript', 'python', 'c#', '.net core', 'node.js', 'css', 'tailwind css', 'three.js', 'glsl'].includes(item.skillName.toLowerCase())
-    ) || [];
+    ) || [])].sort((a: any, b: any) => (b.score || 0) - (a.score || 0));
+
+    const displayedLangSkills = sortedLangSkills.slice(0, 5);
+    const displayedSystemSkills = sortedSystemSkills.slice(0, 5);
 
     return (
       <div className="flex flex-col gap-8 text-left w-full relative pb-16 select-none font-sans">
@@ -1300,10 +1303,10 @@ export default function CvManagementCenter() {
               {/* Group A: Languages & Frameworks */}
               <div className="flex flex-col gap-4">
                 <span className="text-[10px] uppercase font-bold text-accent tracking-wider select-none">
-                  Core Languages & Front-end Stack ({langSkills.length})
+                  Core Languages & Front-end Stack (Top {displayedLangSkills.length})
                 </span>
                 <div className="flex flex-col gap-3">
-                  {langSkills.map((item: any, idx: number) => (
+                  {displayedLangSkills.map((item: any, idx: number) => (
                     <div key={idx} className="p-4 border border-border/40 rounded-xl bg-surface-secondary/20 flex flex-col gap-2">
                       <div className="flex justify-between items-center flex-wrap gap-2">
                         <div className="flex items-center gap-2">
@@ -1321,17 +1324,17 @@ export default function CvManagementCenter() {
                       <p className="text-[11px] text-muted-foreground leading-relaxed font-light">{item.reasoning}</p>
                     </div>
                   ))}
-                  {langSkills.length === 0 && <span className="text-xs text-muted-foreground italic font-light">No core framework matches.</span>}
+                  {displayedLangSkills.length === 0 && <span className="text-xs text-muted-foreground italic font-light">No core framework matches.</span>}
                 </div>
               </div>
 
               {/* Group B: Systems & Databases */}
               <div className="flex flex-col gap-4">
                 <span className="text-[10px] uppercase font-bold text-accent tracking-wider select-none">
-                  Systems Architecture, Databases & Tooling ({systemSkills.length})
+                  Systems Architecture, Databases & Tooling (Top {displayedSystemSkills.length})
                 </span>
                 <div className="flex flex-col gap-3">
-                  {systemSkills.map((item: any, idx: number) => (
+                  {displayedSystemSkills.map((item: any, idx: number) => (
                     <div key={idx} className="p-4 border border-border/40 rounded-xl bg-surface-secondary/20 flex flex-col gap-2">
                       <div className="flex justify-between items-center flex-wrap gap-2">
                         <div className="flex items-center gap-2">
@@ -1349,7 +1352,7 @@ export default function CvManagementCenter() {
                       <p className="text-[11px] text-muted-foreground leading-relaxed font-light">{item.reasoning}</p>
                     </div>
                   ))}
-                  {systemSkills.length === 0 && <span className="text-xs text-muted-foreground italic font-light">No architectural matches.</span>}
+                  {displayedSystemSkills.length === 0 && <span className="text-xs text-muted-foreground italic font-light">No architectural matches.</span>}
                 </div>
               </div>
             </div>
