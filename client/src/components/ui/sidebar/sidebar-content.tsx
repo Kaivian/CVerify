@@ -10,6 +10,7 @@ import SidebarSection from "./sidebar-section";
 import { useWorkspace } from "../../../providers/workspace-provider";
 import { useWorkspaceStore } from "../../../features/workspace/store/use-workspace-store";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Link from "next/link";
 import { Tooltip } from "@heroui/react";
 import {
   LayoutDashboard,
@@ -27,8 +28,13 @@ import {
   BookOpen,
   Building2,
   Shield,
-  Users
+  Users,
+  Briefcase,
+  FileText,
+  Info,
+  CreditCard
 } from "lucide-react";
+import { type NavigationNode } from "../../../types/navigation.types";
 
 interface SidebarContentProps {
   collapsed: boolean;
@@ -60,6 +66,117 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     return filterNavigationNodes(navigationConfig, userRole, hasPermission);
   }, [userRole, hasPermission]);
 
+  const pathname = usePathname();
+
+  // Resolve current organization slug:
+  // If the path is /workspace/slug/..., use slug.
+  // Otherwise, if myOrganizations exists and has entries, default to the first organization's slug.
+  const currentOrgSlug = useMemo(() => {
+    if (pathname?.startsWith("/workspace/")) {
+      return pathname.split("/workspace/")[1]?.split("/")[0] || "";
+    }
+    return myOrganizations && myOrganizations.length > 0 ? myOrganizations[0].slug : "";
+  }, [pathname, myOrganizations]);
+
+  const fetchWorkspace = useWorkspaceStore((s) => s.fetchWorkspace);
+  const workspaceDetails = useWorkspaceStore((s) => s.workspaces[currentOrgSlug]);
+
+  useEffect(() => {
+    if (currentOrgSlug) {
+      fetchWorkspace(currentOrgSlug);
+    }
+  }, [currentOrgSlug, fetchWorkspace]);
+
+  const orgUserRole = workspaceDetails?.userRole || "MEMBER";
+
+  const orgNodes = useMemo<NavigationNode[]>(() => {
+    if (!currentOrgSlug) return [];
+
+    return [
+      {
+        id: "org-workspace-group",
+        type: "group" as const,
+        label: "Workspace",
+        icon: Building2,
+        children: [
+          {
+            id: "org-info",
+            type: "item" as const,
+            label: "Information",
+            href: `/workspace/${currentOrgSlug}/information`,
+            icon: Info,
+          },
+          {
+            id: "org-members",
+            type: "item" as const,
+            label: "Members",
+            href: `/workspace/${currentOrgSlug}/members`,
+            icon: Users,
+          },
+          ...(orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE"
+            ? [
+                {
+                  id: "org-roles",
+                  type: "item" as const,
+                  label: "Business Roles",
+                  href: `/workspace/${currentOrgSlug}/roles`,
+                  icon: Shield,
+                },
+              ]
+            : []),
+          ...(orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE"
+            ? [
+                {
+                  id: "org-billing",
+                  type: "item" as const,
+                  label: "Billing",
+                  href: `/workspace/${currentOrgSlug}/billing`,
+                  icon: CreditCard,
+                },
+              ]
+            : []),
+          ...(orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE"
+            ? [
+                {
+                  id: "org-settings",
+                  type: "item" as const,
+                  label: "Settings",
+                  href: `/workspace/${currentOrgSlug}/settings`,
+                  icon: Settings,
+                },
+              ]
+            : []),
+        ],
+      },
+      ...(orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE" || orgUserRole === "HR"
+        ? [
+            {
+              id: "org-recruitment-group",
+              type: "group" as const,
+              label: "Recruitment",
+              icon: Briefcase,
+              children: [
+                {
+                  id: "org-recruitment-dashboard",
+                  type: "item" as const,
+                  label: "Dashboard",
+                  href: `/workspace/${currentOrgSlug}/recruitment/dashboard`,
+                  icon: LayoutDashboard,
+                },
+                {
+                  id: "org-recruitment-jd",
+                  type: "item" as const,
+                  label: "JD Management",
+                  href: `/workspace/${currentOrgSlug}/recruitment/jd`,
+                  icon: FileText,
+                },
+              ],
+            },
+          ]
+        : []),
+    ];
+  }, [currentOrgSlug, orgUserRole]);
+
   // Dynamically inject workspace links based on role sections
   const combinedNodes = useMemo(() => {
     if (!myOrganizations || myOrganizations.length === 0) {
@@ -71,44 +188,40 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       if (node.id === "business-section" && (node.type === "section" || node.type === "group")) {
         hasBusinessSection = true;
         const existingChildren = node.children || [];
-        const workspaceChildren = myOrganizations.map((org) => ({
-          id: `org-workspace-${org.slug}`,
-          type: "item" as const,
-          label: `${org.name} Workspace`,
-          href: `/workspace/${org.slug}`,
-          icon: Building2,
-        }));
-        
         const filteredExisting = existingChildren.filter(
-          (child: any) => !child.id.startsWith("org-workspace-")
+          (child: NavigationNode) => !child.id.startsWith("org-workspace-")
         );
 
         return {
           ...node,
-          children: [...filteredExisting, ...workspaceChildren],
+          children: [...filteredExisting, ...orgNodes],
         };
       }
       return node;
     });
 
     if (!hasBusinessSection) {
+      const isInsideWorkspace = pathname?.startsWith("/workspace/");
       // Append a workspaces section at the bottom for non-business/admin users
       mappedNodes.push({
         id: "workspaces-section",
         type: "section",
         label: "Workspaces",
-        children: myOrganizations.map((org) => ({
-          id: `org-workspace-${org.slug}`,
-          type: "item" as const,
-          label: org.name,
-          href: `/workspace/${org.slug}`,
-          icon: Building2,
-        })),
+        children: [
+          ...(isInsideWorkspace ? orgNodes : []),
+          ...myOrganizations.map((org) => ({
+            id: `org-workspace-${org.slug}`,
+            type: "item" as const,
+            label: org.name,
+            href: `/workspace/${org.slug}`,
+            icon: Building2,
+          })),
+        ],
       });
     }
 
     return mappedNodes;
-  }, [filteredNodes, myOrganizations]);
+  }, [filteredNodes, myOrganizations, orgNodes, pathname]);
 
   // Dedicated specialized components workspace navigation sections
   const componentSections = useMemo(() => [
@@ -134,138 +247,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     router.push(`/admin/components?view=${viewId}`);
   };
 
-  const pathname = usePathname();
-
-  if (activeWorkspace === "ORGANIZATION") {
-    const orgSlug = pathname ? pathname.split("/workspace/")[1]?.split("/")[0] || "" : "";
-    const handleBackToDashboard = () => {
-      if (userRole === "BUSINESS" || userRole === "ADMIN") {
-        router.push("/business");
-      } else {
-        router.push("/user");
-      }
-    };
-
-    const orgSections = [
-      { id: "members", label: "Members", icon: Users, href: `/workspace/${orgSlug}`, active: pathname === `/workspace/${orgSlug}` },
-      { id: "roles", label: "Roles Matrix", icon: Shield, disabled: true },
-      { id: "settings", label: "Settings", icon: Settings, disabled: true },
-      { id: "billing", label: "Billing", icon: BarChart3, disabled: true }
-    ];
-
-    return (
-      <nav
-        className={["flex flex-col w-full", isMobile ? "gap-2" : "gap-3"].join(" ")}
-        aria-label="Organization Workspace Sidebar Navigation"
-      >
-        {/* Workspace Brand Selector & Back Button */}
-        <div className="flex flex-col gap-2 pb-2 border-b border-border/40 mb-1">
-          <a
-            href={userRole === "BUSINESS" || userRole === "ADMIN" ? "/business" : "/user"}
-            onClick={(e) => {
-              e.preventDefault();
-              handleBackToDashboard();
-            }}
-            className={[
-              "flex items-center gap-2 w-full rounded-xl transition-all duration-200 text-muted hover:bg-accent/10 hover:text-accent font-semibold cursor-pointer",
-              isMobile ? "h-12 text-base px-3.5" : "h-10 text-sm px-3",
-              collapsed ? "justify-center" : ""
-            ].join(" ")}
-          >
-            <ArrowLeft size={18} />
-            {!collapsed && <span>Back to Home</span>}
-          </a>
-
-          {!collapsed && (
-            <div className="flex items-center gap-2 px-3 pt-2 text-[11px] font-bold text-muted/60 uppercase tracking-wider select-none">
-              <Building2 size={12} />
-              <span>Org Workspace</span>
-            </div>
-          )}
-        </div>
-
-        {/* Dynamic Sidebar Links */}
-        <div className="flex flex-col gap-1 w-full">
-          {orgSections.map((item) => {
-            const Icon = item.icon;
-            const active = item.active;
-
-            const linkContent = item.disabled ? (
-              <button
-                key={item.id}
-                disabled
-                className={[
-                  "relative flex items-center w-full rounded-xl font-semibold transition-all duration-200 group border-0 bg-transparent text-left",
-                  isMobile ? "h-12 text-base px-3.5 gap-3" : "h-10 text-sm gap-2 px-3",
-                  "text-muted/40 cursor-not-allowed",
-                  collapsed ? "justify-center mx-auto" : "",
-                ].join(" ")}
-              >
-                <Icon size={20} className="shrink-0" />
-                {!collapsed && (
-                  <span className="truncate">
-                    {item.label}
-                    <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider opacity-60">(Soon)</span>
-                  </span>
-                )}
-              </button>
-            ) : (
-              <a
-                key={item.id}
-                href={item.href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (item.href) {
-                    router.push(item.href);
-                  }
-                }}
-                aria-current={active ? "page" : undefined}
-                className={[
-                  "relative flex items-center w-full rounded-xl font-semibold transition-all duration-200 group border-0 bg-transparent text-left",
-                  isMobile ? "h-12 text-base px-3.5 gap-3" : "h-10 text-sm gap-2 px-3",
-                  active
-                    ? "bg-accent/10 text-accent font-bold"
-                    : "text-muted hover:bg-accent/10 hover:text-accent cursor-pointer",
-                  collapsed ? "justify-center mx-auto" : "",
-                ].join(" ")}
-              >
-                {active && (
-                  <span
-                    className={[
-                      "absolute -left-1 rounded-r-full bg-accent shrink-0",
-                      isMobile ? "top-3 w-1.5 h-6" : "w-1 h-8",
-                    ].join(" ")}
-                  />
-                )}
-
-                <Icon size={20} className="shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </a>
-            );
-
-            if (collapsed && !isMobile) {
-              return (
-                <Tooltip key={item.id} delay={0}>
-                  <Tooltip.Trigger>
-                    {linkContent}
-                  </Tooltip.Trigger>
-                  <Tooltip.Content
-                    placement="right"
-                    className="font-outfit text-xs font-semibold px-2.5 py-1.5 shadow-md border border-border"
-                  >
-                    <span>{item.label} {item.disabled ? "(Coming Soon)" : ""}</span>
-                  </Tooltip.Content>
-                </Tooltip>
-              );
-            }
-
-            return linkContent;
-          })}
-        </div>
-      </nav>
-    );
-  }
-
   if (activeWorkspace === "COMPONENTS") {
     return (
       <nav
@@ -274,7 +255,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       >
         {/* Workspace Brand Selector & Back Button */}
         <div className="flex flex-col gap-2 pb-2 border-b border-border/40 mb-1">
-          <a
+          <Link
             href="/admin"
             onClick={(e) => {
               e.preventDefault();
@@ -288,7 +269,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
           >
             <ArrowLeft size={18} />
             {!collapsed && <span>Back to Admin</span>}
-          </a>
+          </Link>
 
           {!collapsed && (
             <div className="flex items-center gap-2 px-3 pt-2 text-[11px] font-bold text-muted/60 uppercase tracking-wider select-none">
@@ -306,7 +287,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
             const href = `/admin/components?view=${item.id}`;
 
             const linkContent = (
-              <a
+              <Link
                 key={item.id}
                 href={href}
                 onClick={(e) => {
@@ -331,10 +312,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
                     ].join(" ")}
                   />
                 )}
-
+ 
                 <Icon size={20} className="shrink-0" />
                 {!collapsed && <span className="truncate">{item.label}</span>}
-              </a>
+              </Link>
             );
 
             if (collapsed && !isMobile) {

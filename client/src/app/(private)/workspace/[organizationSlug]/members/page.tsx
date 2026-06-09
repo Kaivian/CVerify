@@ -2,11 +2,11 @@
 
 import React from "react";
 import { useParams } from "next/navigation";
-import { WorkspacePublicProfileView } from "@/features/workspace/views/workspace-public-profile-view";
+import { WorkspaceMembersView } from "@/features/workspace/views/workspace-members-view";
 
-export default function WorkspacePage() {
+export default function WorkspaceMembersPage() {
   const params = useParams();
   const organizationSlug = typeof params?.organizationSlug === "string" ? params.organizationSlug : "";
 
-  return <WorkspacePublicProfileView organizationSlug={organizationSlug} />;
+  return <WorkspaceMembersView organizationSlug={organizationSlug} />;
 }

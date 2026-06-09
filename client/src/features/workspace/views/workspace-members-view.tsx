@@ -8,14 +8,14 @@ import { type WorkspaceMember } from "../types/workspace.types";
 import { Card } from "@/components/ui/card";
 import { Table, Typography, Chip } from "@heroui/react";
 import { Users, Search, RotateCw, Building2, AlertTriangle } from "lucide-react";
-import { SkeletonLoader, EmptyState, ErrorState } from "@/components/ui/states";
+import { SkeletonLoader, EmptyState } from "@/components/ui/states";
 import { PaginationWrapper } from "@/components/ui/pagination-wrapper";
 
-interface WorkspaceViewProps {
+interface WorkspaceMembersViewProps {
   organizationSlug: string;
 }
 
-export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
+export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   organizationSlug,
 }) => {
   const router = useRouter();
@@ -68,9 +68,10 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
       );
       setMembers(response.items);
       setTotalCount(response.totalCount);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to fetch workspace members", err);
-      const msg = err?.response?.data?.message || err?.message || "Failed to load members";
+      const errorObject = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = errorObject?.response?.data?.message || errorObject?.message || "Failed to load members";
       setMembersError(msg);
     } finally {
       setIsMembersLoading(false);
@@ -78,7 +79,10 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
   }, [organizationSlug, page, pageSize, debouncedSearch]);
 
   useEffect(() => {
-    fetchMembers();
+    const timer = setTimeout(() => {
+      fetchMembers();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchMembers]);
 
   const handleSwitchOrganization = (slug: string) => {
@@ -333,3 +337,5 @@ export const WorkspaceView: React.FC<WorkspaceViewProps> = ({
     </div>
   );
 };
+
+export default WorkspaceMembersView;

@@ -74,9 +74,14 @@ export const TagChipMultiSelect: React.FC<TagChipMultiSelectProps> = ({
           aria-label={label ? `Add custom ${label}` : "Add custom option"}
         />
         <Button
-          size="sm"
+          size="md"
           onPress={handleAddCustomTag}
-          className="bg-accent text-accent-foreground font-bold shrink-0"
+          className={
+            !inputValue.trim()
+              ? "bg-white dark:bg-surface border border-border text-muted font-bold shrink-0 opacity-60 cursor-not-allowed disabled:bg-white dark:disabled:bg-surface data-[disabled=true]:bg-white dark:data-[disabled=true]:bg-surface data-[disabled=true]:text-muted data-[disabled=true]:border-border data-[disabled=true]:opacity-60"
+              : "bg-accent text-accent-foreground font-bold shrink-0 hover:bg-accent/90 cursor-pointer"
+          }
+          isDisabled={!inputValue.trim()}
         >
           Add
         </Button>

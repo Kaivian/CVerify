@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, Suspense, useEffect } from "react";
+import React, { useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { Google } from "@thesvg/react";
@@ -36,16 +36,8 @@ function LoginContent() {
   } = useAuth();
 
   // Engineer state
-  const [email, setEmail] = useState("");
-  const [emailTouched, setEmailTouched] = useState(false);
-
-  useEffect(() => {
-    const emailParam = searchParams.get("email");
-    if (emailParam) {
-      setEmail(emailParam);
-      setEmailTouched(true);
-    }
-  }, [searchParams]);
+  const [email, setEmail] = useState(() => searchParams?.get("email") || "");
+  const [emailTouched, setEmailTouched] = useState(() => !!searchParams?.get("email"));
   const [isEmailLoading, setIsEmailLoading] = useState(false);
 
   // Engineer identity flow phase: email input → password login (if credentials exist)

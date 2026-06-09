@@ -37,7 +37,7 @@ async function getPublicProfile(username: string): Promise<PublicProfileResponse
   }
 }
 
-function formatExpectedSalary(cp: any): string | null {
+function formatExpectedSalary(cp: NonNullable<PublicProfileResponse['careerPreference']>): string | null {
   const min = cp.expectedSalaryMin;
   const max = cp.expectedSalaryMax;
   const currency = cp.expectedSalaryCurrency || 'VND';
