@@ -350,7 +350,6 @@ public class ProfileService : IProfileService
                 WHERE ap.user_id = {0} 
                   AND ap.deleted_at IS NULL
                   AND r.latest_analysis_status = 'Completed'
-                  AND r.is_private = FALSE
                   AND r.is_enabled = TRUE
                   AND r.is_accessible = TRUE
                 ORDER BY r.latest_analysis_completed_at_utc DESC", 
@@ -377,7 +376,7 @@ public class ProfileService : IProfileService
             r.Name,
             r.Owner,
             r.Description,
-            r.HtmlUrl,
+            r.IsPrivate ? null : r.HtmlUrl, // Mask private repository URLs on public profile pages
             r.PrimaryLanguage,
             r.TrustScore,
             r.Classification,

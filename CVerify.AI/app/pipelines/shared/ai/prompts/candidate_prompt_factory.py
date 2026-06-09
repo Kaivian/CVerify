@@ -366,12 +366,12 @@ class CandidatePromptFactory:
             f"- Top Role Match: {top_role}\n\n"
             f"REQUIREMENTS:\n"
             f"- Tone: objective, evidence-based, professional (not promotional)\n"
-            f"- Length: 200-350 characters for recruiter_headline, 400-700 characters for full_summary\n"
+            f"- Length: STRICTLY 150-250 characters for recruiter_headline, STRICTLY 200-350 characters (about 2-3 dense sentences) for full_summary\n"
             f"- Must cite specific technical evidence, not generic statements\n"
             f"- Must mention level, tendency, and top 2-3 skills\n\n"
             f"Return JSON:\n"
             f'  "recruiterHeadline": "Senior Backend Engineer with 3+ years of Python/FastAPI expertise", \n'
-            f'  "fullSummary": "paragraph 400-700 chars", \n'
+            f'  "fullSummary": "paragraph 200-350 chars", \n'
             f'  "keyStrengths": ["Distributed system design", "API architecture", "PostgreSQL optimization"], \n'
             f'  "watchPoints": ["Limited frontend exposure", "No mobile development evidence"]\n'
             f'}}'

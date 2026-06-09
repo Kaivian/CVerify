@@ -261,6 +261,7 @@ export default function CvManagementCenter() {
     readiness,
     latestAssessment,
     assessmentDetails,
+    parsedProfile,
     isLoadingDetails,
     triggerAssessment,
     fetchDetails,
@@ -961,6 +962,7 @@ export default function CvManagementCenter() {
     publicEmail: drafts["basic-info"].publicEmail || "",
     phoneNumber: drafts["basic-info"].phoneNumber || "",
     socialLinks: drafts["basic-info"].socialLinks || [],
+    aiSuggestionsJson: drafts["basic-info"].aiSuggestionsJson,
   };
 
   const activeEdu = useSampleData ? SAMPLE_DATA.education : drafts["education"];
@@ -2162,6 +2164,7 @@ export default function CvManagementCenter() {
                         isDirty={dirtyFlags["basic-info"]}
                         avatarUrl={user?.avatarUrl}
                         latestAssessment={latestAssessment}
+                        parsedProfile={parsedProfile}
                       />
                     )}
 
