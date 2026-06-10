@@ -69,18 +69,16 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
 
     private async Task<List<string>> FetchHierarchicalPermissionsFromDbAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken)
     {
-        // 1. Fetch legacy membership role
-        var membership = await _context.OrganizationMemberships
-            .FirstOrDefaultAsync(om => om.OrganizationId == organizationId && om.UserId == userId && om.Status == "active", cancellationToken);
+        // Validate active membership
+        var isActiveMember = await _context.OrganizationMemberships
+            .AnyAsync(om => om.OrganizationId == organizationId && om.UserId == userId && om.Status == "active", cancellationToken);
 
-        var legacyPermissions = new List<string>();
-        if (membership != null && Enum.TryParse<OrganizationRole>(membership.Role, out var orgRole))
+        if (!isActiveMember)
         {
-            var staticPerms = OrganizationPermissions.GetPermissionsForRole(orgRole);
-            legacyPermissions.AddRange(staticPerms.Select(p => $"{p}:ORGANIZATION:{organizationId}"));
+            return new List<string>();
         }
 
-        // 2. Query new hierarchical assignments
+        // Query new hierarchical assignments
         const string sql = @"
             WITH RECURSIVE recursive_hierarchy AS (
                 -- Anchor: Get directly assigned roles
@@ -104,6 +102,6 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
         var db = _context.Database.GetDbConnection();
         var result = await db.QueryAsync<string>(sql, new { UserId = userId, OrganizationId = organizationId });
         
-        return legacyPermissions.Concat(result).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 }

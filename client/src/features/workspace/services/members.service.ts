@@ -1,0 +1,61 @@
+import { axiosClient } from '@/infrastructure/http/axios-client';
+import {
+  type PaginatedMembers,
+  type PaginatedInvitations,
+  type PreAssignedRole
+} from '../types/workspace.types';
+
+export const membersService = {
+  async getMembers(
+    orgSlug: string,
+    params: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      status?: string;
+      roleId?: string;
+    }
+  ): Promise<PaginatedMembers> {
+    const response = await axiosClient.get<PaginatedMembers>(`/organizations/${orgSlug}/members`, {
+      params
+    });
+    return response.data;
+  },
+
+  async updateMember(orgSlug: string, memberId: string, status: string): Promise<void> {
+    await axiosClient.put(`/organizations/${orgSlug}/members/${memberId}`, { status });
+  },
+
+  async removeMember(orgSlug: string, memberId: string): Promise<void> {
+    await axiosClient.delete(`/organizations/${orgSlug}/members/${memberId}`);
+  },
+
+  async inviteMembers(
+    orgSlug: string,
+    dto: { invitees: { email: string; roles: PreAssignedRole[] }[] }
+  ): Promise<void> {
+    await axiosClient.post(`/organizations/${orgSlug}/invitations`, dto);
+  },
+
+  async getInvitations(
+    orgSlug: string,
+    params: { page?: number; pageSize?: number }
+  ): Promise<PaginatedInvitations> {
+    const response = await axiosClient.get<PaginatedInvitations>(`/organizations/${orgSlug}/invitations`, {
+      params
+    });
+    return response.data;
+  },
+
+  async resendInvitation(orgSlug: string, invitationId: string): Promise<void> {
+    await axiosClient.post(`/organizations/${orgSlug}/invitations/${invitationId}/resend`);
+  },
+
+  async cancelInvitation(orgSlug: string, invitationId: string): Promise<void> {
+    await axiosClient.post(`/organizations/${orgSlug}/invitations/${invitationId}/cancel`);
+  },
+
+  async acceptInvitation(token: string): Promise<void> {
+    await axiosClient.post('/invitations/accept', { token });
+  }
+};

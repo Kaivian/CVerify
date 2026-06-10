@@ -79,6 +79,8 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS workspace_members CASCADE;
                 DROP TABLE IF EXISTS pending_organization_ownerships CASCADE;
                 DROP TABLE IF EXISTS workspace_invitations CASCADE;
+                DROP TABLE IF EXISTS organization_invitation_roles CASCADE;
+                DROP TABLE IF EXISTS organization_invitations CASCADE;
                 DROP TABLE IF EXISTS organization_credentials CASCADE;
                 DROP TABLE IF EXISTS workspaces CASCADE;
                 DROP TABLE IF EXISTS messages CASCADE;
@@ -2183,6 +2185,37 @@ public static class DbInitializer
                 CONSTRAINT fk_role_audit_target FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL
             );
             CREATE INDEX IF NOT EXISTS idx_role_audit_logs_org_time ON business_role_audit_logs(organization_id, timestamp);
+
+            -- Create organization_invitations table
+            CREATE TABLE IF NOT EXISTS organization_invitations (
+                id UUID PRIMARY KEY,
+                organization_id UUID NOT NULL,
+                invitee_email VARCHAR(255) NOT NULL,
+                token_hash VARCHAR(64) NOT NULL,
+                invited_by_user_id UUID,
+                status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                accepted_at TIMESTAMP WITH TIME ZONE,
+                consumed_by_user_id UUID,
+                CONSTRAINT fk_org_invitations_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+                CONSTRAINT fk_org_invitations_invited_by FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_org_invitations_consumed_by FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_org_invitations_email_status ON organization_invitations(invitee_email, status);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_org_invitations_token_hash ON organization_invitations(token_hash);
+
+            -- Create organization_invitation_roles table
+            CREATE TABLE IF NOT EXISTS organization_invitation_roles (
+                id UUID PRIMARY KEY,
+                invitation_id UUID NOT NULL,
+                role_id UUID NOT NULL,
+                scope_type VARCHAR(30) NOT NULL DEFAULT 'ORGANIZATION',
+                scope_id UUID NOT NULL,
+                CONSTRAINT fk_org_invite_roles_invite FOREIGN KEY (invitation_id) REFERENCES organization_invitations(id) ON DELETE CASCADE,
+                CONSTRAINT fk_org_invite_roles_role FOREIGN KEY (role_id) REFERENCES organization_business_roles(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_org_invitation_roles_invite ON organization_invitation_roles(invitation_id);
         ";
 
         var superAdminEmail = Environment.GetEnvironmentVariable("SUPER_ADMIN_EMAIL")?.Trim().ToLowerInvariant() ?? "admin@system.com";

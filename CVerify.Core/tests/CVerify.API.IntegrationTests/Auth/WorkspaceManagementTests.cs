@@ -44,6 +44,7 @@ public class WorkspaceManagementTests : BaseIntegrationTest
         {
             db.Roles.Add(new Role
             {
+                Id = Guid.Parse("018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d"),
                 Name = "USER",
                 DisplayName = "General User",
                 Description = "Basic application access",
@@ -138,6 +139,9 @@ public class WorkspaceManagementTests : BaseIntegrationTest
 
         db.OrganizationMemberships.Add(membership);
         await db.SaveChangesAsync();
+
+        // Initialize business roles and run migration script to populate role assignments
+        await DbInitializer.InitializeAsync(db);
     }
 
     [Fact]
