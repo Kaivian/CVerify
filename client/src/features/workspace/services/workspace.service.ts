@@ -24,5 +24,35 @@ export const workspaceService = {
       params
     });
     return response.data;
+  },
+
+  async uploadBanner(organizationSlug: string, file: File): Promise<{ avatarUrl: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await axiosClient.post<{ avatarUrl: string }>(
+      `/workspace/${organizationSlug}/banner`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
+  },
+
+  async uploadAvatar(organizationSlug: string, file: File): Promise<{ avatarUrl: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await axiosClient.post<{ avatarUrl: string }>(
+      `/workspace/${organizationSlug}/avatar`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return response.data;
   }
 };

@@ -1,4 +1,5 @@
 export interface WorkspaceMember {
+  userId: string;
   name: string;
   email: string;
   role: 'OWNER' | 'REPRESENTATIVE' | 'HR' | 'MEMBER';
@@ -10,11 +11,20 @@ export interface LinkedOrganization {
   slug: string;
 }
 
+export interface LinkedWorkspace {
+  id: string;
+  displayName: string;
+  slug: string;
+}
+
 export interface WorkspaceDetails {
+  organizationId: string;
   organizationName: string;
   organizationSlug: string;
-  userRole: 'OWNER' | 'REPRESENTATIVE' | 'HR' | 'MEMBER';
+  userRole?: 'OWNER' | 'REPRESENTATIVE' | 'HR' | 'MEMBER' | null;
   linkedOrganizations: LinkedOrganization[];
+  permissions?: string[];
+  workspaces?: LinkedWorkspace[];
   description?: string;
   website?: string;
   location?: string;

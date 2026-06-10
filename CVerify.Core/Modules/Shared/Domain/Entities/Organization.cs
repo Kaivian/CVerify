@@ -55,6 +55,12 @@ public class Organization
     [MaxLength(255)]
     public string? RepresentativeIdentity { get; set; }
 
+    [MaxLength(2048)]
+    public string? BannerUrl { get; set; }
+
+    [MaxLength(2048)]
+    public string? LogoUrl { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

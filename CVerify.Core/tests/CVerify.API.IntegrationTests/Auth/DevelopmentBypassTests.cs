@@ -62,6 +62,8 @@ public class DevelopmentBypassTests : BaseIntegrationTest
         public Task RemoveFromSetAsync(string key, string value) => _inner.RemoveFromSetAsync(key, value);
         public Task<bool> AcquireLockAsync(string key, string value, TimeSpan expiry) => _inner.AcquireLockAsync(key, value, expiry);
         public Task<bool> ReleaseLockAsync(string key, string value) => _inner.ReleaseLockAsync(key, value);
+        public Task<bool> SetExpireAsync(string key, TimeSpan expiration) => _inner.SetExpireAsync(key, expiration);
+        public Task DeleteAsync(string key) => _inner.DeleteAsync(key);
     }
 
     private async Task<Guid> CreateActiveUserAsync(string email, string? username = null)

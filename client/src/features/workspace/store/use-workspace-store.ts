@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { type WorkspaceDetails, type LinkedOrganization } from '../types/workspace.types';
 import { workspaceService } from '../services/workspace.service';
+import { rolesService } from '../services/roles.service';
+import type {
+  BusinessRoleDetailsDto,
+  CreateBusinessRoleDto,
+  AssignScopedRoleDto,
+  RoleAssignmentDto,
+  PermissionDto,
+  PaginatedAuditLogsResponseDto
+} from '../types/roles.types';
 
 interface WorkspaceState {
   workspaces: Record<string, WorkspaceDetails>;
@@ -12,6 +21,25 @@ interface WorkspaceState {
   updateWorkspaceDetails: (slug: string, updates: Partial<WorkspaceDetails>) => void;
   toggleFollowWorkspace: (slug: string) => void;
   invalidateCache: (slug?: string) => void;
+
+  // Business Roles State
+  roles: Record<string, BusinessRoleDetailsDto[]>;
+  assignments: Record<string, RoleAssignmentDto[]>;
+  availablePermissions: Record<string, PermissionDto[]>;
+  auditLogs: Record<string, PaginatedAuditLogsResponseDto>;
+  rolesLoading: Record<string, boolean>;
+  rolesErrors: Record<string, string | null>;
+
+  // Business Roles Actions
+  fetchRoles: (orgSlug: string) => Promise<BusinessRoleDetailsDto[] | null>;
+  createRole: (orgSlug: string, dto: CreateBusinessRoleDto) => Promise<string | null>;
+  updateRole: (orgSlug: string, roleId: string, dto: CreateBusinessRoleDto) => Promise<boolean>;
+  deleteRole: (orgSlug: string, roleId: string) => Promise<boolean>;
+  fetchRoleAssignments: (orgSlug: string) => Promise<RoleAssignmentDto[] | null>;
+  assignRole: (orgSlug: string, dto: AssignScopedRoleDto) => Promise<boolean>;
+  revokeRole: (orgSlug: string, dto: AssignScopedRoleDto) => Promise<boolean>;
+  fetchAvailablePermissions: (orgSlug: string) => Promise<PermissionDto[] | null>;
+  fetchAuditLogs: (orgSlug: string, page?: number, pageSize?: number) => Promise<PaginatedAuditLogsResponseDto | null>;
 }
 
 const DEFAULT_DETAILS = {
@@ -33,6 +61,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   loading: {},
   errors: {},
   myOrganizations: null,
+
+  // Business Roles initial state
+  roles: {},
+  assignments: {},
+  availablePermissions: {},
+  auditLogs: {},
+  rolesLoading: {},
+  rolesErrors: {},
+
   fetchMyOrganizations: async () => {
     try {
       const orgs = await workspaceService.getUserOrganizations();
@@ -43,6 +80,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return null;
     }
   },
+
   fetchWorkspace: async (slug: string) => {
     const cached = get().workspaces[slug];
     if (cached) {
@@ -93,6 +131,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return null;
     }
   },
+
   updateWorkspaceDetails: (slug: string, updates: Partial<WorkspaceDetails>) => {
     set((state) => {
       const current = state.workspaces[slug];
@@ -108,6 +147,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       };
     });
   },
+
   toggleFollowWorkspace: (slug: string) => {
     set((state) => {
       const current = state.workspaces[slug];
@@ -126,6 +166,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       };
     });
   },
+
   invalidateCache: (slug?: string) => {
     if (slug) {
       set((state) => {
@@ -135,6 +176,123 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     } else {
       set({ workspaces: {} });
     }
+  },
+
+  // Business Roles Actions Implementation
+  fetchRoles: async (orgSlug: string) => {
+    set((state) => ({
+      rolesLoading: { ...state.rolesLoading, [orgSlug]: true },
+      rolesErrors: { ...state.rolesErrors, [orgSlug]: null }
+    }));
+    try {
+      const roles = await rolesService.getRoles(orgSlug);
+      set((state) => ({
+        roles: { ...state.roles, [orgSlug]: roles },
+        rolesLoading: { ...state.rolesLoading, [orgSlug]: false }
+      }));
+      return roles;
+    } catch (err) {
+      const errorObject = err as { response?: { data?: { message?: string } }; message?: string };
+      const errMsg = errorObject?.response?.data?.message || errorObject?.message || 'Failed to load roles';
+      set((state) => ({
+        rolesErrors: { ...state.rolesErrors, [orgSlug]: errMsg },
+        rolesLoading: { ...state.rolesLoading, [orgSlug]: false }
+      }));
+      return null;
+    }
+  },
+
+  createRole: async (orgSlug: string, dto: CreateBusinessRoleDto) => {
+    try {
+      const newRoleId = await rolesService.createRole(orgSlug, dto);
+      await get().fetchRoles(orgSlug);
+      return newRoleId;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to create role', err);
+      return null;
+    }
+  },
+
+  updateRole: async (orgSlug: string, roleId: string, dto: CreateBusinessRoleDto) => {
+    try {
+      await rolesService.updateRole(orgSlug, roleId, dto);
+      await get().fetchRoles(orgSlug);
+      return true;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to update role', err);
+      return false;
+    }
+  },
+
+  deleteRole: async (orgSlug: string, roleId: string) => {
+    try {
+      await rolesService.deleteRole(orgSlug, roleId);
+      await get().fetchRoles(orgSlug);
+      return true;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to delete role', err);
+      return false;
+    }
+  },
+
+  fetchRoleAssignments: async (orgSlug: string) => {
+    try {
+      const assignments = await rolesService.getRoleAssignments(orgSlug);
+      set((state) => ({
+        assignments: { ...state.assignments, [orgSlug]: assignments }
+      }));
+      return assignments;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to fetch assignments', err);
+      return null;
+    }
+  },
+
+  assignRole: async (orgSlug: string, dto: AssignScopedRoleDto) => {
+    try {
+      await rolesService.assignRole(orgSlug, dto);
+      await get().fetchRoleAssignments(orgSlug);
+      return true;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to assign role', err);
+      return false;
+    }
+  },
+
+  revokeRole: async (orgSlug: string, dto: AssignScopedRoleDto) => {
+    try {
+      await rolesService.revokeRole(orgSlug, dto);
+      await get().fetchRoleAssignments(orgSlug);
+      return true;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to revoke role', err);
+      return false;
+    }
+  },
+
+  fetchAvailablePermissions: async (orgSlug: string) => {
+    try {
+      const perms = await rolesService.getAvailablePermissions(orgSlug);
+      set((state) => ({
+        availablePermissions: { ...state.availablePermissions, [orgSlug]: perms }
+      }));
+      return perms;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to fetch available permissions', err);
+      return null;
+    }
+  },
+
+  fetchAuditLogs: async (orgSlug: string, page = 1, pageSize = 10) => {
+    try {
+      const logs = await rolesService.getAuditLogs(orgSlug, page, pageSize);
+      set((state) => ({
+        auditLogs: { ...state.auditLogs, [orgSlug]: logs }
+      }));
+      return logs;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to fetch audit logs', err);
+      return null;
+    }
   }
 }));
-

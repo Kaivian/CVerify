@@ -97,6 +97,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserEmail> UserEmails => Set<UserEmail>();
     public DbSet<OrganizationCredential> OrganizationCredentials => Set<OrganizationCredential>();
     public DbSet<WorkspaceInvitation> WorkspaceInvitations => Set<WorkspaceInvitation>();
+    public DbSet<OrganizationBusinessRole> OrganizationBusinessRoles => Set<OrganizationBusinessRole>();
+    public DbSet<BusinessPermission> BusinessPermissions => Set<BusinessPermission>();
+    public DbSet<OrganizationRolePermission> OrganizationRolePermissions => Set<OrganizationRolePermission>();
+    public DbSet<OrganizationRoleAssignment> OrganizationRoleAssignments => Set<OrganizationRoleAssignment>();
+    public DbSet<BusinessRoleAuditLog> BusinessRoleAuditLogs => Set<BusinessRoleAuditLog>();
 
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<PendingAuthProvider> PendingAuthProviders => Set<PendingAuthProvider>();
@@ -165,6 +170,10 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<OrganizationVerification>().Property(ov => ov.Id).ValueGeneratedNever();
         modelBuilder.Entity<Workspace>().Property(w => w.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkspaceMember>().Property(wm => wm.Id).ValueGeneratedNever();
+        modelBuilder.Entity<OrganizationBusinessRole>().Property(obr => obr.Id).ValueGeneratedNever();
+        modelBuilder.Entity<BusinessPermission>().Property(bp => bp.Id).ValueGeneratedNever();
+        modelBuilder.Entity<OrganizationRoleAssignment>().Property(ora => ora.Id).ValueGeneratedNever();
+        modelBuilder.Entity<BusinessRoleAuditLog>().Property(bral => bral.Id).ValueGeneratedNever();
         modelBuilder.Entity<RecoveryClaimDocument>().Property(rcd => rcd.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkspaceArchiveSnapshot>().Property(was => was.Id).ValueGeneratedNever();
         modelBuilder.Entity<RecoveryExecutionLock>().Property(rel => rel.Id).ValueGeneratedNever();
@@ -678,6 +687,92 @@ public class ApplicationDbContext : DbContext
                   .HasForeignKey(wm => wm.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(wm => new { wm.WorkspaceId, wm.UserId }).IsUnique();
+        });
+
+        // OrganizationBusinessRole configurations
+        modelBuilder.Entity<OrganizationBusinessRole>(entity =>
+        {
+            entity.ToTable("organization_business_roles");
+            entity.HasOne(r => r.Organization)
+                  .WithMany()
+                  .HasForeignKey(r => r.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(r => r.ParentRole)
+                  .WithMany(r => r.ChildRoles)
+                  .HasForeignKey(r => r.ParentRoleId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(r => new { r.OrganizationId, r.Name })
+                  .IsUnique()
+                  .HasDatabaseName("idx_org_roles_name_org_id");
+        });
+
+        // BusinessPermission configurations
+        modelBuilder.Entity<BusinessPermission>(entity =>
+        {
+            entity.ToTable("business_permissions");
+            entity.HasIndex(p => p.Name)
+                  .IsUnique()
+                  .HasDatabaseName("idx_business_permissions_name");
+        });
+
+        // OrganizationRolePermission configurations
+        modelBuilder.Entity<OrganizationRolePermission>(entity =>
+        {
+            entity.ToTable("organization_role_permissions");
+            entity.HasKey(rp => new { rp.RoleId, rp.PermissionId });
+            entity.HasOne(rp => rp.Role)
+                  .WithMany(r => r.RolePermissions)
+                  .HasForeignKey(rp => rp.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(rp => rp.Permission)
+                  .WithMany()
+                  .HasForeignKey(rp => rp.PermissionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // OrganizationRoleAssignment configurations
+        modelBuilder.Entity<OrganizationRoleAssignment>(entity =>
+        {
+            entity.ToTable("organization_role_assignments");
+            entity.HasOne(ra => ra.Organization)
+                  .WithMany()
+                  .HasForeignKey(ra => ra.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(ra => ra.User)
+                  .WithMany()
+                  .HasForeignKey(ra => ra.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(ra => ra.Role)
+                  .WithMany()
+                  .HasForeignKey(ra => ra.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(ra => new { ra.OrganizationId, ra.UserId, ra.ScopeType, ra.ScopeId })
+                  .HasDatabaseName("idx_role_assignments_lookup");
+            entity.HasIndex(ra => new { ra.OrganizationId, ra.UserId, ra.RoleId, ra.ScopeType, ra.ScopeId })
+                  .IsUnique()
+                  .HasDatabaseName("idx_role_assignments_unique_constraint");
+            entity.HasIndex(ra => ra.UserId)
+                  .HasDatabaseName("idx_org_role_assignments_user_id");
+        });
+
+        // BusinessRoleAuditLog configurations
+        modelBuilder.Entity<BusinessRoleAuditLog>(entity =>
+        {
+            entity.ToTable("business_role_audit_logs");
+            entity.HasOne(al => al.Organization)
+                  .WithMany()
+                  .HasForeignKey(al => al.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(al => al.ActorUser)
+                  .WithMany()
+                  .HasForeignKey(al => al.ActorUserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(al => al.TargetUser)
+                  .WithMany()
+                  .HasForeignKey(al => al.TargetUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(al => new { al.OrganizationId, al.Timestamp })
+                  .HasDatabaseName("idx_role_audit_logs_org_time");
         });
 
         // RecoveryClaimDocument configurations
