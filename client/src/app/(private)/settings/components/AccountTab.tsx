@@ -578,7 +578,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                     <Label>Username</Label>
                     <InputGroup>
                       <InputGroup.Input
-                        maxLength={25}
+                        maxLength={32}
                         value={currentValues.username || ""}
                         onChange={(e) => {
                           const val = e.target.value;

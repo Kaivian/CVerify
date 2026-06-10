@@ -160,6 +160,15 @@ export const profileApi = {
     return response.data;
   },
 
+  deleteAvatar: async (): Promise<void> => {
+    await axiosClient.delete('/v1/users/profile/avatar');
+  },
+
+  syncAvatar: async (providerName: string): Promise<{ avatarUrl: string }> => {
+    const response = await axiosClient.post<{ avatarUrl: string }>('/v1/users/profile/avatar/sync', { providerName });
+    return response.data;
+  },
+
   // Work Experience CRUD & reorder
   fetchWorkExperience: async (): Promise<WorkExperienceResponse[]> => {
     const response = await axiosClient.get<WorkExperienceResponse[]>('/v1/users/work-experience');

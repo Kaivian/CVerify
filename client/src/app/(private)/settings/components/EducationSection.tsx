@@ -15,6 +15,8 @@ import {
   DateField,
   DateRangePicker,
   RangeCalendar,
+  DatePicker,
+  Calendar,
   FieldError,
   Button,
   TextField,
@@ -106,7 +108,17 @@ const GPAField: React.FC<{
   control: Control<PersonalInfoFormValues>;
   errors: FieldErrors<PersonalInfoFormValues>;
 }> = ({ index, control, errors }) => {
-  const [isSelected, setIsSelected] = React.useState(false);
+  const { setValue } = useFormContext<PersonalInfoFormValues>();
+  const gpaScaleValue = useWatch({
+    control,
+    name: `education.${index}.gpaScale`,
+  });
+
+  const [isSelected, setIsSelected] = React.useState(gpaScaleValue === 10);
+
+  React.useEffect(() => {
+    setIsSelected(gpaScaleValue === 10);
+  }, [gpaScaleValue]);
 
   return (
     <Controller
@@ -128,6 +140,10 @@ const GPAField: React.FC<{
                   const oldScale = isSelected ? 10 : 4;
                   const newScale = selected ? 10 : 4;
                   setIsSelected(selected);
+                  setValue(`education.${index}.gpaScale`, newScale, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
                   if (value !== null && value !== undefined) {
                     const converted =
                       Math.round((value / oldScale) * newScale * 100) / 100;
@@ -198,6 +214,11 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
       name: `education.${index}.label`,
     }) || "School / University";
 
+  const isCurrentlyStudying = useWatch({
+    control,
+    name: `education.${index}.isCurrentlyStudying`,
+  });
+
   return (
     <div className="relative border border-border/60 bg-surface-secondary/10 hover:bg-surface-secondary/20 rounded-2xl p-5 sm:p-6 flex flex-col gap-5 text-left transition-all duration-300 hover:border-border">
       {/* Grid Inputs */}
@@ -227,65 +248,122 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
 
         {/* Date Range Picker */}
         <div className="flex flex-col gap-2 w-full">
-          <Controller
-            control={control}
-            name={`education.${index}.period`}
-            render={({ field: { value, onChange } }) => (
-              <DateRangePicker
-                className="w-full"
-                value={value || null}
-                onChange={onChange}
-                isInvalid={!!errors.education?.[index]?.period}
-              >
-                <Label>Study Period</Label>
-                <DateField.Group fullWidth>
-                  <DateField.Input slot="start">
-                    {(segment) => <DateField.Segment segment={segment} />}
-                  </DateField.Input>
-                  <DateRangePicker.RangeSeparator />
-                  <DateField.Input slot="end">
-                    {(segment) => <DateField.Segment segment={segment} />}
-                  </DateField.Input>
-                  <DateField.Suffix>
-                    <DateRangePicker.Trigger>
-                      <DateRangePicker.TriggerIndicator />
-                    </DateRangePicker.Trigger>
-                  </DateField.Suffix>
-                </DateField.Group>
-                <DateRangePicker.Popover>
-                  <RangeCalendar aria-label="Study Period">
-                    <RangeCalendar.Header>
-                      <RangeCalendar.YearPickerTrigger>
-                        <RangeCalendar.YearPickerTriggerHeading />
-                        <RangeCalendar.YearPickerTriggerIndicator />
-                      </RangeCalendar.YearPickerTrigger>
-                      <RangeCalendar.NavButton slot="previous" />
-                      <RangeCalendar.NavButton slot="next" />
-                    </RangeCalendar.Header>
-                    <RangeCalendar.Grid>
-                      <RangeCalendar.GridHeader>
-                        {(day) => (
-                          <RangeCalendar.HeaderCell>
-                            {day}
-                          </RangeCalendar.HeaderCell>
-                        )}
-                      </RangeCalendar.GridHeader>
-                      <RangeCalendar.GridBody>
-                        {(date) => <RangeCalendar.Cell date={date} />}
-                      </RangeCalendar.GridBody>
-                    </RangeCalendar.Grid>
-                    <RangeCalendar.YearPickerGrid>
-                      <RangeCalendar.YearPickerGridBody>
-                        {({ year }) => (
-                          <RangeCalendar.YearPickerCell year={year} />
-                        )}
-                      </RangeCalendar.YearPickerGridBody>
-                    </RangeCalendar.YearPickerGrid>
-                  </RangeCalendar>
-                </DateRangePicker.Popover>
-              </DateRangePicker>
-            )}
-          />
+          {isCurrentlyStudying ? (
+            <Controller
+              control={control}
+              name={`education.${index}.period`}
+              render={({ field: { value, onChange } }) => (
+                <DatePicker
+                  className="w-full"
+                  value={value?.start || null}
+                  onChange={(val) =>
+                    onChange({
+                      start: val,
+                      end: null,
+                    })
+                  }
+                  isInvalid={!!errors.education?.[index]?.period}
+                >
+                  <Label>Study Period (Start)</Label>
+                  <DateField.Group fullWidth>
+                    <DateField.Input>
+                      {(segment) => <DateField.Segment segment={segment} />}
+                    </DateField.Input>
+                    <DateField.Suffix>
+                      <DatePicker.Trigger>
+                        <DatePicker.TriggerIndicator />
+                      </DatePicker.Trigger>
+                    </DateField.Suffix>
+                  </DateField.Group>
+                  <DatePicker.Popover>
+                    <Calendar aria-label="Study Start Date">
+                      <Calendar.Header>
+                        <Calendar.YearPickerTrigger>
+                          <Calendar.YearPickerTriggerHeading />
+                          <Calendar.YearPickerTriggerIndicator />
+                        </Calendar.YearPickerTrigger>
+                        <Calendar.NavButton slot="previous" />
+                        <Calendar.NavButton slot="next" />
+                      </Calendar.Header>
+                      <Calendar.Grid>
+                        <Calendar.GridHeader>
+                          {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                        </Calendar.GridHeader>
+                        <Calendar.GridBody>
+                          {(date) => <Calendar.Cell date={date} />}
+                        </Calendar.GridBody>
+                      </Calendar.Grid>
+                      <Calendar.YearPickerGrid>
+                        <Calendar.YearPickerGridBody>
+                          {({ year }) => <Calendar.YearPickerCell year={year} />}
+                        </Calendar.YearPickerGridBody>
+                      </Calendar.YearPickerGrid>
+                    </Calendar>
+                  </DatePicker.Popover>
+                </DatePicker>
+              )}
+            />
+          ) : (
+            <Controller
+              control={control}
+              name={`education.${index}.period`}
+              render={({ field: { value, onChange } }) => (
+                <DateRangePicker
+                  className="w-full"
+                  value={value || null}
+                  onChange={onChange}
+                  isInvalid={!!errors.education?.[index]?.period}
+                >
+                  <Label>Study Period</Label>
+                  <DateField.Group fullWidth>
+                    <DateField.Input slot="start">
+                      {(segment) => <DateField.Segment segment={segment} />}
+                    </DateField.Input>
+                    <DateRangePicker.RangeSeparator />
+                    <DateField.Input slot="end">
+                      {(segment) => <DateField.Segment segment={segment} />}
+                    </DateField.Input>
+                    <DateField.Suffix>
+                      <DateRangePicker.Trigger>
+                        <DateRangePicker.TriggerIndicator />
+                      </DateRangePicker.Trigger>
+                    </DateField.Suffix>
+                  </DateField.Group>
+                  <DateRangePicker.Popover>
+                    <RangeCalendar aria-label="Study Period">
+                      <RangeCalendar.Header>
+                        <RangeCalendar.YearPickerTrigger>
+                          <RangeCalendar.YearPickerTriggerHeading />
+                          <RangeCalendar.YearPickerTriggerIndicator />
+                        </RangeCalendar.YearPickerTrigger>
+                        <RangeCalendar.NavButton slot="previous" />
+                        <RangeCalendar.NavButton slot="next" />
+                      </RangeCalendar.Header>
+                      <RangeCalendar.Grid>
+                        <RangeCalendar.GridHeader>
+                          {(day) => (
+                            <RangeCalendar.HeaderCell>
+                              {day}
+                            </RangeCalendar.HeaderCell>
+                          )}
+                        </RangeCalendar.GridHeader>
+                        <RangeCalendar.GridBody>
+                          {(date) => <RangeCalendar.Cell date={date} />}
+                        </RangeCalendar.GridBody>
+                      </RangeCalendar.Grid>
+                      <RangeCalendar.YearPickerGrid>
+                        <RangeCalendar.YearPickerGridBody>
+                          {({ year }) => (
+                            <RangeCalendar.YearPickerCell year={year} />
+                          )}
+                        </RangeCalendar.YearPickerGridBody>
+                      </RangeCalendar.YearPickerGrid>
+                    </RangeCalendar>
+                  </DateRangePicker.Popover>
+                </DateRangePicker>
+              )}
+            />
+          )}
           {errors.education?.[index]?.period && (
             <FieldError className="text-danger text-xs mt-1 block">
               Valid study period is required
@@ -309,6 +387,48 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
             </Button>
           </div>
         )}
+      </div>
+
+      {/* Toggles Row */}
+      <div className="flex items-center justify-between border-t border-border/40 pt-4 select-none animate-fade-in">
+        <div className="flex flex-col gap-0.5">
+          <Typography className="text-xs font-bold text-foreground font-outfit">
+            Currently Studying Here
+          </Typography>
+          <Typography className="text-[10px] text-muted-foreground">
+            Check this if you are currently enrolled in this institution.
+          </Typography>
+        </div>
+        <Controller
+          control={control}
+          name={`education.${index}.isCurrentlyStudying`}
+          render={({ field: { value, onChange } }) => (
+            <Switch
+              isSelected={value}
+              onChange={(checked) => {
+                onChange(checked);
+                // Clear the end date in the form if currently studying
+                const currentPeriod = control._formValues.education?.[index]?.period;
+                setValue(`education.${index}.period`, {
+                  start: currentPeriod?.start || null,
+                  end: null,
+                }, { shouldDirty: true, shouldValidate: true });
+              }}
+              aria-label="Currently studying toggle"
+              className="cursor-pointer"
+            >
+              {({ isSelected }) => (
+                <Switch.Control
+                  className={`w-10 h-5.5 rounded-full relative flex items-center transition-colors duration-200 ${isSelected ? "bg-success" : "bg-separator"}`}
+                >
+                  <Switch.Thumb
+                    className={`w-4 h-4 bg-foreground rounded-full absolute transition-all duration-200 ${isSelected ? "left-[20px]" : "left-0.5"}`}
+                  />
+                </Switch.Control>
+              )}
+            </Switch>
+          )}
+        />
       </div>
     </div>
   );
@@ -345,7 +465,8 @@ export const EducationSection: React.FC = () => {
                   school: "",
                   period: null,
                   gpa: null,
-                  gpaScale: null,
+                  gpaScale: 4,
+                  isCurrentlyStudying: false,
                 })
               }
             >
@@ -381,7 +502,8 @@ export const EducationSection: React.FC = () => {
                   school: "",
                   period: null,
                   gpa: null,
-                  gpaScale: null,
+                  gpaScale: 4,
+                  isCurrentlyStudying: false,
                 })
               }
             >
