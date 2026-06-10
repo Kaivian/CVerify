@@ -92,7 +92,7 @@ const categorizeSkills = (skillsList: string[]): Record<string, string[]> => {
     go: "Languages", golang: "Languages", rust: "Languages", php: "Languages",
     ruby: "Languages", swift: "Languages", kotlin: "Languages", sql: "Languages",
     html: "Languages", css: "Languages", bash: "Languages", shell: "Languages",
-    
+
     react: "Frameworks & Libraries", reactjs: "Frameworks & Libraries", next: "Frameworks & Libraries",
     nextjs: "Frameworks & Libraries", vue: "Frameworks & Libraries", vuejs: "Frameworks & Libraries",
     angular: "Frameworks & Libraries", svelte: "Frameworks & Libraries", tailwind: "Frameworks & Libraries",
@@ -101,13 +101,13 @@ const categorizeSkills = (skillsList: string[]): Record<string, string[]> => {
     springboot: "Frameworks & Libraries", nestjs: "Frameworks & Libraries", express: "Frameworks & Libraries",
     expressjs: "Frameworks & Libraries", django: "Frameworks & Libraries", flask: "Frameworks & Libraries",
     fastapi: "Frameworks & Libraries",
-    
+
     postgresql: "Databases & Cloud", mysql: "Databases & Cloud", mongodb: "Databases & Cloud",
     redis: "Databases & Cloud", sqlite: "Databases & Cloud", mariadb: "Databases & Cloud",
     firebase: "Databases & Cloud", oracle: "Databases & Cloud", aws: "Databases & Cloud",
     azure: "Databases & Cloud", gcp: "Databases & Cloud", kubernetes: "Databases & Cloud",
     k8s: "Databases & Cloud", docker: "Databases & Cloud",
-    
+
     git: "Tools & Platforms", github: "Tools & Platforms", gitlab: "Tools & Platforms",
     cicd: "Tools & Platforms", "ci/cd": "Tools & Platforms", linux: "Tools & Platforms",
     nginx: "Tools & Platforms",
@@ -484,10 +484,10 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
 
       {/* Main Flow Content Container */}
       <div className="cv-page-content-wrapper flex flex-col gap-5 flex-1">
-        
+
         {/* Centered Header */}
         <div className="flex flex-col items-center text-center gap-1.5 pb-4 w-full min-w-0">
-          <h1 
+          <h1
             className="text-xl font-bold tracking-tight text-neutral-900 uppercase w-full"
             style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
           >
@@ -495,7 +495,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
           </h1>
           {basic.headline && (
             <div className="flex items-center justify-center gap-1.5 flex-wrap w-full">
-              <span 
+              <span
                 className="text-[11px] font-bold text-neutral-600 tracking-wider uppercase"
                 style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
               >
@@ -566,7 +566,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
                 Career Objective / Summary
               </h2>
               {isAiBio && (
-                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[8px] font-black tracking-wider uppercase border border-emerald-200/50 select-none normal-case leading-none">
+                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[8px] font-black tracking-wider border border-emerald-200/50 select-none normal-case leading-none">
                   AI
                 </span>
               )}
@@ -602,7 +602,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
                       {exp.company}{exp.location ? ` • ${exp.location}` : ""}
                     </div>
                     {renderBulletPoints(exp.description)}
-                    
+
                     {exp.achievements && exp.achievements.length > 0 && (
                       <ul className="list-disc pl-4 space-y-0.5 text-neutral-700 mt-0.5 text-[11px]">
                         {exp.achievements.map((ach: any, idx: number) => (
@@ -619,7 +619,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
                         {exp.technologies.join(", ")}
                       </div>
                     )}
-                    
+
                     {exp.links && exp.links.length > 0 && (
                       <div className="flex flex-wrap gap-2 mt-1 pl-4">
                         {exp.links.map((link: any, idx: number) => (
@@ -708,7 +708,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
                       {proj.description}
                     </p>
                   )}
-                  
+
                   <ul className="list-disc pl-4 space-y-0.5 text-neutral-700 mt-0.5 text-[11px]">
                     {proj.role && (
                       <li className="leading-relaxed">
@@ -746,7 +746,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
               Technical Skills
             </h2>
             <div className="border-b border-neutral-300 w-full my-0.5" />
-            
+
             <div className="flex flex-col gap-1 mt-1 text-[11px] text-neutral-800">
               {Object.keys(categorizedSkills).length > 0 ? (
                 Object.entries(categorizedSkills).map(([category, items]) => (
@@ -807,7 +807,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
             Career Preferences
           </h2>
           <div className="border-b border-neutral-300 w-full my-0.5" />
-          
+
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 mt-1 text-[10.5px] text-neutral-700">
             {preferences.openToWorkStatus && (
               <div>
@@ -816,8 +816,8 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
                   {preferences.openToWorkStatus === "active"
                     ? "Active Job Search"
                     : preferences.openToWorkStatus === "casual"
-                    ? "Casual Browsing"
-                    : "Not Open to Work"}
+                      ? "Casual Browsing"
+                      : "Not Open to Work"}
                 </span>
               </div>
             )}
