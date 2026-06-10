@@ -147,7 +147,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
                   Toggle whether your public CV displays an 'Open to Work' badge
                 </Tooltip.Content>
               </Tooltip>
@@ -176,7 +176,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
                   Your current job search status (active, browsing, or closed)
                 </Tooltip.Content>
               </Tooltip>
@@ -213,7 +213,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
                   Preferred work model: Remote, Hybrid, Onsite, or any arrangements
                 </Tooltip.Content>
               </Tooltip>
@@ -346,7 +346,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   <Tooltip.Trigger>
                     <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                   </Tooltip.Trigger>
-                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
                     Specify if your salary requirements are open to negotiation
                   </Tooltip.Content>
                 </Tooltip>
@@ -374,7 +374,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   <Tooltip.Trigger>
                     <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                   </Tooltip.Trigger>
-                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
                     Toggle whether recruiters can see your expected salary range on your public developer card
                   </Tooltip.Content>
                 </Tooltip>

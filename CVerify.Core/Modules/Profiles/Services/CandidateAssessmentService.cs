@@ -66,11 +66,6 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         var profile = await _context.UserProfiles
             .FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
 
-        if (profile == null)
-        {
-            throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
-        }
-
         var missingFields = new List<MissingFieldDto>();
 
         var hasCompletedRepos = await _repositoryProvider.HasCompletedRepositoriesAsync(userId, cancellationToken);
@@ -84,7 +79,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             ));
         }
 
-        if (string.IsNullOrWhiteSpace(profile.Headline))
+        if (profile == null || string.IsNullOrWhiteSpace(profile.Headline))
         {
             missingFields.Add(new MissingFieldDto(
                 "Headline",
@@ -94,7 +89,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             ));
         }
 
-        if (string.IsNullOrWhiteSpace(profile.Bio))
+        if (profile == null || string.IsNullOrWhiteSpace(profile.Bio))
         {
             missingFields.Add(new MissingFieldDto(
                 "Bio",
@@ -104,7 +99,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             ));
         }
 
-        var hasSkills = await _context.UserSkills.AnyAsync(us => us.UserId == userId, cancellationToken);
+        var hasSkills = profile != null && await _context.UserSkills.AnyAsync(us => us.UserId == userId, cancellationToken);
         bool hasTargetSkills = false;
         if (!hasSkills)
         {
@@ -154,7 +149,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         var lastRepoAnalysisAt = await _repositoryProvider.GetLastRepositoryAnalysisAtAsync(userId, cancellationToken);
 
         bool requiresReassessment = latestAssessment == null
-            || latestAssessment.CompletedAtUtc < profile.LastProfileUpdateAt
+            || (profile != null && latestAssessment.CompletedAtUtc < profile.LastProfileUpdateAt)
             || latestAssessment.CompletedAtUtc < lastRepoAnalysisAt;
 
         return new CandidateReadinessDto(
@@ -163,7 +158,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             completenessScore,
             requiresReassessment,
             latestAssessment?.CompletedAtUtc,
-            profile.LastProfileUpdateAt,
+            profile?.LastProfileUpdateAt ?? DateTimeOffset.MinValue,
             lastRepoAnalysisAt
         );
     }
