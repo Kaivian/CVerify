@@ -398,4 +398,51 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         exception.Message.Should().Contain("Fatal: Rate limits cannot be disabled in the Production environment.");
     }
+
+    [Fact]
+    public void Startup_ThrowsException_If_SeedTestAccounts_In_Production()
+    {
+        var overrides = new Dictionary<string, string>
+        {
+            { "SEED_TEST_ACCOUNTS", "true" },
+            { "SEED_BUSINESS_PASSWORD", "MockBusinessPassword123" },
+            { "ASPNETCORE_ENVIRONMENT", "Production" }
+        };
+
+        var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
+        
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        exception.Message.Should().Contain("Fatal: Test account seeding cannot be enabled in the Production environment.");
+    }
+
+    [Fact]
+    public void Startup_ThrowsException_If_SuperAdminPassword_Missing()
+    {
+        var overrides = new Dictionary<string, string>
+        {
+            { "SUPER_ADMIN_PASSWORD", " " },
+            { "ASPNETCORE_ENVIRONMENT", "Development" }
+        };
+
+        var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
+        
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        exception.Message.Should().Contain("SUPER_ADMIN_PASSWORD");
+    }
+
+    [Fact]
+    public void Startup_ThrowsException_If_SeedTestAccounts_True_And_SeedBusinessPassword_Missing()
+    {
+        var overrides = new Dictionary<string, string>
+        {
+            { "SEED_TEST_ACCOUNTS", "true" },
+            { "SEED_BUSINESS_PASSWORD", " " },
+            { "ASPNETCORE_ENVIRONMENT", "Development" }
+        };
+
+        var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
+        
+        var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        exception.Message.Should().Contain("SEED_BUSINESS_PASSWORD");
+    }
 }

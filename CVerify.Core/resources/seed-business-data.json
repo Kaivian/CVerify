@@ -1,0 +1,100 @@
+{
+  "organizations": [
+    {
+      "id": "01900000-0000-0000-0000-000000000001",
+      "name": "FPT Software Tier 1 Test",
+      "taxCode": "1111111111",
+      "email": "tier1@testbusiness.com",
+      "username": "tier1-business",
+      "verificationLevel": 1,
+      "status": "active",
+      "workspaces": [
+        {
+          "id": "01900000-0000-0000-0000-000000000004",
+          "displayName": "Tier 1 Default Workspace",
+          "slug": "tier1-workspace",
+          "status": "active",
+          "members": [
+            {
+              "id": "01900000-0000-0000-0000-000000000005",
+              "userId": "01900000-0000-0000-0000-000000000002",
+              "role": "workspace_admin"
+            }
+          ]
+        }
+      ],
+      "users": [
+        {
+          "id": "01900000-0000-0000-0000-000000000002",
+          "email": "owner1@testbusiness.com",
+          "fullName": "Tier 1 Business Owner",
+          "membershipId": "01900000-0000-0000-0000-000000000006",
+          "orgRole": "OWNER"
+        },
+        {
+          "id": "01900000-0000-0000-0000-000000000007",
+          "email": "hr1@testbusiness.com",
+          "fullName": "Tier 1 HR Manager",
+          "membershipId": "01900000-0000-0000-0000-000000000008",
+          "orgRole": "HR"
+        },
+        {
+          "id": "01900000-0000-0000-0000-000000000009",
+          "email": "rep1@testbusiness.com",
+          "fullName": "Tier 1 Representative",
+          "membershipId": "01900000-0000-0000-0000-00000000001a",
+          "orgRole": "REPRESENTATIVE"
+        },
+        {
+          "id": "01900000-0000-0000-0000-00000000001b",
+          "email": "member1@testbusiness.com",
+          "fullName": "Tier 1 Staff Member",
+          "membershipId": "01900000-0000-0000-0000-00000000001c",
+          "orgRole": "MEMBER"
+        }
+      ]
+    },
+    {
+      "id": "01900000-0000-0000-0000-000000000011",
+      "name": "FPT Software Tier 2 Test",
+      "taxCode": "2222222222",
+      "email": "tier2@testbusiness.com",
+      "username": "tier2-business",
+      "verificationLevel": 2,
+      "status": "active",
+      "workspaces": [
+        {
+          "id": "01900000-0000-0000-0000-000000000014",
+          "displayName": "Tier 2 Default Workspace",
+          "slug": "tier2-workspace",
+          "status": "active",
+          "members": [
+            {
+              "id": "01900000-0000-0000-0000-000000000015",
+              "userId": "01900000-0000-0000-0000-000000000012",
+              "role": "workspace_admin"
+            }
+          ]
+        }
+      ],
+      "users": [
+        {
+          "id": "01900000-0000-0000-0000-000000000012",
+          "email": "owner2@testbusiness.com",
+          "fullName": "Tier 2 Business Owner",
+          "membershipId": "01900000-0000-0000-0000-000000000016",
+          "orgRole": "OWNER"
+        }
+      ]
+    }
+  ],
+  "crossMemberships": [
+    {
+      "id": "01900000-0000-0000-0000-00000000001d",
+      "organizationId": "01900000-0000-0000-0000-000000000011",
+      "userId": "01900000-0000-0000-0000-000000000002",
+      "role": "MEMBER",
+      "status": "active"
+    }
+  ]
+}

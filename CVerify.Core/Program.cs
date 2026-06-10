@@ -93,6 +93,10 @@ if (builder.Environment.IsProduction() || builder.Environment.EnvironmentName.Eq
     {
         throw new InvalidOperationException("Fatal: Rate limits cannot be disabled in the Production environment.");
     }
+    if (envConfig.Seeding.SeedTestAccounts)
+    {
+        throw new InvalidOperationException("Fatal: Test account seeding cannot be enabled in the Production environment.");
+    }
     if (string.IsNullOrWhiteSpace(envConfig.Security.TokenEncryptionKey) ||
         envConfig.Security.TokenEncryptionKey == "DEVELOPMENT_TOKEN_ENCRYPTION_KEY" ||
         envConfig.Security.TokenEncryptionKey == "your_32_byte_token_encryption_key_here")
@@ -468,7 +472,7 @@ using (var scope = app.Services.CreateScope())
         var usernameService = services.GetRequiredService<IUsernameService>();
         var logger = services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Initializing database schema and checking synchronization...");
-        await DbInitializer.InitializeAsync(context, usernameService);
+        await DbInitializer.InitializeAsync(context, usernameService, envConfig);
         logger.LogInformation("Database schema initialized and synchronized successfully.");
     }
     catch (Exception ex)
