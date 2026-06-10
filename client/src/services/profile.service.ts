@@ -7,7 +7,6 @@ import {
   type EducationEntryRequest,
   type AcademicAchievementResponse,
   type AcademicAchievementRequest,
-  type CareerPreferenceResponse,
   type UpdateCareerPreferenceRequest,
   type AttachmentResponse,
   type PublicProfileResponse,

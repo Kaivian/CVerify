@@ -1,24 +1,31 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Button, Slider } from "@heroui/react";
-import { ZoomIn, ZoomOut, Move } from "lucide-react";
+import { Button, Slider, ProgressBar } from "@heroui/react";
+import { ZoomIn, ZoomOut, Move, Loader2 } from "lucide-react";
 import { DialogModal } from "@/components/ui/dialog-modal";
+import { cropImage } from "@/lib/utils/image-crop.utils";
 
-interface AvatarCropperModalProps {
+interface ImageCropperModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   imageSrc: string | null;
+  type: "avatar" | "banner";
   onCropComplete: (croppedBlob: Blob) => void;
   onCancel: () => void;
+  isUploading?: boolean;
+  uploadProgress?: number;
 }
 
-export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
+export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
   isOpen,
   onOpenChange,
   imageSrc,
+  type,
   onCropComplete,
   onCancel,
+  isUploading = false,
+  uploadProgress = 0,
 }) => {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -27,18 +34,21 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
 
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const cropCircleRef = useRef<HTMLDivElement | null>(null);
+  const cropZoneRef = useRef<HTMLDivElement | null>(null);
   const dragStart = useRef({ x: 0, y: 0 });
+
+
 
   // Handle Drag Start
   const handleStart = (clientX: number, clientY: number) => {
+    if (isUploading || isGenerating) return;
     setIsDragging(true);
     dragStart.current = { x: clientX - offset.x, y: clientY - offset.y };
   };
 
   // Handle Drag Move
   const handleMove = (clientX: number, clientY: number) => {
-    if (!isDragging) return;
+    if (!isDragging || isUploading || isGenerating) return;
     setOffset({
       x: clientX - dragStart.current.x,
       y: clientY - dragStart.current.y,
@@ -83,6 +93,7 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
 
   // Trackpad / Scroll Wheel Zooming
   const onWheel = (e: React.WheelEvent) => {
+    if (isUploading || isGenerating) return;
     e.preventDefault();
     const zoomStep = 0.05;
     const direction = e.deltaY > 0 ? -1 : 1;
@@ -93,14 +104,16 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
   // Image Load: Calculate aspect ratio to fit the viewport perfectly
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth, naturalHeight } = e.currentTarget;
-    setIsWide(naturalWidth > naturalHeight);
+    const imgAspect = naturalWidth / naturalHeight;
+    const containerAspect = type === "banner" ? 1152 / 208 : 1;
+    setIsWide(imgAspect > containerAspect);
     setZoom(1);
     setOffset({ x: 0, y: 0 });
   };
 
   // Keyboard accessibility for adjustments
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isUploading || isGenerating) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const step = e.shiftKey ? 20 : 5;
@@ -142,67 +155,47 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, isUploading, isGenerating]);
 
-  // Export cropped area via hidden HTML5 Canvas
-  const handleCrop = () => {
+  // Export cropped area using canvas utility
+  const handleCrop = async () => {
     const img = imgRef.current;
-    const cropCircle = cropCircleRef.current;
-    if (!img || !cropCircle) return;
+    const cropZone = cropZoneRef.current;
+    if (!img || !cropZone) return;
 
     setIsGenerating(true);
 
-    // Bounding dimensions in standard browser layout
-    const imgRect = img.getBoundingClientRect();
-    const cropRect = cropCircle.getBoundingClientRect();
+    try {
+      const targetWidth = type === "avatar" ? 400 : 1152;
+      const targetHeight = type === "avatar" ? 400 : 208;
 
-    // Visual relative offsets of image top-left to crop circular spotlight
-    const relX = imgRect.left - cropRect.left;
-    const relY = imgRect.top - cropRect.top;
-
-    // Define export quality dimensions (standard high-definition square profile)
-    const targetSize = 400;
-    const factor = targetSize / cropRect.width;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = targetSize;
-    canvas.height = targetSize;
-    const ctx = canvas.getContext("2d");
-
-    if (ctx) {
-      ctx.clearRect(0, 0, targetSize, targetSize);
-
-      // Perform physical canvas image projection based on browser coordinate mapping
-      ctx.drawImage(
+      const blob = await cropImage(
         img,
-        relX * factor,
-        relY * factor,
-        imgRect.width * factor,
-        imgRect.height * factor
+        cropZone.getBoundingClientRect(),
+        targetWidth,
+        targetHeight
       );
 
-      // Compress and export as high-quality optimized JPEG Blob
-      canvas.toBlob(
-        (blob) => {
-          setIsGenerating(false);
-          if (blob) {
-            onCropComplete(blob);
-          }
-        },
-        "image/jpeg",
-        0.9
-      );
-    } else {
+      if (blob) {
+        onCropComplete(blob);
+      }
+    } catch (error) {
+      console.error("Failed to crop image:", error);
+    } finally {
       setIsGenerating(false);
     }
   };
+
+  const modalTitle = type === "avatar" ? "Adjust Profile Photo" : "Adjust Banner Image";
+  const viewportMaxWidthClass = type === "avatar" ? "max-w-[280px]" : "max-w-[450px]";
+  const viewportAspectClass = type === "avatar" ? "aspect-square" : "aspect-[1152/208]";
 
   return (
     <DialogModal
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      title="Adjust Profile Photo"
-      size="sm"
+      title={modalTitle}
+      size={type === "avatar" ? "sm" : "md"}
       isDismissable={false}
     >
       <div className="flex flex-col items-center gap-6 py-2 select-none w-full">
@@ -216,11 +209,11 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
           onWheel={onWheel}
-          className="relative w-full aspect-square max-w-[280px] bg-neutral-950 overflow-hidden rounded-2xl flex items-center justify-center cursor-move border border-border shadow-inner"
+          className={`relative w-full ${viewportAspectClass} ${viewportMaxWidthClass} bg-neutral-950 overflow-hidden rounded-2xl flex items-center justify-center cursor-move border border-border shadow-inner`}
         >
           {imageSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
-                <img
+            <img
               ref={imgRef}
               src={imageSrc}
               alt="Crop Source"
@@ -237,21 +230,51 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
             <div className="text-muted text-xs">No image loaded</div>
           )}
 
-          {/* Premium Spotlight Circular Overlay */}
+          {/* Premium Spotlight Overlay */}
           <div
-            ref={cropCircleRef}
-            className="w-[200px] h-[200px] rounded-full absolute pointer-events-none border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)]"
+            ref={cropZoneRef}
+            className={`absolute pointer-events-none border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] ${
+              type === "avatar"
+                ? "w-[200px] h-[200px] rounded-full"
+                : "w-[90%] aspect-[1152/208] rounded-lg"
+            }`}
           />
 
           {/* Micro Drag Indicator Badge */}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] text-white/90 flex items-center gap-1 border border-white/10 pointer-events-none">
-            <Move className="size-3" />
-            <span>Drag to reposition</span>
-          </div>
+          {!isUploading && !isGenerating && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] text-white/90 flex items-center gap-1 border border-white/10 pointer-events-none">
+              <Move className="size-3" />
+              <span>Drag to reposition</span>
+            </div>
+          )}
+
+          {/* Uploading / Processing Overlay */}
+          {(isUploading || isGenerating) && (
+            <div className="absolute inset-0 bg-neutral-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+              <Loader2 className="size-8 text-primary animate-spin" />
+              <span className="text-xs font-semibold text-foreground">
+                {isUploading ? "Uploading to storage..." : "Processing image..."}
+              </span>
+              {isUploading && (
+                <div className="w-[60%] max-w-[150px]">
+                  <ProgressBar
+                    aria-label="Upload progress"
+                    value={uploadProgress}
+                    minValue={0}
+                    maxValue={100}
+                  >
+                    <ProgressBar.Track>
+                      <ProgressBar.Fill />
+                    </ProgressBar.Track>
+                  </ProgressBar>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Zoom Controls */}
-        <div className="w-full max-w-[280px] flex flex-col gap-2">
+        <div className={`w-full ${viewportMaxWidthClass} flex flex-col gap-2`}>
           <div className="flex justify-between items-center text-xs text-muted-foreground font-semibold">
             <span>Zoom</span>
             <span>{Math.round(zoom * 100)}%</span>
@@ -264,6 +287,7 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
               onPress={() => setZoom((z) => Math.max(z - 0.1, 1))}
               className="rounded-lg hover:bg-surface-secondary border border-border text-muted hover:text-foreground shrink-0 size-8 min-w-8"
               aria-label="Zoom Out"
+              isDisabled={isUploading || isGenerating}
             >
               <ZoomOut size={14} />
             </Button>
@@ -275,6 +299,7 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
               value={zoom}
               onChange={(val) => setZoom(Array.isArray(val) ? val[0] : val)}
               className="w-full"
+              isDisabled={isUploading || isGenerating}
             />
             <Button
               isIconOnly
@@ -283,6 +308,7 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
               onPress={() => setZoom((z) => Math.min(z + 0.1, 3))}
               className="rounded-lg hover:bg-surface-secondary border border-border text-muted hover:text-foreground shrink-0 size-8 min-w-8"
               aria-label="Zoom In"
+              isDisabled={isUploading || isGenerating}
             >
               <ZoomIn size={14} />
             </Button>
@@ -296,7 +322,7 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
             size="sm"
             onPress={onCancel}
             className="rounded-xl border border-border hover:bg-surface-secondary font-bold text-xs"
-            isDisabled={isGenerating}
+            isDisabled={isGenerating || isUploading}
           >
             Cancel
           </Button>
@@ -304,9 +330,9 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
             size="sm"
             onPress={handleCrop}
             className="rounded-xl bg-foreground text-background hover:bg-foreground/90 font-extrabold text-xs shadow-sm"
-            isDisabled={isGenerating}
+            isDisabled={isGenerating || isUploading}
           >
-            {isGenerating ? "Processing..." : "Apply"}
+            Apply
           </Button>
         </div>
       </div>
@@ -314,4 +340,4 @@ export const AvatarCropperModal: React.FC<AvatarCropperModalProps> = ({
   );
 };
 
-export default AvatarCropperModal;
+export default ImageCropperModal;

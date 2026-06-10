@@ -108,8 +108,8 @@ export function AuthAvatar() {
 
   return (
     <Dropdown>
-      <Dropdown.Trigger>
-        <div className="w-full flex gap-2 items-center">
+      <Dropdown.Trigger className="w-full flex gap-2 items-center bg-transparent hover:bg-transparent border-none p-0 cursor-pointer outline-hidden">
+        <>
           <Avatar key={user.avatarUrl || "default"}>
             {user.avatarUrl && (
               <Avatar.Image src={user.avatarUrl} alt={user.fullName} />
@@ -127,7 +127,7 @@ export function AuthAvatar() {
           <Chip className="-mr-2 text-[10px]" color="accent" variant="soft">
             {user.role}
           </Chip>
-        </div>
+        </>
       </Dropdown.Trigger>
       <Dropdown.Popover className="min-w-[240px] rounded-xl p-1 z-9999 bg-background border-2">
         <Dropdown.Menu onAction={handleAction} className="outline-hidden">
