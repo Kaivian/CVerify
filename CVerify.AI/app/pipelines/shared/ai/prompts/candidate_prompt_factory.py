@@ -354,7 +354,7 @@ class CandidatePromptFactory:
         problem_solving = inputs.get("problemSolvingSummary", "")
         top_role = inputs.get("topMatchRole", "")
         return (
-            f"Generate an objective, evidence-based candidate summary for recruiter review.\n\n"
+            f"Generate an objective candidate summary and professional bio for the candidate.\n\n"
             f"CANDIDATE DATA:\n"
             f"- Career Level: {final_level} ({final_level_label})\n"
             f"- Primary Tendency: {primary_tendency}\n"
@@ -364,15 +364,26 @@ class CandidatePromptFactory:
             f"- Engineering Maturity: {engineering_maturity}\n"
             f"- Problem Solving: {problem_solving}\n"
             f"- Top Role Match: {top_role}\n\n"
-            f"REQUIREMENTS:\n"
-            f"- Tone: objective, evidence-based, professional (not promotional)\n"
-            f"- Length: STRICTLY 150-250 characters for recruiter_headline, STRICTLY 200-350 characters (about 2-3 dense sentences) for full_summary\n"
-            f"- Must cite specific technical evidence, not generic statements\n"
-            f"- Must mention level, tendency, and top 2-3 skills\n\n"
+            f"You MUST generate two distinct and independent narrative outputs from two completely different personas and viewpoints:\n\n"
+            f"1. recruiterHeadline (STRICTLY 150-250 characters):\n"
+            f"   - Objective, professional headline summarizing level and tech stack (e.g., 'Senior Backend Engineer with 3+ years of Python/FastAPI expertise').\n\n"
+            f"2. fullSummary (Full AI Evaluation Narrative - up to 1000 characters):\n"
+            f"   - Persona: Technical Talent Analyst (Objective, analytical, data-driven, repository-evidentiary).\n"
+            f"   - Objective: Synthesize candidate's code quality, software patterns, architectural capabilities, maturity, and gaps.\n"
+            f"   - Tone: Recruiter-focused, professional, and diagnostic. Describe findings in the codebase.\n\n"
+            f"3. professionalBio (AI Professional Bio Suggestion - STRICTLY 250-500 characters):\n"
+            f"   - Persona: Experienced Career Advisor (Warm, supportive, natural, human-composed, CV-ready).\n"
+            f"   - Objective: Highlight career positioning, core technical stack, and software engineering capabilities. Make the candidate look polished and professional.\n"
+            f"   - Tone: CV/LinkedIn ready, resume style. Do NOT make it sound like a report about the candidate (e.g., use 'Experienced software engineer specializing in...' rather than 'The candidate is evaluated as...').\n"
+            f"   - CRITICAL CONTRACT RULES:\n"
+            f"     - Strict Word-level Independence: Do NOT make it a truncated, rephrased, or summarized version of fullSummary. Compose it from scratch using the Career Advisor persona.\n"
+            f"     - Banned Language: Absolutely NO score numbers (e.g. 'score of 85'), trust metrics, cohort percentiles, level codes ('L1', 'L2', 'L3', 'L4', 'L5', 'Intern'), or evaluation jargon (such as 'watchpoints', 'vetting', 'CVerify', 'recruiter headline', 'evidence governance').\n\n"
             f"Return JSON:\n"
-            f'  "recruiterHeadline": "Senior Backend Engineer with 3+ years of Python/FastAPI expertise", \n'
-            f'  "fullSummary": "paragraph 200-350 chars", \n'
-            f'  "keyStrengths": ["Distributed system design", "API architecture", "PostgreSQL optimization"], \n'
+            f'{{\n'
+            f'  "recruiterHeadline": "Senior Backend Engineer with 3+ years of Python/FastAPI expertise",\n'
+            f'  "fullSummary": "paragraph up to 1000 characters detailing codebase evidence, patterns, maturity, and gaps...",\n'
+            f'  "professionalBio": "paragraph 250-500 characters of natural career summary highlighting expertise in React, Next.js, and backend systems...",\n'
+            f'  "keyStrengths": ["Distributed system design", "API architecture", "PostgreSQL optimization"],\n'
             f'  "watchPoints": ["Limited frontend exposure", "No mobile development evidence"]\n'
             f'}}'
         )

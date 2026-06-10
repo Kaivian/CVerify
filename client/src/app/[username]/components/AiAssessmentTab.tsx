@@ -74,6 +74,7 @@ export interface NormalizedAssessmentViewModel {
   workingStyle: string;
   headline: string;
   summary: string;
+  professionalBio: string;
 
   trustScore: number;
   verifiedSkillRatio: number;
@@ -207,6 +208,7 @@ function mapToViewModel(
       workingStyle: '',
       headline: '',
       summary: '',
+      professionalBio: '',
       trustScore: 0,
       verifiedSkillRatio: 0,
       verifiedRepositoryRatio: 0,
@@ -372,6 +374,7 @@ function mapToViewModel(
     workingStyle,
     headline,
     summary,
+    professionalBio: assessment?.professionalBio ?? profileData?.professionalBio ?? '',
     trustScore,
     verifiedSkillRatio,
     verifiedRepositoryRatio,
@@ -720,9 +723,20 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
                 </h3>
               )}
               {vm.summary && (
-                <p className="text-muted text-xs leading-relaxed whitespace-pre-line">
-                  {vm.summary}
-                </p>
+                <div className="space-y-1.5 text-left">
+                  <span className="text-[9px] uppercase font-extrabold text-accent/80 tracking-wider">AI Evaluation Narrative</span>
+                  <p className="text-muted text-xs leading-relaxed whitespace-pre-line text-justify">
+                    {vm.summary}
+                  </p>
+                </div>
+              )}
+              {vm.professionalBio && (
+                <div className="space-y-1.5 text-left border-t border-separator pt-4 mt-2">
+                  <span className="text-[9px] uppercase font-extrabold text-success/80 tracking-wider">AI Professional Bio Suggestion</span>
+                  <p className="text-muted text-xs leading-relaxed whitespace-pre-line text-justify">
+                    {vm.professionalBio}
+                  </p>
+                </div>
               )}
 
               {/* Snapshot Metrics */}

@@ -74,8 +74,8 @@ class CapabilityVectorV2(BaseModel):
     dimensions: CapabilityVectorDimensionsV2
     rawSignals: Dict[str, float]
 
-class CandidateAssessmentV2Contract(BaseModel):
-    schemaVersion: Literal["candidate-profile-v2"]
+class CandidateAssessmentV3Contract(BaseModel):
+    schemaVersion: Literal["candidate-profile-v3"]
     candidateScore: float
     candidateScoreLabel: str
     careerLevel: Literal["L1", "L2", "L3", "L4", "L5", "Intern"]
@@ -91,6 +91,7 @@ class CandidateAssessmentV2Contract(BaseModel):
     
     recruiterHeadline: str
     fullSummary: str
+    professionalBio: str
     keyStrengths: List[str]
     watchPoints: List[str]
     

@@ -942,7 +942,7 @@ def score_candidate_deterministic(
         })
 
     profile = {
-        "schemaVersion": "candidate-profile-v2",
+        "schemaVersion": "candidate-profile-v3",
         "candidateScore": int(round(combined["score"])),
         "candidateScoreLabel": overall_label,
         "careerLevel": overall_level,

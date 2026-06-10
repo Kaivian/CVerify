@@ -42,6 +42,9 @@ public class CandidateAssessment
     [MaxLength(2000)]
     public string? SummaryParagraph { get; set; }
 
+    [MaxLength(1000)]
+    public string? ProfessionalBio { get; set; }
+
     [Required]
     [MaxLength(20)]
     public string PipelineVersion { get; set; } = "2.0.0";

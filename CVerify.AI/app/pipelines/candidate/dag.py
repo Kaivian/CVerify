@@ -24,7 +24,7 @@ EXTERNAL_CONSUMERS: Dict[str, Set[str]] = {
     },
     "DatabaseProjection": {
         "candidateScore", "finalLevel", "finalLevelLabel", "primaryTendency", "primaryWorkingStyle",
-        "recruiterHeadline", "fullSummary", "keyStrengths", "watchPoints",
+        "recruiterHeadline", "fullSummary", "professionalBio", "keyStrengths", "watchPoints",
         "technicalDepth", "technicalBreadth", "leadershipPotential", "executionStrength", "trustLevel"
     }
 }

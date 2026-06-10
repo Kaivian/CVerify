@@ -62,6 +62,7 @@ export default function AiAnalysisPage() {
   // Extract from parsed CandidateProfile L2-014
   const headline = parsedProfile?.recruiterHeadline || latestAssessment.summaryHeadline || "Software Engineer";
   const fullSummary = parsedProfile?.fullSummary || latestAssessment.summaryParagraph || "No narrative evaluation generated.";
+  const professionalBio = parsedProfile?.professionalBio || latestAssessment.professionalBio || "No bio suggestion generated.";
   const strengths = parsedProfile?.keyStrengths || [];
   const watchPoints = parsedProfile?.watchPoints || [];
   const bestFitRoles = parsedProfile?.bestFitRoles || [];
@@ -146,20 +147,38 @@ export default function AiAnalysisPage() {
         </Card>
       </div>
 
-      {/* 2. Full Executive Narrative Report */}
-      <Card className="p-6 border border-border/40 bg-surface rounded-2xl shadow-xs text-left relative overflow-hidden">
-        <div className="absolute top-0 left-0 bottom-0 w-1 bg-accent/80" />
-        <div className="space-y-4">
-          <span className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-            <Sparkles size={13} className="text-accent" />
-            <span>AI Professional Vetting Narrative</span>
-          </span>
-          <div className="w-full h-px bg-border/20" />
-          <p className="text-xs md:text-sm text-foreground/90 leading-relaxed font-light whitespace-pre-wrap">
-            {fullSummary}
-          </p>
-        </div>
-      </Card>
+      {/* 2. Narrative & Bio Suggestion Split */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        {/* Full Executive Narrative Report */}
+        <Card className="p-6 border border-border/40 bg-surface rounded-2xl shadow-xs text-left relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute top-0 left-0 bottom-0 w-1 bg-accent/80" />
+          <div className="space-y-4">
+            <span className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5 select-none">
+              <FileText size={13} className="text-accent" />
+              <span>AI Evaluation Narrative</span>
+            </span>
+            <div className="w-full h-px bg-border/20" />
+            <p className="text-xs md:text-sm text-foreground/90 leading-relaxed font-light whitespace-pre-wrap text-justify">
+              {fullSummary}
+            </p>
+          </div>
+        </Card>
+
+        {/* AI Professional Bio Suggestion */}
+        <Card className="p-6 border border-border/40 bg-surface rounded-2xl shadow-xs text-left relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute top-0 left-0 bottom-0 w-1 bg-success/80" />
+          <div className="space-y-4">
+            <span className="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5 select-none">
+              <Sparkles size={13} className="text-success" />
+              <span>AI Professional Bio Suggestion</span>
+            </span>
+            <div className="w-full h-px bg-border/20" />
+            <p className="text-xs md:text-sm text-foreground/90 leading-relaxed font-light whitespace-pre-wrap text-justify">
+              {professionalBio}
+            </p>
+          </div>
+        </Card>
+      </div>
 
       {/* 3. Strengths vs Watchpoints Comparison */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">

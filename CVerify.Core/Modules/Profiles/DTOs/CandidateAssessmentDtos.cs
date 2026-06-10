@@ -32,6 +32,7 @@ public record CandidateAssessmentResponse(
     string? PrimaryWorkingStyle,
     string? SummaryHeadline,
     string? SummaryParagraph,
+    string? ProfessionalBio,
     string PipelineVersion,
     string AssessmentSchemaVersion,
     Guid? CvId,

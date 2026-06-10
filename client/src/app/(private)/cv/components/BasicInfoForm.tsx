@@ -45,7 +45,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
 
   const suggestionsMap = parseAiSuggestions(draft.aiSuggestionsJson);
   const headlineSuggestion = getFieldSuggestion(suggestionsMap, "headline", latestAssessment?.summaryHeadline);
-  const bioSuggestion = getFieldSuggestion(suggestionsMap, "bio", latestAssessment?.summaryParagraph);
+  const bioSuggestion = getFieldSuggestion(suggestionsMap, "bio", latestAssessment?.professionalBio);
 
   const rawRoles = parsedProfile?.bestFitRoles || [];
   const bestFitRoles = rawRoles.map((r: any) => ({
