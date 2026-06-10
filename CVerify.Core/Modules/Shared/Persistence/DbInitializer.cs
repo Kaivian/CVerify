@@ -2216,6 +2216,95 @@ public static class DbInitializer
                 CONSTRAINT fk_org_invite_roles_role FOREIGN KEY (role_id) REFERENCES organization_business_roles(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_org_invitation_roles_invite ON organization_invitation_roles(invitation_id);
+
+            -- Create admin_members table
+            CREATE TABLE IF NOT EXISTS admin_members (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL UNIQUE,
+                status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                session_version INTEGER NOT NULL DEFAULT 1,
+                joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                assigned_by_user_id UUID,
+                CONSTRAINT fk_admin_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_admin_members_assigned_by FOREIGN KEY (assigned_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+
+            -- Create admin_roles table
+            CREATE TABLE IF NOT EXISTS admin_roles (
+                id UUID PRIMARY KEY,
+                parent_role_id UUID,
+                name VARCHAR(50) NOT NULL UNIQUE,
+                display_name VARCHAR(100) NOT NULL,
+                description VARCHAR(250),
+                is_system BOOLEAN NOT NULL DEFAULT FALSE,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_admin_roles_parent FOREIGN KEY (parent_role_id) REFERENCES admin_roles(id) ON DELETE RESTRICT
+            );
+
+            -- Create admin_role_permissions table
+            CREATE TABLE IF NOT EXISTS admin_role_permissions (
+                role_id UUID NOT NULL,
+                permission_id UUID NOT NULL,
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (role_id, permission_id),
+                CONSTRAINT fk_admin_role_perms_role FOREIGN KEY (role_id) REFERENCES admin_roles(id) ON DELETE CASCADE,
+                CONSTRAINT fk_admin_role_perms_perm FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+            );
+
+            -- Create admin_role_assignments table
+            CREATE TABLE IF NOT EXISTS admin_role_assignments (
+                id UUID PRIMARY KEY,
+                admin_member_id UUID NOT NULL,
+                role_id UUID NOT NULL,
+                scope_type VARCHAR(30) NOT NULL DEFAULT 'SYSTEM',
+                scope_id UUID NOT NULL,
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_admin_assignments_member FOREIGN KEY (admin_member_id) REFERENCES admin_members(id) ON DELETE CASCADE,
+                CONSTRAINT fk_admin_assignments_role FOREIGN KEY (role_id) REFERENCES admin_roles(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_role_assignments_unique ON admin_role_assignments(admin_member_id, role_id, scope_type, scope_id);
+
+            -- Create admin_invitations table
+            CREATE TABLE IF NOT EXISTS admin_invitations (
+                id UUID PRIMARY KEY,
+                invitee_email CITEXT NOT NULL,
+                token_hash VARCHAR(64) NOT NULL UNIQUE,
+                invited_by_user_id UUID,
+                status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                accepted_at TIMESTAMP WITH TIME ZONE,
+                consumed_by_user_id UUID,
+                CONSTRAINT fk_admin_invitations_invited_by FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_admin_invitations_consumed_by FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_invitations_active_email ON admin_invitations(invitee_email) WHERE status = 'Pending';
+
+            -- Create admin_invitation_roles table
+            CREATE TABLE IF NOT EXISTS admin_invitation_roles (
+                id UUID PRIMARY KEY,
+                invitation_id UUID NOT NULL,
+                role_id UUID NOT NULL,
+                CONSTRAINT fk_admin_invite_roles_invite FOREIGN KEY (invitation_id) REFERENCES admin_invitations(id) ON DELETE CASCADE,
+                CONSTRAINT fk_admin_invite_roles_role FOREIGN KEY (role_id) REFERENCES admin_roles(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_admin_invitation_roles_invite ON admin_invitation_roles(invitation_id);
+
+            -- Create admin_audit_logs table
+            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                id UUID PRIMARY KEY,
+                actor_user_id UUID,
+                action VARCHAR(50) NOT NULL,
+                target_role_name VARCHAR(50),
+                target_user_id UUID,
+                details_json JSONB,
+                timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_admin_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_admin_audit_target FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
         ";
 
         var superAdminEmail = Environment.GetEnvironmentVariable("SUPER_ADMIN_EMAIL")?.Trim().ToLowerInvariant() ?? "admin@system.com";
@@ -2224,7 +2313,16 @@ public static class DbInitializer
         // Safely alter user_status enum to add DELETION_PENDING for backward compatibility
         try
         {
-            await context.Database.ExecuteSqlRawAsync("ALTER TYPE user_status ADD VALUE IF NOT EXISTS 'DELETION_PENDING';");
+            var typeExists = await context.Database.SqlQueryRaw<int>(@"
+                SELECT COUNT(*)::int 
+                FROM pg_type 
+                WHERE typname = 'user_status'
+            ").FirstOrDefaultAsync();
+
+            if (typeExists > 0)
+            {
+                await context.Database.ExecuteSqlRawAsync("ALTER TYPE user_status ADD VALUE IF NOT EXISTS 'DELETION_PENDING';");
+            }
         }
         catch (Exception)
         {
@@ -2234,7 +2332,18 @@ public static class DbInitializer
         // Make actor_user_id nullable in business_role_audit_logs for business credentials / system actions
         try
         {
-            await context.Database.ExecuteSqlRawAsync("ALTER TABLE business_role_audit_logs ALTER COLUMN actor_user_id DROP NOT NULL;");
+            await context.Database.ExecuteSqlRawAsync(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'business_role_audit_logs' 
+                          AND column_name = 'actor_user_id' 
+                          AND is_nullable = 'NO'
+                    ) THEN
+                        ALTER TABLE business_role_audit_logs ALTER COLUMN actor_user_id DROP NOT NULL;
+                    END IF;
+                END $$;");
         }
         catch (Exception)
         {
@@ -2422,6 +2531,9 @@ public static class DbInitializer
 
         // Seed CVerify Business Roles, Permissions and migrate existing memberships
         await SeedBusinessRolesAndPermissionsAsync(context);
+
+        // Seed Admin Roles, Permissions and migrate existing platform administrators
+        await SeedAdminRolesAndPermissionsAsync(context);
     }
 
     private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)
@@ -2842,6 +2954,140 @@ public static class DbInitializer
             Console.WriteLine($"[SeedBusinessRolesAndPermissions] Error executing migration/seeding: {ex.Message}");
             throw;
         }
+    }
+
+    private static async Task SeedAdminRolesAndPermissionsAsync(ApplicationDbContext context)
+    {
+        try
+        {
+            // 1. Seed dynamic admin roles in admin_roles
+            var defaultAdminRoles = new List<(string Name, string DisplayName, string Description, List<string> Perms)>
+            {
+                ("SUPER_ADMIN", "Super Administrator", "Full root-level administration access", new List<string> { "*" }),
+                ("ADMIN", "Administrator", "General platform administration access", new List<string> {
+                    "admin:users:view", "admin:users:manage", "admin:roles:view", "admin:roles:manage",
+                    "admin:verification:view", "admin:verification:manage", "admin:ai:audit", "admin:components:read"
+                })
+            };
+
+            foreach (var dr in defaultAdminRoles)
+            {
+                var existingRole = await context.AdminRoles.FirstOrDefaultAsync(r => r.Name == dr.Name);
+                Guid roleId;
+                if (existingRole == null)
+                {
+                    roleId = Guid.CreateVersion7();
+                    var newRole = new AdminRole
+                    {
+                        Id = roleId,
+                        Name = dr.Name,
+                        DisplayName = dr.DisplayName,
+                        Description = dr.Description,
+                        IsSystem = true,
+                        IsActive = true,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        UpdatedAt = DateTimeOffset.UtcNow
+                    };
+                    context.AdminRoles.Add(newRole);
+                    await context.SaveChangesAsync();
+                }
+                else
+                {
+                    roleId = existingRole.Id;
+                }
+
+                // Map permissions
+                var existingPermissions = await context.AdminRolePermissions
+                    .Where(rp => rp.RoleId == roleId)
+                    .ToListAsync();
+                context.AdminRolePermissions.RemoveRange(existingPermissions);
+                await context.SaveChangesAsync();
+
+                List<Guid> permGuids;
+                if (dr.Perms.Contains("*"))
+                {
+                    permGuids = await context.Permissions.Select(p => p.Id).ToListAsync();
+                }
+                else
+                {
+                    permGuids = await context.Permissions
+                        .Where(p => dr.Perms.Contains(p.Name))
+                        .Select(p => p.Id)
+                        .ToListAsync();
+                }
+
+                foreach (var pId in permGuids)
+                {
+                    context.AdminRolePermissions.Add(new AdminRolePermission
+                    {
+                        RoleId = roleId,
+                        PermissionId = pId,
+                        AssignedAt = DateTimeOffset.UtcNow
+                    });
+                }
+                await context.SaveChangesAsync();
+            }
+
+            // 2. Migrate existing platform administrators from legacy user_roles
+            var legacyAdmins = await context.Database.SqlQueryRaw<LegacyUserRoleDto>(
+                @"SELECT ur.user_id as ""UserId"", r.name as ""RoleName"" 
+                  FROM user_roles ur 
+                  JOIN roles r ON ur.role_id = r.id 
+                  WHERE r.name IN ('SUPER_ADMIN', 'ADMIN')"
+            ).ToListAsync();
+
+            foreach (var la in legacyAdmins)
+            {
+                var adminMember = await context.AdminMembers.FirstOrDefaultAsync(am => am.UserId == la.UserId);
+                if (adminMember == null)
+                {
+                    adminMember = new AdminMember
+                    {
+                        Id = Guid.CreateVersion7(),
+                        UserId = la.UserId,
+                        Status = "Active",
+                        SessionVersion = 1,
+                        JoinedAt = DateTimeOffset.UtcNow,
+                        UpdatedAt = DateTimeOffset.UtcNow
+                    };
+                    context.AdminMembers.Add(adminMember);
+                    await context.SaveChangesAsync();
+                }
+
+                var targetRole = await context.AdminRoles.FirstOrDefaultAsync(r => r.Name == la.RoleName);
+                if (targetRole != null)
+                {
+                    var exists = await context.AdminRoleAssignments
+                        .AnyAsync(ra => ra.AdminMemberId == adminMember.Id && ra.RoleId == targetRole.Id);
+
+                    if (!exists)
+                    {
+                        var assignment = new AdminRoleAssignment
+                        {
+                            Id = Guid.CreateVersion7(),
+                            AdminMemberId = adminMember.Id,
+                            RoleId = targetRole.Id,
+                            ScopeType = "SYSTEM",
+                            ScopeId = Guid.Empty,
+                            AssignedAt = DateTimeOffset.UtcNow
+                        };
+                        context.AdminRoleAssignments.Add(assignment);
+                        await context.SaveChangesAsync();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SeedAdminRolesAndPermissions] Error executing migration/seeding: {ex.Message}");
+            throw;
+        }
+    }
+
+    private class LegacyUserRoleDto
+    {
+        public Guid UserId { get; set; }
+        public string RoleName { get; set; } = null!;
     }
 
     private class DbInitializerRateLimitPolicyService : CVerify.API.Modules.Shared.System.Services.IRateLimitPolicyService

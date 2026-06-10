@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '@/services/admin.service';
 import { type UserListItem, type RoleListItem } from '@/types/admin.types';
-import { Spinner, Checkbox, Label, Typography } from '@heroui/react';
+import { Spinner, Checkbox, Label, Typography, Table, Card } from '@heroui/react';
 import { Search, RotateCw, Users, Edit2, AlertCircle } from 'lucide-react';
 import { DialogModal } from '@/components/ui/dialog-modal';
 import { SelectDropdown } from '@/components/ui/select-dropdown';
@@ -209,7 +209,7 @@ export function UsersManagementView() {
       </div>
 
       {/* User Directory Table */}
-      <div className="rounded-2xl border border-border bg-surface/80 shadow-surface overflow-hidden">
+      <Card className="p-0 overflow-hidden border border-border bg-surface/80 rounded-2xl shadow-surface">
         {isLoading ? (
           <SkeletonLoader rows={6} columns={6} />
         ) : users.length === 0 ? (
@@ -219,72 +219,76 @@ export function UsersManagementView() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-separator bg-surface-secondary/45">
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.fullName')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.email')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.status')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted hidden sm:table-cell">{t('dashboard-admin:users.table.roles')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-center text-muted hidden md:table-cell">{t('dashboard-admin:users.table.session')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-right text-muted">{t('dashboard-admin:users.table.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b border-separator last:border-none hover:bg-surface-secondary/40 transition-colors">
-                    <td className="font-bold text-xs py-4 px-6">
-                      {u.fullName}
-                    </td>
-                    <td className="text-muted font-medium text-xs py-4 px-6 font-mono">
-                      {u.email}
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${getUserStatusStyle(u.status)}`}>
-                        {u.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 hidden sm:table-cell">
-                      <div className="flex flex-wrap gap-1.5">
-                        {u.roles.map((r) => (
-                          <span key={r} className="px-2 py-0.5 rounded border border-border text-[10px] font-bold text-muted bg-surface/50">
-                            {r}
+            <Table aria-label="Users Directory Table" className="w-full">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Users Directory Content">
+                  <Table.Header>
+                    <Table.Column isRowHeader className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.fullName')}</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.email')}</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.status')}</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted hidden sm:table-cell">{t('dashboard-admin:users.table.roles')}</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-center text-muted hidden md:table-cell">{t('dashboard-admin:users.table.session')}</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-right text-muted">{t('dashboard-admin:users.table.actions')}</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {users.map((u) => (
+                      <Table.Row key={u.id} className="border-b border-separator last:border-none hover:bg-surface-secondary/40 transition-colors">
+                        <Table.Cell className="font-bold text-xs py-4 px-6">
+                          {u.fullName}
+                        </Table.Cell>
+                        <Table.Cell className="text-muted font-medium text-xs py-4 px-6 font-mono">
+                          {u.email}
+                        </Table.Cell>
+                        <Table.Cell className="py-4 px-6">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${getUserStatusStyle(u.status)}`}>
+                            {u.status}
                           </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="text-center font-mono font-bold text-xs py-4 px-6 text-muted hidden md:table-cell">
-                      v{u.sessionVersion}
-                    </td>
-                    <td className="text-right py-4 px-6">
-                      <TableActionDropdown
-                        actions={[
-                          {
-                            id: 'edit',
-                            label: t('dashboard-admin:users.table.adjust'),
-                            icon: Edit2,
-                            onSelect: () => handleEditClick(u),
-                          }
-                        ]}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        </Table.Cell>
+                        <Table.Cell className="py-4 px-6 hidden sm:table-cell">
+                          <div className="flex flex-wrap gap-1.5">
+                            {u.roles.map((r) => (
+                              <span key={r} className="px-2 py-0.5 rounded border border-border text-[10px] font-bold text-muted bg-surface/50">
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                        </Table.Cell>
+                        <Table.Cell className="text-center font-mono font-bold text-xs py-4 px-6 text-muted hidden md:table-cell">
+                          v{u.sessionVersion}
+                        </Table.Cell>
+                        <Table.Cell className="text-right py-4 px-6">
+                          <TableActionDropdown
+                            actions={[
+                              {
+                                id: 'edit',
+                                label: t('dashboard-admin:users.table.adjust'),
+                                icon: Edit2,
+                                onSelect: () => handleEditClick(u),
+                              }
+                            ]}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
           </div>
         )}
 
         {users.length > 0 && (
-          <PaginationWrapper
-            page={page}
-            totalPages={totalPages}
-            totalItems={totalCount}
-            itemsPerPage={pageSize}
-            onPageChange={(p) => setPage(p)}
-          />
+          <div className="p-4 border-t border-separator/60">
+            <PaginationWrapper
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalCount}
+              itemsPerPage={pageSize}
+              onPageChange={(p) => setPage(p)}
+            />
+          </div>
         )}
-      </div>
+      </Card>
 
       {/* Edit User Modal Dialog */}
       <DialogModal

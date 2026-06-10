@@ -28,6 +28,7 @@ public record RoleListItemDto(
     string? Description,
     bool IsSystem,
     bool IsActive,
+    Guid? ParentRoleId,
     List<string> Permissions,
     uint Version
 );
@@ -36,6 +37,7 @@ public record CreateOrUpdateRoleDto(
     string Name,
     string DisplayName,
     string? Description,
+    Guid? ParentRoleId,
     List<string> Permissions,
     uint? Version
 );
@@ -56,3 +58,52 @@ public record PaginatedResultDto<T>(
     int Page,
     int PageSize
 );
+
+public record AdminMemberListItemDto(
+    Guid Id,
+    Guid UserId,
+    string Email,
+    string FullName,
+    string Status,
+    DateTimeOffset? LastLoginAt,
+    int SessionVersion,
+    DateTimeOffset JoinedAt,
+    List<AdminMemberRoleDto> Roles
+);
+
+public record AdminMemberRoleDto(
+    Guid RoleId,
+    string Name,
+    string DisplayName,
+    string ScopeType,
+    Guid ScopeId
+);
+
+public record InviteAdminDto(
+    string Email,
+    List<Guid> RoleIds
+);
+
+public record UpdateAdminMemberDto(
+    string Status,
+    List<Guid> RoleIds
+);
+
+public record AdminInvitationListItemDto(
+    Guid Id,
+    string InviteeEmail,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset ExpiresAt,
+    DateTimeOffset? AcceptedAt,
+    Guid? InvitedByUserId,
+    string InvitedByUserEmail,
+    List<AdminInvitationRoleDto> Roles
+);
+
+public record AdminInvitationRoleDto(
+    Guid RoleId,
+    string Name,
+    string DisplayName
+);
+

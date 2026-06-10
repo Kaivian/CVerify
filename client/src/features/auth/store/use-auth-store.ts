@@ -161,9 +161,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
     hasPermission: (permission) => {
       const user = get().user;
       if (!user) return false;
-      
-      // Admin bypass - Admin has all privileges
-      if (user.role === 'ADMIN') return true;
 
       // Optimization: Exact match check
       if (user.permissions.includes(permission)) return true;

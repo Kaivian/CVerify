@@ -8,6 +8,7 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security.Authorization.Requirements;
 using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.Admin.Services;
 
 namespace CVerify.API.Modules.Shared.Security.Authorization.Handlers;
 
@@ -15,11 +16,16 @@ public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
 {
     private readonly ICacheService _cacheService;
     private readonly IIdentityRepository _identityRepository;
+    private readonly IAdminAuthorizationService _adminAuthService;
 
-    public PermissionHandler(ICacheService cacheService, IIdentityRepository identityRepository)
+    public PermissionHandler(
+        ICacheService cacheService, 
+        IIdentityRepository identityRepository,
+        IAdminAuthorizationService adminAuthService)
     {
         _cacheService = cacheService;
         _identityRepository = identityRepository;
+        _adminAuthService = adminAuthService;
     }
 
     protected override async Task HandleRequirementAsync(
@@ -29,6 +35,31 @@ public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
         var userIdClaim = context.User.FindFirst(global::System.Security.Claims.ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
         {
+            return;
+        }
+
+        // Handle admin namespaces separately
+        if (requirement.Permission.StartsWith("admin:", StringComparison.OrdinalIgnoreCase))
+        {
+            var activeSessionVersion = await _adminAuthService.GetSessionVersionAsync(userId);
+            if (activeSessionVersion <= 0)
+            {
+                return;
+            }
+
+            var tokenVersionClaim = context.User.FindFirst("admin_session_version");
+            if (tokenVersionClaim == null || 
+                !int.TryParse(tokenVersionClaim.Value, out var tokenVersion) || 
+                tokenVersion != activeSessionVersion)
+            {
+                return;
+            }
+
+            var isAuthorized = await _adminAuthService.AuthorizeAsync(userId, requirement.Permission);
+            if (isAuthorized)
+            {
+                context.Succeed(requirement);
+            }
             return;
         }
 
