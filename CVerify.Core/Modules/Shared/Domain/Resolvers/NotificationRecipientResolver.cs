@@ -22,6 +22,79 @@ public class NotificationRecipientResolver : INotificationRecipientResolver
     {
         var recipients = new HashSet<Guid>();
 
+        // Forum Recipient Resolution Rules
+        if (activityEvent.EventType == ActivityEventTypes.ForumReplyCreated)
+        {
+            var reply = await _context.ForumReplies
+                .Include(r => r.Topic)
+                .FirstOrDefaultAsync(r => r.Id == activityEvent.ResourceId);
+
+            if (reply != null)
+            {
+                // Notify topic author
+                if (reply.Topic.AuthorId != activityEvent.ActorUserId)
+                {
+                    recipients.Add(reply.Topic.AuthorId);
+                }
+
+                // Notify parent reply author (if any)
+                if (reply.ParentReplyId.HasValue)
+                {
+                    var parent = await _context.ForumReplies.FindAsync(reply.ParentReplyId.Value);
+                    if (parent != null && parent.AuthorId != activityEvent.ActorUserId)
+                    {
+                        recipients.Add(parent.AuthorId);
+                    }
+                }
+
+                // Notify followers
+                var followers = await _context.ForumFollows
+                    .Where(f => f.TopicId == reply.TopicId && f.UserId != activityEvent.ActorUserId)
+                    .Select(f => f.UserId)
+                    .ToListAsync();
+
+                foreach (var fid in followers)
+                {
+                    recipients.Add(fid);
+                }
+            }
+            return recipients.Where(r => r != Guid.Empty);
+        }
+
+        if (activityEvent.EventType == ActivityEventTypes.ForumAnswerAccepted)
+        {
+            var reply = await _context.ForumReplies.FindAsync(activityEvent.ResourceId);
+            if (reply != null && reply.AuthorId != activityEvent.ActorUserId)
+            {
+                recipients.Add(reply.AuthorId);
+            }
+            return recipients.Where(r => r != Guid.Empty);
+        }
+
+        if (activityEvent.EventType == ActivityEventTypes.ForumTopicModerated)
+        {
+            var topic = await _context.ForumTopics.FindAsync(activityEvent.ResourceId);
+            if (topic != null && topic.AuthorId != activityEvent.ActorUserId)
+            {
+                recipients.Add(topic.AuthorId);
+            }
+            return recipients.Where(r => r != Guid.Empty);
+        }
+
+        if (activityEvent.EventType == ActivityEventTypes.ForumContentReported)
+        {
+            var adminUserIds = await _context.RoleAssignments
+                .Include(ra => ra.Role)
+                .Where(ra => ra.Role.Name == "ADMIN" || ra.Role.Name == "MODERATOR")
+                .Select(ra => ra.UserId)
+                .ToListAsync();
+            foreach (var id in adminUserIds)
+            {
+                recipients.Add(id);
+            }
+            return recipients.Where(r => r != Guid.Empty);
+        }
+
         // 1. Direct Actor / Subject Routing (Security Alerts go to Actor)
         if (activityEvent.EventType == ActivityEventTypes.PasswordChanged ||
             activityEvent.EventType == ActivityEventTypes.IpVerified)

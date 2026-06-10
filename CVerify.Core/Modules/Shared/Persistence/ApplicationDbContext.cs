@@ -9,6 +9,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Email.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.SourceCode.Entities;
+using CVerify.API.Modules.Forum.Entities;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
@@ -232,6 +233,26 @@ public class ApplicationDbContext : DbContext
     public DbSet<CvRepositoryMapping> CvRepositoryMappings => Set<CvRepositoryMapping>();
     public DbSet<ProjectTechnology> ProjectTechnologies => Set<ProjectTechnology>();
     public DbSet<ProjectContribution> ProjectContributions => Set<ProjectContribution>();
+
+    // Forum Module DbSets
+    public DbSet<ForumCategory> ForumCategories => Set<ForumCategory>();
+    public DbSet<ForumCategoryModerator> ForumCategoryModerators => Set<ForumCategoryModerator>();
+    public DbSet<ForumTopic> ForumTopics => Set<ForumTopic>();
+    public DbSet<ForumReply> ForumReplies => Set<ForumReply>();
+    public DbSet<ForumTag> ForumTags => Set<ForumTag>();
+    public DbSet<ForumTopicTag> ForumTopicTags => Set<ForumTopicTag>();
+    public DbSet<ForumVote> ForumVotes => Set<ForumVote>();
+    public DbSet<ForumReaction> ForumReactions => Set<ForumReaction>();
+    public DbSet<ForumBookmark> ForumBookmarks => Set<ForumBookmark>();
+    public DbSet<ForumFollow> ForumFollows => Set<ForumFollow>();
+    public DbSet<ForumReport> ForumReports => Set<ForumReport>();
+    public DbSet<ForumReputation> ForumReputations => Set<ForumReputation>();
+    public DbSet<ForumBadge> ForumBadges => Set<ForumBadge>();
+    public DbSet<ForumUserBadge> ForumUserBadges => Set<ForumUserBadge>();
+    public DbSet<ForumModerationLog> ForumModerationLogs => Set<ForumModerationLog>();
+    public DbSet<ForumTopicHistory> ForumTopicHistories => Set<ForumTopicHistory>();
+    public DbSet<ForumReplyHistory> ForumReplyHistories => Set<ForumReplyHistory>();
+
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -1978,6 +1999,122 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(ca => ca.CanonicalId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Forum Module Fluent Mappings
+        modelBuilder.Entity<ForumCategoryModerator>(entity =>
+        {
+            entity.HasKey(cm => new { cm.CategoryId, cm.UserId });
+            entity.HasOne(cm => cm.Category)
+                  .WithMany(c => c.Moderators)
+                  .HasForeignKey(cm => cm.CategoryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(cm => cm.User)
+                  .WithMany()
+                  .HasForeignKey(cm => cm.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ForumTopicTag>(entity =>
+        {
+            entity.HasKey(tt => new { tt.TopicId, tt.TagId });
+            entity.HasOne(tt => tt.Topic)
+                  .WithMany(t => t.TopicTags)
+                  .HasForeignKey(tt => tt.TopicId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(tt => tt.Tag)
+                  .WithMany(tag => tag.TopicTags)
+                  .HasForeignKey(tt => tt.TagId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ForumBookmark>(entity =>
+        {
+            entity.HasKey(b => new { b.TopicId, b.UserId });
+            entity.HasOne(b => b.Topic)
+                  .WithMany(t => t.Bookmarks)
+                  .HasForeignKey(b => b.TopicId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(b => b.User)
+                  .WithMany()
+                  .HasForeignKey(b => b.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ForumFollow>(entity =>
+        {
+            entity.HasKey(f => new { f.TopicId, f.UserId });
+            entity.HasOne(f => f.Topic)
+                  .WithMany(t => t.Follows)
+                  .HasForeignKey(f => f.TopicId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(f => f.User)
+                  .WithMany()
+                  .HasForeignKey(f => f.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ForumUserBadge>(entity =>
+        {
+            entity.HasKey(ub => new { ub.UserId, ub.BadgeId });
+            entity.HasOne(ub => ub.User)
+                  .WithMany()
+                  .HasForeignKey(ub => ub.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(ub => ub.Badge)
+                  .WithMany()
+                  .HasForeignKey(ub => ub.BadgeId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ForumVote>(entity =>
+        {
+            entity.HasOne(v => v.Topic)
+                  .WithMany(t => t.Votes)
+                  .HasForeignKey(v => v.TopicId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(v => v.Reply)
+                  .WithMany(r => r.Votes)
+                  .HasForeignKey(v => v.ReplyId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(v => v.User)
+                  .WithMany()
+                  .HasForeignKey(v => v.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ForumReaction>(entity =>
+        {
+            entity.HasOne(r => r.Topic)
+                  .WithMany(t => t.Reactions)
+                  .HasForeignKey(r => r.TopicId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(r => r.Reply)
+                  .WithMany(rep => rep.Reactions)
+                  .HasForeignKey(r => r.ReplyId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(r => r.User)
+                  .WithMany()
+                  .HasForeignKey(r => r.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ForumTopic>(entity =>
+        {
+            entity.HasIndex(t => t.Slug).IsUnique();
+            entity.HasIndex(t => new { t.CategoryId, t.IsPinned, t.CreatedAt });
+            entity.HasIndex(t => new { t.OrganizationId, t.CreatedAt });
+        });
+
+        modelBuilder.Entity<ForumReply>(entity =>
+        {
+            entity.HasIndex(r => new { r.TopicId, r.ParentReplyId, r.CreatedAt });
+        });
+
+        modelBuilder.Entity<ForumTag>(entity =>
+        {
+            entity.HasIndex(t => t.Name).IsUnique();
+            entity.HasIndex(t => t.Slug).IsUnique();
         });
     }
 
