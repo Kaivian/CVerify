@@ -8,7 +8,7 @@ namespace CVerify.API.UnitTests.Security;
 
 public class DecryptTokensTest
 {
-    [Fact]
+    [Fact(Skip = "Debug helper script for local use")]
     public void TestDecryptTokens()
     {
         string connStr = "Host=localhost;Port=5432;Database=cverify_db_development;Username=postgres;Password=123123";

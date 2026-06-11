@@ -107,3 +107,7 @@ public record AdminInvitationRoleDto(
     string DisplayName
 );
 
+public record AcceptInvitationDto(
+    string Token
+);
+
