@@ -55,7 +55,7 @@
     "liveBadge": "Production-grade AuthN & AuthZ Module Live",
     "headline": "Decoupled Role-Based Security for modern TravelTech.",
     "description": "CVerify AI integrates Zustand state hydration, edge JWT cryptography, anti-CSRF protections, Broadcast session syncing, and inactivity warning locks.",
-    "enterHub": "Enter Traveler Hub",
+    "enterHub": "Enter Dashboard",
     "accessConsole": "Access Console",
     "goConsole": "Go to Console",
     "roles": {
@@ -69,7 +69,7 @@
     "footerNote": "CVerify AI Auth Portal Integration. Verified for Next.js 16 + HeroUI v3 + Tailwind v4."
   },
   "dashboard": {
-    "travelerHub": "Dashboard",
+    "travelerHub": "Developer Dashboard",
     "aiPlanner": "AI Planner Chat",
     "partnerConsole": "Partner Console",
     "systemAdmin": "System Admin",

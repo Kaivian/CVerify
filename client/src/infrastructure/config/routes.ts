@@ -23,7 +23,7 @@ export const routesConfig: Record<string, RouteMetadata> = {
   '/user': {
     path: '/user',
     translationKey: 'common:dashboard.travelerHub',
-    fallbackLabel: 'Traveler Hub',
+    fallbackLabel: 'Developer Dashboard',
     icon: LayoutDashboard,
   },
   '/chat': {

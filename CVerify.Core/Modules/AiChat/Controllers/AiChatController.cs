@@ -89,7 +89,7 @@ public class AiChatController : ControllerBase
                 _logger.LogWarning("FastAPI readiness probe timed out after 5 seconds.");
                 Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 Response.ContentType = "application/json";
-                await Response.WriteAsJsonAsync(new { error = "AI Travel Planner engine readiness check timed out." }, cancellationToken);
+                await Response.WriteAsJsonAsync(new { error = "CVerify AI Assistant engine readiness check timed out." }, cancellationToken);
                 return;
             }
             catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException socketEx && 
@@ -99,7 +99,7 @@ public class AiChatController : ControllerBase
                 _logger.LogError(ex, "FastAPI readiness check failed: Connection refused or host unreachable. SocketErrorCode={SocketErrorCode}", socketEx.SocketErrorCode);
                 Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 Response.ContentType = "application/json";
-                await Response.WriteAsJsonAsync(new { error = "AI Travel Planner engine is unreachable." }, cancellationToken);
+                await Response.WriteAsJsonAsync(new { error = "CVerify AI Assistant engine is unreachable." }, cancellationToken);
                 return;
             }
             catch (HttpRequestException ex) when (ex.Message.Contains("DNS") || ex.InnerException is System.Net.Sockets.SocketException s && s.SocketErrorCode == System.Net.Sockets.SocketError.HostNotFound)
@@ -107,7 +107,7 @@ public class AiChatController : ControllerBase
                 _logger.LogError(ex, "FastAPI readiness check failed: DNS resolution failure.");
                 Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 Response.ContentType = "application/json";
-                await Response.WriteAsJsonAsync(new { error = "AI Travel Planner engine DNS resolution failed." }, cancellationToken);
+                await Response.WriteAsJsonAsync(new { error = "CVerify AI Assistant engine DNS resolution failed." }, cancellationToken);
                 return;
             }
 
@@ -131,7 +131,7 @@ public class AiChatController : ControllerBase
 
                 Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 Response.ContentType = "application/json";
-                await Response.WriteAsJsonAsync(new { error = "AI Travel Planner engine reported unhealthy readiness state." }, cancellationToken);
+                await Response.WriteAsJsonAsync(new { error = "CVerify AI Assistant engine reported unhealthy readiness state." }, cancellationToken);
                 return;
             }
 
@@ -145,7 +145,7 @@ public class AiChatController : ControllerBase
                     _logger.LogWarning("FastAPI readiness response has unhealthy status: {Status}", statusProp.GetString() ?? "unknown");
                     Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                     Response.ContentType = "application/json";
-                    await Response.WriteAsJsonAsync(new { error = "AI Travel Planner engine is not ready." }, cancellationToken);
+                    await Response.WriteAsJsonAsync(new { error = "CVerify AI Assistant engine is not ready." }, cancellationToken);
                     return;
                 }
             }
@@ -154,7 +154,7 @@ public class AiChatController : ControllerBase
                 _logger.LogError(ex, "FastAPI readiness check failed: Invalid JSON response returned: {Response}", healthContent);
                 Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 Response.ContentType = "application/json";
-                await Response.WriteAsJsonAsync(new { error = "AI Travel Planner readiness response is corrupt." }, cancellationToken);
+                await Response.WriteAsJsonAsync(new { error = "CVerify AI Assistant readiness response is corrupt." }, cancellationToken);
                 return;
             }
         }
@@ -163,7 +163,7 @@ public class AiChatController : ControllerBase
             _logger.LogError(ex, "Failed to reach FastAPI readiness endpoint during pre-flight check.");
             Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             Response.ContentType = "application/json";
-            await Response.WriteAsJsonAsync(new { error = "AI Travel Planner engine is currently offline. Please try again in a few moments." }, cancellationToken);
+            await Response.WriteAsJsonAsync(new { error = "CVerify AI Assistant engine is currently offline. Please try again in a few moments." }, cancellationToken);
             return;
         }
 
