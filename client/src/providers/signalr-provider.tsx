@@ -141,21 +141,30 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
 
     connectionRef.current = connection;
 
+    let isCancelled = false;
+
     const startConnection = async () => {
       try {
         await connection.start();
+        if (isCancelled) {
+          connection.stop();
+          return;
+        }
         console.log('[SignalR] Connected successfully.');
         
         // Fetch initial notification list and unread count upon successful connection
         fetchNotifications();
       } catch (err) {
-        console.error('[SignalR] Connection establishment failed:', err);
+        if (!isCancelled) {
+          console.error('[SignalR] Connection establishment failed:', err);
+        }
       }
     };
 
     startConnection();
 
     return () => {
+      isCancelled = true;
       if (connectionRef.current) {
         console.log('[SignalR] Cleaning up connection.');
         connectionRef.current.stop();
