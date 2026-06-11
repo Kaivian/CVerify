@@ -17,13 +17,13 @@ import redis.asyncio as redis
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import StreamingResponse, JSONResponse
-from app.config import settings
-from app.middleware.hmac_auth import verify_hmac_signature
-from app.services.claude_service import ClaudeService
+from app.core.config import settings
+from app.core.middleware.hmac_auth import verify_hmac_signature
+from app.core.services.claude_service import ClaudeService
 from pydantic import BaseModel
 
 # Initialize logging
-from app.monitoring.observability import setup_logging, UIStreamingManager, TraceContext, span_context
+from app.core.monitoring.observability import setup_logging, UIStreamingManager, TraceContext, span_context
 
 setup_logging()
 
@@ -161,7 +161,7 @@ async def add_trace_context_middleware(request: Request, call_next):
     finally:
         TraceContext.reset(token)
 
-from app.routes.analysis_router import router as analysis_router
+from app.api.routes.analysis_router import router as analysis_router
 app.include_router(analysis_router)
 
 claude_service = ClaudeService()

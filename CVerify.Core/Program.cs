@@ -394,6 +394,12 @@ builder.Services.AddScoped<ISourceCodeProviderService, SourceCodeProviderService
 builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueue>();
 builder.Services.AddScoped<IRepositoryAnalysisService, RepositoryAnalysisService>();
 builder.Services.AddSingleton<IRepositoryAnalysisQueue, BackgroundRepositoryAnalysisQueue>();
+builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Storage.IArtifactStorageProvider, CVerify.API.Pipelines.Shared.Storage.ArtifactStorageProvider>();
+builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Artifacts.IArtifactRegistry, CVerify.API.Pipelines.Shared.Artifacts.ArtifactRegistry>();
+builder.Services.AddScoped<CVerify.API.Pipelines.RepositoryIntelligence.Readers.IRepositoryArtifactReader, CVerify.API.Pipelines.RepositoryIntelligence.Readers.RepositoryArtifactReader>();
+builder.Services.AddScoped<CVerify.API.Pipelines.Shared.AI.IPromptRegistry, CVerify.API.Pipelines.Shared.AI.PromptRegistry>();
+builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Queue.IPipelineQueue, CVerify.API.Pipelines.Shared.Queue.PipelineQueue>();
+builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Orchestration.IDagScheduler, CVerify.API.Pipelines.Shared.Orchestration.DagScheduler>();
 
 // Register AI Service
 builder.Services.AddScoped<IHmacSignatureService, HmacSignatureService>();
@@ -471,6 +477,30 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<ApplicationDbContext>();
         var usernameService = services.GetRequiredService<IUsernameService>();
         var logger = services.GetRequiredService<ILogger<Program>>();
+
+        if (args.Contains("--greenfield-init"))
+        {
+            if (app.Environment.IsProduction() || app.Environment.EnvironmentName.Equals("Production", StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogCritical("FATAL: Greenfield Schema Initialization is not allowed in Production environment!");
+                throw new InvalidOperationException("Greenfield Schema Initialization is not allowed in Production.");
+            }
+
+            logger.LogWarning("Greenfield Schema Initialization started: dropping and recreating tables...");
+            var sqlPath = Path.Combine(AppContext.BaseDirectory, "schema_init.sql");
+            if (!File.Exists(sqlPath)) sqlPath = "schema_init.sql";
+            if (File.Exists(sqlPath))
+            {
+                var sql = await File.ReadAllTextAsync(sqlPath);
+                await context.Database.ExecuteSqlRawAsync(sql);
+                logger.LogInformation("Greenfield Schema Initialization SQL executed successfully.");
+            }
+            else
+            {
+                logger.LogError("Greenfield SQL script schema_init.sql not found!");
+            }
+        }
+
         logger.LogInformation("Initializing database schema and checking synchronization...");
         await DbInitializer.InitializeAsync(context, usernameService, envConfig);
         logger.LogInformation("Database schema initialized and synchronized successfully.");

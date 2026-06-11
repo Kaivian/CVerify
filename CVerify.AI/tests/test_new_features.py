@@ -37,7 +37,7 @@ class TestWeightedSkillConfidence(unittest.TestCase):
     """
 
     def setUp(self):
-        from app.orchestrators.github_analysis_orchestrator import (
+        from app.pipelines.repository.orchestrators.github_analysis_orchestrator import (
             _CROSS_CUTTING_SKILL_PATTERNS,
             _SKILL_CONFIDENCE_FLOOR,
         )
@@ -154,7 +154,7 @@ class TestSmartCodeSampler(unittest.IsolatedAsyncioTestCase):
             "main.py": "print('entry')\n",
             "utils/helpers.py": "x = 1\n" * 200,   # larger file
         })
-        from app.github.code_sampler import CodeSampler, CodeSamplingOptions
+        from app.pipelines.repository.github.code_sampler import CodeSampler, CodeSamplingOptions
         sampler = CodeSampler()
         result = await sampler.sample_async(repo, "", CodeSamplingOptions(max_files=5))
         self.assertIn("main.py", result.file_names, "main.py must be in sample")
@@ -166,7 +166,7 @@ class TestSmartCodeSampler(unittest.IsolatedAsyncioTestCase):
             "misc/helper.py": "def helper(): pass\n",
             "misc/util.py": "def util(): pass\n",
         })
-        from app.github.code_sampler import CodeSampler, CodeSamplingOptions
+        from app.pipelines.repository.github.code_sampler import CodeSampler, CodeSamplingOptions
         sampler = CodeSampler()
         result = await sampler.sample_async(repo, "", CodeSamplingOptions(max_files=2))
         self.assertIn(
@@ -181,7 +181,7 @@ class TestSmartCodeSampler(unittest.IsolatedAsyncioTestCase):
             "requirements.txt": "fastapi\nuvicorn\n",
             "app.py": "from fastapi import FastAPI\n",
         })
-        from app.github.code_sampler import CodeSampler, CodeSamplingOptions
+        from app.pipelines.repository.github.code_sampler import CodeSampler, CodeSamplingOptions
         sampler = CodeSampler()
         result = await sampler.sample_async(repo, "", CodeSamplingOptions(max_files=5))
         self.assertIn("requirements.txt", result.file_names)
@@ -191,7 +191,7 @@ class TestSmartCodeSampler(unittest.IsolatedAsyncioTestCase):
         repo = self._make_repo({
             "main.py": "\n".join(f"line_{i}" for i in range(300)),
         })
-        from app.github.code_sampler import CodeSampler, CodeSamplingOptions
+        from app.pipelines.repository.github.code_sampler import CodeSampler, CodeSamplingOptions
         sampler = CodeSampler()
         result = await sampler.sample_async(repo, "", CodeSamplingOptions(max_files=5, max_lines_per_file=50))
         content = result.file_content[0]
@@ -200,7 +200,7 @@ class TestSmartCodeSampler(unittest.IsolatedAsyncioTestCase):
     async def test_max_files_limit_respected(self):
         """Sample must not exceed max_files."""
         repo = self._make_repo({f"file_{i}.py": f"x={i}\n" for i in range(30)})
-        from app.github.code_sampler import CodeSampler, CodeSamplingOptions
+        from app.pipelines.repository.github.code_sampler import CodeSampler, CodeSamplingOptions
         sampler = CodeSampler()
         result = await sampler.sample_async(repo, "", CodeSamplingOptions(max_files=10))
         self.assertLessEqual(len(result.file_names), 10)
@@ -212,21 +212,21 @@ class TestSmartCodeSampler(unittest.IsolatedAsyncioTestCase):
             "services/auth.py": "auth\n",
             "requirements.txt": "dep\n",
         })
-        from app.github.code_sampler import CodeSampler, CodeSamplingOptions
+        from app.pipelines.repository.github.code_sampler import CodeSampler, CodeSamplingOptions
         sampler = CodeSampler()
         result = await sampler.sample_async(repo, "", CodeSamplingOptions(max_files=20))
         self.assertEqual(len(result.file_names), len(set(result.file_names)))
 
     async def test_default_limits_are_increased(self):
         """Default max_files must be 20 and max_lines_per_file must be 150."""
-        from app.github.code_sampler import CodeSamplingOptions
+        from app.pipelines.repository.github.code_sampler import CodeSamplingOptions
         opts = CodeSamplingOptions()
         self.assertEqual(opts.max_files, 20)
         self.assertEqual(opts.max_lines_per_file, 150)
 
     async def test_critical_path_dirs_recognised(self):
         """controllers/, handlers/, domain/ should all be treated as Tier 2."""
-        from app.github.code_sampler import _CRITICAL_PATH_DIRS
+        from app.pipelines.repository.github.code_sampler import _CRITICAL_PATH_DIRS
         for dirname in ("controllers", "handlers", "domain", "usecases", "repositories"):
             self.assertIn(dirname, _CRITICAL_PATH_DIRS, f"'{dirname}' must be a critical-path dir")
 
@@ -243,7 +243,7 @@ class TestExtractJson(unittest.TestCase):
     """
 
     def setUp(self):
-        from app.orchestrators.github_analysis_orchestrator import GitHubAnalysisOrchestrator
+        from app.pipelines.repository.orchestrators.github_analysis_orchestrator import GitHubAnalysisOrchestrator
         self.orch = GitHubAnalysisOrchestrator.__new__(GitHubAnalysisOrchestrator)
 
     def test_tier1_clean_json(self):
@@ -309,7 +309,7 @@ class TestRiskPolicyTypeMultipliers(unittest.TestCase):
 
     def setUp(self):
         policy_path = os.path.join(
-            os.path.dirname(__file__), "..", "app", "scoring", "risk_policy.json"
+            os.path.dirname(__file__), "..", "app", "pipelines", "repository", "scoring", "risk_policy.json"
         )
         with open(policy_path, "r", encoding="utf-8") as fh:
             self.policy = json.load(fh)
@@ -389,38 +389,38 @@ class TestExtractors(unittest.IsolatedAsyncioTestCase):
 
     async def test_pdf_extractor_empty_bytes_returns_empty(self):
         """PdfTextExtractor must return '' for empty input without raising."""
-        from app.extractors.pdf_extractor import PdfTextExtractor
+        from app.pipelines.shared.extractors.pdf_extractor import PdfTextExtractor
         result = await PdfTextExtractor().extract_async(b"")
         self.assertEqual(result, "")
 
     async def test_docx_extractor_empty_bytes_returns_empty(self):
         """DocxTextExtractor must return '' for empty input without raising."""
-        from app.extractors.docx_extractor import DocxTextExtractor
+        from app.pipelines.shared.extractors.docx_extractor import DocxTextExtractor
         result = await DocxTextExtractor().extract_async(b"")
         self.assertEqual(result, "")
 
     async def test_image_extractor_empty_bytes_returns_empty(self):
         """ImageTextExtractor must return '' for empty input without raising."""
-        from app.extractors.image_extractor import ImageTextExtractor
+        from app.pipelines.shared.extractors.image_extractor import ImageTextExtractor
         result = await ImageTextExtractor().extract_async(b"")
         self.assertEqual(result, "")
 
     async def test_ocr_extractor_delegates_to_image_extractor(self):
         """OcrTextExtractor must delegate to ImageTextExtractor."""
-        from app.extractors.ocr_extractor import OcrTextExtractor
-        from app.extractors.image_extractor import ImageTextExtractor
+        from app.pipelines.shared.extractors.ocr_extractor import OcrTextExtractor
+        from app.pipelines.shared.extractors.image_extractor import ImageTextExtractor
         extractor = OcrTextExtractor()
         self.assertIsInstance(extractor._delegate, ImageTextExtractor)
 
     async def test_pdf_extractor_invalid_bytes_returns_empty(self):
         """PdfTextExtractor must gracefully return '' on corrupted bytes."""
-        from app.extractors.pdf_extractor import PdfTextExtractor
+        from app.pipelines.shared.extractors.pdf_extractor import PdfTextExtractor
         result = await PdfTextExtractor().extract_async(b"not a real pdf content xyz")
         self.assertEqual(result, "")
 
     async def test_image_extractor_invalid_bytes_returns_empty(self):
         """ImageTextExtractor must gracefully return '' on non-image bytes."""
-        from app.extractors.image_extractor import ImageTextExtractor
+        from app.pipelines.shared.extractors.image_extractor import ImageTextExtractor
         result = await ImageTextExtractor().extract_async(b"this is not an image")
         self.assertEqual(result, "")
 
@@ -432,11 +432,11 @@ class TestExtractors(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_extractors_implement_interface(self):
         """All concrete extractors must implement ITextExtractor."""
-        from app.extractors.text_extractor import ITextExtractor
-        from app.extractors.pdf_extractor import PdfTextExtractor
-        from app.extractors.docx_extractor import DocxTextExtractor
-        from app.extractors.image_extractor import ImageTextExtractor
-        from app.extractors.ocr_extractor import OcrTextExtractor
+        from app.pipelines.shared.extractors.text_extractor import ITextExtractor
+        from app.pipelines.shared.extractors.pdf_extractor import PdfTextExtractor
+        from app.pipelines.shared.extractors.docx_extractor import DocxTextExtractor
+        from app.pipelines.shared.extractors.image_extractor import ImageTextExtractor
+        from app.pipelines.shared.extractors.ocr_extractor import OcrTextExtractor
         for cls in (PdfTextExtractor, DocxTextExtractor, ImageTextExtractor, OcrTextExtractor):
             self.assertTrue(
                 issubclass(cls, ITextExtractor),
@@ -445,19 +445,19 @@ class TestExtractors(unittest.IsolatedAsyncioTestCase):
 
     def test_image_extractor_magic_byte_detection(self):
         """PNG magic bytes must resolve to .png extension."""
-        from app.extractors.image_extractor import _detect_extension
+        from app.pipelines.shared.extractors.image_extractor import _detect_extension
         png_magic = b"\x89PNG\r\n\x1a\n"
         self.assertEqual(_detect_extension(png_magic), ".png")
 
     def test_image_extractor_jpg_magic_byte_detection(self):
         """JPEG magic bytes must resolve to .jpg extension."""
-        from app.extractors.image_extractor import _detect_extension
+        from app.pipelines.shared.extractors.image_extractor import _detect_extension
         jpg_magic = b"\xff\xd8\xff\xe0"
         self.assertEqual(_detect_extension(jpg_magic), ".jpg")
 
     def test_extractor_init_exports(self):
         """__init__.py must export all 5 extractor symbols."""
-        from app.extractors import (
+        from app.pipelines.shared.extractors import (
             ITextExtractor, PdfTextExtractor, DocxTextExtractor,
             ImageTextExtractor, OcrTextExtractor
         )

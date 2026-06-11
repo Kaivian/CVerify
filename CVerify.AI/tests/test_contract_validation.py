@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import unittest
 from pydantic import ValidationError
-from app.orchestrators.github_analysis_orchestrator import (
+from app.pipelines.repository.orchestrators.github_analysis_orchestrator import (
     ReportV2Contract, ClassificationV2, SectionV2, RiskV2
 )
 
@@ -95,7 +95,7 @@ class TestContractValidation(unittest.TestCase):
 
     def test_valid_cv_synthesis_passes(self):
         """Verifies that a valid CvSynthesisContract payload parses successfully."""
-        from app.orchestrators.github_analysis_orchestrator import CvSynthesisContract
+        from app.pipelines.repository.orchestrators.github_analysis_orchestrator import CvSynthesisContract
         valid_cv = {
             "schemaVersion": "v2",
             "title": "SaaS Platform Developer",
@@ -114,7 +114,7 @@ class TestContractValidation(unittest.TestCase):
 
     def test_invalid_ownership_profile(self):
         """Verifies that an invalid ownershipProfile raises ValidationError."""
-        from app.orchestrators.github_analysis_orchestrator import CvSynthesisContract
+        from app.pipelines.repository.orchestrators.github_analysis_orchestrator import CvSynthesisContract
         invalid_cv = {
             "schemaVersion": "v2",
             "title": "SaaS Platform Developer",
@@ -153,7 +153,7 @@ class TestContractValidation(unittest.TestCase):
 
     def test_json_repair_scanner(self):
         """Verifies that the internal JSON repair scanner correctly fixes malformed JSON."""
-        from app.orchestrators.github_analysis_orchestrator import GitHubAnalysisOrchestrator
+        from app.pipelines.repository.orchestrators.github_analysis_orchestrator import GitHubAnalysisOrchestrator
         orchestrator = GitHubAnalysisOrchestrator()
         
         test_cases = [
