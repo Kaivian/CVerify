@@ -603,13 +603,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                   variant="default"
                   className="w-30 h-30 select-none rounded-full"
                 >
-                  {avatarPreview ? (
-                    <Avatar.Image src={avatarPreview} alt={user?.fullName} />
-                  ) : user?.avatarUrl ? (
-                    <Avatar.Image src={user.avatarUrl} alt={user.fullName} />
-                  ) : (
-                    <Avatar.Fallback>{initials}</Avatar.Fallback>
+                  {avatarPreview && (
+                    <Avatar.Image src={avatarPreview} alt={user?.fullName} referrerPolicy="no-referrer" />
                   )}
+                  {!avatarPreview && user?.avatarUrl && (
+                    <Avatar.Image src={user.avatarUrl} alt={user.fullName} referrerPolicy="no-referrer" />
+                  )}
+                  <Avatar.Fallback>{initials}</Avatar.Fallback>
                 </Avatar>
                 <input
                   type="file"

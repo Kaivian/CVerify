@@ -34,7 +34,7 @@ export default function PublicWorkspaceLayout({
   // Profile/Banner upload states & refs
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
-  
+
   const [cropperType, setCropperType] = useState<"avatar" | "banner" | null>(null);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
@@ -255,7 +255,7 @@ export default function PublicWorkspaceLayout({
             ) : (
               <>
                 <div className="absolute inset-0 bg-linear-to-r from-accent/20 via-indigo-950/40 to-accent/10" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:16px_16px]" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-size-[16px_16px]" />
               </>
             )}
 
@@ -311,11 +311,10 @@ export default function PublicWorkspaceLayout({
                 onClick={() => toggleFollowWorkspace(organizationSlug)}
                 variant={workspaceDetails.isFollowing ? "bordered" : "solid"}
                 size="sm"
-                className={`font-bold text-xs cursor-pointer h-9 px-4 rounded-xl ${
-                  workspaceDetails.isFollowing
+                className={`font-bold text-xs cursor-pointer h-9 px-4 rounded-xl ${workspaceDetails.isFollowing
                     ? "border-border text-foreground hover:bg-card/50"
                     : "bg-accent text-background hover:bg-accent/90 border-none"
-                }`}
+                  }`}
               >
                 {workspaceDetails.isFollowing ? (
                   <>
@@ -408,11 +407,10 @@ export default function PublicWorkspaceLayout({
                 <Link
                   key={tab.id}
                   href={tab.href}
-                  className={`py-4 px-4 font-bold text-sm tracking-wide border-b-2 transition-colors relative cursor-pointer ${
-                    isActive
+                  className={`py-4 px-4 font-bold text-sm tracking-wide border-b-2 transition-colors relative cursor-pointer ${isActive
                       ? "border-accent text-accent font-extrabold"
                       : "border-transparent text-muted hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   {tab.label}
                 </Link>

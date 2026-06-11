@@ -47,6 +47,10 @@ public static class DbInitializer
         {
             const string dropSql = @"
                 DROP TABLE IF EXISTS admin_audit_logs CASCADE;
+
+                DROP TABLE IF EXISTS notification_preferences CASCADE;
+                DROP TABLE IF EXISTS in_app_notifications CASCADE;
+                DROP TABLE IF EXISTS activity_events CASCADE;
                 DROP TABLE IF EXISTS admin_invitation_roles CASCADE;
                 DROP TABLE IF EXISTS admin_invitations CASCADE;
                 DROP TABLE IF EXISTS admin_role_assignments CASCADE;
@@ -172,6 +176,13 @@ public static class DbInitializer
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'version') THEN
                         ALTER TABLE users ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
                     END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'linked_emails') THEN
+                        ALTER TABLE users ADD COLUMN linked_emails JSONB NOT NULL DEFAULT '[]'::jsonb;
+                    ELSE
+                        UPDATE users SET linked_emails = '[]'::jsonb WHERE linked_emails IS NULL;
+                        ALTER TABLE users ALTER COLUMN linked_emails SET DEFAULT '[]'::jsonb;
+                        ALTER TABLE users ALTER COLUMN linked_emails SET NOT NULL;
+                    END IF;
                 END IF;
 
                 -- If organizations exists but lacks username, add it with a non-null default
@@ -220,6 +231,17 @@ public static class DbInitializer
                         ALTER TABLE source_code_repositories ADD COLUMN latest_risk_factors_json JSONB;
                     END IF;
                 END IF;
+
+                -- If organization_recovery_claims exists, ensure documents column is present, NOT NULL and defaulted
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'organization_recovery_claims') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organization_recovery_claims' AND column_name = 'documents') THEN
+                        ALTER TABLE organization_recovery_claims ADD COLUMN documents JSONB NOT NULL DEFAULT '[]'::jsonb;
+                    ELSE
+                        UPDATE organization_recovery_claims SET documents = '[]'::jsonb WHERE documents IS NULL;
+                        ALTER TABLE organization_recovery_claims ALTER COLUMN documents SET DEFAULT '[]'::jsonb;
+                        ALTER TABLE organization_recovery_claims ALTER COLUMN documents SET NOT NULL;
+                    END IF;
+                END IF;
             END $$;
 
             -- Migrate and clean up legacy database tables and columns
@@ -229,7 +251,7 @@ public static class DbInitializer
                 IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_emails') THEN
                     -- Ensure users table has linked_emails column
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'linked_emails') THEN
-                        ALTER TABLE users ADD COLUMN linked_emails JSONB;
+                        ALTER TABLE users ADD COLUMN linked_emails JSONB NOT NULL DEFAULT '[]'::jsonb;
                     END IF;
                     
                     -- Migrate data by aggregating emails per user
@@ -318,7 +340,7 @@ public static class DbInitializer
                 IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'recovery_claim_documents') THEN
                     -- Ensure organization_recovery_claims has documents column
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organization_recovery_claims' AND column_name = 'documents') THEN
-                        ALTER TABLE organization_recovery_claims ADD COLUMN documents JSONB;
+                        ALTER TABLE organization_recovery_claims ADD COLUMN documents JSONB NOT NULL DEFAULT '[]'::jsonb;
                     END IF;
                     
                     -- Migrate data
@@ -441,7 +463,7 @@ public static class DbInitializer
                 lock_until TIMESTAMP WITH TIME ZONE,
                 session_version INTEGER NOT NULL DEFAULT 1,
                 is_legal_hold BOOLEAN NOT NULL DEFAULT FALSE,
-                linked_emails JSONB,
+                linked_emails JSONB NOT NULL DEFAULT '[]'::jsonb,
                 version INTEGER NOT NULL DEFAULT 1,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -706,7 +728,7 @@ public static class DbInitializer
                 workspace_activity_flags TEXT,
                 ip_device_flags TEXT,
                 historical_claim_flags TEXT,
-                documents JSONB,
+                documents JSONB NOT NULL DEFAULT '[]'::jsonb,
                 CONSTRAINT fk_recovery_claims_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
             );
 
@@ -2220,6 +2242,62 @@ public static class DbInitializer
                 CONSTRAINT fk_org_invitation_roles_invitation FOREIGN KEY (invitation_id) REFERENCES organization_invitations(id) ON DELETE CASCADE,
                 CONSTRAINT fk_org_invitation_roles_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
             );
+
+            -- Stores activity events for the notification and audit pipeline
+            CREATE TABLE IF NOT EXISTS activity_events (
+                id UUID PRIMARY KEY,
+                correlation_id UUID NOT NULL,
+                causation_id UUID,
+                organization_id UUID,
+                actor_user_id UUID,
+                event_type VARCHAR(100) NOT NULL,
+                resource_type VARCHAR(50) NOT NULL,
+                resource_id UUID,
+                visibility VARCHAR(30) NOT NULL,
+                is_projected BOOLEAN NOT NULL,
+                payload_json JSONB,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_activity_events_organizations_organization_id FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+                CONSTRAINT fk_activity_events_users_actor_user_id FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_activity_events_correlation ON activity_events(correlation_id);
+            CREATE INDEX IF NOT EXISTS idx_activity_events_org_created ON activity_events(organization_id, created_at);
+            CREATE INDEX IF NOT EXISTS ix_activity_events_actor_user_id ON activity_events(actor_user_id);
+
+            -- Stores user notification channel preferences
+            CREATE TABLE IF NOT EXISTS notification_preferences (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                notification_type VARCHAR(100) NOT NULL,
+                channel VARCHAR(20) NOT NULL,
+                is_enabled BOOLEAN NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_notification_preferences_users_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_notification_prefs ON notification_preferences(user_id, notification_type, channel);
+
+            -- Stores in-app user notifications
+            CREATE TABLE IF NOT EXISTS in_app_notifications (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                activity_event_id UUID,
+                notification_type VARCHAR(100) NOT NULL,
+                resource_type VARCHAR(50) NOT NULL,
+                resource_id UUID,
+                payload_json JSONB,
+                is_read BOOLEAN NOT NULL,
+                is_aggregated BOOLEAN NOT NULL,
+                aggregate_key VARCHAR(255),
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                read_at TIMESTAMP WITH TIME ZONE,
+                deleted_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_in_app_notifications_activity_events_activity_event_id FOREIGN KEY (activity_event_id) REFERENCES activity_events(id) ON DELETE SET NULL,
+                CONSTRAINT fk_in_app_notifications_users_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_in_app_notifications_user_id ON in_app_notifications(user_id);
+            CREATE INDEX IF NOT EXISTS idx_in_app_notifications_user_unread ON in_app_notifications(user_id, is_read) WHERE deleted_at IS NULL;
+            CREATE INDEX IF NOT EXISTS idx_in_app_notifications_aggregate ON in_app_notifications(user_id, aggregate_key) WHERE is_read = FALSE AND deleted_at IS NULL;
+            CREATE INDEX IF NOT EXISTS ix_in_app_notifications_activity_event_id ON in_app_notifications(activity_event_id);
 
             -- DDL schema script completed
         ";

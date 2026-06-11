@@ -320,7 +320,7 @@ public static class BusinessSeeder
             var sqlOrg = @"
                 INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status, initial_admin_assigned_at)
                 VALUES (@id, @name, @taxCode, @email, @username, TRUE, @verificationLevel, @status, NOW())
-                ON CONFLICT (tax_code) DO NOTHING;
+                ON CONFLICT (tax_code) WHERE deleted_at IS NULL DO NOTHING;
             ";
             await context.Database.ExecuteSqlRawAsync(sqlOrg,
                 new NpgsqlParameter("@id", org.Id),
@@ -350,7 +350,7 @@ public static class BusinessSeeder
                 var sqlUser = @"
                     INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
                     VALUES (@id, @email, crypt(@password, gen_salt('bf', 10)), @fullName, 'ACTIVE', NOW())
-                    ON CONFLICT (email) DO NOTHING;
+                    ON CONFLICT (email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING') DO NOTHING;
                 ";
                 await context.Database.ExecuteSqlRawAsync(sqlUser,
                     new NpgsqlParameter("@id", user.Id),
@@ -389,7 +389,7 @@ public static class BusinessSeeder
                 var sqlWs = @"
                     INSERT INTO workspaces (id, organization_id, display_name, slug, status)
                     VALUES (@id, @orgId, @displayName, @slug, @status)
-                    ON CONFLICT (slug) DO NOTHING;
+                    ON CONFLICT (slug) WHERE deleted_at IS NULL DO NOTHING;
                 ";
                 await context.Database.ExecuteSqlRawAsync(sqlWs,
                     new NpgsqlParameter("@id", ws.Id),
