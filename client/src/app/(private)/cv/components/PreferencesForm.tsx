@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Input, Button, Checkbox, Select, ListBox, Switch, Chip, Spinner, TextArea } from "@heroui/react";
 import { PlusCircle, X } from "lucide-react";
 import { type PreferencesDraft } from "./types";
+import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
 
 interface PreferencesFormProps {
   draft: PreferencesDraft;
@@ -114,7 +115,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
 
   return (
     <form onSubmit={handleSave} className="flex flex-col h-full overflow-hidden relative text-left text-xs">
-      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-4">
         <div className="flex items-center justify-between gap-6 border-b border-border/20 pb-4 select-none">
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-sm text-foreground">Available for Hire</span>
@@ -419,29 +420,12 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
 
       </div>
 
-      {/* Form Action Controls */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border/20 bg-background/95 backdrop-blur-sm flex justify-end gap-3 shrink-0 rounded-b-xl z-20">
-        <Button
-          size="sm"
-          variant="secondary"
-          className="rounded-xl font-bold select-none border border-border/30 h-9"
-          isDisabled={!isDirty || isSaving}
-          onPress={onReset}
-          type="button"
-        >
-          Reset
-        </Button>
-        <Button
-          type="submit"
-          size="sm"
-          className={`rounded-xl font-bold select-none border-none h-9 ${
-            isDirty ? "bg-accent text-accent-foreground" : "bg-surface-secondary text-muted cursor-not-allowed"
-          }`}
-          isDisabled={!isDirty || isSaving}
-        >
-          {isSaving ? <Spinner size="sm" color="current" /> : "Save changes"}
-        </Button>
-      </div>
+      <BaseUnsavedChangesBar
+        message="You have unsaved career preferences changes."
+        onReset={onReset}
+        isDirty={isDirty}
+        isSubmitting={isSaving}
+      />
     </form>
   );
 };

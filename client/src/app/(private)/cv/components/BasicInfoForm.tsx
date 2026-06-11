@@ -3,6 +3,7 @@ import { Input, Button, Select, ListBox, Spinner, toast } from "@heroui/react";
 import { PlusCircle, Trash2, Camera } from "lucide-react";
 import { type BasicInfoDraft } from "./types";
 import { profileApi } from "@/services/profile.service";
+import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
 
 interface BasicInfoFormProps {
   draft: BasicInfoDraft;
@@ -136,7 +137,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
 
   return (
     <form onSubmit={handleSave} className="flex flex-col h-full overflow-hidden relative text-left">
-      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-4">
         <div className="flex flex-col sm:flex-row items-center gap-4 border-b border-border/20 pb-4">
         <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
           <div className="w-20 h-20 rounded-full bg-surface-secondary flex items-center justify-center text-muted border border-border/40 overflow-hidden relative">
@@ -351,29 +352,14 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
 
       </div>
 
-      {/* Form Action Controls */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border/20 bg-background/95 backdrop-blur-sm flex justify-end gap-3 shrink-0 rounded-b-xl z-20">
-        <Button
-          size="sm"
-          variant="secondary"
-          className="rounded-xl font-bold select-none border border-border/30 h-9"
-          isDisabled={!isDirty || isSaving}
-          onPress={onReset}
-          type="button"
-        >
-          Reset Changes
-        </Button>
-        <Button
-          type="submit"
-          size="sm"
-          className={`rounded-xl font-bold select-none border-none h-9 ${
-            isDirty ? "bg-accent text-accent-foreground" : "bg-surface-secondary text-muted cursor-not-allowed"
-          }`}
-          isDisabled={!isDirty || isSaving}
-        >
-          {isSaving ? <Spinner size="sm" color="current" /> : "Save Changes"}
-        </Button>
-      </div>
+      <BaseUnsavedChangesBar
+        message="You have unsaved basic information changes."
+        onReset={onReset}
+        isDirty={isDirty}
+        isSubmitting={isSaving}
+        resetLabel="Reset Changes"
+        saveLabel="Save Changes"
+      />
     </form>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Input, Button, TextArea, Checkbox, Spinner, Card } from "@heroui/react";
 import { PlusCircle, Trash2, Edit2, X } from "lucide-react";
 import { type EducationDraftItem } from "./types";
+import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
 
 interface EducationFormProps {
   draft: EducationDraftItem[];
@@ -87,7 +88,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative text-left">
-      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-4">
         {editingItem ? (
         // Inline Edit Mode
         <div className="flex flex-col gap-5 border border-border/40 p-5 rounded-2xl bg-surface-secondary/5">
@@ -296,28 +297,13 @@ export const EducationForm: React.FC<EducationFormProps> = ({
       </div>
 
       {!editingItem && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border/20 bg-background/95 backdrop-blur-sm flex justify-end gap-3 shrink-0 rounded-b-xl z-20">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="rounded-xl font-bold select-none border border-border/30 h-9"
-            isDisabled={!isDirty || isSaving}
-            onPress={onReset}
-            type="button"
-          >
-            Reset
-          </Button>
-          <Button
-            size="sm"
-            onPress={onSave}
-            className={`rounded-xl font-bold select-none border-none h-9 ${
-              isDirty ? "bg-accent text-accent-foreground" : "bg-surface-secondary text-muted cursor-not-allowed"
-            }`}
-            isDisabled={!isDirty || isSaving}
-          >
-            {isSaving ? <Spinner size="sm" color="current" /> : "Save changes"}
-          </Button>
-        </div>
+        <BaseUnsavedChangesBar
+          message="You have unsaved education changes."
+          onReset={onReset}
+          onSave={onSave}
+          isDirty={isDirty}
+          isSubmitting={isSaving}
+        />
       )}
     </div>
   );
