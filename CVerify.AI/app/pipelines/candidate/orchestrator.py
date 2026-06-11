@@ -1,10 +1,10 @@
 import json
 import logging
 import time
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Callable, Awaitable
 
 from app.core.clients.repo_intelligence_client import RepoIntelligenceClient
-from app.pipelines.candidate.context import PipelineContext
+from app.pipelines.candidate.context import PipelineContext, PipelineEvent
 from app.pipelines.candidate.dag import PipelineDAG
 from app.pipelines.candidate.tasks.taxonomy_mapper import SkillTaxonomyMapper
 from app.pipelines.candidate.tasks.proficiency_estimator import SkillProficiencyEstimator

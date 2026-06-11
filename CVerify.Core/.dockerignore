@@ -1,0 +1,30 @@
+# Skip build outputs
+bin/
+obj/
+out/
+appsettings.Development.json
+
+# Skip environment variables and secrets
+.env
+.env.example
+
+# Skip Git and IDE configs
+.git
+.gitignore
+.vscode
+.vs
+
+# Skip local storage and resources
+storage/
+
+
+# Skip Docker files
+Dockerfile
+.dockerignore
+README.md
+TESTING.md
+stryker-config.json
+dotnet-tools.json
+pipeline_config.json
+schema_init.sql
+tests/

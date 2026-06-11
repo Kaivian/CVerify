@@ -1,17 +1,12 @@
 # ==============================================================================
-# CVerify.AI — Docker Compose
+# CVerify.AI — Standalone Docker Compose
 # ==============================================================================
-# Quick start (after copying .env.example → .env and filling in values):
-#
+# Setup:
+#   cp .env.example .env (inside CVerify.AI or inherit from root setup)
 #   docker compose up --build
-#
-# Services:
-#   cverify-ai   – FastAPI microservice on http://localhost:8000
-#   redis        – Redis instance for nonce cache & pub-sub
 # ==============================================================================
 
 services:
-
   # ----------------------------------------------------------------------------
   # CVerify AI FastAPI Microservice
   # ----------------------------------------------------------------------------
@@ -22,40 +17,65 @@ services:
     container_name: cverify-ai
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
     environment:
-      # Override Redis URL so it points to the compose service name, not localhost
-      REDIS_URL: redis://redis:6379/0
+      # Override Redis URL so it includes the password and points to compose host
+      REDIS_URL: redis://:${REDIS_PASSWORD:-your_redis_password_here}@redis:6379/0
     depends_on:
       redis:
         condition: service_healthy
     volumes:
-      # Mount temp_clones so workspace survives container restarts during dev
       - cverify_workspaces:/app/temp_clones
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+    networks:
+      - cverify-infra-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2048M
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   # ----------------------------------------------------------------------------
   # Redis — nonce cache, pub-sub progress streaming
   # ----------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
+    image: redis:7.2.4-alpine3.19
     container_name: cverify-redis
     restart: unless-stopped
+    command: redis-server --requirepass "${REDIS_PASSWORD:-your_redis_password_here}" --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - "6379:6379"
-    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+      - "127.0.0.1:6379:6379"
+    networks:
+      - cverify-infra-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-your_redis_password_here}", "ping"]
+      interval: 5s
       timeout: 5s
       retries: 5
+
+networks:
+  cverify-infra-net:
+    driver: bridge
 
 volumes:
   cverify_workspaces:

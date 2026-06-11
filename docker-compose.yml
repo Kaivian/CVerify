@@ -1,97 +1,225 @@
-version: '3.8'
-
 services:
-  # 1. DATABASE LAYER: PostgreSQL
+  # ============================================================================
+  # 1. DATABASE LAYER: PostgreSQL with pgvector extension
+  # ============================================================================
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:0.7.0-pg16
     container_name: cverify-postgres
     restart: always
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: cverify
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: your_secure_password_here
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432" # Allow overriding host port mapping to resolve conflicts
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - cverify-infra-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          memory: 256M
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cverify"]
+      test: ["CMD-SHELL", "pg_isready -U $$DB_USER -d $$DB_NAME"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 5s
 
-  # 2. CACHING LAYER: Redis
+  # ============================================================================
+  # 2. CACHING LAYER: Redis with password authentication and eviction policy
+  # ============================================================================
   redis:
-    image: redis:7-alpine
+    image: redis:7.2.4-alpine3.19
     container_name: cverify-redis
     restart: always
+    command: redis-server --requirepass "${REDIS_PASSWORD}" --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - "6379:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379" # Allow overriding host port mapping to resolve conflicts
     volumes:
       - redis_data:/data
+    networks:
+      - cverify-infra-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 64M
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 5s
 
-  # 3. AI SERVICE LAYER: FastAPI Python Microservice
+  # ============================================================================
+  # 3. AI SERVICE LAYER: FastAPI Python Microservice (Tesseract OCR + Claude)
+  # ============================================================================
   cverify-ai:
     build:
       context: ./CVerify.AI
       dockerfile: Dockerfile
     container_name: cverify-ai
     restart: always
+    env_file:
+      - .env
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - SHARED_SECRET=${AI_SERVICE_SHARED_SECRET:-your_hmac_shared_secret_key_here}
-      - CLIENT_ID=cverify-core
-      - HOST=0.0.0.0
-      - PORT=8000
-      - REDIS_URL=redis://redis:6379/0
+      # Route Redis connections through the secure infrastructure network with credentials
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      BACKEND_API_URL: http://cverify-core:5000
+      HOST: 0.0.0.0
+      PORT: 8000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${AI_PORT:-8000}:8000" # Allow overriding host port mapping to resolve conflicts
+    volumes:
+      - cverify_workspaces:/app/temp_clones
+    networks:
+      - cverify-backend-net
+      - cverify-infra-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2048M
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     depends_on:
       redis:
         condition: service_healthy
 
+  # ============================================================================
   # 4. SERVER LAYER: ASP.NET Core v10 Web API Gateway
+  # ============================================================================
   cverify-core:
     build:
       context: ./CVerify.Core
       dockerfile: Dockerfile
     container_name: cverify-core
     restart: always
+    env_file:
+      - .env
     environment:
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=cverify;Username=postgres;Password=your_secure_password_here
-      - Redis__ConnectionString=redis:6379
-      - AI_SERVICE_URL=http://cverify-ai:8000
-      - AI_SERVICE_SHARED_SECRET=${AI_SERVICE_SHARED_SECRET:-your_hmac_shared_secret_key_here}
-      - AI_SERVICE_CLIENT_ID=cverify-core
+      # Inject service container hostnames for internal network routing
+      DB_HOST: postgres
+      DB_PORT: 5432 # Hardcode internal container port to bypass host port override conflicts
+      REDIS_HOST: redis
+      REDIS_PORT: 6379 # Hardcode internal container port to bypass host port override conflicts
+      AI_SERVICE_URL: http://cverify-ai:8000
+      PORT: 5000
+      EmailSettings__Provider: SendGrid
     ports:
-      - "5000:5000"
+      - "127.0.0.1:${CORE_PORT:-5247}:5000" # Maps host custom CORE_PORT to container 5000
+    networks:
+      - cverify-frontend-net
+      - cverify-backend-net
+      - cverify-infra-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1536M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       cverify-ai:
-        condition: service_started
+        condition: service_healthy
 
-  # 5. CLIENT PORTAL LAYER: Next.js 16 Web App
+  # ============================================================================
+  # 5. CLIENT PORTAL LAYER: Next.js Web App
+  # ============================================================================
   cverify-client:
     build:
       context: ./client
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:${CORE_PORT:-5247}/api
+        - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-your_google_client_id_here}
     container_name: cverify-client
     restart: always
+    env_file:
+      - .env
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+      # Client-side browser requests target the API gateway on the host port
+      NEXT_PUBLIC_API_URL: http://localhost:${CORE_PORT:-5247}/api
+      PORT: 3000
     ports:
-      - "3000:3000"
+      - "${CLIENT_PORT:-3000}:3000" # Public gateway dashboard port
+    networks:
+      - cverify-frontend-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1024M
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     depends_on:
-      - cverify-core
+      cverify-core:
+        condition: service_healthy
 
+# ==============================================================================
+# NETWORK SEGMENTATION DESIGN
+# ==============================================================================
+networks:
+  cverify-frontend-net:
+    driver: bridge
+  cverify-backend-net:
+    driver: bridge
+  cverify-infra-net:
+    driver: bridge
+
+# ==============================================================================
+# NAMED VOLUMES DEFINITIONS
+# ==============================================================================
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
+  cverify_workspaces:
+    driver: local
