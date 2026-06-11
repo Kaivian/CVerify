@@ -70,7 +70,7 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       }}
       className={[
         "relative flex items-center w-full rounded-xl font-semibold transition-all duration-200 group cursor-pointer",
-        isMobile ? "h-12 text-base px-3.5 gap-3" : "h-10 text-sm gap-2",
+        isMobile ? "h-12 text-base px-3.5 gap-3" : "h-10 text-sm gap-2 pr-4",
         active
           ? "bg-accent/10 text-accent"
           : "text-muted hover:bg-accent/10 hover:text-accent",
@@ -126,6 +126,25 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
               </span>
             )}
           </div>
+        </Tooltip.Content>
+      </Tooltip>
+    );
+  }
+
+  // If expanded desktop/mobile with a tooltip, wrap item inside HeroUI Tooltip
+  if (!collapsed && item.tooltip) {
+    return (
+      <Tooltip delay={0}>
+        <Tooltip.Trigger>
+          <div className="w-full">
+            {linkContent}
+          </div>
+        </Tooltip.Trigger>
+        <Tooltip.Content
+          placement="top"
+          className="font-outfit text-xs font-semibold px-2.5 py-1.5 shadow-md border border-border"
+        >
+          <span>{item.tooltip}</span>
         </Tooltip.Content>
       </Tooltip>
     );

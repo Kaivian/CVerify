@@ -481,7 +481,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   };
 
   const handleSwitchOrganization = (slug: string) => {
-    router.push(`/workspace/${slug}`);
+    router.push(`/workspace/${slug}/information`);
   };
 
   const getRoleBadgeColor = (roleName: string) => {
