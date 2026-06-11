@@ -53,8 +53,14 @@ export default function WorkspaceRecruitmentDashboardPage() {
     );
   }
 
-  const userRole = workspaceDetails.userRole;
-  const isAuthorized = userRole === "OWNER" || userRole === "REPRESENTATIVE" || userRole === "HR";
+  const permissions = workspaceDetails.permissions || [];
+  const isAuthorized =
+    permissions.includes("ai:interview:configure") ||
+    permissions.includes("ai:interview:conduct") ||
+    permissions.includes("ai:interview:evaluate") ||
+    workspaceDetails.userRole === "OWNER" ||
+    workspaceDetails.userRole === "REPRESENTATIVE" ||
+    workspaceDetails.userRole === "HR";
 
   if (!isAuthorized) {
     return (

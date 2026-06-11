@@ -14,6 +14,8 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.Shared.Domain.Services;
+using CVerify.API.Modules.Shared.Domain.Constants;
 
 namespace CVerify.API.Modules.Auth.Controllers;
 
@@ -26,17 +28,20 @@ public class MemberController : ControllerBase
     private readonly IOrganizationAuthorizationService _authService;
     private readonly IBusinessRoleService _roleService;
     private readonly ICacheService _cacheService;
+    private readonly IActivityEventPublisher _activityEventPublisher;
 
     public MemberController(
         ApplicationDbContext context,
         IOrganizationAuthorizationService authService,
         IBusinessRoleService roleService,
-        ICacheService cacheService)
+        ICacheService cacheService,
+        IActivityEventPublisher activityEventPublisher)
     {
         _context = context;
         _authService = authService;
         _roleService = roleService;
         _cacheService = cacheService;
+        _activityEventPublisher = activityEventPublisher;
     }
 
     private async Task<(Guid OrgId, Guid? UserId, IActionResult? Error)> ValidateAndResolveAsync(string orgSlug, string requiredPermission)
@@ -246,23 +251,16 @@ public class MemberController : ControllerBase
         var cacheKey = $"auth:org:{orgId}:user:{memberId}:scoped_perms";
         await _cacheService.DeleteAsync(cacheKey);
 
-        // Audit Log
-        var log = new AuditLog
-        {
-            Id = Guid.CreateVersion7(),
-            OrganizationId = orgId,
-            ActorUserId = actorUserId,
-            UserId = actorUserId,
-            EventType = newStatus == "suspended" ? "MEMBER_SUSPENDED" : "MEMBER_ACTIVATED",
-            Description = $"Member {memberId} {(newStatus == "suspended" ? "suspended" : "activated")}.",
-            TargetRoleName = "Multiple",
-            TargetUserId = memberId,
-            ScopeType = "ORGANIZATION",
-            ScopeId = orgId,
-            DetailsJson = null,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        _context.AuditLogs.Add(log);
+        // Publish Event
+        var eventType = newStatus == "suspended" ? ActivityEventTypes.MemberSuspended : ActivityEventTypes.MemberActivated;
+        await _activityEventPublisher.PublishAsync(
+            eventType: eventType,
+            resourceType: "member",
+            resourceId: memberId,
+            organizationId: orgId,
+            actorUserId: actorUserId,
+            payload: new { memberId = memberId }
+        );
         await _context.SaveChangesAsync(cancellationToken);
 
         return NoContent();
@@ -328,22 +326,15 @@ public class MemberController : ControllerBase
                 .ToListAsync(cancellationToken);
             _context.WorkspaceMembers.RemoveRange(workspaceMemberships);
 
-            // Audit Log
-            var log = new AuditLog
-            {
-                Id = Guid.CreateVersion7(),
-                OrganizationId = orgId,
-                ActorUserId = actorUserId,
-                UserId = actorUserId,
-                EventType = "MEMBER_REMOVED",
-                Description = $"Member {memberId} removed from organization.",
-                TargetRoleName = "Multiple",
-                TargetUserId = memberId,
-                ScopeType = "ORGANIZATION",
-                ScopeId = orgId,
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-            _context.AuditLogs.Add(log);
+            // Publish Event
+            await _activityEventPublisher.PublishAsync(
+                eventType: ActivityEventTypes.MemberRemoved,
+                resourceType: "member",
+                resourceId: memberId,
+                organizationId: orgId,
+                actorUserId: actorUserId,
+                payload: new { memberId = memberId }
+            );
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -359,5 +350,98 @@ public class MemberController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    [HttpGet("audit-logs")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaginatedWorkspaceAuditLogsResponseDto))]
+    public async Task<IActionResult> GetAuditLogs(
+        string orgSlug,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] string? eventType = null,
+        [FromQuery] string? actorEmail = null,
+        [FromQuery] DateTimeOffset? startDate = null,
+        [FromQuery] DateTimeOffset? endDate = null,
+        [FromQuery] string sortBy = "CreatedAt",
+        [FromQuery] string sortOrder = "desc",
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 10;
+
+        var (orgId, _, error) = await ValidateAndResolveAsync(orgSlug, "organization:members:view");
+        if (error != null) return error;
+
+        var query = _context.AuditLogs
+            .Where(al => al.OrganizationId == orgId)
+            .Include(al => al.ActorUser)
+            .Include(al => al.TargetUser)
+            .AsNoTracking();
+
+        // 1. Search Query
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.Trim().ToLowerInvariant();
+            query = query.Where(al =>
+                al.Description.ToLower().Contains(searchLower) ||
+                al.EventType.ToLower().Contains(searchLower) ||
+                (al.ActorUser != null && al.ActorUser.Email.ToLower().Contains(searchLower)) ||
+                (al.TargetUser != null && al.TargetUser.Email.ToLower().Contains(searchLower))
+            );
+        }
+
+        // 2. Filters
+        if (!string.IsNullOrWhiteSpace(eventType))
+        {
+            var eventTypeLower = eventType.Trim().ToLowerInvariant();
+            query = query.Where(al => al.EventType.ToLower() == eventTypeLower);
+        }
+
+        if (!string.IsNullOrWhiteSpace(actorEmail))
+        {
+            var actorEmailLower = actorEmail.Trim().ToLowerInvariant();
+            query = query.Where(al => al.ActorUser != null && al.ActorUser.Email.ToLower() == actorEmailLower);
+        }
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(al => al.CreatedAt >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            query = query.Where(al => al.CreatedAt <= endDate.Value);
+        }
+
+        // 3. Sorting
+        var isDesc = string.Equals(sortOrder, "desc", StringComparison.OrdinalIgnoreCase);
+        var sortByLower = sortBy.Trim().ToLowerInvariant();
+
+        query = sortByLower switch
+        {
+            "eventtype" => isDesc ? query.OrderByDescending(al => al.EventType) : query.OrderBy(al => al.EventType),
+            "actor" => isDesc ? query.OrderByDescending(al => al.ActorUser != null ? al.ActorUser.Email : "") : query.OrderBy(al => al.ActorUser != null ? al.ActorUser.Email : ""),
+            "description" => isDesc ? query.OrderByDescending(al => al.Description) : query.OrderBy(al => al.Description),
+            _ => isDesc ? query.OrderByDescending(al => al.CreatedAt) : query.OrderBy(al => al.CreatedAt)
+        };
+
+        var totalItems = await query.CountAsync(cancellationToken);
+
+        var logs = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var mapped = logs.Select(al => new WorkspaceAuditLogDto(
+            al.Id,
+            al.ActorUser?.Email ?? "System",
+            al.EventType,
+            al.Description,
+            al.TargetUser?.Email,
+            al.CreatedAt
+        )).ToList();
+
+        return Ok(new PaginatedWorkspaceAuditLogsResponseDto(mapped, totalItems, page, pageSize));
     }
 }

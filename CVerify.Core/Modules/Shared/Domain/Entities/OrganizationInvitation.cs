@@ -39,6 +39,13 @@ public class OrganizationInvitation
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? AcceptedAt { get; set; }
+    public DateTimeOffset? DeclinedAt { get; set; }
+
+    [MaxLength(500)]
+    public string? DeclinedReason { get; set; }
+
+    public DateTimeOffset? DiscoveryNotifiedAt { get; set; }
+
     public Guid? ConsumedByUserId { get; set; }
 
     [ForeignKey(nameof(ConsumedByUserId))]

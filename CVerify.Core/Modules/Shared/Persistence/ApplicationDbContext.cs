@@ -120,7 +120,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RepresentativeApprovalVote> RepresentativeApprovalVotes => Set<RepresentativeApprovalVote>();
     public DbSet<RepresentativeAuthorityHistory> RepresentativeAuthorityHistories => Set<RepresentativeAuthorityHistory>();
     public DbSet<OrganizationCredential> OrganizationCredentials => Set<OrganizationCredential>();
-    public DbSet<WorkspaceInvitation> WorkspaceInvitations => Set<WorkspaceInvitation>();
+    public DbSet<PendingOrganizationOwnership> PendingOrganizationOwnerships => Set<PendingOrganizationOwnership>();
     public DbSet<OrganizationInvitation> OrganizationInvitations => Set<OrganizationInvitation>();
     public DbSet<OrganizationInvitationRole> OrganizationInvitationRoles => Set<OrganizationInvitationRole>();
     public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
@@ -207,7 +207,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<RepresentativeRotationRequest>().Property(r => r.Id).ValueGeneratedNever();
         modelBuilder.Entity<RepresentativeApprovalVote>().Property(v => v.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationCredential>().Property(oc => oc.OrganizationId).ValueGeneratedNever();
-        modelBuilder.Entity<WorkspaceInvitation>().Property(wi => wi.Id).ValueGeneratedNever();
+        modelBuilder.Entity<PendingOrganizationOwnership>().Property(po => po.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationInvitation>().Property(oi => oi.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationInvitationRole>().Property(oir => oir.Id).ValueGeneratedNever();
         modelBuilder.Entity<AnalysisJob>().Property(j => j.Id).ValueGeneratedNever();
@@ -1131,28 +1131,24 @@ public class ApplicationDbContext : DbContext
                   .HasDatabaseName("idx_organization_credentials_username_active");
         });
 
-        // WorkspaceInvitation configurations
-        modelBuilder.Entity<WorkspaceInvitation>(entity =>
+        // PendingOrganizationOwnership configurations
+        modelBuilder.Entity<PendingOrganizationOwnership>(entity =>
         {
-            entity.ToTable("workspace_invitations");
-            entity.HasKey(wi => wi.Id);
-            entity.Property(wi => wi.Id).ValueGeneratedNever();
-            entity.HasOne(wi => wi.Workspace)
+            entity.ToTable("pending_organization_ownerships");
+            entity.HasKey(po => po.Id);
+            entity.Property(po => po.Id).ValueGeneratedNever();
+            entity.HasOne(po => po.Organization)
                   .WithMany()
-                  .HasForeignKey(wi => wi.WorkspaceId)
+                  .HasForeignKey(po => po.OrganizationId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(wi => wi.InvitedByUser)
+            entity.HasOne(po => po.ConsumedByUser)
                   .WithMany()
-                  .HasForeignKey(wi => wi.InvitedByUserId)
+                  .HasForeignKey(po => po.ConsumedByUserId)
                   .OnDelete(DeleteBehavior.SetNull);
-            entity.HasOne(wi => wi.ConsumedByUser)
-                  .WithMany()
-                  .HasForeignKey(wi => wi.ConsumedByUserId)
-                  .OnDelete(DeleteBehavior.SetNull);
-            entity.HasIndex(wi => new { wi.WorkspaceId, wi.InviteeEmail })
+            entity.HasIndex(po => new { po.OrganizationId, po.OwnerEmail })
                   .IsUnique()
                   .HasFilter("consumed_at IS NULL")
-                  .HasDatabaseName("idx_workspace_invitations_unique");
+                  .HasDatabaseName("idx_pending_org_ownership_unique");
         });
 
         // OrganizationInvitation configurations

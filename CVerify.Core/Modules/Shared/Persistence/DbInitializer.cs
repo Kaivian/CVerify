@@ -242,6 +242,26 @@ public static class DbInitializer
                         ALTER TABLE organization_recovery_claims ALTER COLUMN documents SET NOT NULL;
                     END IF;
                 END IF;
+
+                -- Ensure organization_invitations has declined_at, declined_reason, and discovery_notified_at
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'organization_invitations') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organization_invitations' AND column_name = 'declined_at') THEN
+                        ALTER TABLE organization_invitations ADD COLUMN declined_at TIMESTAMP WITH TIME ZONE;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organization_invitations' AND column_name = 'declined_reason') THEN
+                        ALTER TABLE organization_invitations ADD COLUMN declined_reason VARCHAR(500);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organization_invitations' AND column_name = 'discovery_notified_at') THEN
+                        ALTER TABLE organization_invitations ADD COLUMN discovery_notified_at TIMESTAMP WITH TIME ZONE;
+                    END IF;
+                END IF;
+
+                -- Ensure pending_organization_ownerships has discovery_notified_at
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'pending_organization_ownerships') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'pending_organization_ownerships' AND column_name = 'discovery_notified_at') THEN
+                        ALTER TABLE pending_organization_ownerships ADD COLUMN discovery_notified_at TIMESTAMP WITH TIME ZONE;
+                    END IF;
+                END IF;
             END $$;
 
             -- Migrate and clean up legacy database tables and columns
@@ -683,27 +703,11 @@ public static class DbInitializer
                 expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 consumed_at TIMESTAMP WITH TIME ZONE,
                 consumed_by_user_id UUID,
+                discovery_notified_at TIMESTAMP WITH TIME ZONE,
                 CONSTRAINT fk_pending_organization_ownerships_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
                 CONSTRAINT fk_pending_organization_ownerships_user FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_org_ownership_unique ON pending_organization_ownerships(organization_id, owner_email) WHERE consumed_at IS NULL;
-
-            -- Stores workspace invitations
-            CREATE TABLE IF NOT EXISTS workspace_invitations (
-                id UUID PRIMARY KEY,
-                workspace_id UUID NOT NULL,
-                invitee_email CITEXT NOT NULL,
-                role VARCHAR(50) NOT NULL,
-                invited_by_user_id UUID,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                consumed_at TIMESTAMP WITH TIME ZONE,
-                consumed_by_user_id UUID,
-                CONSTRAINT fk_workspace_invitations_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
-                CONSTRAINT fk_workspace_invitations_invited_by FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT fk_workspace_invitations_consumed_by FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_invitations_unique ON workspace_invitations(workspace_id, invitee_email) WHERE consumed_at IS NULL;
 
             -- Stores organization recovery claims
             CREATE TABLE IF NOT EXISTS organization_recovery_claims (
@@ -2224,7 +2228,10 @@ public static class DbInitializer
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
                 accepted_at TIMESTAMP WITH TIME ZONE,
+                declined_at TIMESTAMP WITH TIME ZONE,
+                declined_reason VARCHAR(500),
                 consumed_by_user_id UUID,
+                discovery_notified_at TIMESTAMP WITH TIME ZONE,
                 CONSTRAINT fk_organization_invitations_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
                 CONSTRAINT fk_organization_invitations_invited_by FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_organization_invitations_consumed_by FOREIGN KEY (consumed_by_user_id) REFERENCES users(id) ON DELETE SET NULL

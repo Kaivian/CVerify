@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Constants;
+using CVerify.API.Modules.Shared.Domain.Services;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.System.Services;
 
@@ -17,17 +19,23 @@ public class WorkspaceMembershipService : IWorkspaceMembershipService
     private readonly ILogger<WorkspaceMembershipService> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly IIdentityStateResolver _identityStateResolver;
+    private readonly IOrganizationBootstrapService _bootstrapService;
+    private readonly IActivityEventPublisher _activityEventPublisher;
 
     public WorkspaceMembershipService(
         ApplicationDbContext context,
         ILogger<WorkspaceMembershipService> logger,
         TimeProvider timeProvider,
-        IIdentityStateResolver identityStateResolver)
+        IIdentityStateResolver identityStateResolver,
+        IOrganizationBootstrapService bootstrapService,
+        IActivityEventPublisher activityEventPublisher)
     {
         _context = context;
         _logger = logger;
         _timeProvider = timeProvider;
         _identityStateResolver = identityStateResolver;
+        _bootstrapService = bootstrapService;
+        _activityEventPublisher = activityEventPublisher;
     }
 
     private string NormalizeEmailPolicy(string email)
@@ -35,20 +43,20 @@ public class WorkspaceMembershipService : IWorkspaceMembershipService
         return email.Trim().ToLowerInvariant();
     }
 
-    public async Task ClaimPendingRelationshipsAsync(Guid userId)
+    public async Task DiscoverPendingInvitationsAsync(Guid userId)
     {
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null)
         {
-            _logger.LogWarning("ClaimPendingRelationshipsAsync: User {UserId} not found.", userId);
+            _logger.LogWarning("DiscoverPendingInvitationsAsync: User {UserId} not found.", userId);
             return;
         }
 
         if (user.Status != Shared.Domain.Enums.UserStatus.ACTIVE)
         {
-            _logger.LogInformation("ClaimPendingRelationshipsAsync: User {UserId} is not ACTIVE (Status: {Status}). Skipping claim.", userId, user.Status);
+            _logger.LogInformation("DiscoverPendingInvitationsAsync: User {UserId} is not ACTIVE (Status: {Status}). Skipping discovery.", userId, user.Status);
             return;
         }
 
@@ -65,89 +73,61 @@ public class WorkspaceMembershipService : IWorkspaceMembershipService
 
         var utcNow = _timeProvider.GetUtcNow();
 
-        var pendingInvitations = await _context.WorkspaceInvitations
-            .Where(wi => wi.ConsumedAt == null && wi.ExpiresAt > utcNow && verifiedEmails.Contains(wi.InviteeEmail))
+        // 1. Discover Pending Representative Ownerships (Auto-provision ownership on registration)
+        var pendingOwnerships = await _context.PendingOrganizationOwnerships
+            .Where(po => po.ConsumedAt == null && po.ExpiresAt > utcNow && verifiedEmails.Contains(po.OwnerEmail))
             .ToListAsync();
 
-        if (!pendingInvitations.Any())
+        foreach (var po in pendingOwnerships)
         {
-            return;
+            po.ConsumedAt = utcNow;
+            po.ConsumedByUserId = userId;
+            po.DiscoveryNotifiedAt = utcNow;
+
+            await BootstrapInitialAdminAsync(po.OwnerEmail, true);
+
+            // Accept and consume matching OrganizationInvitation if exists
+            var matchingInvite = await _context.OrganizationInvitations
+                .FirstOrDefaultAsync(oi => oi.OrganizationId == po.OrganizationId && 
+                                           oi.InviteeEmail == po.OwnerEmail && 
+                                           oi.Status == "Pending");
+            if (matchingInvite != null)
+            {
+                matchingInvite.Status = "Accepted";
+                matchingInvite.AcceptedAt = utcNow;
+                matchingInvite.ConsumedByUserId = userId;
+            }
         }
 
-        var hasActiveTransaction = _context.Database.CurrentTransaction != null;
-        var transaction = hasActiveTransaction ? null : await _context.Database.BeginTransactionAsync();
-        try
+        // 2. Discover Pending Organization Invitations
+        var pendingInvitations = await _context.OrganizationInvitations
+            .Where(oi => oi.Status == "Pending" && oi.ExpiresAt > utcNow && verifiedEmails.Contains(oi.InviteeEmail) && oi.DiscoveryNotifiedAt == null)
+            .ToListAsync();
+
+        foreach (var invitation in pendingInvitations)
         {
-            var workspaceIds = pendingInvitations.Select(wi => wi.WorkspaceId).Distinct().ToList();
-            var workspaces = await _context.Workspaces
-                .Where(w => workspaceIds.Contains(w.Id))
-                .ToListAsync();
+            invitation.DiscoveryNotifiedAt = utcNow;
 
-            foreach (var invitation in pendingInvitations)
-            {
-                var ws = workspaces.FirstOrDefault(w => w.Id == invitation.WorkspaceId);
-                if (ws != null)
-                {
-                    var isOrgMember = await _context.OrganizationMemberships
-                        .AnyAsync(om => om.OrganizationId == ws.OrganizationId && om.UserId == userId);
-
-                    if (!isOrgMember)
-                    {
-                        var orgMembership = new OrganizationMembership
-                        {
-                            OrganizationId = ws.OrganizationId,
-                            UserId = userId,
-                            Role = "MEMBER",
-                            Status = "active",
-                            JoinedAt = utcNow
-                        };
-                        _context.OrganizationMemberships.Add(orgMembership);
-                    }
-                }
-
-                var isMember = await _context.WorkspaceMembers
-                    .AnyAsync(wm => wm.WorkspaceId == invitation.WorkspaceId && wm.UserId == userId);
-
-                if (!isMember)
-                {
-                    var member = new WorkspaceMember
-                    {
-                        WorkspaceId = invitation.WorkspaceId,
-                        UserId = userId,
-                        Role = invitation.Role,
-                        JoinedAt = utcNow
-                    };
-                    _context.WorkspaceMembers.Add(member);
-                }
-
-                invitation.ConsumedAt = utcNow;
-                invitation.ConsumedByUserId = userId;
-            }
-
-            await _context.SaveChangesAsync();
-
-            if (transaction != null)
-            {
-                await transaction.CommitAsync();
-            }
-
-            foreach (var email in verifiedEmails)
-            {
-                await _identityStateResolver.InvalidateCacheAsync(email);
-            }
+            // Publish InvitationDiscovered event (which generates in-app notification)
+            await _activityEventPublisher.PublishAsync(
+                eventType: ActivityEventTypes.InvitationDiscovered,
+                resourceType: "organization_invitation",
+                resourceId: invitation.Id,
+                organizationId: invitation.OrganizationId,
+                actorUserId: invitation.InvitedByUserId,
+                payload: new { inviteeEmail = invitation.InviteeEmail }
+            );
         }
-        catch (Exception ex)
+
+        await _context.SaveChangesAsync();
+
+        foreach (var email in verifiedEmails)
         {
-            if (transaction != null)
-            {
-                await transaction.RollbackAsync();
-            }
-            _logger.LogError(ex, "Failed to claim pending relationships for user {UserId}", userId);
-            throw;
+            await _identityStateResolver.InvalidateCacheAsync(email);
         }
     }
 
-    public async Task BootstrapInitialAdminAsync(string email, CancellationToken cancellationToken = default)
+    public async Task BootstrapInitialAdminAsync(string email, bool isRegistrationActivation = false, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = NormalizeEmailPolicy(email);
         var utcNow = _timeProvider.GetUtcNow();
@@ -179,6 +159,9 @@ public class WorkspaceMembershipService : IWorkspaceMembershipService
 
         foreach (var orgId in updatedOrgIds)
         {
+            // Seed default roles and assign Owner role to the creator in RBAC
+            await _bootstrapService.BootstrapOrganizationAsync(orgId, user.Id, cancellationToken);
+
             // Create Organization Membership as OWNER if not exists
             var isOrgMember = await _context.OrganizationMemberships
                 .AnyAsync(om => om.OrganizationId == orgId && om.UserId == user.Id, cancellationToken);
@@ -233,6 +216,20 @@ public class WorkspaceMembershipService : IWorkspaceMembershipService
                     _context.WorkspaceMembers.Add(member);
                 }
             }
+
+            // Publish RepresentativeAssigned / RepresentativeActivated event
+            var eventType = isRegistrationActivation
+                ? ActivityEventTypes.RepresentativeActivated
+                : ActivityEventTypes.RepresentativeAssigned;
+
+            await _activityEventPublisher.PublishAsync(
+                eventType: eventType,
+                resourceType: "organization",
+                resourceId: orgId,
+                organizationId: orgId,
+                actorUserId: user.Id,
+                payload: new { representativeEmail = normalizedEmail }
+            );
         }
 
         await _context.SaveChangesAsync(cancellationToken);

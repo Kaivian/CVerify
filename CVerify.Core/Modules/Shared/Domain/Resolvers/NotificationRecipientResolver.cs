@@ -33,6 +33,30 @@ public class NotificationRecipientResolver : INotificationRecipientResolver
             return recipients;
         }
 
+        if (activityEvent.EventType == ActivityEventTypes.InvitationDiscovered)
+        {
+            var invite = await _context.OrganizationInvitations.FindAsync(activityEvent.ResourceId);
+            if (invite != null)
+            {
+                var user = await _context.FindUserByVerifiedEmailAsync(invite.InviteeEmail);
+                if (user != null)
+                {
+                    recipients.Add(user.Id);
+                }
+            }
+            return recipients;
+        }
+
+        if (activityEvent.EventType == ActivityEventTypes.RepresentativeActivated ||
+            activityEvent.EventType == ActivityEventTypes.RepresentativeAssigned)
+        {
+            if (activityEvent.ActorUserId.HasValue)
+            {
+                recipients.Add(activityEvent.ActorUserId.Value);
+            }
+            return recipients;
+        }
+
         // 2. Organization / Workspace Scoped Routing
         if (activityEvent.OrganizationId.HasValue)
         {

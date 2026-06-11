@@ -4,30 +4,23 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CVerify.API.Modules.Shared.Domain.Entities;
 
-public class WorkspaceInvitation
+[Table("pending_organization_ownerships")]
+public class PendingOrganizationOwnership
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public Guid Id { get; set; } = Guid.CreateVersion7();
 
     [Required]
-    public Guid WorkspaceId { get; set; }
+    public Guid OrganizationId { get; set; }
 
-    [ForeignKey(nameof(WorkspaceId))]
-    public virtual Workspace Workspace { get; set; } = null!;
+    [ForeignKey(nameof(OrganizationId))]
+    public virtual Organization Organization { get; set; } = null!;
 
     [Required]
+    [EmailAddress]
     [MaxLength(255)]
-    public string InviteeEmail { get; set; } = null!;
-
-    [Required]
-    [MaxLength(50)]
-    public string Role { get; set; } = null!;
-
-    public Guid? InvitedByUserId { get; set; }
-
-    [ForeignKey(nameof(InvitedByUserId))]
-    public virtual User? InvitedByUser { get; set; }
+    public string OwnerEmail { get; set; } = null!;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
@@ -39,4 +32,6 @@ public class WorkspaceInvitation
 
     [ForeignKey(nameof(ConsumedByUserId))]
     public virtual User? ConsumedByUser { get; set; }
+
+    public DateTimeOffset? DiscoveryNotifiedAt { get; set; }
 }

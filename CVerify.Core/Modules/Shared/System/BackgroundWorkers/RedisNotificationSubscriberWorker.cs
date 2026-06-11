@@ -36,7 +36,8 @@ public class RedisNotificationSubscriberWorker : BackgroundService
         {
             try
             {
-                var notificationMessage = JsonSerializer.Deserialize<RedisNotificationMessage>(message.ToString());
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var notificationMessage = JsonSerializer.Deserialize<RedisNotificationMessage>(message.ToString(), options);
                 if (notificationMessage != null)
                 {
                     // Send notification to the specific user connection

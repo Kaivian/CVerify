@@ -3856,8 +3856,7 @@ public class AuthService : IAuthService
             return;
         }
 
-        await _workspaceMembershipService.ClaimPendingRelationshipsAsync(userId);
-        await _workspaceMembershipService.BootstrapInitialAdminAsync(user.Email);
+        await _workspaceMembershipService.DiscoverPendingInvitationsAsync(userId);
     }
 
     private async Task ActivateUserAsync(User user)

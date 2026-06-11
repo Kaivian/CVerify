@@ -8,7 +8,7 @@ import { rolesService } from "../services/roles.service";
 import { type MemberDetails, type OrganizationInvitation, type PreAssignedRole } from "../types/workspace.types";
 import { type BusinessRoleDetailsDto, type AssignScopedRoleDto } from "../types/roles.types";
 import { Card } from "@/components/ui/card";
-import { Table, Typography, Chip, Button, Spinner, Dropdown, Avatar } from "@heroui/react";
+import { Table, Typography, Chip, Button, Spinner, Dropdown, Avatar, toast } from "@heroui/react";
 import {
   Users,
   Search,
@@ -25,7 +25,8 @@ import {
   Plus,
   MoreVertical,
   Briefcase,
-  X
+  X,
+  Activity
 } from "lucide-react";
 import { SkeletonLoader, EmptyState } from "@/components/ui/states";
 import { PaginationWrapper } from "@/components/ui/pagination-wrapper";
@@ -46,7 +47,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   const detailsError = useWorkspaceStore((s) => s.errors[organizationSlug]);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<"directory" | "invitations">("directory");
+  const [activeTab, setActiveTab] = useState<"directory" | "invitations" | "logs">("directory");
 
   // Member Directory State
   const [members, setMembers] = useState<MemberDetails[]>([]);
@@ -64,6 +65,27 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   const [invPage, setInvPage] = useState(1);
   const [invTotalCount, setInvTotalCount] = useState(0);
   const [isInvLoading, setIsInvLoading] = useState(false);
+  const [invStatusFilter, setInvStatusFilter] = useState("active");
+
+  // Workspace Logs State
+  const [logs, setLogs] = useState<{
+    id: string;
+    actorEmail: string;
+    eventType: string;
+    description: string;
+    targetEmail: string | null;
+    createdAt: string;
+  }[]>([]);
+  const [logPage, setLogPage] = useState(1);
+  const [logTotalCount, setLogTotalCount] = useState(0);
+  const [isLogsLoading, setIsLogsLoading] = useState(false);
+  const [logSearch, setLogSearch] = useState("");
+  const [logTypeFilter, setLogTypeFilter] = useState("all");
+  const [logActorFilter, setLogActorFilter] = useState("");
+  const [logStartDate, setLogStartDate] = useState("");
+  const [logEndDate, setLogEndDate] = useState("");
+  const [logSortBy, setLogSortBy] = useState("CreatedAt");
+  const [logSortOrder, setLogSortOrder] = useState("desc");
 
   // Available Roles & Workspaces for Dropdowns
   const [availableRoles, setAvailableRoles] = useState<BusinessRoleDetailsDto[]>([]);
@@ -73,12 +95,13 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Invite Modal Form State
-  const [inviteEmails, setInviteEmails] = useState("");
+  // Invite Modal Batch State
+  const [inviteBatch, setInviteBatch] = useState<{ email: string; roles: PreAssignedRole[] }[]>([]);
+  const [currentInviteeEmail, setCurrentInviteeEmail] = useState("");
+  const [currentInviteeRoles, setCurrentInviteeRoles] = useState<PreAssignedRole[]>([]);
   const [selectedInviteRoleId, setSelectedInviteRoleId] = useState("");
   const [inviteScopeType, setInviteScopeType] = useState<"ORGANIZATION" | "WORKSPACE">("ORGANIZATION");
   const [inviteScopeId, setInviteScopeId] = useState("");
-  const [configuredRoles, setConfiguredRoles] = useState<PreAssignedRole[]>([]);
 
   // Manage Roles Modal Form State
   const [selectedMember, setSelectedMember] = useState<MemberDetails | null>(null);
@@ -139,7 +162,8 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
     try {
       const response = await membersService.getInvitations(organizationSlug, {
         page: invPage,
-        pageSize
+        pageSize,
+        status: invStatusFilter
       });
       setInvitations(response.items);
       setInvTotalCount(response.totalItems);
@@ -148,17 +172,55 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
     } finally {
       setIsInvLoading(false);
     }
-  }, [organizationSlug, invPage, pageSize]);
+  }, [organizationSlug, invPage, pageSize, invStatusFilter]);
+
+  // Fetch Workspace Logs
+  const fetchLogs = useCallback(async () => {
+    if (!organizationSlug) return;
+    setIsLogsLoading(true);
+    try {
+      const response = await membersService.getWorkspaceLogs(organizationSlug, {
+        page: logPage,
+        pageSize,
+        search: logSearch || undefined,
+        eventType: logTypeFilter === "all" ? undefined : logTypeFilter,
+        actorEmail: logActorFilter || undefined,
+        startDate: logStartDate || undefined,
+        endDate: logEndDate || undefined,
+        sortBy: logSortBy,
+        sortOrder: logSortOrder
+      });
+      setLogs(response.items);
+      setLogTotalCount(response.totalItems);
+    } catch (err) {
+      console.error("Failed to fetch workspace logs", err);
+    } finally {
+      setIsLogsLoading(false);
+    }
+  }, [
+    organizationSlug,
+    logPage,
+    pageSize,
+    logSearch,
+    logTypeFilter,
+    logActorFilter,
+    logStartDate,
+    logEndDate,
+    logSortBy,
+    logSortOrder
+  ]);
 
   // Initial loads and tab switching triggers
   useEffect(() => {
     if (activeTab === "directory") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchMembers();
-    } else {
+    } else if (activeTab === "invitations") {
       fetchInvitations();
+    } else if (activeTab === "logs") {
+      fetchLogs();
     }
-  }, [activeTab, fetchMembers, fetchInvitations]);
+  }, [activeTab, fetchMembers, fetchInvitations, fetchLogs]);
 
   const handleStatusChange = async (member: MemberDetails, newStatus: string) => {
     if (!organizationSlug) return;
@@ -169,9 +231,10 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
 
     try {
       await membersService.updateMember(organizationSlug, member.userId, newStatus);
+      toast.success("Member status updated successfully.");
       fetchMembers();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to update member status.");
+      toast.danger(err?.response?.data?.message || "Failed to update member status.");
     }
   };
 
@@ -184,9 +247,10 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
 
     try {
       await membersService.removeMember(organizationSlug, member.userId);
+      toast.success("Member removed successfully.");
       fetchMembers();
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to remove member.");
+      toast.danger(err?.response?.data?.message || "Failed to remove member.");
     }
   };
 
@@ -198,9 +262,10 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
 
     try {
       await membersService.cancelInvitation(organizationSlug, invId);
+      toast.success("Invitation cancelled successfully.");
       fetchInvitations();
     } catch (err: any) {
-      alert("Failed to cancel invitation.");
+      toast.danger("Failed to cancel invitation.");
     }
   };
 
@@ -208,26 +273,27 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
     if (!organizationSlug) return;
     try {
       await membersService.resendInvitation(organizationSlug, invId);
-      alert("Invitation has been successfully resent.");
+      toast.success("Invitation has been successfully resent.");
       fetchInvitations();
     } catch (err: any) {
-      alert("Failed to resend invitation.");
+      toast.danger("Failed to resend invitation.");
     }
   };
 
   // Invite Member Flow
   const handleOpenInviteModal = () => {
-    setInviteEmails("");
+    setInviteBatch([]);
+    setCurrentInviteeEmail("");
+    setCurrentInviteeRoles([]);
     setSelectedInviteRoleId("");
     setInviteScopeType("ORGANIZATION");
     setInviteScopeId("");
-    setConfiguredRoles([]);
     setIsInviteModalOpen(true);
   };
 
   const handleAddInviteRole = () => {
     if (!selectedInviteRoleId || (inviteScopeType === "WORKSPACE" && !inviteScopeId)) {
-      alert("Please select both a role and scope boundary.");
+      toast.danger("Please select both a role and scope boundary.");
       return;
     }
     const resolvedScopeId = inviteScopeType === "ORGANIZATION" ? workspaceDetails.organizationId : inviteScopeId;
@@ -237,56 +303,85 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
       scopeId: resolvedScopeId
     };
 
-    // Prevent duplicate role definitions in form
-    const exists = configuredRoles.some(
+    // Prevent duplicate role definitions in current invitee's roles
+    const exists = currentInviteeRoles.some(
       r => r.roleId === newRole.roleId && r.scopeType === newRole.scopeType && r.scopeId === newRole.scopeId
     );
 
     if (exists) {
-      alert("This role assignment is already added to this invitation.");
+      toast.danger("This role assignment is already added to this invitee.");
       return;
     }
 
-    setConfiguredRoles([...configuredRoles, newRole]);
+    setCurrentInviteeRoles([...currentInviteeRoles, newRole]);
     setSelectedInviteRoleId("");
     setInviteScopeId("");
   };
 
   const handleRemoveInviteRole = (index: number) => {
-    setConfiguredRoles(configuredRoles.filter((_, idx) => idx !== index));
+    setCurrentInviteeRoles(currentInviteeRoles.filter((_, idx) => idx !== index));
+  };
+
+  const handleAddInviteeToBatch = (e?: React.MouseEvent | React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    const email = currentInviteeEmail.trim().toLowerCase();
+    if (!email) {
+      toast.danger("Please enter an email address.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.danger("Please enter a valid email address.");
+      return;
+    }
+
+    // Duplicate check in batch
+    const isDuplicate = inviteBatch.some(item => item.email.toLowerCase() === email);
+    if (isDuplicate) {
+      toast.danger(`Email ${email} is already added to the invitation list.`);
+      return;
+    }
+
+    if (currentInviteeRoles.length === 0) {
+      toast.danger("Please assign at least one role to this invitee.");
+      return;
+    }
+
+    const newInvitee = {
+      email,
+      roles: currentInviteeRoles
+    };
+
+    setInviteBatch([...inviteBatch, newInvitee]);
+    setCurrentInviteeEmail("");
+    setCurrentInviteeRoles([]);
+    setSelectedInviteRoleId("");
+    setInviteScopeId("");
+    toast.success(`Added ${email} to invitation list.`);
+  };
+
+  const handleRemoveInviteeFromBatch = (index: number) => {
+    setInviteBatch(inviteBatch.filter((_, idx) => idx !== index));
   };
 
   const handleSendInvitations = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmails.trim() || !organizationSlug) return;
-
-    const emails = inviteEmails
-      .split(/[\n,]+/)
-      .map(email => email.trim())
-      .filter(email => email.length > 0);
-
-    if (emails.length === 0) {
-      alert("Please enter at least one valid email address.");
-      return;
-    }
-
-    if (configuredRoles.length === 0) {
-      alert("Please pre-assign at least one business role to this invitation.");
+    if (inviteBatch.length === 0 || !organizationSlug) {
+      toast.danger("Please add at least one invitee to the batch list.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const invitees = emails.map(email => ({
-        email,
-        roles: configuredRoles
-      }));
-      await membersService.inviteMembers(organizationSlug, { invitees });
+      await membersService.inviteMembers(organizationSlug, { invitees: inviteBatch });
       setIsInviteModalOpen(false);
       fetchInvitations();
-      alert("Invitations sent successfully.");
+      toast.success("Invitations sent successfully.");
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to send invitations.");
+      toast.danger(err?.response?.data?.message || "Failed to send invitations.");
     } finally {
       setIsSubmitting(false);
     }
@@ -306,7 +401,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
     const resolvedScopeId = newScopeType === "ORGANIZATION" ? workspaceDetails.organizationId : newScopeId;
 
     if (!resolvedScopeId) {
-      alert("Please select a workspace.");
+      toast.danger("Please select a workspace.");
       return;
     }
 
@@ -319,7 +414,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
         scopeId: resolvedScopeId
       };
       await rolesService.assignRole(organizationSlug, dto);
-      
+
       // Refresh local roles list in selectedMember
       const rolesList = await rolesService.getRoleAssignments(organizationSlug);
       const updatedAssignments = rolesList.filter(ra => ra.userId === selectedMember.userId);
@@ -342,10 +437,11 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
         roles: updatedRoles
       });
       fetchMembers();
+      toast.success("Role assigned successfully.");
       setNewRoleId("");
       setNewScopeId("");
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to assign role.");
+      toast.danger(err?.response?.data?.message || "Failed to assign role.");
     } finally {
       setIsSubmitting(false);
     }
@@ -376,8 +472,9 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
         roles: updatedRoles
       });
       fetchMembers();
+      toast.success("Role assignment revoked.");
     } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to revoke role.");
+      toast.danger(err?.response?.data?.message || "Failed to revoke role.");
     } finally {
       setIsSubmitting(false);
     }
@@ -443,11 +540,11 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   const getInitials = (name: string) => {
     return name
       ? name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase()
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
       : "U";
   };
 
@@ -476,7 +573,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
             {isAccessDenied ? "Access Denied" : "Workspace Loading Error"}
           </Typography>
           <Typography type="body-xs" className="text-muted leading-relaxed mb-6">
-            {isAccessDenied 
+            {isAccessDenied
               ? "You do not have permission to access this organization workspace. Please verify your membership credentials or switch accounts."
               : detailsError}
           </Typography>
@@ -495,15 +592,22 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
 
   if (!workspaceDetails) return null;
 
-  const totalPages = Math.ceil((activeTab === "directory" ? totalCount : invTotalCount) / pageSize) || 1;
+  const totalPages =
+    Math.ceil(
+      (activeTab === "directory"
+        ? totalCount
+        : activeTab === "invitations"
+        ? invTotalCount
+        : logTotalCount) / pageSize
+    ) || 1;
 
   return (
     <div className="space-y-6 font-outfit max-w-7xl mx-auto text-foreground">
       {/* 1. Header Context */}
       <div className="relative overflow-hidden rounded-2xl bg-surface border border-border/80 text-foreground select-none shadow-sm">
         {/* Subtle top accent gradient line */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-accent/30 via-accent to-accent/30" />
-        
+        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-accent/30 via-accent to-accent/30" />
+
         <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
@@ -534,7 +638,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               </div>
             </div>
           </div>
-          
+
           <div className="flex flex-wrap items-center gap-4">
             {/* Quick Micro-Stats */}
             <div className="flex gap-4 px-4 py-2 bg-surface-secondary/40 border border-border/40 rounded-xl">
@@ -542,7 +646,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                 <div className="text-base font-bold text-foreground">{totalCount}</div>
                 <div className="text-[9px] uppercase tracking-wider text-muted font-bold">Members</div>
               </div>
-              <div className="w-[1px] bg-separator/60 self-stretch" />
+              <div className="w-px bg-separator/60 self-stretch" />
               <div className="text-center min-w-[60px]">
                 <div className="text-base font-bold text-foreground">{invTotalCount}</div>
                 <div className="text-[9px] uppercase tracking-wider text-muted font-bold">Pending</div>
@@ -568,11 +672,10 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               setActiveTab("directory");
               setPage(1);
             }}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === "directory"
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeTab === "directory"
                 ? "bg-surface text-foreground shadow-sm border border-border/30"
                 : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
-            }`}
+              }`}
           >
             <Users size={13} />
             People Directory
@@ -582,14 +685,26 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               setActiveTab("invitations");
               setInvPage(1);
             }}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === "invitations"
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeTab === "invitations"
                 ? "bg-surface text-foreground shadow-sm border border-border/30"
                 : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
-            }`}
+              }`}
           >
             <Mail size={13} />
             Pending Invitations
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("logs");
+              setLogPage(1);
+            }}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeTab === "logs"
+                ? "bg-surface text-foreground shadow-sm border border-border/30"
+                : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
+              }`}
+          >
+            <Activity size={13} />
+            Workspace Logs
           </button>
         </div>
       </div>
@@ -644,6 +759,25 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               <Card className="p-0 overflow-hidden border border-border/80 bg-surface rounded-2xl shadow-xs">
                 {isMembersLoading ? (
                   <SkeletonLoader rows={5} columns={4} />
+                ) : membersError ? (
+                  <div className="p-8 text-center select-none">
+                    <div className="size-12 rounded-xl bg-danger/10 text-danger flex items-center justify-center mx-auto mb-4 border border-danger/20">
+                      <AlertTriangle size={20} />
+                    </div>
+                    <Typography type="h4" className="font-bold text-foreground mb-1">
+                      Failed to load members directory
+                    </Typography>
+                    <Typography type="body-xs" className="text-muted mb-4 max-w-sm mx-auto">
+                      {membersError}
+                    </Typography>
+                    <Button
+                      size="sm"
+                      onClick={() => fetchMembers()}
+                      className="px-4 py-2 bg-foreground text-background font-bold rounded-lg text-xs cursor-pointer"
+                    >
+                      Retry
+                    </Button>
+                  </div>
                 ) : members.length === 0 ? (
                   <EmptyState
                     title="No Members Found"
@@ -799,8 +933,29 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                 )}
               </Card>
             </>
-          ) : (
+          ) : activeTab === "invitations" ? (
             <>
+              {/* Invitations Filter Bar */}
+              <div className="p-4 bg-surface border border-border/80 rounded-2xl flex flex-col sm:flex-row gap-4 items-center justify-between select-none shadow-xs mb-6">
+                <div className="flex gap-3 w-full sm:w-auto">
+                  <div className="w-36">
+                    <SelectDropdown
+                      value={invStatusFilter}
+                      onChange={(val) => {
+                        setInvStatusFilter(val);
+                        setInvPage(1);
+                      }}
+                      options={[
+                        { label: "Active", value: "active" },
+                        { label: "History", value: "history" },
+                        { label: "All", value: "all" }
+                      ]}
+                      placeholder="Status"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Invitations Table */}
               <Card className="p-0 overflow-hidden border border-border/80 bg-surface rounded-2xl shadow-xs">
                 {isInvLoading ? (
@@ -916,6 +1071,194 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                 )}
               </Card>
             </>
+          ) : (
+            <>
+              {/* Logs Filter Bar */}
+              <div className="p-4 bg-surface border border-border/80 rounded-2xl flex flex-col gap-4 select-none shadow-xs mb-6">
+                <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                  <div className="relative flex-1 w-full">
+                    <Search size={14} className="absolute left-3.5 top-3.5 text-muted/80" />
+                    <input
+                      type="text"
+                      placeholder="Search log descriptions or events..."
+                      value={logSearch}
+                      onChange={(e) => {
+                        setLogSearch(e.target.value);
+                        setLogPage(1);
+                      }}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-field-background text-xs focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all placeholder-muted/60"
+                    />
+                  </div>
+                  <div className="flex gap-3 w-full sm:w-auto">
+                    <div className="w-40">
+                      <SelectDropdown
+                        value={logTypeFilter}
+                        onChange={(val) => {
+                          setLogTypeFilter(val);
+                          setLogPage(1);
+                        }}
+                        options={[
+                          { label: "All Events", value: "all" },
+                          { label: "Member Invited", value: "MEMBER_INVITED" },
+                          { label: "Invitation Resent", value: "INVITATION_RESENT" },
+                          { label: "Invitation Cancelled", value: "INVITATION_CANCELLED" },
+                          { label: "Member Joined", value: "MEMBER_JOINED" },
+                          { label: "Invitation Declined", value: "INVITATION_DECLINED" },
+                          { label: "Member Suspended", value: "MEMBER_SUSPENDED" },
+                          { label: "Member Activated", value: "MEMBER_ACTIVATED" },
+                          { label: "Member Removed", value: "MEMBER_REMOVED" }
+                        ]}
+                        placeholder="Event Type"
+                      />
+                    </div>
+                    <div className="w-36">
+                      <SelectDropdown
+                        value={`${logSortBy}:${logSortOrder}`}
+                        onChange={(val) => {
+                          const [by, order] = val.split(":");
+                          setLogSortBy(by);
+                          setLogSortOrder(order);
+                          setLogPage(1);
+                        }}
+                        options={[
+                          { label: "Newest First", value: "CreatedAt:desc" },
+                          { label: "Oldest First", value: "CreatedAt:asc" },
+                          { label: "Event Name A-Z", value: "EventType:asc" },
+                          { label: "Event Name Z-A", value: "EventType:desc" }
+                        ]}
+                        placeholder="Sort By"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center border-t border-separator/40 pt-4">
+                  <div className="flex flex-col gap-1 text-left">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Actor Email</label>
+                    <input
+                      type="text"
+                      placeholder="Filter by actor email..."
+                      value={logActorFilter}
+                      onChange={(e) => {
+                        setLogActorFilter(e.target.value);
+                        setLogPage(1);
+                      }}
+                      className="w-full px-3.5 py-2 rounded-xl border border-border bg-field-background text-xs focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all placeholder-muted/60"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 text-left">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Start Date</label>
+                    <input
+                      type="date"
+                      value={logStartDate}
+                      onChange={(e) => {
+                        setLogStartDate(e.target.value);
+                        setLogPage(1);
+                      }}
+                      className="w-full px-3.5 py-2 rounded-xl border border-border bg-field-background text-xs focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all text-muted"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 text-left">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted">End Date</label>
+                    <input
+                      type="date"
+                      value={logEndDate}
+                      onChange={(e) => {
+                        setLogEndDate(e.target.value);
+                        setLogPage(1);
+                      }}
+                      className="w-full px-3.5 py-2 rounded-xl border border-border bg-field-background text-xs focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all text-muted"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Logs Table */}
+              <Card className="p-0 overflow-hidden border border-border/80 bg-surface rounded-2xl shadow-xs">
+                {isLogsLoading ? (
+                  <SkeletonLoader rows={5} columns={4} />
+                ) : logs.length === 0 ? (
+                  <EmptyState
+                    title="No Logs Found"
+                    description="No audit logs matched your search or filtering criteria."
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table aria-label="Workspace Activity Logs Table" className="w-full">
+                      <Table.ScrollContainer>
+                        <Table.Content aria-label="Workspace Activity Logs Content">
+                          <Table.Header>
+                            <Table.Column isRowHeader className="font-extrabold uppercase text-[10px] tracking-wider py-4">
+                              Event Type
+                            </Table.Column>
+                            <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
+                              Description
+                            </Table.Column>
+                            <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
+                              Actor
+                            </Table.Column>
+                            <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
+                              Target
+                            </Table.Column>
+                            <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 text-right pr-6">
+                              Timestamp
+                            </Table.Column>
+                          </Table.Header>
+                          <Table.Body>
+                            {logs.map((log) => (
+                              <Table.Row
+                                key={log.id}
+                                className="border-b border-separator/60 last:border-none hover:bg-surface-secondary/40 transition-colors"
+                              >
+                                <Table.Cell className="py-4 font-bold text-[10px] tracking-wide text-accent">
+                                  <Chip
+                                    color="accent"
+                                    variant="soft"
+                                    size="sm"
+                                    className="font-bold text-[9px] uppercase tracking-wider"
+                                  >
+                                    {log.eventType.replace(/_/g, " ")}
+                                  </Chip>
+                                </Table.Cell>
+                                <Table.Cell className="py-4">
+                                  <div className="text-xs text-foreground font-medium max-w-xs truncate" title={log.description}>
+                                    {log.description}
+                                  </div>
+                                </Table.Cell>
+                                <Table.Cell className="py-4">
+                                  <div className="text-xs text-muted truncate max-w-[150px]" title={log.actorEmail}>
+                                    {log.actorEmail}
+                                  </div>
+                                </Table.Cell>
+                                <Table.Cell className="py-4">
+                                  <div className="text-xs text-muted truncate max-w-[150px]" title={log.targetEmail || ""}>
+                                    {log.targetEmail || <span className="text-muted/40">—</span>}
+                                  </div>
+                                </Table.Cell>
+                                <Table.Cell className="py-4 text-xs text-muted text-right pr-6 font-mono">
+                                  {new Date(log.createdAt).toLocaleString()}
+                                </Table.Cell>
+                              </Table.Row>
+                            ))}
+                          </Table.Body>
+                        </Table.Content>
+                      </Table.ScrollContainer>
+                    </Table>
+                  </div>
+                )}
+                {logs.length > 0 && (
+                  <div className="p-4 border-t border-separator/60">
+                    <PaginationWrapper
+                      page={logPage}
+                      totalPages={totalPages}
+                      totalItems={logTotalCount}
+                      itemsPerPage={pageSize}
+                      onPageChange={(p) => setLogPage(p)}
+                    />
+                  </div>
+                )}
+              </Card>
+            </>
           )}
         </div>
 
@@ -972,6 +1315,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
         isOpen={isInviteModalOpen}
         onOpenChange={setIsInviteModalOpen}
         title="Invite Organization Members"
+        size="lg"
         footer={
           <div className="flex gap-3 w-full">
             <Button
@@ -985,7 +1329,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
             <Button
               onClick={handleSendInvitations}
               className="flex-1 cursor-pointer bg-foreground hover:bg-foreground/90 text-background font-bold rounded-xl py-2.5 text-xs flex items-center justify-center gap-2 transition-colors"
-              isDisabled={isSubmitting || !inviteEmails.trim() || configuredRoles.length === 0}
+              isDisabled={isSubmitting || inviteBatch.length === 0}
             >
               {isSubmitting ? (
                 <>
@@ -993,100 +1337,180 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                   Sending...
                 </>
               ) : (
-                "Send Invitations"
+                `Send ${inviteBatch.length} ${inviteBatch.length === 1 ? 'Invitation' : 'Invitations'}`
               )}
             </Button>
           </div>
         }
       >
-        <form onSubmit={handleSendInvitations} className="space-y-4 font-outfit select-none">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground">Invitee Email(s)</label>
-            <textarea
-              placeholder="Enter emails separated by commas or newlines..."
-              value={inviteEmails}
-              onChange={(e) => setInviteEmails(e.target.value)}
-              className="w-full h-20 px-3 py-2 text-xs rounded-xl border border-border bg-field-background focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all resize-none placeholder-muted/60"
-            />
-          </div>
-
-          <div className="border border-border/80 rounded-xl p-3.5 bg-surface-secondary/20 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none font-outfit">
+          {/* Left Column: Invitee Form */}
+          <div className="space-y-4">
             <Typography type="body-xs" className="font-bold text-foreground">
-              Configure Role Pre-assignment
+              New Invitee Configuration
             </Typography>
 
-            <div className="grid grid-cols-2 gap-3">
-              <SelectDropdown
-                value={selectedInviteRoleId}
-                onChange={setSelectedInviteRoleId}
-                options={roleOptions}
-                label="Role"
-                placeholder="Select role"
-              />
-              <SelectDropdown
-                value={inviteScopeType}
-                onChange={(val) => {
-                  setInviteScopeType(val as "ORGANIZATION" | "WORKSPACE");
-                  setInviteScopeId("");
-                }}
-                options={scopeTypeOptions}
-                label="Scope"
-                placeholder="Select scope"
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-foreground">Invitee Email</label>
+              <input
+                type="email"
+                placeholder="collaborator@domain.com"
+                value={currentInviteeEmail}
+                onChange={(e) => setCurrentInviteeEmail(e.target.value)}
+                className="w-full px-3 py-2.5 text-xs rounded-xl border border-border bg-field-background focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all placeholder-muted/60"
               />
             </div>
 
-            {inviteScopeType === "WORKSPACE" && (
-              <SelectDropdown
-                value={inviteScopeId}
-                onChange={setInviteScopeId}
-                options={workspaceOptions}
-                label="Workspace Target"
-                placeholder="Choose workspace"
-              />
-            )}
+            <div className="border border-border/80 rounded-xl p-3.5 bg-surface-secondary/20 space-y-3">
+              <Typography type="body-xs" className="font-bold text-foreground">
+                Configure Roles
+              </Typography>
+
+              <div className="grid grid-cols-2 gap-3">
+                <SelectDropdown
+                  value={selectedInviteRoleId}
+                  onChange={setSelectedInviteRoleId}
+                  options={roleOptions}
+                  label="Role"
+                  placeholder="Select role"
+                />
+                <SelectDropdown
+                  value={inviteScopeType}
+                  onChange={(val) => {
+                    setInviteScopeType(val as "ORGANIZATION" | "WORKSPACE");
+                    setInviteScopeId("");
+                  }}
+                  options={scopeTypeOptions}
+                  label="Scope"
+                  placeholder="Select scope"
+                />
+              </div>
+
+              {inviteScopeType === "WORKSPACE" && (
+                <SelectDropdown
+                  value={inviteScopeId}
+                  onChange={setInviteScopeId}
+                  options={workspaceOptions}
+                  label="Workspace Target"
+                  placeholder="Choose workspace"
+                />
+              )}
+
+              <Button
+                onClick={handleAddInviteRole}
+                className="w-full border border-separator/80 font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-2 cursor-pointer bg-surface hover:bg-surface-secondary transition-all"
+              >
+                <Plus size={13} />
+                Add Pre-assigned Role
+              </Button>
+
+              {currentInviteeRoles.length > 0 && (
+                <div className="space-y-1.5 pt-2">
+                  <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Added Roles for Invitee</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentInviteeRoles.map((cr, idx) => {
+                      const rName = availableRoles.find(r => r.id === cr.roleId)?.displayName || "Role";
+                      const sName = cr.scopeType === "ORGANIZATION" ? "Global" : workspaceOptions.find(w => w.value === cr.scopeId)?.label || "Workspace";
+                      return (
+                        <Chip
+                          key={idx}
+                          color="accent"
+                          variant="soft"
+                          size="sm"
+                          className="font-bold text-[9px] uppercase tracking-wider flex items-center gap-1.5"
+                        >
+                          <span>{rName} ({sName})</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleRemoveInviteRole(idx);
+                            }}
+                            className="hover:text-danger cursor-pointer ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 flex items-center justify-center"
+                          >
+                            <X size={10} />
+                          </button>
+                        </Chip>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Button
-              onClick={handleAddInviteRole}
-              className="w-full border border-separator/80 font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-2 cursor-pointer bg-surface hover:bg-surface-secondary transition-all"
+              onClick={handleAddInviteeToBatch}
+              className="w-full bg-foreground hover:bg-foreground/90 text-background font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+              isDisabled={!currentInviteeEmail.trim() || currentInviteeRoles.length === 0}
             >
-              <Plus size={13} />
-              Add Pre-assigned Role
+              <UserPlus size={14} />
+              Add Invitee to Batch
             </Button>
-
-            {configuredRoles.length > 0 && (
-              <div className="space-y-1.5 pt-2">
-                <label className="text-[10px] uppercase tracking-wider font-extrabold text-muted">Added Assignments</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {configuredRoles.map((cr, idx) => {
-                    const rName = availableRoles.find(r => r.id === cr.roleId)?.displayName || "Role";
-                    const sName = cr.scopeType === "ORGANIZATION" ? "Global" : workspaceOptions.find(w => w.value === cr.scopeId)?.label || "Workspace";
-                    return (
-                      <Chip
-                        key={idx}
-                        color="accent"
-                        variant="soft"
-                        size="sm"
-                        className="font-bold text-[9px] uppercase tracking-wider flex items-center gap-1.5"
-                      >
-                        <span>{rName} ({sName})</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleRemoveInviteRole(idx);
-                          }}
-                          className="hover:text-danger cursor-pointer ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 flex items-center justify-center"
-                        >
-                          <X size={10} />
-                        </button>
-                      </Chip>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
-        </form>
+
+          {/* Right Column: Batch List Preview */}
+          <div className="flex flex-col h-full border-t md:border-t-0 md:border-l border-separator/60 pt-4 md:pt-0 md:pl-6">
+            <div className="flex items-center justify-between mb-3">
+              <Typography type="body-xs" className="font-bold text-foreground">
+                Batch List
+              </Typography>
+              <Chip size="sm" variant="soft" color="accent" className="font-bold text-[10px] px-2">
+                {inviteBatch.length} {inviteBatch.length === 1 ? 'invitee' : 'invitees'}
+              </Chip>
+            </div>
+
+            <div className="flex-1 overflow-y-auto max-h-[300px] pr-1 space-y-2.5">
+              {inviteBatch.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-surface-secondary/20 rounded-2xl border border-dashed border-border/80">
+                  <Mail className="text-muted/40 mb-2" size={24} />
+                  <Typography type="body-xs" className="text-muted font-medium">
+                    No invitees added yet
+                  </Typography>
+                  <Typography type="body-xs" className="text-muted/65 mt-1 max-w-[180px]">
+                    Configure email and roles, then click "Add Invitee to Batch"
+                  </Typography>
+                </div>
+              ) : (
+                inviteBatch.map((invitee, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 border border-border/80 rounded-xl bg-surface-secondary/30 flex items-start justify-between gap-3"
+                  >
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="text-xs font-bold text-foreground truncate" title={invitee.email}>
+                        {invitee.email}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {invitee.roles.map((cr, roleIdx) => {
+                          const rName = availableRoles.find(r => r.id === cr.roleId)?.displayName || "Role";
+                          const sName = cr.scopeType === "ORGANIZATION" ? "Global" : workspaceOptions.find(w => w.value === cr.scopeId)?.label || "Workspace";
+                          return (
+                            <Chip
+                              key={roleIdx}
+                              color={getRoleBadgeColor(rName)}
+                              variant="soft"
+                              size="sm"
+                              className="font-bold text-[9px] uppercase tracking-wider"
+                            >
+                              {rName} ({sName})
+                            </Chip>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveInviteeFromBatch(idx)}
+                      className="p-1 text-muted hover:text-danger hover:bg-danger/10 rounded-lg cursor-pointer transition-colors shrink-0"
+                      title="Remove invitee"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       </DialogModal>
 
       {/* Manage Roles Modal */}

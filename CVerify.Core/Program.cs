@@ -367,6 +367,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWorkspaceProvisioningService, WorkspaceProvisioningService>();
 builder.Services.AddScoped<IWorkspaceMembershipService, WorkspaceMembershipService>();
 builder.Services.AddScoped<IOrganizationAuthorizationService, OrganizationAuthorizationService>();
+builder.Services.AddScoped<IOrganizationBootstrapService, OrganizationBootstrapService>();
 builder.Services.AddScoped<IBusinessRoleService, BusinessRoleService>();
 builder.Services.AddScoped<IOrganizationInvitationService, OrganizationInvitationService>();
 builder.Services.AddScoped<IPasswordRecoveryService, PasswordRecoveryService>();

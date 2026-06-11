@@ -80,7 +80,7 @@ public class InvitationController : ControllerBase
         var (orgId, actorUserId, error) = await ValidateAndResolveAsync(orgSlug, "organization:members:manage");
         if (error != null) return error;
 
-        await _invitationService.InviteMembersAsync(orgId, actorUserId ?? Guid.Empty, dto, cancellationToken);
+        await _invitationService.InviteMembersAsync(orgId, actorUserId, dto, cancellationToken);
         return NoContent();
     }
 
@@ -88,6 +88,7 @@ public class InvitationController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaginatedInvitationsResponseDto))]
     public async Task<IActionResult> GetInvitations(
         string orgSlug,
+        [FromQuery] string? status = "active",
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
@@ -98,7 +99,7 @@ public class InvitationController : ControllerBase
         var (orgId, _, error) = await ValidateAndResolveAsync(orgSlug, "organization:members:view");
         if (error != null) return error;
 
-        var result = await _invitationService.GetInvitationsAsync(orgId, page, pageSize, cancellationToken);
+        var result = await _invitationService.GetInvitationsAsync(orgId, status, page, pageSize, cancellationToken);
         return Ok(result);
     }
 
@@ -112,7 +113,7 @@ public class InvitationController : ControllerBase
         var (orgId, actorUserId, error) = await ValidateAndResolveAsync(orgSlug, "organization:members:manage");
         if (error != null) return error;
 
-        await _invitationService.ResendInvitationAsync(orgId, actorUserId ?? Guid.Empty, id, cancellationToken);
+        await _invitationService.ResendInvitationAsync(orgId, actorUserId, id, cancellationToken);
         return NoContent();
     }
 
@@ -126,12 +127,12 @@ public class InvitationController : ControllerBase
         var (orgId, actorUserId, error) = await ValidateAndResolveAsync(orgSlug, "organization:members:manage");
         if (error != null) return error;
 
-        await _invitationService.CancelInvitationAsync(orgId, actorUserId ?? Guid.Empty, id, cancellationToken);
+        await _invitationService.CancelInvitationAsync(orgId, actorUserId, id, cancellationToken);
         return NoContent();
     }
 
     [HttpPost("api/invitations/accept")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> AcceptInvitation(
         [FromBody] AcceptInvitationDto dto,
         CancellationToken cancellationToken)
@@ -144,8 +145,77 @@ public class InvitationController : ControllerBase
 
         try
         {
-            await _invitationService.AcceptInvitationAsync(userId, dto.Token, cancellationToken);
-            return NoContent();
+            var slug = await _invitationService.AcceptInvitationAsync(userId, dto.Token, cancellationToken);
+            return Ok(new { orgSlug = slug });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("api/invitations/decline")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeclineInvitation(
+        [FromBody] DeclineInvitationDto dto,
+        CancellationToken cancellationToken)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var slug = await _invitationService.DeclineInvitationAsync(userId, dto.Token, cancellationToken);
+            return Ok(new { orgSlug = slug });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("api/invitations/{id:guid}/accept")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> AcceptInvitationById(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var slug = await _invitationService.AcceptInvitationByIdAsync(userId, id, cancellationToken);
+            return Ok(new { orgSlug = slug });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("api/invitations/{id:guid}/decline")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeclineInvitationById(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var slug = await _invitationService.DeclineInvitationByIdAsync(userId, id, cancellationToken);
+            return Ok(new { orgSlug = slug });
         }
         catch (ValidationException ex)
         {

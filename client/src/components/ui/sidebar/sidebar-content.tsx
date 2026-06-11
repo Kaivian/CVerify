@@ -88,6 +88,39 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
   }, [currentOrgSlug, fetchWorkspace]);
 
   const orgUserRole = workspaceDetails?.userRole || "MEMBER";
+  const permissions = useMemo(() => workspaceDetails?.permissions || [], [workspaceDetails]);
+
+  const canViewRoles = useMemo(() => {
+    if (permissions.length > 0) {
+      return permissions.includes("organization:roles:view") || permissions.includes("organization:roles:manage");
+    }
+    return orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE";
+  }, [permissions, orgUserRole]);
+
+  const canViewBilling = useMemo(() => {
+    if (permissions.length > 0) {
+      return permissions.includes("billing:invoice:view") || permissions.includes("billing:subscription:manage");
+    }
+    return orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE";
+  }, [permissions, orgUserRole]);
+
+  const canEditSettings = useMemo(() => {
+    if (permissions.length > 0) {
+      return permissions.includes("organization:settings:edit") || permissions.includes("organization:profile:edit");
+    }
+    return orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE";
+  }, [permissions, orgUserRole]);
+
+  const canViewRecruitment = useMemo(() => {
+    if (permissions.length > 0) {
+      return (
+        permissions.includes("ai:interview:configure") ||
+        permissions.includes("ai:interview:conduct") ||
+        permissions.includes("ai:interview:evaluate")
+      );
+    }
+    return orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE" || orgUserRole === "HR";
+  }, [permissions, orgUserRole]);
 
   const orgNodes = useMemo<NavigationNode[]>(() => {
     if (!currentOrgSlug) return [];
@@ -113,7 +146,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
             href: `/workspace/${currentOrgSlug}/members`,
             icon: Users,
           },
-          ...(orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE"
+          ...(canViewRoles
             ? [
                 {
                   id: "org-roles",
@@ -124,7 +157,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
                 },
               ]
             : []),
-          ...(orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE"
+          ...(canViewBilling
             ? [
                 {
                   id: "org-billing",
@@ -135,7 +168,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
                 },
               ]
             : []),
-          ...(orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE"
+          ...(canEditSettings
             ? [
                 {
                   id: "org-settings",
@@ -148,7 +181,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
             : []),
         ],
       },
-      ...(orgUserRole === "OWNER" || orgUserRole === "REPRESENTATIVE" || orgUserRole === "HR"
+      ...(canViewRecruitment
         ? [
             {
               id: "org-recruitment-group",
@@ -175,7 +208,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
           ]
         : []),
     ];
-  }, [currentOrgSlug, orgUserRole]);
+  }, [currentOrgSlug, canViewRoles, canViewBilling, canEditSettings, canViewRecruitment]);
 
   // Dynamically inject workspace links based on role sections
   const combinedNodes = useMemo(() => {
@@ -322,7 +355,9 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
               return (
                 <Tooltip key={item.id} delay={0}>
                   <Tooltip.Trigger>
-                    {linkContent}
+                    <div className="w-full">
+                      {linkContent}
+                    </div>
                   </Tooltip.Trigger>
                   <Tooltip.Content
                     placement="right"

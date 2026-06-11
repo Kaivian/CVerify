@@ -6,6 +6,6 @@ namespace CVerify.API.Modules.Auth.Services;
 
 public interface IWorkspaceMembershipService
 {
-    Task ClaimPendingRelationshipsAsync(Guid userId);
-    Task BootstrapInitialAdminAsync(string email, CancellationToken cancellationToken = default);
+    Task DiscoverPendingInvitationsAsync(Guid userId);
+    Task BootstrapInitialAdminAsync(string email, bool isRegistrationActivation = false, CancellationToken cancellationToken = default);
 }

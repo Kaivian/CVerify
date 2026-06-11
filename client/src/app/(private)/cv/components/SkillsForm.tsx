@@ -80,7 +80,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 py-4 bg-surface-secondary/10 border border-dashed border-border/40 rounded-2xl p-4 min-h-[100px] items-start">
+        <div className="flex flex-wrap gap-2 py-4 bg-surface-secondary/10 border border-dashed border-border/40 rounded-xl p-4 min-h-[100px] items-start">
           {draft.targetSkills.length === 0 ? (
             <span className="text-muted-foreground text-[10px] w-full text-center py-6 select-none">
               No information added yet

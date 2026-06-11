@@ -35,6 +35,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
     private readonly EnvConfiguration _envConfig;
     private readonly ILogger<WorkspaceProvisioningService> _logger;
     private readonly IWorkspaceMembershipService _workspaceMembershipService;
+    private readonly IOrganizationBootstrapService _bootstrapService;
 
     public WorkspaceProvisioningService(
         ApplicationDbContext context,
@@ -46,7 +47,8 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
         IAuthService authService,
         EnvConfiguration envConfig,
         ILogger<WorkspaceProvisioningService> logger,
-        IWorkspaceMembershipService workspaceMembershipService)
+        IWorkspaceMembershipService workspaceMembershipService,
+        IOrganizationBootstrapService bootstrapService)
     {
         _context = context;
         _cacheService = cacheService;
@@ -58,6 +60,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
         _envConfig = envConfig;
         _logger = logger;
         _workspaceMembershipService = workspaceMembershipService;
+        _bootstrapService = bootstrapService;
     }
 
     private string NormalizeEmailPolicy(string email)
@@ -439,8 +442,61 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             _context.OrganizationVerifications.Add(verification);
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Link existing active user to the organization immediately if they already exist
-            await _workspaceMembershipService.BootstrapInitialAdminAsync(org.Email, cancellationToken);
+            // Seed default roles for the tenant (idempotent, does not require a User to exist)
+            await _bootstrapService.SeedDefaultRolesForTenantAsync(org.Id, cancellationToken);
+
+            // Link existing active user immediately or create pending organization ownership
+            var normalizedEmail = NormalizeEmailPolicy(org.Email);
+            var repUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken);
+            if (repUser != null && repUser.Status == Shared.Domain.Enums.UserStatus.ACTIVE)
+            {
+                await _workspaceMembershipService.BootstrapInitialAdminAsync(org.Email, false, cancellationToken);
+            }
+            else
+            {
+                var pendingOwnership = new PendingOrganizationOwnership
+                {
+                    Id = Guid.CreateVersion7(),
+                    OrganizationId = org.Id,
+                    OwnerEmail = normalizedEmail,
+                    CreatedAt = _timeProvider.GetUtcNow(),
+                    ExpiresAt = _timeProvider.GetUtcNow().AddDays(30)
+                };
+                _context.PendingOrganizationOwnerships.Add(pendingOwnership);
+
+                // Also write a pending OrganizationInvitation for the representative
+                var rawToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+                var tokenHash = ComputeSha256(rawToken);
+                var invitation = new OrganizationInvitation
+                {
+                    Id = Guid.CreateVersion7(),
+                    OrganizationId = org.Id,
+                    InviteeEmail = normalizedEmail,
+                    TokenHash = tokenHash,
+                    InvitedByUserId = null,
+                    Status = "Pending",
+                    CreatedAt = _timeProvider.GetUtcNow(),
+                    ExpiresAt = _timeProvider.GetUtcNow().AddDays(30)
+                };
+                _context.OrganizationInvitations.Add(invitation);
+
+                // Pre-assign the "owner" role to the invitation
+                var ownerRole = await _context.Roles.FirstOrDefaultAsync(r => r.TenantId == org.Id && r.Name == "owner" && r.Domain == "TENANT", cancellationToken);
+                if (ownerRole != null)
+                {
+                    var invitationRole = new OrganizationInvitationRole
+                    {
+                        Id = Guid.CreateVersion7(),
+                        InvitationId = invitation.Id,
+                        RoleId = ownerRole.Id,
+                        ScopeType = "ORGANIZATION",
+                        ScopeId = org.Id
+                    };
+                    _context.OrganizationInvitationRoles.Add(invitationRole);
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+            }
 
             await transaction.CommitAsync(cancellationToken);
 
@@ -553,8 +609,61 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             link.OrganizationId = org.Id;
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Link existing active user to the organization immediately if they already exist
-            await _workspaceMembershipService.BootstrapInitialAdminAsync(org.Email, cancellationToken);
+            // Seed default roles for the tenant (idempotent, does not require a User to exist)
+            await _bootstrapService.SeedDefaultRolesForTenantAsync(org.Id, cancellationToken);
+
+            // Link existing active user immediately or create pending organization ownership
+            var repEmail = NormalizeEmailPolicy(org.Email);
+            var repUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == repEmail && u.DeletedAt == null, cancellationToken);
+            if (repUser != null && repUser.Status == Shared.Domain.Enums.UserStatus.ACTIVE)
+            {
+                await _workspaceMembershipService.BootstrapInitialAdminAsync(org.Email, false, cancellationToken);
+            }
+            else
+            {
+                var pendingOwnership = new PendingOrganizationOwnership
+                {
+                    Id = Guid.CreateVersion7(),
+                    OrganizationId = org.Id,
+                    OwnerEmail = repEmail,
+                    CreatedAt = _timeProvider.GetUtcNow(),
+                    ExpiresAt = _timeProvider.GetUtcNow().AddDays(30)
+                };
+                _context.PendingOrganizationOwnerships.Add(pendingOwnership);
+
+                // Also write a pending OrganizationInvitation for the representative
+                var rawToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+                var tokenHash = ComputeSha256(rawToken);
+                var invitation = new OrganizationInvitation
+                {
+                    Id = Guid.CreateVersion7(),
+                    OrganizationId = org.Id,
+                    InviteeEmail = repEmail,
+                    TokenHash = tokenHash,
+                    InvitedByUserId = null,
+                    Status = "Pending",
+                    CreatedAt = _timeProvider.GetUtcNow(),
+                    ExpiresAt = _timeProvider.GetUtcNow().AddDays(30)
+                };
+                _context.OrganizationInvitations.Add(invitation);
+
+                // Pre-assign the "owner" role to the invitation
+                var ownerRole = await _context.Roles.FirstOrDefaultAsync(r => r.TenantId == org.Id && r.Name == "owner" && r.Domain == "TENANT", cancellationToken);
+                if (ownerRole != null)
+                {
+                    var invitationRole = new OrganizationInvitationRole
+                    {
+                        Id = Guid.CreateVersion7(),
+                        InvitationId = invitation.Id,
+                        RoleId = ownerRole.Id,
+                        ScopeType = "ORGANIZATION",
+                        ScopeId = org.Id
+                    };
+                    _context.OrganizationInvitationRoles.Add(invitationRole);
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+            }
 
             await transaction.CommitAsync(cancellationToken);
 
@@ -568,5 +677,11 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             _logger.LogError(ex, "Workspace setup flow failed.");
             throw;
         }
+    }
+
+    private string ComputeSha256(string token)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

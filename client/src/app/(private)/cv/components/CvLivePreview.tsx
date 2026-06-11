@@ -49,16 +49,19 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
     if (!container || !preview) return;
 
     const updateLayout = () => {
-      const parentWidth = container.clientWidth - 32; // subtracting padding (16px left/right)
+      const parentWidth = container.clientWidth - 16; // subtracting padding (8px left/right)
+      const parentHeight = container.clientHeight - 16; // subtracting padding (8px top/bottom)
       const targetWidth = 794; // Standard A4 width in pixels at 96 DPI
-      
-      let computedScale = 1;
-      if (parentWidth > 0) {
-        computedScale = parentWidth / targetWidth;
-      }
-      
-      // Clamp scale between 0.45 and 0.75
-      const clampedScale = Math.max(0.45, Math.min(0.75, computedScale));
+      const targetHeight = 1123; // Standard A4 height in pixels at 96 DPI
+
+      // Calculate scale to fit both width and height of the container
+      const scaleX = parentWidth > 0 ? parentWidth / targetWidth : 1;
+      const scaleY = parentHeight > 0 ? parentHeight / targetHeight : 1;
+
+      const computedScale = Math.min(scaleX, scaleY);
+
+      // Clamp scale to reasonable limits to fit shorter/narrower viewports
+      const clampedScale = Math.max(0.2, Math.min(1.0, computedScale));
       setScale(clampedScale);
 
       // Measure raw unscaled height of the preview content
@@ -92,29 +95,42 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
   return (
     <div
       ref={containerRef}
-      className="flex-1 w-full bg-neutral-100 rounded-xl border border-border/40 overflow-y-auto overflow-x-hidden flex flex-col items-center justify-start p-4 relative"
+      className="flex-1 w-full rounded-xl overflow-y-auto overflow-x-hidden flex flex-col items-center justify-start relative"
       style={{ minHeight: "400px" }}
     >
       <div
-        ref={previewRef}
-        className="origin-top"
         style={{
-          transform: `scale(${scale})`,
-          width: "794px",
-          minHeight: `${contentHeight}px`,
-          marginBottom: `${-contentHeight * (1 - scale)}px`, // collapses vertical empty space caused by scaling
+          width: `${794 * scale}px`,
+          height: `${contentHeight * scale}px`,
+          position: "relative",
+          display: "flex",
+          justifyContent: "center",
+          flexShrink: 0,
         }}
       >
-        <CVPreview
-          basic={basic}
-          summary={summary}
-          skills={skills}
-          experience={experience}
-          education={education}
-          achievements={achievements}
-          preferences={preferences}
-          projects={repositories}
-        />
+        <div
+          ref={previewRef}
+          style={{
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+            width: "794px",
+            minHeight: `${contentHeight}px`,
+            position: "absolute",
+            left: 0,
+            top: 0,
+          }}
+        >
+          <CVPreview
+            basic={basic}
+            summary={summary}
+            skills={skills}
+            experience={experience}
+            education={education}
+            achievements={achievements}
+            preferences={preferences}
+            projects={repositories}
+          />
+        </div>
       </div>
     </div>
   );

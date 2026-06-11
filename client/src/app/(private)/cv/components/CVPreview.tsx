@@ -225,41 +225,115 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
   return (
     <div className="cv-print-area w-[210mm] min-h-[297mm] bg-white text-black p-[20mm] box-border relative flex flex-col justify-between font-sans text-xs shadow-md border border-border print:shadow-none print:border-none select-text">
       <style>{`
+        @page {
+          size: A4;
+          margin: 0;
+        }
         @media print {
-          body {
+          html {
+            counter-reset: page 0;
+          }
+          html, body {
             background: white !important;
             color: black !important;
             margin: 0 !important;
             padding: 0 !important;
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
           }
-          body > *:not(.cv-print-modal),
-          #__next,
-          #root,
-          header,
-          footer,
-          nav,
-          aside,
-          button,
-          .no-print {
-            display: none !important;
-            height: 0 !important;
-            overflow: hidden !important;
+          
+          /* Hide all screen layout elements by setting visibility: hidden */
+          body * {
             visibility: hidden !important;
           }
-          .cv-print-area {
+          
+          /* Make sure the CV preview area and all its descendants are visible */
+          .cv-print-area,
+          .cv-print-area * {
             visibility: visible !important;
+          }
+          
+          /* Position the cv-print-area absolutely at the top-left of page 1 */
+          .cv-print-area {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 210mm !important;
-            min-height: 297mm !important;
+            min-height: auto !important;
+            height: auto !important;
             margin: 0 !important;
             padding: 20mm !important;
             box-shadow: none !important;
             border: none !important;
             background: white !important;
             box-sizing: border-box !important;
+            z-index: 99999 !important;
           }
+          
+          /* Reset viewport height and overflow constraints on all parent containers so multi-page printing works */
+          .min-h-screen,
+          .h-screen,
+          .overflow-hidden,
+          .overflow-y-auto,
+          main,
+          #__next,
+          #root {
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
+          }
+
+          /* Clear modal alignment, backgrounds, shadows, and paddings during print to prevent pushing layout down */
+          .cv-preview-overlay {
+            position: static !important;
+            display: block !important;
+            background: transparent !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            z-index: 99999 !important;
+            backdrop-filter: none !important;
+            height: auto !important;
+            min-height: auto !important;
+          }
+          .cv-preview-card {
+            display: block !important;
+            width: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+          }
+          .cv-preview-content-frame {
+            display: block !important;
+            padding: 0 !important;
+            background: transparent !important;
+            overflow: visible !important;
+          }
+          .cv-preview-box {
+            display: block !important;
+            border: none !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+          }
+          
+          /* Completely hide specific interactive and navigational elements to avoid empty spaces */
+          header,
+          footer,
+          nav,
+          aside,
+          button,
+          .cv-management-header,
+          .cv-management-main,
+          .no-print {
+            display: none !important;
+          }
+          
           .cv-footer-print {
             position: fixed !important;
             bottom: 0 !important;
@@ -274,10 +348,14 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
             font-size: 8px !important;
             color: var(--muted) !important;
             background: white !important;
+            visibility: visible !important;
           }
+          
           .cv-footer-print .page-num-print::after {
+            counter-increment: page;
             content: "Page " counter(page);
           }
+          
           .cv-page-content-wrapper {
             margin-bottom: 35px !important;
           }

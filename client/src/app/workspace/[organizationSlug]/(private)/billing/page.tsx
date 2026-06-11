@@ -53,8 +53,12 @@ export default function WorkspaceBillingPage() {
     );
   }
 
-  const userRole = workspaceDetails.userRole;
-  const isAuthorized = userRole === "OWNER" || userRole === "REPRESENTATIVE";
+  const permissions = workspaceDetails.permissions || [];
+  const isAuthorized =
+    permissions.includes("billing:invoice:view") ||
+    permissions.includes("billing:subscription:manage") ||
+    workspaceDetails.userRole === "OWNER" ||
+    workspaceDetails.userRole === "REPRESENTATIVE";
 
   if (!isAuthorized) {
     return (

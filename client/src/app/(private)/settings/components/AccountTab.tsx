@@ -617,16 +617,18 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                     }
                   >
                     <Tooltip delay={0}>
-                      <div className="w-full flex items-center gap-1">
-                        <Label>Profile Visibility</Label>
-                        <Button
-                          isIconOnly
-                          variant="ghost"
-                          className="rounded-full h-5 w-5"
-                        >
-                          <Info />
-                        </Button>
-                      </div>
+                      <Tooltip.Trigger>
+                        <div className="w-full flex items-center gap-1">
+                          <Label>Profile Visibility</Label>
+                          <Button
+                            isIconOnly
+                            variant="ghost"
+                            className="rounded-full h-5 w-5"
+                          >
+                            <Info />
+                          </Button>
+                        </div>
+                      </Tooltip.Trigger>
                       <Tooltip.Content showArrow>
                         Control who can view your public profile page and
                         verified credentials.
@@ -663,16 +665,18 @@ export const AccountTab: React.FC<AccountTabProps> = ({
                     }
                   >
                     <Tooltip delay={0}>
-                      <div className="w-full flex items-center gap-1">
-                        <Label>AI Talent Discovery</Label>
-                        <Button
-                          isIconOnly
-                          variant="ghost"
-                          className="rounded-full h-5 w-5"
-                        >
-                          <Info />
-                        </Button>
-                      </div>
+                      <Tooltip.Trigger>
+                        <div className="w-full flex items-center gap-1">
+                          <Label>AI Talent Discovery</Label>
+                          <Button
+                            isIconOnly
+                            variant="ghost"
+                            className="rounded-full h-5 w-5"
+                          >
+                            <Info />
+                          </Button>
+                        </div>
+                      </Tooltip.Trigger>
                       <Tooltip.Content showArrow>
                         Control whether recruiter AI systems can analyze and
                         rank your profile for talent discovery and job matching.
