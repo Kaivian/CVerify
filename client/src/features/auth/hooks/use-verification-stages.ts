@@ -3,9 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthStore } from '../store/use-auth-store';
 import { type BootstrapState } from '../../../types/auth.types';
-import { useTranslation } from 'react-i18next';
 
-/** Union of all session verification i18n keys used in stage definitions */
 type SessionVerificationKey =
   | 'common:sessionVerification.initializing'
   | 'common:sessionVerification.establishing'
@@ -13,11 +11,6 @@ type SessionVerificationKey =
   | 'common:sessionVerification.verified'
   | 'common:sessionVerification.preparing';
 
-/**
- * Extensible verification stage definition.
- * Designed to scale with future bootstrap states (EXPIRED, REFRESHING, SYNCING_PROFILE, etc.)
- * without rewriting the UI architecture.
- */
 export interface VerificationStage {
   id: string;
   labelKey: SessionVerificationKey;
@@ -25,7 +18,6 @@ export interface VerificationStage {
   tone: 'neutral' | 'success' | 'warning';
 }
 
-/** Maps each BootstrapState to a stage configuration */
 const STAGE_MAP: Record<BootstrapState, VerificationStage> = {
   IDLE: {
     id: 'initializing',
@@ -53,13 +45,17 @@ const STAGE_MAP: Record<BootstrapState, VerificationStage> = {
   },
 };
 
-/** Resolved label for unauthenticated READY state */
 const PREPARING_LABEL_KEY = 'common:sessionVerification.preparing' as const;
 
-/** Minimum total visible duration before allowing completion (ms) */
-const MIN_TOTAL_VISIBLE_MS = 800;
+const ENGLISH_LABELS: Record<string, string> = {
+  'common:sessionVerification.initializing': "Initializing secure session...",
+  'common:sessionVerification.establishing': "Establishing authentication channel...",
+  'common:sessionVerification.verifying': "Verifying identity token...",
+  'common:sessionVerification.verified': "Session verified — redirecting...",
+  'common:sessionVerification.preparing': "Preparing authentication..."
+};
 
-/** Minimum per-stage transition delay — prevents flicker on fast bootstraps (ms) */
+const MIN_TOTAL_VISIBLE_MS = 800;
 const MIN_STAGE_TRANSITION_MS = 200;
 
 export interface UseVerificationStagesReturn {
@@ -71,17 +67,7 @@ export interface UseVerificationStagesReturn {
   onTransitionComplete: () => void;
 }
 
-/**
- * Manages adaptive-timed verification stages that map to real bootstrap state transitions.
- *
- * Adaptive timing behavior:
- * - Fast bootstrap: stages merge/compress with ~200ms transitions, total ~800ms min
- * - Slow bootstrap: full staged progression shown naturally without artificial delay
- *
- * @param isAuthenticated — controls whether READY shows "verified" or "preparing" label
- */
 export function useVerificationStages(isAuthenticated: boolean): UseVerificationStagesReturn {
-  const { t } = useTranslation(['common']);
   const bootstrapState = useAuthStore((state) => state.bootstrapState);
 
   const [displayedStage, setDisplayedStage] = useState<VerificationStage>(STAGE_MAP.IDLE);
@@ -139,9 +125,9 @@ export function useVerificationStages(isAuthenticated: boolean): UseVerification
   // Resolve the display label — READY state differs based on authentication result
   const stageLabel = (() => {
     if (displayedStage.id === 'verified' && !isAuthenticated) {
-      return t(PREPARING_LABEL_KEY);
+      return ENGLISH_LABELS[PREPARING_LABEL_KEY];
     }
-    return t(displayedStage.labelKey);
+    return ENGLISH_LABELS[displayedStage.labelKey];
   })();
 
   // Determine completion readiness with minimum visible duration
@@ -157,9 +143,8 @@ export function useVerificationStages(isAuthenticated: boolean): UseVerification
     }
   }, [isComplete, hasMinTimeElapsed]);
 
-  /** Called by the parent guard after fade-out animation completes to allow rendering children */
   const onTransitionComplete = useCallback(() => {
-    // No-op — the guard controls rendering based on isExiting state
+    // No-op
   }, []);
 
   return {

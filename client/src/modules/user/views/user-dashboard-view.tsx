@@ -6,12 +6,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PermissionGuard } from '@/features/auth/guards/permission-guard';
 import { User, ShieldCheck, Plus, Sparkles, PlaneTakeoff, Compass } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { Typography } from '@heroui/react';
 
 export function UserDashboardView() {
   const { user } = useAuth();
-  const { t } = useTranslation(['dashboard-user', 'common']);
 
   return (
     <div className="space-y-6 font-outfit">
@@ -19,16 +17,16 @@ export function UserDashboardView() {
       <div className="dark flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-linear-to-r from-background via-surface to-surface-secondary text-foreground select-none">
         <div className="space-y-1">
           <Typography type="h2" className="text-xl font-bold flex items-center gap-2 text-foreground">
-            {t('dashboard-user:banner.welcome', { name: user?.fullName || 'Traveler' })}{' '}
+            Welcome back, {user?.fullName || 'Traveler'}!{' '}
             <Sparkles size={18} className="text-accent fill-accent" />
           </Typography>
           <Typography type="body-xs" className="text-muted font-light mt-0.5">
-            {t('dashboard-user:banner.subtitle')}
+            Here is a snapshot of your secure, decentralized identity.
           </Typography>
         </div>
         <Button variant="solid" className="w-fit self-start shrink-0 cursor-pointer">
           <PlaneTakeoff size={16} />
-          {t('dashboard-user:banner.createPrompt')}
+          Create Itinerary
         </Button>
       </div>
 
@@ -42,10 +40,10 @@ export function UserDashboardView() {
             </div>
             <div>
               <Typography type="h3" className="font-bold text-foreground">
-                {t('dashboard-user:profile.title')}
+                Traveler Profile
               </Typography>
               <Typography type="body-xs" className="text-muted">
-                {t('dashboard-user:profile.subtitle')}
+                Account information and status
               </Typography>
             </div>
           </div>
@@ -53,7 +51,7 @@ export function UserDashboardView() {
           <div className="space-y-3.5 text-sm select-none font-outfit">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold tracking-wider block mb-0.5">
-                {t('dashboard-user:profile.fullName')}
+                Full Name
               </Typography>
               <Typography type="body-sm" className="font-semibold text-foreground">
                 {user?.fullName}
@@ -61,7 +59,7 @@ export function UserDashboardView() {
             </div>
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold tracking-wider block mb-0.5">
-                {t('dashboard-user:profile.email')}
+                Email Address
               </Typography>
               <Typography type="body-sm" className="font-semibold text-foreground">
                 {user?.email}
@@ -69,7 +67,7 @@ export function UserDashboardView() {
             </div>
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold tracking-wider block mb-0.5">
-                {t('dashboard-user:profile.accountId')}
+                Account ID
               </Typography>
               <Typography type="body-sm" className="font-mono text-muted text-xs truncate block">
                 {user?.id}
@@ -77,10 +75,10 @@ export function UserDashboardView() {
             </div>
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold tracking-wider block mb-0.5">
-                {t('dashboard-user:profile.status')}
+                Email Status
               </Typography>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-success/10 text-success border border-success/20 select-none">
-                {user?.isEmailVerified ? t('dashboard-user:profile.verified') : t('dashboard-user:profile.pending')}
+                {user?.isEmailVerified ? "Verified" : "Pending"}
               </span>
             </div>
           </div>
@@ -94,10 +92,10 @@ export function UserDashboardView() {
             </div>
             <div>
               <Typography type="h3" className="font-bold text-foreground">
-                {t('dashboard-user:security.title')}
+                Security & Roles
               </Typography>
               <Typography type="body-xs" className="text-muted">
-                {t('dashboard-user:security.subtitle')}
+                Granted roles, permissions, and policy scopes
               </Typography>
             </div>
           </div>
@@ -105,7 +103,7 @@ export function UserDashboardView() {
           <div className="space-y-4 select-none">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold tracking-wider block mb-1">
-                {t('dashboard-user:security.currentRole')}
+                Current Role
               </Typography>
               <span className="inline-flex px-3 py-1 rounded-xl text-xs font-bold uppercase tracking-wider bg-surface-secondary text-foreground">
                 {user?.role}
@@ -114,7 +112,7 @@ export function UserDashboardView() {
 
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold tracking-wider block mb-2">
-                {t('dashboard-user:security.grantedAccess')}
+                Granted Permissions
               </Typography>
               <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
                 {user?.permissions.map((perm) => (
@@ -127,7 +125,7 @@ export function UserDashboardView() {
                 ))}
                 {user?.role === 'ADMIN' && (
                   <span className="px-2 py-1 rounded-lg bg-accent/10 border border-accent/20 text-accent text-xs font-mono font-semibold">
-                    {t('dashboard-user:security.fullPrivilege')}
+                    FULL ADMIN PRIVILEGES ACTIVE
                   </span>
                 )}
               </div>
@@ -143,10 +141,10 @@ export function UserDashboardView() {
             </div>
             <div>
               <Typography type="h3" className="font-bold text-foreground">
-                {t('dashboard-user:sandbox.title')}
+                Developer Sandbox
               </Typography>
               <Typography type="body-xs" className="text-muted">
-                {t('dashboard-user:sandbox.subtitle')}
+                Test role and permission parameters interactively
               </Typography>
             </div>
           </div>
@@ -158,25 +156,25 @@ export function UserDashboardView() {
               fallback={
                 <div className="p-4 rounded-xl border border-dashed border-border text-center select-none font-outfit">
                   <Typography type="body-xs" className="text-muted block mb-1 font-bold">
-                    {t('dashboard-user:sandbox.gatedComponent')}
+                    Creator Mode Disabled
                   </Typography>
                   <Typography type="body-xs" className="text-muted/80 leading-normal">
-                    {t('dashboard-user:sandbox.gatedComponentDesc')}
+                    Your account lacks trips:create permissions. Elevate roles in the system settings page.
                   </Typography>
                 </div>
               }
             >
               <div className="p-4 rounded-xl bg-accent/10 border border-accent/20 space-y-3 font-outfit">
                 <div className="flex items-center justify-between text-xs select-none">
-                  <Typography type="body-xs" className="font-bold text-accent inline-block">{t('dashboard-user:sandbox.creatorEnabled')}</Typography>
+                  <Typography type="body-xs" className="font-bold text-accent inline-block">Creator Mode Active</Typography>
                   <span className="text-[10px] bg-accent text-accent-foreground px-1.5 py-0.5 rounded font-extrabold tracking-wider uppercase">Active</span>
                 </div>
                 <Typography type="body-xs" className="text-foreground/80 leading-relaxed select-none">
-                  {t('dashboard-user:sandbox.creatorEnabledDesc')}
+                  Your account has the necessary permissions to construct, customize, and publish new intelligent travel itineraries.
                 </Typography>
                 <Button size="sm" className="w-full gap-1 cursor-pointer">
                   <Plus size={14} />
-                  {t('dashboard-user:sandbox.newItinerary')}
+                  New Itinerary
                 </Button>
               </div>
             </PermissionGuard>
@@ -187,18 +185,18 @@ export function UserDashboardView() {
               fallback={
                 <div className="p-4 rounded-xl border border-dashed border-border text-center select-none font-outfit">
                   <Typography type="body-xs" className="text-muted block mb-1 font-bold">
-                    {t('dashboard-user:sandbox.systemControls')}
+                    System Controls Gated
                   </Typography>
                   <Typography type="body-xs" className="text-muted/80 leading-normal">
-                    {t('dashboard-user:sandbox.systemControlsDesc')}
+                    Your account lacks admin:system:view privileges. Contact your supervisor to request system operator access permissions.
                   </Typography>
                 </div>
               }
             >
               <div className="p-4 rounded-xl bg-success/10 border border-success/20 space-y-2 select-none font-outfit">
-                <Typography type="body-xs" className="font-bold text-success block">{t('dashboard-user:sandbox.systemUnlocked')}</Typography>
+                <Typography type="body-xs" className="font-bold text-success block">System Console Unlocked</Typography>
                 <Typography type="body-xs" className="text-muted leading-relaxed">
-                  {t('dashboard-user:sandbox.systemUnlockedDesc')}
+                  You have operator permissions. You may execute diagnostic health checks and monitor edge router connections.
                 </Typography>
               </div>
             </PermissionGuard>

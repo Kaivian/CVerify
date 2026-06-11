@@ -1,17 +1,6 @@
 import { type ApiError } from '@/types/api.types';
 import { useErrorLifecycle } from '@/stores/use-error-lifecycle';
 import { NotificationHub } from '../notifications/orchestrator';
-import i18n from '@/lib/i18n';
-
-/** Checks whether a dynamic (backend-provided) key exists in the loaded i18n resources. */
-function i18nKeyExists(key: string): boolean {
-  return (i18n.exists as (key: string) => boolean)(key);
-}
-
-/** Resolves a dynamic (backend-provided) key against the loaded i18n resources. */
-function i18nResolve(key: string, fallback?: string): string {
-  return (i18n.t as (key: string, defaultValue?: string) => string)(key, fallback);
-}
 
 export interface InterpretationOptions {
   /** If true, validation errors are handled silently inline by forms, avoiding generic toast popups */
@@ -21,6 +10,22 @@ export interface InterpretationOptions {
   /** Optional custom recovery retry action */
   onRetry?: () => void;
 }
+
+const ERROR_MESSAGES: Record<string, string> = {
+  UNKNOWN_ERROR: "An unknown error occurred. Please try again later.",
+  NETWORK_ERROR: "Could not connect to server. Please check your internet connection.",
+  UNAUTHORIZED: "You are unauthorized to access this. Please sign in again.",
+  FORBIDDEN: "You are forbidden from performing this operational query.",
+  NOT_FOUND: "The requested resource could not be found.",
+  BAD_REQUEST: "Invalid request inputs.",
+  SERVER_ERROR: "System server exception occurred. Core engineering team alerted.",
+  RATE_LIMIT_EXCEEDED: "Too many requests. Please try again in a few minutes.",
+  AUTH_EXPIRED_TOKEN: "The authorization token has expired. Please request a new link.",
+  INVALID_CREDENTIALS: "The email or password details are incorrect.",
+  BRUTE_FORCE_LOCKED: "Account locked temporarily.",
+  EMAIL_ALREADY_EXISTS: "This email is already associated with an active traveler profile.",
+  VALIDATION_ERROR: "Input formats failed standard verification schemas."
+};
 
 /**
  * Enterprise-grade Frontend Error Interpretation Layer.
@@ -64,14 +69,10 @@ export const ErrorInterpreter = {
 
     // 4. Fully Owning Copy: Prioritize messageKey, fall back to localized category defaults
     let resolvedDescription = '';
-    if (error.messageKey && i18nKeyExists(error.messageKey)) {
-      resolvedDescription = i18nResolve(error.messageKey);
+    if (error.messageKey && ERROR_MESSAGES[error.messageKey]) {
+      resolvedDescription = ERROR_MESSAGES[error.messageKey];
     } else {
-      // Fallback category localization mapping
-      const categoryKey = `system.toast.category.${error.category.toLowerCase()}`;
-      resolvedDescription = i18nKeyExists(categoryKey)
-        ? i18nResolve(categoryKey)
-        : (error.message || fallbackMessage || 'An unexpected action failure occurred.');
+      resolvedDescription = error.message || fallbackMessage || 'An unexpected action failure occurred.';
     }
 
     // Append Correlation ID directly to system exceptions to help developers search private logs
@@ -80,8 +81,8 @@ export const ErrorInterpreter = {
       : '';
 
     const title = isSystemError 
-      ? i18n.t('auth.toast.requestFailedTitle', 'System Outage')
-      : i18n.t('auth.toast.requestFailedTitle', 'Action Failed');
+      ? 'System Outage'
+      : 'Action Failed';
 
     // 5. Stage 3 & Dispatch: RENDERED
     useErrorLifecycle.getState().transition(correlationId, 'RENDERED', error.code, error.category);
@@ -92,7 +93,7 @@ export const ErrorInterpreter = {
       description: `${resolvedDescription}${correlationSuffix}`,
       action: error.retryable && options.onRetry
         ? {
-            label: i18n.t('auth.toast.retry', 'Retry'),
+            label: 'Retry',
             onPress: () => {
               useErrorLifecycle.getState().incrementRetry(correlationId);
               useErrorLifecycle.getState().transition(correlationId, 'RETRIED', error.code, error.category);

@@ -9,11 +9,9 @@ import { DialogModal } from '@/components/ui/dialog-modal';
 import { SelectDropdown } from '@/components/ui/select-dropdown';
 import { PaginationWrapper } from '@/components/ui/pagination-wrapper';
 import { SkeletonLoader, EmptyState } from '@/components/ui/states';
-import { useTranslation } from 'react-i18next';
 import { TableActionDropdown } from '@/components/ui/table-action-dropdown';
 
 export function UsersManagementView() {
-  const { t } = useTranslation(['dashboard-admin', 'common']);
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [roles, setRoles] = useState<RoleListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -147,10 +145,10 @@ export function UsersManagementView() {
         <div>
           <Typography type="h2" className="text-2xl font-extrabold tracking-tight flex items-center gap-2 font-display">
             <Users className="text-accent" size={24} />
-            {t('dashboard-admin:users.title')}
+            User Account Directory
           </Typography>
           <Typography type="body-sm" className="text-muted mt-1 font-outfit">
-            {t('dashboard-admin:users.subtitle')}
+            Manage user accounts, toggle access, adjust permissions, and track status.
           </Typography>
         </div>
         <button
@@ -158,7 +156,7 @@ export function UsersManagementView() {
           className="w-fit px-4 py-2.5 bg-foreground text-background rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-foreground/90 transition-all select-none cursor-pointer"
         >
           <RotateCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-          {t('dashboard-admin:users.syncRecords')}
+          Sync Records
         </button>
       </div>
 
@@ -169,7 +167,7 @@ export function UsersManagementView() {
             <Search size={16} className="absolute left-3 top-3.5 text-muted" />
             <input
               type="text"
-              placeholder={t('dashboard-admin:users.searchPlaceholder')}
+              placeholder="Search users by name or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-surface/50 text-xs focus:outline-none focus:ring-2 focus:ring-focus/20"
@@ -183,12 +181,12 @@ export function UsersManagementView() {
                 setPage(1);
               }}
               options={[
-                { value: "", label: t('dashboard-admin:users.status.all') },
-                { value: "ACTIVE", label: t('dashboard-admin:users.status.active') },
-                { value: "SUSPENDED", label: t('dashboard-admin:users.status.suspended') },
-                { value: "BANNED", label: t('dashboard-admin:users.status.banned') },
+                { value: "", label: "All Statuses" },
+                { value: "ACTIVE", label: "Active" },
+                { value: "SUSPENDED", label: "Suspended" },
+                { value: "BANNED", label: "Banned" },
               ]}
-              placeholder={t('dashboard-admin:users.status.all')}
+              placeholder="All Statuses"
             />
           </div>
           <div>
@@ -199,10 +197,10 @@ export function UsersManagementView() {
                 setPage(1);
               }}
               options={[
-                { value: "", label: t('dashboard-admin:users.roles.all') },
+                { value: "", label: "All Roles" },
                 ...roles.map((r) => ({ value: r.name, label: r.displayName })),
               ]}
-              placeholder={t('dashboard-admin:users.roles.all')}
+              placeholder="All Roles"
             />
           </div>
         </div>
@@ -214,8 +212,8 @@ export function UsersManagementView() {
           <SkeletonLoader rows={6} columns={6} />
         ) : users.length === 0 ? (
           <EmptyState
-            title={t('dashboard-admin:users.empty.title')}
-            description={t('dashboard-admin:users.empty.description')}
+            title="No Users Found"
+            description="No accounts match your specified filter query."
           />
         ) : (
           <div className="overflow-x-auto">
@@ -223,12 +221,12 @@ export function UsersManagementView() {
               <Table.ScrollContainer>
                 <Table.Content aria-label="Users Directory Content">
                   <Table.Header>
-                    <Table.Column isRowHeader className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.fullName')}</Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.email')}</Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.status')}</Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted hidden sm:table-cell">{t('dashboard-admin:users.table.roles')}</Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-center text-muted hidden md:table-cell">{t('dashboard-admin:users.table.session')}</Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-right text-muted">{t('dashboard-admin:users.table.actions')}</Table.Column>
+                    <Table.Column isRowHeader className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">Full Name</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">Email Address</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">Status</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted hidden sm:table-cell">Assigned Roles</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-center text-muted hidden md:table-cell">Session V</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-right text-muted">Actions</Table.Column>
                   </Table.Header>
                   <Table.Body>
                     {users.map((u) => (
@@ -261,7 +259,7 @@ export function UsersManagementView() {
                             actions={[
                               {
                                 id: 'edit',
-                                label: t('dashboard-admin:users.table.adjust'),
+                                label: "Adjust Settings",
                                 icon: Edit2,
                                 onSelect: () => handleEditClick(u),
                               }
@@ -294,7 +292,7 @@ export function UsersManagementView() {
       <DialogModal
         isOpen={isEditOpen}
         onOpenChange={setIsEditOpen}
-        title={t('dashboard-admin:users.modal.title')}
+        title="Adjust User Parameters"
         size="md"
         footer={
           <>
@@ -303,7 +301,7 @@ export function UsersManagementView() {
               disabled={isSaving}
               className="px-4 py-2 border border-border rounded-xl font-bold text-xs hover:bg-surface-secondary disabled:opacity-50 select-none cursor-pointer transition-colors"
             >
-              {t('dashboard-admin:users.modal.cancel')}
+              Cancel
             </button>
             <button
               onClick={handleSaveUser}
@@ -311,7 +309,7 @@ export function UsersManagementView() {
               className="px-4 py-2 bg-accent text-accent-foreground hover:bg-accent/90 font-bold rounded-xl text-xs hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 select-none cursor-pointer transition-colors"
             >
               {isSaving && <Spinner size="sm" color="accent" />}
-              {t('dashboard-admin:users.modal.apply')}
+              Apply Changes
             </button>
           </>
         }
@@ -319,20 +317,20 @@ export function UsersManagementView() {
         <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 text-warning flex gap-3 text-xs leading-relaxed select-none">
           <AlertCircle size={18} className="shrink-0 text-warning mt-0.5" />
           <div>
-            <span className="font-extrabold block mb-0.5">{t('dashboard-admin:users.modal.warningTitle')}</span>
-            {t('dashboard-admin:users.modal.warningDesc')}
+            <span className="font-extrabold block mb-0.5">Operational Precaution Warning</span>
+            Modifying roles or status values may immediately terminate active sessions. Proceed with caution.
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted">{t('dashboard-admin:users.modal.targetDetails')}</label>
+          <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted">Target Account Details</label>
           <div className="p-3.5 rounded-xl border border-border bg-surface-secondary text-xs font-medium space-y-1">
             <div className="flex justify-between">
-              <span className="text-muted">{t('dashboard-admin:users.modal.name')}</span>
+              <span className="text-muted">Name</span>
               <span className="font-bold text-foreground">{selectedUser?.fullName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted">{t('dashboard-admin:users.modal.email')}</span>
+              <span className="text-muted">Email</span>
               <span className="font-mono font-bold text-foreground">{selectedUser?.email}</span>
             </div>
           </div>
@@ -343,16 +341,16 @@ export function UsersManagementView() {
             value={editStatus}
             onChange={(val) => setEditStatus(val)}
             options={[
-              { value: "ACTIVE", label: t('dashboard-admin:users.modal.statusOptions.active') },
-              { value: "SUSPENDED", label: t('dashboard-admin:users.modal.statusOptions.suspended') },
-              { value: "BANNED", label: t('dashboard-admin:users.modal.statusOptions.banned') },
+              { value: "ACTIVE", label: "Active" },
+              { value: "SUSPENDED", label: "Suspended" },
+              { value: "BANNED", label: "Banned" },
             ]}
-            label={t('dashboard-admin:users.modal.statusLabel')}
+            label="Account Status"
           />
         </div>
 
         <div className="space-y-2.5">
-          <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted">{t('dashboard-admin:users.modal.rolesLabel')}</label>
+          <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted">Roles Hierarchy</label>
           <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
             {roles.map((role) => {
               const isChecked = editRoles.includes(role.name);

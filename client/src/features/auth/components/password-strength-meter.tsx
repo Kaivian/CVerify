@@ -1,7 +1,6 @@
 "use client";
 
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   evaluatePasswordStrength,
   passwordPoliciesRegistry,
@@ -19,8 +18,6 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({
   policyId = 'default',
   className = ''
 }) => {
-  const { t } = useTranslation(['auth']);
-
   if (!value) {
     return null;
   }
@@ -35,22 +32,22 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({
 
   switch (evaluation.level) {
     case 'weak':
-      strengthLabel = t('auth:passwordStrength.weak', { defaultValue: 'Weak (Insecure)' });
+      strengthLabel = 'Weak (Insecure)';
       colorClass = 'bg-danger';
       textColorClass = 'text-danger';
       break;
     case 'fair':
-      strengthLabel = t('auth:passwordStrength.fair', { defaultValue: 'Fair' });
+      strengthLabel = 'Fair';
       colorClass = 'bg-warning';
       textColorClass = 'text-warning';
       break;
     case 'strong':
-      strengthLabel = t('auth:passwordStrength.strong', { defaultValue: 'Strong' });
+      strengthLabel = 'Strong';
       colorClass = 'bg-success/80';
       textColorClass = 'text-success/80';
       break;
     case 'excellent':
-      strengthLabel = t('auth:passwordStrength.excellent', { defaultValue: 'Very Strong & Secure' });
+      strengthLabel = 'Very Strong & Secure';
       colorClass = 'bg-success';
       textColorClass = 'text-success';
       break;
@@ -66,7 +63,7 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({
       {/* Visual Header */}
       <div className="flex justify-between items-center text-xs">
         <span className="text-muted text-[11px] font-medium font-sans">
-          {t('auth:passwordStrength.label', { defaultValue: 'Security Strength' })}
+          Password strength:
         </span>
         <span className={`font-bold text-[11px] transition-colors duration-200 ${textColorClass}`}>
           {strengthLabel}
@@ -99,7 +96,7 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({
                 }`}
             >
               <span className="font-mono">{passed ? '✓' : '○'}</span>
-              <span>{t(rule.labelKey, { defaultValue: rule.defaultLabel })}</span>
+              <span>{rule.defaultLabel}</span>
             </span>
           );
         })}

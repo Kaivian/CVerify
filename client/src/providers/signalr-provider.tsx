@@ -7,9 +7,60 @@ import { useNotificationStore } from '../stores/use-notification-store';
 import { type NotificationItem } from '../types/notifications.types';
 import { NotificationHub as ClientToastHub } from '../infrastructure/notifications/orchestrator';
 import { API_URL } from '../infrastructure/http/axios-client';
-import i18n from '../lib/i18n';
 
 const SignalRContext = createContext<HubConnection | null>(null);
+
+const NOTIFICATION_TYPES: Record<string, string> = {
+  MEMBER_INVITED: "New Member Invited",
+  MEMBER_JOINED: "Member Joined",
+  MEMBER_LEFT: "Member Left",
+  MEMBER_REMOVED: "Member Removed",
+  MEMBER_SUSPENDED: "Member Suspended",
+  MEMBER_ACTIVATED: "Member Activated",
+  ROLE_ASSIGNED: "Role Assigned",
+  ROLE_UPDATED: "Role Updated",
+  PROJECT_CREATED: "Project Created",
+  REPOSITORY_CONNECTED: "Repository Connected",
+  REPOSITORY_ANALYZED: "Repository Analysis Completed",
+  VERIFICATION_COMPLETED: "Verification Completed",
+  VERIFICATION_FAILED: "Verification Failed",
+  PASSWORD_CHANGED: "Security Alert: Password Changed",
+  IP_VERIFIED: "Security Alert: New IP Verified"
+};
+
+const getNotificationDescription = (type: string, actor: string, count: number): string => {
+  if (count > 1) {
+    switch (type) {
+      case 'MEMBER_JOINED':
+        return `${actor} and ${count - 1} others joined.`;
+      case 'MEMBER_LEFT':
+        return `${actor} and ${count - 1} others left.`;
+      default:
+        return `${actor} and ${count - 1} others performed this action.`;
+    }
+  } else {
+    switch (type) {
+      case 'MEMBER_JOINED':
+        return `${actor} joined the organization.`;
+      case 'MEMBER_LEFT':
+        return `${actor} left the organization.`;
+      case 'MEMBER_INVITED':
+        return `${actor} invited a new member.`;
+      case 'ROLE_ASSIGNED':
+        return `Role was assigned to ${actor}.`;
+      case 'VERIFICATION_COMPLETED':
+        return "Verification for organization completed successfully.";
+      case 'VERIFICATION_FAILED':
+        return "Verification for organization failed.";
+      case 'PASSWORD_CHANGED':
+        return "Your password was recently changed. If this wasn't you, please secure your account.";
+      case 'IP_VERIFIED':
+        return "A new IP address was successfully verified for your account.";
+      default:
+        return `${actor} performed this action.`;
+    }
+  }
+};
 
 export function SignalRProvider({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -66,9 +117,7 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Translate Title
-        const title = i18n.t(`notifications:types.${item.notificationType}`, {
-          defaultValue: item.notificationType.replace(/_/g, ' ')
-        });
+        const title = NOTIFICATION_TYPES[item.notificationType] || item.notificationType.replace(/_/g, ' ');
 
         // Translate Description
         let description = '';
@@ -76,21 +125,7 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
         const count = item.payload?.count || 1;
 
         if (item.payload) {
-          if (count > 1) {
-            description = i18n.t(`notifications:messages.${item.notificationType}_multiple`, {
-              actor: actorName,
-              count: count - 1,
-              defaultValue: `${actorName} and ${count - 1} others performed this action.`
-            });
-          } else {
-            description = i18n.t(`notifications:messages.${item.notificationType}_single`, {
-              actor: actorName,
-              defaultValue: i18n.t(`notifications:messages.${item.notificationType}`, {
-                actor: actorName,
-                defaultValue: `${actorName} performed this action.`
-              })
-            });
-          }
+          description = getNotificationDescription(item.notificationType, actorName, count);
         }
 
         // Trigger local toast notification

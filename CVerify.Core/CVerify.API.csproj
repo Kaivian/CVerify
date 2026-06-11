@@ -88,12 +88,11 @@
         </None>
     </ItemGroup>
 
-    <!-- Exclude test projects from compilation in the main Web API project -->
+    <!-- Exclude test and test-build folders from compilation in the main Web API project -->
     <ItemGroup>
-        <Compile Remove="tests\**" />
-        <Content Remove="tests\**" />
-        <EmbeddedResource Remove="tests\**" />
-        <None Remove="tests\**" />
+        <Compile Remove="tests\**;obj_test\**;bin_test\**" />
+        <Content Remove="tests\**;obj_test\**;bin_test\**" />
+        <EmbeddedResource Remove="tests\**;obj_test\**;bin_test\**" />
+        <None Remove="tests\**;obj_test\**;bin_test\**" />
     </ItemGroup>
-
 </Project>

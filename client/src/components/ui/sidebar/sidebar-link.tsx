@@ -2,7 +2,6 @@
 
 import React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useTranslation } from "react-i18next";
 import { Tooltip } from "@heroui/react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
 import { isActiveRoute } from "../../../lib/navigation-utils";
@@ -23,16 +22,12 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
 }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { t } = useTranslation(["common"]);
   const { setMobileOpen } = useSidebarStore();
 
   const active = isActiveRoute(pathname, item.href, item.exactMatch);
   const Icon = item.icon;
 
-  // Localized label with fallback
-  const label = item.translationKey
-    ? t(item.translationKey, { defaultValue: item.label })
-    : item.label;
+  const label = item.label;
 
   // Badge styles
   const getBadgeClass = (color = "default") => {

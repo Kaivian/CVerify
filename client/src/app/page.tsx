@@ -6,12 +6,10 @@ import Link from 'next/link';
 import { Card } from '../components/ui/card';
 import { useAuth } from '../features/auth/hooks/use-auth';
 import { AuthAvatar } from '../components/ui/auth-avatar';
-import { useTranslation } from 'react-i18next';
 import { Typography } from '@heroui/react';
 
 export default function Home() {
   const { isAuthenticated, user } = useAuth();
-  const { t } = useTranslation(['common']);
 
   return (
     <div className="dark relative min-h-screen w-full bg-background text-foreground flex flex-col justify-between overflow-hidden">
@@ -30,7 +28,7 @@ export default function Home() {
             <Compass size={20} />
           </div>
           <Typography type="body-sm" className="font-extrabold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-foreground to-muted">
-            {t('common:branding.title')}
+            CVerify
           </Typography>
         </div>
 
@@ -38,18 +36,18 @@ export default function Home() {
           {isAuthenticated ? (
             <div className="flex items-center gap-4">
               <Link href={`/${user?.role?.toLowerCase() || 'user'}`} className="text-sm font-semibold text-muted hover:text-foreground transition-colors">
-                {t('common:navigation.dashboard')}
+                Dashboard
               </Link>
               <AuthAvatar />
             </div>
           ) : (
             <>
               <Link href="/login" className="text-sm font-semibold text-muted hover:text-foreground transition-colors">
-                {t('common:navigation.login')}
+                Sign In
               </Link>
               <Link href="/register">
                 <button className="px-4 py-2 rounded-xl text-xs font-bold bg-foreground text-background hover:opacity-90 transition-all select-none cursor-pointer">
-                  {t('common:navigation.register')}
+                  Sign Up
                 </button>
               </Link>
             </>
@@ -64,31 +62,31 @@ export default function Home() {
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-surface-secondary/40 border border-border/60 text-muted backdrop-blur-md select-none">
           <Sparkles size={12} className="text-indigo-400 fill-indigo-400" />
           <Typography type="body-xs" className="text-foreground/80">
-            {t('common:landing.liveBadge')}
+            Production-grade AuthN & AuthZ Module Live
           </Typography>
         </div>
 
         {/* Headline */}
         <Typography type="h1" className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] bg-linear-to-b from-foreground via-foreground/90 to-muted bg-clip-text text-transparent">
-          {t('common:landing.headline')}
+          Decoupled Role-Based Security for modern TravelTech.
         </Typography>
 
         {/* Supporting description */}
         <Typography type="body-sm" className="max-w-2xl text-muted leading-relaxed font-light select-none">
-          {t('common:landing.description')}
+          CVerify AI integrates Zustand state hydration, edge JWT cryptography, anti-CSRF protections, Broadcast session syncing, and inactivity warning locks.
         </Typography>
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 pt-4 select-none w-full max-w-md justify-center">
           <Link href={isAuthenticated ? `/${user?.role?.toLowerCase() || 'user'}` : "/user"} className="w-full sm:w-auto">
             <button className="w-full sm:w-[200px] h-12 rounded-xl text-sm font-bold bg-foreground text-background hover:opacity-90 transition-all flex items-center justify-center gap-2 group shadow-[0_4px_20px_rgba(255,255,255,0.06)] border border-border/20 cursor-pointer">
-              {t('common:landing.enterHub')}
+              Enter Traveler Hub
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
             </button>
           </Link>
           <Link href={isAuthenticated ? `/${user?.role?.toLowerCase() || 'user'}` : "/login"} className="w-full sm:w-auto">
             <button className="w-full sm:w-[200px] h-12 rounded-xl text-sm font-bold bg-surface-secondary/30 hover:bg-surface-secondary/50 transition-all border border-border/40 text-foreground backdrop-blur-sm flex items-center justify-center gap-2 cursor-pointer">
-              {isAuthenticated ? t('common:landing.goConsole') : t('common:landing.accessConsole')}
+              {isAuthenticated ? "Go to Console" : "Access Console"}
             </button>
           </Link>
         </div>
@@ -103,10 +101,10 @@ export default function Home() {
               <User size={20} />
             </div>
             <Typography type="h3" className="font-bold mb-1.5 text-foreground">
-              {t('common:landing.roles.userTitle')}
+              Traveler (USER)
             </Typography>
             <Typography type="body-xs" className="text-muted leading-relaxed">
-              {t('common:landing.roles.userDesc')}
+              Standard traveler dashboard giving full access to planning, searching prompts, and reviewing personal travel history details.
             </Typography>
           </Card>
 
@@ -115,10 +113,10 @@ export default function Home() {
               <Building2 size={20} />
             </div>
             <Typography type="h3" className="font-bold mb-1.5 text-foreground">
-              {t('common:landing.roles.businessTitle')}
+              Service Partner (BUSINESS)
             </Typography>
             <Typography type="body-xs" className="text-muted leading-relaxed">
-              {t('common:landing.roles.businessDesc')}
+              Partner dashboard to manage hotel packages, list excursions, and evaluate incoming travelers reservation revenue pools.
             </Typography>
           </Card>
 
@@ -127,10 +125,10 @@ export default function Home() {
               <ShieldAlert size={20} />
             </div>
             <Typography type="h3" className="font-bold mb-1.5 text-foreground">
-              {t('common:landing.roles.adminTitle')}
+              System Admin (ADMIN)
             </Typography>
             <Typography type="body-xs" className="text-muted leading-relaxed">
-              {t('common:landing.roles.adminDesc')}
+              Global system control dashboard offering server health diagnostic analytics, account registries, and direct API lock gates.
             </Typography>
           </Card>
         </div>
@@ -139,7 +137,7 @@ export default function Home() {
       {/* 5. Minimalist footer */}
       <footer className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 border-t border-border/20 text-center text-xs text-muted/60 select-none">
         <Typography type="body-xs" className="text-muted/60">
-          {t('common:landing.footerNote')}
+          CVerify AI Auth Portal Integration. Verified for Next.js 16 + HeroUI v3 + Tailwind v4.
         </Typography>
       </footer>
     </div>

@@ -529,58 +529,73 @@ export const CareerTab: React.FC<CareerTabProps> = ({
               </div>
 
               {career.aiInferredPreferences ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
-                  <div className="flex flex-col bg-surface-secondary/10 border border-border/40 p-4 rounded-xl justify-center">
-                    <span className="text-[10px] text-muted uppercase font-bold tracking-wider">
-                      Primary Role & Seniority
-                    </span>
-                    <span className="text-sm font-bold mt-1">
-                      {career.aiInferredPreferences.inferredSeniority || "Unknown"}{" "}
-                      {career.aiInferredPreferences.inferredPrimaryRole || "Not analyzed"}
-                    </span>
+                <div className="flex flex-col gap-4 flex-1">
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    <Chip size="sm" variant="soft" color="success" className="font-bold text-[9px] uppercase">
+                      Repository skill evidence available
+                    </Chip>
+                    <Chip size="sm" variant="soft" color="success" className="font-bold text-[9px] uppercase">
+                      Skills detected from analyzed repositories
+                    </Chip>
+                    <Chip size="sm" variant="soft" color="default" className="font-bold text-[9px] uppercase">
+                      No AI career match score available yet
+                    </Chip>
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex flex-col bg-surface-secondary/10 border border-border/40 p-4 rounded-xl justify-center text-left">
+                      <span className="text-[10px] text-muted uppercase font-bold tracking-wider">
+                        Primary Role & Seniority
+                      </span>
+                      <span className="text-sm font-bold mt-1 text-foreground">
+                        {career.aiInferredPreferences.inferredSeniority || "Unknown"}{" "}
+                        {career.aiInferredPreferences.inferredPrimaryRole || "Not analyzed"}
+                      </span>
+                    </div>
 
-                  <div className="flex flex-col bg-surface-secondary/10 border border-border/40 p-4 rounded-xl justify-center">
-                    <span className="text-[10px] text-muted uppercase font-bold tracking-wider">
-                      Market Value Range
-                    </span>
-                    <span className="text-sm font-bold mt-1">
-                      {career.aiInferredPreferences.inferredSalaryMin ? (
-                        `${career.aiInferredPreferences.inferredSalaryMin.toLocaleString()} - ${career.aiInferredPreferences.inferredSalaryMax?.toLocaleString()} ${career.aiInferredPreferences.inferredSalaryCurrency}`
-                      ) : (
-                        "Insufficient data"
-                      )}
-                    </span>
-                  </div>
+                    <div className="flex flex-col bg-surface-secondary/10 border border-border/40 p-4 rounded-xl justify-center text-left">
+                      <span className="text-[10px] text-muted uppercase font-bold tracking-wider">
+                        Market Value Range
+                      </span>
+                      <span className="text-sm font-bold mt-1 text-foreground">
+                        {career.aiInferredPreferences.inferredSalaryMin ? (
+                          `${career.aiInferredPreferences.inferredSalaryMin.toLocaleString()} - ${career.aiInferredPreferences.inferredSalaryMax?.toLocaleString()} ${career.aiInferredPreferences.inferredSalaryCurrency}`
+                        ) : (
+                          "Insufficient data"
+                        )}
+                      </span>
+                    </div>
 
-                  <div className="flex flex-col bg-surface-secondary/10 border border-border/40 p-4 rounded-xl sm:col-span-2 justify-center">
-                    <span className="text-[10px] text-muted uppercase font-bold tracking-wider">
-                      Inferred Skill Core
-                    </span>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {career.aiInferredPreferences.inferredSkills &&
-                        career.aiInferredPreferences.inferredSkills.length > 0 ? (
-                        career.aiInferredPreferences.inferredSkills.map((s) => (
-                          <Chip
-                            key={s}
-                            size="sm"
-                            variant="soft"
-                            color="default"
-                            className="text-[11px] font-bold"
-                          >
-                            {s}
-                          </Chip>
-                        ))
-                      ) : (
-                        <span className="text-xs text-muted">No skills inferred</span>
-                      )}
+                    <div className="flex flex-col bg-surface-secondary/10 border border-border/40 p-4 rounded-xl sm:col-span-2 justify-center text-left">
+                      <span className="text-[10px] text-muted uppercase font-bold tracking-wider">
+                        Inferred Skill Core
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {career.aiInferredPreferences.inferredSkills &&
+                          career.aiInferredPreferences.inferredSkills.length > 0 ? (
+                          career.aiInferredPreferences.inferredSkills.map((s) => (
+                            <Chip
+                              key={s}
+                              size="sm"
+                              variant="soft"
+                              color="default"
+                              className="text-[11px] font-bold"
+                            >
+                              {s}
+                            </Chip>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted">No skills inferred</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-muted py-4 flex-1 flex items-center justify-center">
-                  AI analysis has not run yet or did not generate preferences. Link source code
-                  repositories to generate.
+                <div className="text-xs text-muted py-4 flex-1 flex flex-col items-center justify-center gap-2">
+                  <span className="font-semibold text-foreground">No repository analysis available yet</span>
+                  <span className="text-[11px] text-center max-w-[280px]">
+                    Analyze a repository to generate AI-based trust and skill evidence. AI-based score will appear after repository analysis.
+                  </span>
                 </div>
               )}
             </Card>
