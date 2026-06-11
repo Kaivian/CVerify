@@ -99,21 +99,20 @@ public class AdminAuthorizationService : IAdminAuthorizationService
             WITH RECURSIVE recursive_hierarchy AS (
                 -- Anchor: Get directly assigned roles
                 SELECT ra.role_id, 0 AS depth
-                FROM admin_role_assignments ra
-                JOIN admin_members am ON ra.admin_member_id = am.id
-                WHERE am.user_id = @UserId AND am.status = 'Active'
+                FROM role_assignments ra
+                WHERE ra.user_id = @UserId AND ra.scope_type = 'SYSTEM'
 
                 UNION ALL
 
                 -- Recursive step: Follow parent relationships (capped at depth 1)
                 SELECT r.parent_role_id, rh.depth + 1
-                FROM admin_roles r
+                FROM roles r
                 JOIN recursive_hierarchy rh ON r.id = rh.role_id
                 WHERE r.parent_role_id IS NOT NULL AND rh.depth < 1
             )
             SELECT DISTINCT p.name
             FROM recursive_hierarchy rh
-            JOIN admin_role_permissions rp ON rh.role_id = rp.role_id
+            JOIN role_permissions rp ON rh.role_id = rp.role_id
             JOIN permissions p ON rp.permission_id = p.id";
 
         var db = _context.Database.GetDbConnection();

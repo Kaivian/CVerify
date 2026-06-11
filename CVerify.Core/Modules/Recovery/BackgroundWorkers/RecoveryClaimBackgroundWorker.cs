@@ -51,7 +51,6 @@ public class RecoveryClaimBackgroundWorker : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var claims = await context.OrganizationRecoveryClaims
-            .Include(c => c.Documents)
             .Include(c => c.Organization)
             .Where(c => c.Status == "Pending")
             .ToListAsync(stoppingToken);
@@ -113,8 +112,13 @@ public class RecoveryClaimBackgroundWorker : BackgroundService
             doc.OcrResultText = $"COMPLETED METADATA VERIFICATION. CERTIFICATE OF INCORPORATION. Company Name: {claim.Organization.Name}. Tax MST: {claim.Organization.TaxCode}. Representative: {claim.RepresentativeFullName}.";
             
             // Mock duplicate detection (check if another claim has a doc with identical file name or path)
-            var isDuplicate = await context.RecoveryClaimDocuments
-                .AnyAsync(d => d.Id != doc.Id && d.FileName == doc.FileName && d.CreatedAt < doc.CreatedAt, stoppingToken);
+            var searchJson = $"[{{\"file_name\":\"{doc.FileName}\"}}]";
+            var isDuplicate = await context.Database
+                .SqlQueryRaw<bool>(
+                    "SELECT EXISTS(SELECT 1 FROM organization_recovery_claims WHERE id != {0} AND documents @> {1}::jsonb) AS \"Value\"",
+                    claim.Id,
+                    searchJson)
+                .FirstOrDefaultAsync(stoppingToken);
             if (isDuplicate)
             {
                 hasDuplicateDoc = true;

@@ -66,7 +66,6 @@ public class PasswordRecoveryService : IPasswordRecoveryService
 
         // 2. Query user to determine event log type
         var user = await _context.Users
-            .Include(u => u.PasswordCredentials)
             .FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken);
 
         var hasPassword = user != null && !string.IsNullOrEmpty(user.PasswordHash);
@@ -158,7 +157,6 @@ public class PasswordRecoveryService : IPasswordRecoveryService
 
         // 5. Retrieve user with historical credentials
         var user = await _context.Users
-            .Include(u => u.PasswordCredentials)
             .FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken);
 
         if (user == null)
@@ -167,12 +165,7 @@ public class PasswordRecoveryService : IPasswordRecoveryService
         }
 
         // 6. Prevent reuse of current password
-        var activeCred = user.PasswordCredentials
-            .Where(pc => pc.IsActive && pc.DeletedAt == null)
-            .OrderByDescending(pc => pc.CreatedAt)
-            .FirstOrDefault();
-
-        string? currentPasswordHash = activeCred?.PasswordHash ?? user.PasswordHash;
+        string? currentPasswordHash = user.PasswordHash;
 
         if (!string.IsNullOrEmpty(currentPasswordHash) && VerifyPassword(user, currentPasswordHash, newPassword))
         {
@@ -181,7 +174,7 @@ public class PasswordRecoveryService : IPasswordRecoveryService
         }
 
         // Concurrency Guard against parallel provisioning or changes (Race condition protection)
-        if (activeCred != null && activeCred.CreatedAt > verification.CreatedAt)
+        if (user.PasswordChangedAt.HasValue && user.PasswordChangedAt.Value > verification.CreatedAt)
         {
             await LogAuditEventAsync(user.Id, "PASSWORD_SETUP_CONCURRENT_BLOCKED", "Password setup/recovery aborted. Credentials concurrently updated by another session.");
             throw new AuthException(AuthErrorCodes.ConcurrencyConflict, "Password was concurrently configured or changed by another session.");
@@ -192,29 +185,8 @@ public class PasswordRecoveryService : IPasswordRecoveryService
         // 7. Update password
         var newHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
         user.PasswordHash = newHash;
+        user.PasswordChangedAt = _timeProvider.GetUtcNow();
         user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-
-        // Deactivate older active credentials
-        foreach (var cred in user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null))
-        {
-            cred.IsActive = false;
-            cred.RevokedAt = _timeProvider.GetUtcNow();
-            cred.RevokedReason = "PASSWORD_CHANGED";
-            cred.UpdatedAt = _timeProvider.GetUtcNow();
-        }
-
-        // Add new active credential
-        var newCred = new PasswordCredential
-        {
-            Id = Guid.CreateVersion7(),
-            UserId = user.Id,
-            PasswordHash = newHash,
-            IsActive = true,
-            PasswordChangedAt = _timeProvider.GetUtcNow(),
-            CreatedAt = _timeProvider.GetUtcNow(),
-            UpdatedAt = _timeProvider.GetUtcNow()
-        };
-        _context.PasswordCredentials.Add(newCred);
 
         // 8. Session-Management Invalidation
         if (hasPasswordPrior)

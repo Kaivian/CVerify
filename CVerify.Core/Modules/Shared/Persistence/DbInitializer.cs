@@ -102,6 +102,11 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS reset_password_tokens CASCADE;
                 DROP TABLE IF EXISTS verification_tokens CASCADE;
                 DROP TABLE IF EXISTS refresh_tokens CASCADE;
+                DROP TABLE IF EXISTS role_assignments CASCADE;
+                DROP TABLE IF EXISTS organization_role_assignments CASCADE;
+                DROP TABLE IF EXISTS organization_role_permissions CASCADE;
+                DROP TABLE IF EXISTS organization_business_roles CASCADE;
+                DROP TABLE IF EXISTS business_permissions CASCADE;
                 DROP TABLE IF EXISTS role_permissions CASCADE;
                 DROP TABLE IF EXISTS permissions CASCADE;
                 DROP TABLE IF EXISTS user_roles CASCADE;
@@ -112,7 +117,6 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS organization_memberships CASCADE;
                 DROP TABLE IF EXISTS organization_members CASCADE;
                 DROP TABLE IF EXISTS organizations CASCADE;
-                DROP TABLE IF EXISTS password_credentials CASCADE;
                 DROP TABLE IF EXISTS pending_auth_providers CASCADE;
                 DROP TABLE IF EXISTS auth_providers CASCADE;
                 DROP TABLE IF EXISTS user_emails CASCADE;
@@ -157,13 +161,16 @@ public static class DbInitializer
             -- Safely provision columns to existing tables for backward-compatibility prior to table/index definition
             DO $$
             BEGIN
-                -- If users exists but lacks username/last_username_change_at, add them
+                -- If users exists but lacks username/last_username_change_at/version, add them
                 IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'username') THEN
                         ALTER TABLE users ADD COLUMN username CITEXT;
                     END IF;
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'last_username_change_at') THEN
                         ALTER TABLE users ADD COLUMN last_username_change_at TIMESTAMP WITH TIME ZONE;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'version') THEN
+                        ALTER TABLE users ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
                     END IF;
                 END IF;
 
@@ -215,18 +222,204 @@ public static class DbInitializer
                 END IF;
             END $$;
 
+            -- Migrate and clean up legacy database tables and columns
+            DO $$
+            BEGIN
+                -- 1. Migrate user_emails to users.linked_emails
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_emails') THEN
+                    -- Ensure users table has linked_emails column
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'linked_emails') THEN
+                        ALTER TABLE users ADD COLUMN linked_emails JSONB;
+                    END IF;
+                    
+                    -- Migrate data by aggregating emails per user
+                    UPDATE users u
+                    SET linked_emails = (
+                        SELECT json_agg(json_build_object(
+                            'Id', ue.id,
+                            'Email', ue.email,
+                            'IsVerified', ue.is_verified,
+                            'VerifiedAt', ue.verified_at,
+                            'CreatedAt', ue.created_at
+                        ))
+                        FROM user_emails ue
+                        WHERE ue.user_id = u.id
+                    )
+                    WHERE EXISTS (SELECT 1 FROM user_emails ue WHERE ue.user_id = u.id);
+                    
+                    -- Drop user_emails table
+                    DROP TABLE user_emails CASCADE;
+                END IF;
+
+                -- 2. Migrate social_links to user_profiles.social_links
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'social_links') THEN
+                    -- Ensure user_profiles table has social_links column
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user_profiles' AND column_name = 'social_links') THEN
+                        ALTER TABLE user_profiles ADD COLUMN social_links VARCHAR(255)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    END IF;
+                    
+                    -- Migrate data by aggregating urls per user
+                    UPDATE user_profiles up
+                    SET social_links = (
+                        SELECT array_agg(sl.url)
+                        FROM social_links sl
+                        WHERE sl.user_id = up.user_id
+                        GROUP BY sl.user_id
+                    )
+                    WHERE EXISTS (SELECT 1 FROM social_links sl WHERE sl.user_id = up.user_id);
+                    
+                    -- Drop social_links table
+                    DROP TABLE social_links CASCADE;
+                END IF;
+
+                -- 3. Migrate user_preferred_locations to career_preferences.preferred_locations
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_preferred_locations') THEN
+                    -- Ensure career_preferences has preferred_locations column
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'preferred_locations') THEN
+                        ALTER TABLE career_preferences ADD COLUMN preferred_locations VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    END IF;
+                    
+                    -- Migrate data
+                    UPDATE career_preferences cp
+                    SET preferred_locations = (
+                        SELECT array_agg(upl.location)
+                        FROM user_preferred_locations upl
+                        WHERE upl.user_id = cp.user_id
+                        GROUP BY upl.user_id
+                    )
+                    WHERE EXISTS (SELECT 1 FROM user_preferred_locations upl WHERE upl.user_id = cp.user_id);
+                    
+                    -- Drop user_preferred_locations table
+                    DROP TABLE user_preferred_locations CASCADE;
+                END IF;
+
+                -- 4. Migrate user_employment_preferences to career_preferences.employment_preferences
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_employment_preferences') THEN
+                    -- Ensure career_preferences has employment_preferences column
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'career_preferences' AND column_name = 'employment_preferences') THEN
+                        ALTER TABLE career_preferences ADD COLUMN employment_preferences VARCHAR(50)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+                    END IF;
+                    
+                    -- Migrate data
+                    UPDATE career_preferences cp
+                    SET employment_preferences = (
+                        SELECT array_agg(uep.preference_name)
+                        FROM user_employment_preferences uep
+                        WHERE uep.user_id = cp.user_id
+                        GROUP BY uep.user_id
+                    )
+                    WHERE EXISTS (SELECT 1 FROM user_employment_preferences uep WHERE uep.user_id = cp.user_id);
+                    
+                    -- Drop user_employment_preferences table
+                    DROP TABLE user_employment_preferences CASCADE;
+                END IF;
+
+                -- 5. Migrate recovery_claim_documents to organization_recovery_claims.documents
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'recovery_claim_documents') THEN
+                    -- Ensure organization_recovery_claims has documents column
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organization_recovery_claims' AND column_name = 'documents') THEN
+                        ALTER TABLE organization_recovery_claims ADD COLUMN documents JSONB;
+                    END IF;
+                    
+                    -- Migrate data
+                    UPDATE organization_recovery_claims orc
+                    SET documents = (
+                        SELECT json_agg(json_build_object(
+                            'Id', rcd.id,
+                            'StoragePath', rcd.storage_path,
+                            'FileName', rcd.file_name,
+                            'ContentType', rcd.content_type,
+                            'EncryptionIv', rcd.encryption_iv,
+                            'OcrResultText', rcd.ocr_result_text,
+                            'VirusScanStatus', rcd.virus_scan_status,
+                            'RetentionExpiryDate', rcd.retention_expiry_date,
+                            'CreatedAt', rcd.created_at
+                        ))
+                        FROM recovery_claim_documents rcd
+                        WHERE rcd.recovery_claim_id = orc.id
+                    )
+                    WHERE EXISTS (SELECT 1 FROM recovery_claim_documents rcd WHERE rcd.recovery_claim_id = orc.id);
+                    
+                    -- Drop recovery_claim_documents table
+                    DROP TABLE recovery_claim_documents CASCADE;
+                END IF;
+
+                -- 6. Ensure audit_logs has the unified columns before migrating other logs
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_logs') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'actor_user_id') THEN
+                        ALTER TABLE audit_logs ADD COLUMN actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'target_user_id') THEN
+                        ALTER TABLE audit_logs ADD COLUMN target_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'organization_id') THEN
+                        ALTER TABLE audit_logs ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'target_role_name') THEN
+                        ALTER TABLE audit_logs ADD COLUMN target_role_name VARCHAR(50);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'scope_type') THEN
+                        ALTER TABLE audit_logs ADD COLUMN scope_type VARCHAR(30);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'scope_id') THEN
+                        ALTER TABLE audit_logs ADD COLUMN scope_id UUID;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'details_json') THEN
+                        ALTER TABLE audit_logs ADD COLUMN details_json JSONB;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'old_state_json') THEN
+                        ALTER TABLE audit_logs ADD COLUMN old_state_json JSONB;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'new_state_json') THEN
+                        ALTER TABLE audit_logs ADD COLUMN new_state_json JSONB;
+                    END IF;
+                END IF;
+
+                -- 7. Migrate profile_activity_logs to audit_logs
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profile_activity_logs') THEN
+                    INSERT INTO audit_logs (id, user_id, event_type, description, ip_address, user_agent, old_state_json, new_state_json, created_at)
+                    SELECT id, user_id, action_type, 'Profile activity log: ' || action_type, ip_address, user_agent, old_state_json::jsonb, new_state_json::jsonb, created_at
+                    FROM profile_activity_logs;
+                    
+                    DROP TABLE profile_activity_logs CASCADE;
+                END IF;
+
+                -- 8. Migrate admin_audit_logs to audit_logs
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'admin_audit_logs') THEN
+                    INSERT INTO audit_logs (id, actor_user_id, event_type, description, target_role_name, target_user_id, details_json, created_at)
+                    SELECT id, actor_user_id, action, 'Admin action: ' || action, target_role_name, target_user_id, details_json, timestamp
+                    FROM admin_audit_logs;
+                    
+                    DROP TABLE admin_audit_logs CASCADE;
+                END IF;
+
+                -- 9. Migrate business_role_audit_logs to audit_logs
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'business_role_audit_logs') THEN
+                    INSERT INTO audit_logs (id, organization_id, actor_user_id, event_type, description, target_role_name, target_user_id, scope_type, scope_id, details_json, created_at)
+                    SELECT id, organization_id, actor_user_id, action, 'Business role action: ' || action, target_role_name, target_user_id, scope_type, scope_id, details_json, timestamp
+                    FROM business_role_audit_logs;
+                    
+                    DROP TABLE business_role_audit_logs CASCADE;
+                END IF;
+            END $$;
+
             -- Stores user roles for the Role-Based Access Control (RBAC) system
             CREATE TABLE IF NOT EXISTS roles (
                 id UUID PRIMARY KEY,
-                name VARCHAR(50) NOT NULL UNIQUE,
+                name VARCHAR(50) NOT NULL,
                 display_name VARCHAR(100) NOT NULL,
                 description TEXT,
+                domain VARCHAR(30) NOT NULL DEFAULT 'SYSTEM',
+                tenant_id UUID NULL,
+                parent_role_id UUID NULL REFERENCES roles(id) ON DELETE RESTRICT,
                 is_system BOOLEAN NOT NULL DEFAULT FALSE,
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE
             );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_tenant_id_name ON roles(tenant_id, name);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_name_system ON roles(name) WHERE tenant_id IS NULL;
 
             -- Core table storing user credentials, profile data, and security logs
             CREATE TABLE IF NOT EXISTS users (
@@ -235,6 +428,7 @@ public static class DbInitializer
                 username CITEXT,
                 last_username_change_at TIMESTAMP WITH TIME ZONE,
                 password_hash TEXT,
+                password_changed_at TIMESTAMP WITH TIME ZONE,
                 full_name VARCHAR(255) NOT NULL,
                 avatar_url TEXT,
                 avatar_source INTEGER NOT NULL DEFAULT 0,
@@ -247,25 +441,14 @@ public static class DbInitializer
                 lock_until TIMESTAMP WITH TIME ZONE,
                 session_version INTEGER NOT NULL DEFAULT 1,
                 is_legal_hold BOOLEAN NOT NULL DEFAULT FALSE,
+                linked_emails JSONB,
+                version INTEGER NOT NULL DEFAULT 1,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_active ON users(email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');
             CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_active ON users(username) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');
-
-            -- Stores linked secondary emails
-            CREATE TABLE IF NOT EXISTS user_emails (
-                id UUID PRIMARY KEY,
-                user_id UUID NOT NULL,
-                email CITEXT NOT NULL,
-                is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-                verified_at TIMESTAMP WITH TIME ZONE,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_user_emails_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_emails_email_active ON user_emails(email);
-            CREATE INDEX IF NOT EXISTS idx_user_emails_lookup ON user_emails(email, is_verified);
 
             -- Stores authentication provider linkage information
             CREATE TABLE IF NOT EXISTS auth_providers (
@@ -282,6 +465,12 @@ public static class DbInitializer
                 last_successful_refresh_at TIMESTAMP WITH TIME ZONE,
                 refresh_failure_count INTEGER NOT NULL DEFAULT 0,
                 last_provider_sync_at TIMESTAMP WITH TIME ZONE,
+                sync_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+                sync_error TEXT,
+                encrypted_access_token VARCHAR(1000),
+                encrypted_refresh_token VARCHAR(1000),
+                expires_at TIMESTAMP WITH TIME ZONE,
+                token_updated_at TIMESTAMP WITH TIME ZONE,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE,
                 CONSTRAINT fk_auth_providers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -310,16 +499,6 @@ public static class DbInitializer
                 CONSTRAINT fk_pending_auth_providers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_pending_auth_providers_expiry ON pending_auth_providers(expires_at);
-
-            -- Stores encrypted OAuth credentials separated from provider metadata
-            CREATE TABLE IF NOT EXISTS oauth_credentials (
-                auth_provider_id UUID PRIMARY KEY,
-                encrypted_access_token VARCHAR(1000) NOT NULL,
-                encrypted_refresh_token VARCHAR(1000),
-                expires_at TIMESTAMP WITH TIME ZONE,
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_oauth_credentials_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
-            );
 
             -- Stores repositories associated with auth providers
             CREATE TABLE IF NOT EXISTS source_code_repositories (
@@ -369,21 +548,6 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_authenticity_type ON source_code_repositories(authenticity_type) WHERE authenticity_type IS NOT NULL;
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_latest_risk_score ON source_code_repositories(latest_risk_score);
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_latest_analysis_status ON source_code_repositories(latest_analysis_status);
-
-            -- Stores active/inactive historical password credentials to prevent reuse
-            CREATE TABLE IF NOT EXISTS password_credentials (
-                id UUID PRIMARY KEY,
-                user_id UUID NOT NULL,
-                password_hash TEXT NOT NULL,
-                is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                revoked_at TIMESTAMP WITH TIME ZONE,
-                revoked_reason VARCHAR(255),
-                password_changed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                deleted_at TIMESTAMP WITH TIME ZONE,
-                CONSTRAINT fk_password_credentials_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
 
             -- Stores verified organization workspaces
             CREATE TABLE IF NOT EXISTS organizations (
@@ -542,22 +706,8 @@ public static class DbInitializer
                 workspace_activity_flags TEXT,
                 ip_device_flags TEXT,
                 historical_claim_flags TEXT,
+                documents JSONB,
                 CONSTRAINT fk_recovery_claims_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
-            );
-
-            -- Stores recovery claim documents (Relational files entity)
-            CREATE TABLE IF NOT EXISTS recovery_claim_documents (
-                id UUID PRIMARY KEY,
-                recovery_claim_id UUID NOT NULL,
-                storage_path VARCHAR(500) NOT NULL,
-                file_name VARCHAR(255) NOT NULL,
-                content_type VARCHAR(100) NOT NULL,
-                encryption_iv VARCHAR(100) NOT NULL,
-                ocr_result_text TEXT,
-                virus_scan_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
-                retention_expiry_date TIMESTAMP WITH TIME ZONE NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_claim_documents_claim FOREIGN KEY (recovery_claim_id) REFERENCES organization_recovery_claims(id) ON DELETE CASCADE
             );
 
             -- Stores approved recovery sessions
@@ -940,6 +1090,51 @@ public static class DbInitializer
                     END IF;
                 END IF;
 
+                -- Safely provision version column to user_profiles if missing
+                IF EXISTS (
+                    SELECT 1 
+                    FROM information_schema.tables 
+                    WHERE table_name = 'user_profiles'
+                ) THEN
+                    IF NOT EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'user_profiles' AND column_name = 'version'
+                    ) THEN
+                        ALTER TABLE user_profiles ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+                    END IF;
+                END IF;
+
+                -- Safely provision version column to career_preferences if missing
+                IF EXISTS (
+                    SELECT 1 
+                    FROM information_schema.tables 
+                    WHERE table_name = 'career_preferences'
+                ) THEN
+                    IF NOT EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'career_preferences' AND column_name = 'version'
+                    ) THEN
+                        ALTER TABLE career_preferences ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+                    END IF;
+                END IF;
+
+                -- Safely provision version column to ai_inferred_preferences if missing
+                IF EXISTS (
+                    SELECT 1 
+                    FROM information_schema.tables 
+                    WHERE table_name = 'ai_inferred_preferences'
+                ) THEN
+                    IF NOT EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'ai_inferred_preferences' AND column_name = 'version'
+                    ) THEN
+                        ALTER TABLE ai_inferred_preferences ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+                    END IF;
+                END IF;
+
                  -- Safely provision username column to users if missing
                  IF NOT EXISTS (
                      SELECT 1 
@@ -1318,15 +1513,27 @@ public static class DbInitializer
             -- Security Audit Logs Table for tracking major events
             CREATE TABLE IF NOT EXISTS audit_logs (
                 id UUID PRIMARY KEY,
-                user_id UUID,
+                user_id UUID REFERENCES users(id) ON DELETE SET NULL,
                 event_type VARCHAR(100) NOT NULL,
                 description TEXT NOT NULL,
                 ip_address VARCHAR(45),
                 anonymized_actor_hash VARCHAR(64),
                 user_agent VARCHAR(500),
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+                actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+                target_role_name VARCHAR(50),
+                scope_type VARCHAR(30),
+                scope_id UUID,
+                details_json JSONB,
+                old_state_json JSONB,
+                new_state_json JSONB,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
             );
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_user_id ON audit_logs(actor_user_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_target_user_id ON audit_logs(target_user_id);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_organization_id ON audit_logs(organization_id);
 
             -- Manages chat conversation sessions with the AI Assistant
             CREATE TABLE IF NOT EXISTS conversations (
@@ -1365,6 +1572,8 @@ public static class DbInitializer
                 profile_visibility VARCHAR(20) NOT NULL DEFAULT 'public',
                 recruiter_visibility BOOLEAN NOT NULL DEFAULT TRUE,
                 ai_talent_discovery VARCHAR(20) NOT NULL DEFAULT 'disabled',
+                social_links VARCHAR(255)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                version INTEGER NOT NULL DEFAULT 1,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE,
@@ -1381,10 +1590,12 @@ public static class DbInitializer
                 salary_expectations DECIMAL(18,2),
                 remote_preference VARCHAR(20),
                 open_to_work_status VARCHAR(20),
-                preferred_work_environments TEXT,
-                work_styles TEXT,
-                company_values TEXT,
-                desired_job_positions TEXT,
+                preferred_locations VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                employment_preferences VARCHAR(50)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                preferred_work_environments VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                work_styles VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                company_values VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                desired_job_positions VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
                 expected_salary_min DECIMAL(18,2),
                 expected_salary_max DECIMAL(18,2),
                 expected_salary_currency VARCHAR(10),
@@ -1392,6 +1603,7 @@ public static class DbInitializer
                 expected_salary_negotiable BOOLEAN NOT NULL DEFAULT FALSE,
                 is_expected_salary_visible BOOLEAN NOT NULL DEFAULT FALSE,
                 work_preference_notes TEXT,
+                version INTEGER NOT NULL DEFAULT 1,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE,
@@ -1571,6 +1783,7 @@ public static class DbInitializer
                 inferred_industries VARCHAR(100)[] DEFAULT ARRAY[]::VARCHAR[] NOT NULL,
                 confidence_score DECIMAL(5,2) DEFAULT 0.00 NOT NULL,
                 synthesis_rationale TEXT,
+                version INTEGER NOT NULL DEFAULT 1,
                 last_analyzed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -1593,37 +1806,7 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_user_skills_user_id ON user_skills(user_id);
             CREATE INDEX IF NOT EXISTS idx_user_skills_name ON user_skills(skill);
 
-            -- Normalized User Preferred Locations
-            CREATE TABLE IF NOT EXISTS user_preferred_locations (
-                id UUID PRIMARY KEY,
-                user_id UUID NOT NULL,
-                location VARCHAR(100) NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_user_preferred_locations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_user_preferred_locations_user_id ON user_preferred_locations(user_id);
 
-            -- Normalized User Employment Arrangement Preferences
-            CREATE TABLE IF NOT EXISTS user_employment_preferences (
-                id UUID PRIMARY KEY,
-                user_id UUID NOT NULL,
-                preference_name VARCHAR(50) NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_user_employment_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_user_employment_preferences_user_id ON user_employment_preferences(user_id);
-
-            -- Social Links linked to users
-            CREATE TABLE IF NOT EXISTS social_links (
-                id UUID PRIMARY KEY,
-                user_id UUID NOT NULL,
-                url VARCHAR(255) NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                deleted_at TIMESTAMP WITH TIME ZONE,
-                CONSTRAINT fk_social_links_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_social_links_user_id ON social_links(user_id);
 
             -- Education history entry details
             CREATE TABLE IF NOT EXISTS education_entries (
@@ -1733,19 +1916,7 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_profile_attachments_user_id ON profile_attachments(user_id);
             CREATE INDEX IF NOT EXISTS idx_profile_attachments_entity ON profile_attachments(entity_type, entity_id);
 
-            -- Profile activity log for event audits
-            CREATE TABLE IF NOT EXISTS profile_activity_logs (
-                id UUID PRIMARY KEY,
-                user_id UUID NOT NULL,
-                action_type VARCHAR(100) NOT NULL,
-                old_state_json TEXT,
-                new_state_json TEXT,
-                ip_address VARCHAR(45),
-                user_agent VARCHAR(500),
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_profile_activity_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_profile_activity_logs_user_id ON profile_activity_logs(user_id);
+
 
             -- Stores background analysis jobs
             CREATE TABLE IF NOT EXISTS analysis_jobs (
@@ -1923,13 +2094,7 @@ public static class DbInitializer
                 END IF;
             END $$;
 
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_social_links_timestamp') THEN
-                    CREATE TRIGGER tr_social_links_timestamp BEFORE UPDATE ON social_links 
-                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
-                END IF;
-            END $$;
+
 
             DO $$
             BEGIN
@@ -1971,35 +2136,6 @@ public static class DbInitializer
                 END IF;
             END $$;
 
-            -- Admin Roles table
-            CREATE TABLE IF NOT EXISTS admin_roles (
-                id UUID PRIMARY KEY,
-                parent_role_id UUID REFERENCES admin_roles(id) ON DELETE RESTRICT,
-                name VARCHAR(50) NOT NULL UNIQUE,
-                display_name VARCHAR(100) NOT NULL,
-                description VARCHAR(250),
-                is_system BOOLEAN NOT NULL DEFAULT FALSE,
-                is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            );
-
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_admin_roles_timestamp') THEN
-                    CREATE TRIGGER tr_admin_roles_timestamp BEFORE UPDATE ON admin_roles 
-                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
-                END IF;
-            END $$;
-
-            -- Admin Role Permissions junction table
-            CREATE TABLE IF NOT EXISTS admin_role_permissions (
-                role_id UUID NOT NULL REFERENCES admin_roles(id) ON DELETE CASCADE,
-                permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                PRIMARY KEY (role_id, permission_id)
-            );
-
             -- Admin Members table
             CREATE TABLE IF NOT EXISTS admin_members (
                 id UUID PRIMARY KEY,
@@ -2019,17 +2155,6 @@ public static class DbInitializer
                 END IF;
             END $$;
 
-            -- Admin Role Assignments table
-            CREATE TABLE IF NOT EXISTS admin_role_assignments (
-                id UUID PRIMARY KEY,
-                admin_member_id UUID NOT NULL REFERENCES admin_members(id) ON DELETE CASCADE,
-                role_id UUID NOT NULL REFERENCES admin_roles(id) ON DELETE CASCADE,
-                scope_type VARCHAR(30) NOT NULL DEFAULT 'SYSTEM',
-                scope_id UUID NOT NULL,
-                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_role_assignments_unique ON admin_role_assignments(admin_member_id, role_id, scope_type, scope_id);
-
             -- Admin Invitations table
             CREATE TABLE IF NOT EXISTS admin_invitations (
                 id UUID PRIMARY KEY,
@@ -2048,90 +2173,23 @@ public static class DbInitializer
             CREATE TABLE IF NOT EXISTS admin_invitation_roles (
                 id UUID PRIMARY KEY,
                 invitation_id UUID NOT NULL REFERENCES admin_invitations(id) ON DELETE CASCADE,
-                role_id UUID NOT NULL REFERENCES admin_roles(id) ON DELETE CASCADE
+                role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE
             );
 
-            -- Admin Audit Logs table
-            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+
+
+            -- Role Assignments Table (Polymorphic scoping)
+            CREATE TABLE IF NOT EXISTS role_assignments (
                 id UUID PRIMARY KEY,
-                actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-                action VARCHAR(50) NOT NULL,
-                target_role_name VARCHAR(50),
-                target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-                details_json JSONB,
-                timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            );
-
-            -- Business Permissions table
-            CREATE TABLE IF NOT EXISTS business_permissions (
-                id UUID PRIMARY KEY,
-                name VARCHAR(100) NOT NULL UNIQUE,
-                display_name VARCHAR(100) NOT NULL,
-                description VARCHAR(250),
-                module VARCHAR(50) NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_business_permissions_name ON business_permissions(name);
-
-            -- Organization Business Roles table
-            CREATE TABLE IF NOT EXISTS organization_business_roles (
-                id UUID PRIMARY KEY,
-                organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-                parent_role_id UUID REFERENCES organization_business_roles(id) ON DELETE RESTRICT,
-                name VARCHAR(50) NOT NULL,
-                display_name VARCHAR(100) NOT NULL,
-                description VARCHAR(250),
-                is_system BOOLEAN NOT NULL DEFAULT FALSE,
-                is_active BOOLEAN NOT NULL DEFAULT TRUE,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_org_roles_name_org_id ON organization_business_roles(organization_id, name);
-
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tr_organization_business_roles_timestamp') THEN
-                    CREATE TRIGGER tr_organization_business_roles_timestamp BEFORE UPDATE ON organization_business_roles 
-                        FOR EACH ROW EXECUTE PROCEDURE fn_update_timestamp();
-                END IF;
-            END $$;
-
-            -- Organization Role Permissions junction table
-            CREATE TABLE IF NOT EXISTS organization_role_permissions (
-                role_id UUID NOT NULL REFERENCES organization_business_roles(id) ON DELETE CASCADE,
-                permission_id UUID NOT NULL REFERENCES business_permissions(id) ON DELETE CASCADE,
-                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                PRIMARY KEY (role_id, permission_id)
-            );
-
-            -- Organization Role Assignments table
-            CREATE TABLE IF NOT EXISTS organization_role_assignments (
-                id UUID PRIMARY KEY,
-                organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                role_id UUID NOT NULL REFERENCES organization_business_roles(id) ON DELETE CASCADE,
-                scope_type VARCHAR(30) NOT NULL DEFAULT 'ORGANIZATION',
+                role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+                scope_type VARCHAR(30) NOT NULL,
                 scope_id UUID NOT NULL,
                 assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
             );
-            CREATE INDEX IF NOT EXISTS idx_role_assignments_lookup ON organization_role_assignments(organization_id, user_id, scope_type, scope_id);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_role_assignments_unique_constraint ON organization_role_assignments(organization_id, user_id, role_id, scope_type, scope_id);
-            CREATE INDEX IF NOT EXISTS idx_org_role_assignments_user_id ON organization_role_assignments(user_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_role_assignments_unique ON role_assignments(user_id, role_id, scope_type, scope_id);
 
-            -- Business Role Audit Logs table
-            CREATE TABLE IF NOT EXISTS business_role_audit_logs (
-                id UUID PRIMARY KEY,
-                organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-                actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-                action VARCHAR(50) NOT NULL,
-                target_role_name VARCHAR(50) NOT NULL,
-                target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-                scope_type VARCHAR(30),
-                scope_id UUID,
-                details_json JSONB,
-                timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_role_audit_logs_org_time ON business_role_audit_logs(organization_id, timestamp);
+
 
             -- Stores organization invitations
             CREATE TABLE IF NOT EXISTS organization_invitations (
@@ -2160,7 +2218,7 @@ public static class DbInitializer
                 scope_type VARCHAR(30) NOT NULL DEFAULT 'ORGANIZATION',
                 scope_id UUID NOT NULL,
                 CONSTRAINT fk_org_invitation_roles_invitation FOREIGN KEY (invitation_id) REFERENCES organization_invitations(id) ON DELETE CASCADE,
-                CONSTRAINT fk_org_invitation_roles_role FOREIGN KEY (role_id) REFERENCES organization_business_roles(id) ON DELETE CASCADE
+                CONSTRAINT fk_org_invitation_roles_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
             );
 
             -- DDL schema script completed
@@ -2187,26 +2245,7 @@ public static class DbInitializer
             // Ignore if type doesn't exist yet (first-time boot runs the script to create it with DELETION_PENDING)
         }
 
-        // Make actor_user_id nullable in business_role_audit_logs for business credentials / system actions
-        try
-        {
-            await context.Database.ExecuteSqlRawAsync(@"
-                DO $$
-                BEGIN
-                    IF EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name = 'business_role_audit_logs' 
-                          AND column_name = 'actor_user_id' 
-                          AND is_nullable = 'NO'
-                    ) THEN
-                        ALTER TABLE business_role_audit_logs ALTER COLUMN actor_user_id DROP NOT NULL;
-                    END IF;
-                END $$;");
-        }
-        catch (Exception)
-        {
-            // Ignore if table doesn't exist yet or column is already nullable
-        }
+
 
         // Migrate analysis_executions to include user_id if missing
         try

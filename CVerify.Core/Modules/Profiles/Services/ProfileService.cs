@@ -76,12 +76,7 @@ public class ProfileService : IProfileService
             profile.User = user;
         }
 
-        var socialLinks = await _context.SocialLinks
-            .Where(sl => sl.UserId == userId)
-            .Select(sl => sl.Url)
-            .ToListAsync(cancellationToken);
-
-        return MapToResponse(profile, socialLinks);
+        return MapToResponse(profile, profile.SocialLinks);
     }
 
     public async Task<ProfileResponse> UpdateProfileAsync(
@@ -131,46 +126,33 @@ public class ProfileService : IProfileService
         profile.AiTalentDiscovery = request.AiTalentDiscovery;
         profile.UpdatedAt = DateTimeOffset.UtcNow;
 
-        // Sync Social Links (Delete existing and insert new is safest)
-        var existingLinks = await _context.SocialLinks
-            .Where(sl => sl.UserId == userId)
-            .ToListAsync(cancellationToken);
-        _context.SocialLinks.RemoveRange(existingLinks);
-
         var newSocialUrls = new List<string>();
         if (request.SocialLinks != null)
         {
-            foreach (var url in request.SocialLinks.Where(u => !string.IsNullOrWhiteSpace(u)))
-            {
-                var socialLink = new SocialLink
-                {
-                    Id = Guid.CreateVersion7(),
-                    UserId = userId,
-                    Url = url.Trim(),
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                };
-                _context.SocialLinks.Add(socialLink);
-                newSocialUrls.Add(socialLink.Url);
-            }
+            newSocialUrls = request.SocialLinks
+                .Where(u => !string.IsNullOrWhiteSpace(u))
+                .Select(u => u.Trim())
+                .ToList();
         }
+        profile.SocialLinks = newSocialUrls;
 
         // Log the state transition
         var logResponse = MapToResponse(profile, newSocialUrls);
         var newStateJson = JsonSerializer.Serialize(logResponse);
 
-        var log = new ProfileActivityLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
-            ActionType = "UPDATE_PROFILE",
+            EventType = "UPDATE_PROFILE",
+            Description = $"User profile updated for {profile.User?.FullName ?? userId.ToString()}.",
             OldStateJson = oldStateJson,
             NewStateJson = newStateJson,
             IpAddress = ipAddress,
             UserAgent = userAgent,
             CreatedAt = DateTimeOffset.UtcNow
         };
-        _context.ProfileActivityLogs.Add(log);
+        _context.AuditLogs.Add(log);
 
         try
         {
@@ -230,18 +212,19 @@ public class ProfileService : IProfileService
         }
 
         // Log the state transition
-        var log = new ProfileActivityLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
-            ActionType = "UPDATE_USERNAME",
+            EventType = "UPDATE_USERNAME",
+            Description = $"Username updated to {newUsername}.",
             OldStateJson = oldStateJson,
             NewStateJson = newStateJson,
             IpAddress = ipAddress,
             UserAgent = userAgent,
             CreatedAt = _timeProvider.GetUtcNow()
         };
-        _context.ProfileActivityLogs.Add(log);
+        _context.AuditLogs.Add(log);
 
         try
         {
@@ -279,10 +262,7 @@ public class ProfileService : IProfileService
             throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
         }
 
-        var socialLinks = await _context.SocialLinks
-            .Where(sl => sl.UserId == profile.UserId)
-            .Select(sl => sl.Url)
-            .ToListAsync(cancellationToken);
+        var socialLinks = profile.SocialLinks;
 
         var signedAvatarUrl = await GetSignedAvatarUrlAsync(profile.User?.AvatarUrl, cancellationToken);
 
@@ -292,15 +272,8 @@ public class ProfileService : IProfileService
         PublicCareerPreferenceDto? publicCareerPreference = null;
         if (careerPreference != null)
         {
-            var employmentPrefs = await _context.UserEmploymentPreferences
-                .Where(uep => uep.UserId == profile.UserId)
-                .Select(uep => uep.PreferenceName)
-                .ToListAsync(cancellationToken);
-
-            var preferredLocations = await _context.UserPreferredLocations
-                .Where(upl => upl.UserId == profile.UserId)
-                .Select(upl => upl.Location)
-                .ToListAsync(cancellationToken);
+            var employmentPrefs = careerPreference.EmploymentPreferences ?? new List<string>();
+            var preferredLocations = careerPreference.PreferredLocations ?? new List<string>();
 
             var preferredWorkEnvironments = careerPreference.PreferredWorkEnvironments ?? new List<string>();
             var workStyles = careerPreference.WorkStyles ?? new List<string>();
@@ -504,16 +477,17 @@ public class ProfileService : IProfileService
         
         await _context.SaveChangesAsync(cancellationToken);
 
-        var log = new ProfileActivityLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
-            ActionType = "SYNC_AVATAR",
+            EventType = "SYNC_AVATAR",
+            Description = $"Avatar synchronized with provider: {canonicalName}.",
             OldStateJson = JsonSerializer.Serialize(new { Source = "Manual" }),
             NewStateJson = JsonSerializer.Serialize(new { Source = canonicalName, Url = providerAvatarUrl }),
             CreatedAt = DateTimeOffset.UtcNow
         };
-        _context.ProfileActivityLogs.Add(log);
+        _context.AuditLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
 
         return (providerAvatarUrl, providerAvatarUrl);
@@ -551,16 +525,17 @@ public class ProfileService : IProfileService
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        var log = new ProfileActivityLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
-            ActionType = "DELETE_AVATAR",
+            EventType = "DELETE_AVATAR",
+            Description = "User avatar deleted.",
             OldStateJson = oldStateJson,
             NewStateJson = JsonSerializer.Serialize(new { AvatarUrl = (string?)null, AvatarSource = AvatarSource.Default }),
             CreatedAt = DateTimeOffset.UtcNow
         };
-        _context.ProfileActivityLogs.Add(log);
+        _context.AuditLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
     }
 

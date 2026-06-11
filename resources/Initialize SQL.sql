@@ -64,10 +64,12 @@ END $$;
 -- Stores user roles for the Role-Based Access Control (RBAC) system
 CREATE TABLE roles (
     id UUID PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,          -- Internal identifier (e.g., 'SUPER_ADMIN')
+    name VARCHAR(50) NOT NULL,          -- Internal identifier (e.g., 'SUPER_ADMIN')
     display_name VARCHAR(100) NOT NULL,        -- User-friendly name
     description TEXT,
-    
+    domain VARCHAR(30) NOT NULL DEFAULT 'SYSTEM',
+    tenant_id UUID NULL,
+    parent_role_id UUID NULL REFERENCES roles(id) ON DELETE RESTRICT,
     is_system BOOLEAN NOT NULL DEFAULT FALSE,  -- Prevents deletion of core system roles
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
 
@@ -75,6 +77,8 @@ CREATE TABLE roles (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE        -- Support for soft deletion
 );
+CREATE UNIQUE INDEX idx_roles_tenant_id_name ON roles(tenant_id, name);
+CREATE UNIQUE INDEX idx_roles_name_system ON roles(name) WHERE tenant_id IS NULL;
 
 -- =========================================================
 -- 5. USERS TABLE
@@ -99,8 +103,11 @@ CREATE TABLE users (
     failed_attempts INT DEFAULT 0,             -- Counter for consecutive failed logins
     last_failed_at TIMESTAMP WITH TIME ZONE,   -- Timestamp of the last failed attempt
     lock_until TIMESTAMP WITH TIME ZONE,       -- Account lockout expiration time
+    password_changed_at TIMESTAMP WITH TIME ZONE,
     session_version INTEGER NOT NULL DEFAULT 1,
     is_legal_hold BOOLEAN NOT NULL DEFAULT FALSE,
+    linked_emails JSONB,
+    version INTEGER NOT NULL DEFAULT 1,
 
     -- Audit trails
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -121,6 +128,20 @@ CREATE TABLE user_roles (
     CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_user_roles_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
 );
+
+-- =========================================================
+-- 6.5. ROLE_ASSIGNMENTS TABLE
+-- =========================================================
+-- Scoped assignments mapping users to roles
+CREATE TABLE role_assignments (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    scope_type VARCHAR(30) NOT NULL,
+    scope_id UUID NOT NULL,
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_role_assignments_unique ON role_assignments(user_id, role_id, scope_type, scope_id);
 
 -- =========================================================
 -- 7. PERMISSIONS TABLE
@@ -253,15 +274,22 @@ CREATE TABLE outbox_messages (
 -- Security Audit Logs Table for tracking major events
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY,
-    user_id UUID,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     event_type VARCHAR(100) NOT NULL,
     description TEXT NOT NULL,
     ip_address VARCHAR(45),
     anonymized_actor_hash VARCHAR(64),
     user_agent VARCHAR(500),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    target_role_name VARCHAR(50),
+    scope_type VARCHAR(30),
+    scope_id UUID,
+    details_json JSONB,
+    old_state_json JSONB,
+    new_state_json JSONB,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- =========================================================
@@ -319,6 +347,9 @@ CREATE INDEX idx_messages_conversation_id_created_at ON messages(conversation_id
 CREATE INDEX idx_verification_tokens_user_id ON verification_tokens(user_id);
 CREATE INDEX idx_reset_password_tokens_user_id ON reset_password_tokens(user_id);
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX idx_audit_logs_actor_user_id ON audit_logs(actor_user_id);
+CREATE INDEX idx_audit_logs_target_user_id ON audit_logs(target_user_id);
+CREATE INDEX idx_audit_logs_organization_id ON audit_logs(organization_id);
 
 -- =========================================================
 -- 17. TRIGGERS REGISTRATION
@@ -345,7 +376,7 @@ INSERT INTO roles (id, name, display_name, description, is_system)
 VALUES 
     ('018fc35b-1c5c-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'SUPER_ADMIN', 'System Administrator', 'Root access to all modules', TRUE),
     ('018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'USER', 'General User', 'Basic application access', TRUE)
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT (name) WHERE tenant_id IS NULL DO NOTHING;
 
 -- Bootstrap root wildcard permission
 INSERT INTO permissions (id, name, display_name, description, module, is_system)

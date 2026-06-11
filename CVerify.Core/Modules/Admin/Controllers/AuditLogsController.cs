@@ -36,7 +36,7 @@ public class AuditLogsController : ControllerBase
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 100) pageSize = 20;
 
-        var query = _context.AdminAuditLogs
+        var query = _context.AuditLogs
             .Include(a => a.ActorUser)
             .Include(a => a.TargetUser)
             .AsNoTracking();
@@ -47,7 +47,7 @@ public class AuditLogsController : ControllerBase
             query = query.Where(a => 
                 (a.ActorUser != null && a.ActorUser.Email.ToLower().Contains(searchLower)) ||
                 (a.TargetUser != null && a.TargetUser.Email.ToLower().Contains(searchLower)) ||
-                a.Action.ToLower().Contains(searchLower) ||
+                a.EventType.ToLower().Contains(searchLower) ||
                 (a.TargetRoleName != null && a.TargetRoleName.ToLower().Contains(searchLower)) ||
                 (a.DetailsJson != null && a.DetailsJson.ToLower().Contains(searchLower))
             );
@@ -55,14 +55,14 @@ public class AuditLogsController : ControllerBase
 
         var totalCount = await query.CountAsync(cancellationToken);
         var logs = await query
-            .OrderByDescending(a => a.Timestamp)
+            .OrderByDescending(a => a.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
         var items = logs.Select(a => {
             string description;
-            switch (a.Action)
+            switch (a.EventType)
             {
                 case "MEMBER_INVITED":
                     description = $"Invited admin member with roles: {a.TargetRoleName}";
@@ -80,18 +80,18 @@ public class AuditLogsController : ControllerBase
                     description = "Cancelled pending admin invitation";
                     break;
                 default:
-                    description = $"{a.Action} performed on target {a.TargetRoleName ?? a.TargetUserId?.ToString()}";
+                    description = a.Description ?? $"{a.EventType} performed on target {a.TargetRoleName ?? a.TargetUserId?.ToString()}";
                     break;
             }
 
             return new AuditLogListItemDto(
                 a.Id,
                 a.ActorUser != null ? a.ActorUser.Email : "System",
-                a.Action,
+                a.EventType,
                 description,
                 null,
                 null,
-                a.Timestamp
+                a.CreatedAt
             );
         }).ToList();
 

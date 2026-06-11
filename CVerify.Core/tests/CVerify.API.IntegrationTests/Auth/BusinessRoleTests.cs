@@ -165,16 +165,15 @@ public class BusinessRoleTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var role = await db.OrganizationBusinessRoles
-                .Include(r => r.RolePermissions)
-                    .ThenInclude(rp => rp.Permission)
+            var role = await db.Roles
+                .Include(r => r.Permissions)
                 .FirstOrDefaultAsync(r => r.Id == createdId);
 
             role.Should().NotBeNull();
             role!.Name.Should().Be("custom_recruiter");
             role.DisplayName.Should().Be("Custom Recruiter");
             role.ParentRoleId.Should().BeNull();
-            role.RolePermissions.Select(rp => rp.Permission.Name).Should().Contain(new[] { "identity:verification:initiate", "ai:interview:conduct" });
+            role.Permissions.Select(p => p.Name).Should().Contain(new[] { "identity:verification:initiate", "ai:interview:conduct" });
         }
     }
 
@@ -256,8 +255,8 @@ public class BusinessRoleTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            viewerRoleId = await db.OrganizationBusinessRoles
-                .Where(r => r.OrganizationId == org.Id && r.Name == "viewer")
+            viewerRoleId = await db.Roles
+                .Where(r => r.TenantId == org.Id && r.Name == "viewer" && r.Domain == "TENANT")
                 .Select(r => r.Id)
                 .FirstAsync();
         }

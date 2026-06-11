@@ -21,7 +21,7 @@ public class OrganizationInvitationRole
     public Guid RoleId { get; set; }
 
     [ForeignKey(nameof(RoleId))]
-    public virtual OrganizationBusinessRole Role { get; set; } = null!;
+    public virtual Role Role { get; set; } = null!;
 
     [Required]
     [MaxLength(30)]

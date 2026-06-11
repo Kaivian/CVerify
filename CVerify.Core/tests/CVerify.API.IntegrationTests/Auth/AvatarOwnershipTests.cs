@@ -660,7 +660,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
             user!.AvatarUrl.Should().Be("http://googleusercontent.com/avatar-original.jpg");
             user.AvatarSource.Should().Be(AvatarSource.Google);
 
-            var log = await db.ProfileActivityLogs.FirstOrDefaultAsync(l => l.UserId == user.Id && l.ActionType == "SYNC_AVATAR").ConfigureAwait(false);
+            var log = await db.AuditLogs.FirstOrDefaultAsync(l => l.UserId == user.Id && l.EventType == "SYNC_AVATAR").ConfigureAwait(false);
             log.Should().NotBeNull();
         }
     }

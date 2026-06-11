@@ -38,7 +38,6 @@ public class WorkspaceMembershipService : IWorkspaceMembershipService
     public async Task ClaimPendingRelationshipsAsync(Guid userId)
     {
         var user = await _context.Users
-            .Include(u => u.LinkedEmails)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null)

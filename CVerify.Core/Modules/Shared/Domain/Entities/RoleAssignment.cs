@@ -4,28 +4,28 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CVerify.API.Modules.Shared.Domain.Entities;
 
-[Table("admin_role_assignments")]
-public class AdminRoleAssignment
+[Table("role_assignments")]
+public class RoleAssignment
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public Guid Id { get; set; } = Guid.CreateVersion7();
 
     [Required]
-    public Guid AdminMemberId { get; set; }
+    public Guid UserId { get; set; }
 
-    [ForeignKey(nameof(AdminMemberId))]
-    public virtual AdminMember AdminMember { get; set; } = null!;
+    [ForeignKey(nameof(UserId))]
+    public virtual User User { get; set; } = null!;
 
     [Required]
     public Guid RoleId { get; set; }
 
     [ForeignKey(nameof(RoleId))]
-    public virtual AdminRole Role { get; set; } = null!;
+    public virtual Role Role { get; set; } = null!;
 
     [Required]
     [MaxLength(30)]
-    public string ScopeType { get; set; } = "SYSTEM";
+    public string ScopeType { get; set; } = null!; // "SYSTEM", "ORGANIZATION", "WORKSPACE", "REPOSITORY"
 
     [Required]
     public Guid ScopeId { get; set; }

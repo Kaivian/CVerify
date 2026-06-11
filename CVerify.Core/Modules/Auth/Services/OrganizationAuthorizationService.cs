@@ -83,21 +83,26 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
             WITH RECURSIVE recursive_hierarchy AS (
                 -- Anchor: Get directly assigned roles
                 SELECT ra.role_id, ra.scope_type, ra.scope_id
-                FROM organization_role_assignments ra
-                WHERE ra.user_id = @UserId AND ra.organization_id = @OrganizationId
+                FROM role_assignments ra
+                LEFT JOIN workspaces w ON ra.scope_type = 'WORKSPACE' AND ra.scope_id = w.id
+                WHERE ra.user_id = @UserId 
+                  AND (
+                    (ra.scope_type = 'ORGANIZATION' AND ra.scope_id = @OrganizationId)
+                    OR (ra.scope_type = 'WORKSPACE' AND w.organization_id = @OrganizationId)
+                  )
 
                 UNION ALL
 
                 -- Recursive step: Follow parent relationships
                 SELECT r.parent_role_id, rh.scope_type, rh.scope_id
-                FROM organization_business_roles r
+                FROM roles r
                 JOIN recursive_hierarchy rh ON r.id = rh.role_id
                 WHERE r.parent_role_id IS NOT NULL
             )
             SELECT DISTINCT CONCAT(p.name, ':', rh.scope_type, ':', rh.scope_id)
             FROM recursive_hierarchy rh
-            JOIN organization_role_permissions rp ON rh.role_id = rp.role_id
-            JOIN business_permissions p ON rp.permission_id = p.id";
+            JOIN role_permissions rp ON rh.role_id = rp.role_id
+            JOIN permissions p ON rp.permission_id = p.id";
 
         var db = _context.Database.GetDbConnection();
         var result = await db.QueryAsync<string>(sql, new { UserId = userId, OrganizationId = organizationId });

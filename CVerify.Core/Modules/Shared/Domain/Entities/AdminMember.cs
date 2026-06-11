@@ -36,5 +36,4 @@ public class AdminMember
     [ForeignKey(nameof(AssignedByUserId))]
     public virtual User? AssignedByUser { get; set; }
 
-    public virtual ICollection<AdminRoleAssignment> RoleAssignments { get; set; } = new List<AdminRoleAssignment>();
 }

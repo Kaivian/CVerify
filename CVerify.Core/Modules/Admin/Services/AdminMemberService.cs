@@ -50,10 +50,10 @@ public class AdminMemberService : IAdminMemberService
 
     private async Task<int> GetActiveSuperAdminCountAsync(CancellationToken cancellationToken)
     {
-        return await _context.AdminRoleAssignments
+        return await _context.RoleAssignments
             .Include(ra => ra.Role)
-            .Include(ra => ra.AdminMember)
-            .CountAsync(ra => ra.Role.Name == "SUPER_ADMIN" && ra.AdminMember.Status == "Active", cancellationToken);
+            .CountAsync(ra => ra.ScopeType == "SYSTEM" && ra.Role.Name == "SUPER_ADMIN" &&
+                _context.AdminMembers.Any(am => am.UserId == ra.UserId && am.Status == "Active"), cancellationToken);
     }
 
     private async Task LogAuditAsync(
@@ -63,17 +63,19 @@ public class AdminMemberService : IAdminMemberService
         Guid? targetUserId,
         object? details)
     {
-        var log = new AdminAuditLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             ActorUserId = actorUserId,
-            Action = action,
+            UserId = actorUserId,
+            EventType = action,
+            Description = $"Admin action {action} performed.",
             TargetRoleName = targetRoleName,
             TargetUserId = targetUserId,
             DetailsJson = details != null ? System.Text.Json.JsonSerializer.Serialize(details) : null,
-            Timestamp = _timeProvider.GetUtcNow()
+            CreatedAt = _timeProvider.GetUtcNow()
         };
-        _context.AdminAuditLogs.Add(log);
+        _context.AuditLogs.Add(log);
     }
 
     public async Task<PaginatedResultDto<AdminMemberListItemDto>> GetMembersAsync(
@@ -84,8 +86,8 @@ public class AdminMemberService : IAdminMemberService
 
         var query = _context.AdminMembers
             .Include(am => am.User)
-            .Include(am => am.RoleAssignments)
-                .ThenInclude(ra => ra.Role)
+                .ThenInclude(u => u.RoleAssignments)
+                    .ThenInclude(ra => ra.Role)
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -117,13 +119,15 @@ public class AdminMemberService : IAdminMemberService
                 am.User.LastLoginAt,
                 am.SessionVersion,
                 am.JoinedAt,
-                am.RoleAssignments.Select(ra => new AdminMemberRoleDto(
-                    ra.RoleId,
-                    ra.Role.Name,
-                    ra.Role.DisplayName,
-                    ra.ScopeType,
-                    ra.ScopeId
-                )).ToList()
+                am.User.RoleAssignments
+                    .Where(ra => ra.ScopeType == "SYSTEM")
+                    .Select(ra => new AdminMemberRoleDto(
+                        ra.RoleId,
+                        ra.Role.Name,
+                        ra.Role.DisplayName,
+                        ra.ScopeType,
+                        ra.ScopeId
+                    )).ToList()
             ))
             .ToListAsync(cancellationToken);
 
@@ -150,8 +154,8 @@ public class AdminMemberService : IAdminMemberService
         }
 
         // Verify roles exist and are active
-        var roles = await _context.AdminRoles
-            .Where(r => dto.RoleIds.Contains(r.Id) && r.IsActive)
+        var roles = await _context.Roles
+            .Where(r => dto.RoleIds.Contains(r.Id) && r.Domain == "SYSTEM" && r.IsActive)
             .ToListAsync(cancellationToken);
 
         if (roles.Count != dto.RoleIds.Distinct().Count())
@@ -294,21 +298,21 @@ public class AdminMemberService : IAdminMemberService
             // Create Role Assignments (SYSTEM Scope only)
             foreach (var preRole in invite.PreAssignedRoles)
             {
-                var roleExists = await _context.AdminRoleAssignments
-                    .AnyAsync(ra => ra.AdminMemberId == adminMember.Id && ra.RoleId == preRole.RoleId, cancellationToken);
+                var roleExists = await _context.RoleAssignments
+                    .AnyAsync(ra => ra.UserId == userId && ra.RoleId == preRole.RoleId && ra.ScopeType == "SYSTEM", cancellationToken);
 
                 if (!roleExists)
                 {
-                    var assignment = new AdminRoleAssignment
+                    var assignment = new RoleAssignment
                     {
                         Id = Guid.CreateVersion7(),
-                        AdminMemberId = adminMember.Id,
+                        UserId = userId,
                         RoleId = preRole.RoleId,
                         ScopeType = "SYSTEM",
                         ScopeId = Guid.Empty,
                         AssignedAt = utcNow
                     };
-                    _context.AdminRoleAssignments.Add(assignment);
+                    _context.RoleAssignments.Add(assignment);
                 }
             }
 
@@ -333,8 +337,8 @@ public class AdminMemberService : IAdminMemberService
     {
         var member = await _context.AdminMembers
             .Include(am => am.User)
-            .Include(am => am.RoleAssignments)
-                .ThenInclude(ra => ra.Role)
+                .ThenInclude(u => u.RoleAssignments)
+                    .ThenInclude(ra => ra.Role)
             .FirstOrDefaultAsync(am => am.Id == memberId, cancellationToken);
 
         if (member == null)
@@ -348,7 +352,7 @@ public class AdminMemberService : IAdminMemberService
         // Lockout protection on suspension
         if (currentlyActive && isSuspending)
         {
-            var isSuperAdmin = member.RoleAssignments.Any(ra => ra.Role.Name == "SUPER_ADMIN");
+            var isSuperAdmin = member.User.RoleAssignments.Any(ra => ra.ScopeType == "SYSTEM" && ra.Role.Name == "SUPER_ADMIN");
             if (isSuperAdmin)
             {
                 var activeSuperAdminCount = await GetActiveSuperAdminCountAsync(cancellationToken);
@@ -365,8 +369,8 @@ public class AdminMemberService : IAdminMemberService
             throw new ValidationException("At least one admin role must be selected.");
         }
 
-        var newRoles = await _context.AdminRoles
-            .Where(r => dto.RoleIds.Contains(r.Id) && r.IsActive)
+        var newRoles = await _context.Roles
+            .Where(r => dto.RoleIds.Contains(r.Id) && r.Domain == "SYSTEM" && r.IsActive)
             .ToListAsync(cancellationToken);
 
         if (newRoles.Count != dto.RoleIds.Distinct().Count())
@@ -375,7 +379,7 @@ public class AdminMemberService : IAdminMemberService
         }
 
         // Lockout protection on role revocation/modification
-        var currentlySuperAdmin = member.RoleAssignments.Any(ra => ra.Role.Name == "SUPER_ADMIN");
+        var currentlySuperAdmin = member.User.RoleAssignments.Any(ra => ra.ScopeType == "SYSTEM" && ra.Role.Name == "SUPER_ADMIN");
         var willBeSuperAdmin = newRoles.Any(r => r.Name == "SUPER_ADMIN");
         if (currentlyActive && currentlySuperAdmin && !willBeSuperAdmin)
         {
@@ -395,15 +399,16 @@ public class AdminMemberService : IAdminMemberService
             member.UpdatedAt = _timeProvider.GetUtcNow();
 
             // Revoke current assignments
-            _context.AdminRoleAssignments.RemoveRange(member.RoleAssignments);
+            var oldAssignments = member.User.RoleAssignments.Where(ra => ra.ScopeType == "SYSTEM").ToList();
+            _context.RoleAssignments.RemoveRange(oldAssignments);
 
             // Add new assignments
             foreach (var r in newRoles)
             {
-                _context.AdminRoleAssignments.Add(new AdminRoleAssignment
+                _context.RoleAssignments.Add(new RoleAssignment
                 {
                     Id = Guid.CreateVersion7(),
-                    AdminMemberId = member.Id,
+                    UserId = member.UserId,
                     RoleId = r.Id,
                     ScopeType = "SYSTEM",
                     ScopeId = Guid.Empty,
@@ -439,8 +444,8 @@ public class AdminMemberService : IAdminMemberService
     {
         var member = await _context.AdminMembers
             .Include(am => am.User)
-            .Include(am => am.RoleAssignments)
-                .ThenInclude(ra => ra.Role)
+                .ThenInclude(u => u.RoleAssignments)
+                    .ThenInclude(ra => ra.Role)
             .FirstOrDefaultAsync(am => am.Id == memberId, cancellationToken);
 
         if (member == null)
@@ -451,7 +456,7 @@ public class AdminMemberService : IAdminMemberService
         // Lockout protection on delete
         if (member.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
         {
-            var isSuperAdmin = member.RoleAssignments.Any(ra => ra.Role.Name == "SUPER_ADMIN");
+            var isSuperAdmin = member.User.RoleAssignments.Any(ra => ra.ScopeType == "SYSTEM" && ra.Role.Name == "SUPER_ADMIN");
             if (isSuperAdmin)
             {
                 var activeSuperAdminCount = await GetActiveSuperAdminCountAsync(cancellationToken);
@@ -465,7 +470,8 @@ public class AdminMemberService : IAdminMemberService
         using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            _context.AdminRoleAssignments.RemoveRange(member.RoleAssignments);
+            var oldAssignments = member.User.RoleAssignments.Where(ra => ra.ScopeType == "SYSTEM").ToList();
+            _context.RoleAssignments.RemoveRange(oldAssignments);
             _context.AdminMembers.Remove(member);
 
             await LogAuditAsync(actorUserId, "MEMBER_REMOVED", null, member.UserId, new { email = member.User.Email });

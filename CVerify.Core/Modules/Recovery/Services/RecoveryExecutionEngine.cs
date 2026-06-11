@@ -80,7 +80,6 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             var user = await _context.Users
                 .Include(u => u.Roles)
                 .Include(u => u.AuthProviders)
-                .Include(u => u.PasswordCredentials)
                 .FirstOrDefaultAsync(u => u.Email == claimantEmail && u.DeletedAt == null, cancellationToken);
 
             if (user == null)
@@ -139,16 +138,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             }
 
             // Save credential record
-            var newCred = new PasswordCredential
-            {
-                UserId = user.Id,
-                PasswordHash = passwordHash,
-                IsActive = true,
-                PasswordChangedAt = _timeProvider.GetUtcNow(),
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.PasswordCredentials.Add(newCred);
+            user.PasswordChangedAt = _timeProvider.GetUtcNow();
 
             // 4. Create fresh Workspace
             var workspace = new Workspace
@@ -296,7 +286,6 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             var user = await _context.Users
                 .Include(u => u.Roles)
                 .Include(u => u.AuthProviders)
-                .Include(u => u.PasswordCredentials)
                 .FirstOrDefaultAsync(u => u.Email == claimantEmail && u.DeletedAt == null, cancellationToken);
 
             if (user == null)
@@ -427,16 +416,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                 _context.AuthProviders.Add(passwordProvider);
             }
 
-            var newCred = new PasswordCredential
-            {
-                UserId = user.Id,
-                PasswordHash = passwordHash,
-                IsActive = true,
-                PasswordChangedAt = _timeProvider.GetUtcNow(),
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.PasswordCredentials.Add(newCred);
+            user.PasswordChangedAt = _timeProvider.GetUtcNow();
 
             // Update presentation details
             workspace.DisplayName = displayName;

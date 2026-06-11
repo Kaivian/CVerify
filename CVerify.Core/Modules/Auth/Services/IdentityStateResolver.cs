@@ -70,19 +70,20 @@ public class IdentityStateResolver : IIdentityStateResolver
     private async Task<EmailAuthState> ResolveFromDatabaseAsync(
         string normalizedEmail, CancellationToken cancellationToken)
     {
-        var user = await _context.Users
-            .Include(u => u.AuthProviders)
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail && le.IsVerified), cancellationToken);
+        var user = await _context.FindUserByVerifiedEmailAsync(normalizedEmail, cancellationToken);
 
         if (user == null && normalizedEmail.EndsWith("@gmail.com", StringComparison.OrdinalIgnoreCase))
         {
             var fallbackEmail = LegacyEmailCompatibilityHelper.ApplyOldGmailNormalization(normalizedEmail);
             if (fallbackEmail != normalizedEmail)
             {
-                user = await _context.Users
-                    .Include(u => u.AuthProviders)
-                    .FirstOrDefaultAsync(u => u.Email == fallbackEmail || u.LinkedEmails.Any(le => le.Email == fallbackEmail && le.IsVerified), cancellationToken);
+                user = await _context.FindUserByVerifiedEmailAsync(fallbackEmail, cancellationToken);
             }
+        }
+
+        if (user != null)
+        {
+            await _context.Entry(user).Collection(u => u.AuthProviders).LoadAsync(cancellationToken);
         }
 
         var superAdminEmail = _envConfig.SuperAdmin.Email;

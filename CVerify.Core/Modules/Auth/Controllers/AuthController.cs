@@ -802,7 +802,6 @@ public class AuthController : ControllerBase
         else
         {
             var existingProvider = await dbContext.AuthProviders
-                .Include(ap => ap.OAuthCredential)
                 .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName.ToLower() == canonicalName.ToLower() && ap.DeletedAt == null, cancellationToken);
 
             if (existingProvider != null)
@@ -817,24 +816,10 @@ public class AuthController : ControllerBase
                 existingProvider.LastSuccessfulRefreshAt = timeProvider.GetUtcNow();
                 existingProvider.RefreshFailureCount = 0;
 
-                if (existingProvider.OAuthCredential != null)
-                {
-                    existingProvider.OAuthCredential.EncryptedAccessToken = encryptedAccess;
-                    existingProvider.OAuthCredential.EncryptedRefreshToken = encryptedRefresh;
-                    existingProvider.OAuthCredential.ExpiresAt = expiryTime;
-                    existingProvider.OAuthCredential.UpdatedAt = timeProvider.GetUtcNow();
-                }
-                else
-                {
-                    existingProvider.OAuthCredential = new OAuthCredential
-                    {
-                        AuthProviderId = existingProvider.Id,
-                        EncryptedAccessToken = encryptedAccess,
-                        EncryptedRefreshToken = encryptedRefresh,
-                        ExpiresAt = expiryTime,
-                        UpdatedAt = timeProvider.GetUtcNow()
-                    };
-                }
+                existingProvider.EncryptedAccessToken = encryptedAccess;
+                existingProvider.EncryptedRefreshToken = encryptedRefresh;
+                existingProvider.ExpiresAt = expiryTime;
+                existingProvider.TokenUpdatedAt = timeProvider.GetUtcNow();
             }
             else
             {
@@ -851,19 +836,13 @@ public class AuthController : ControllerBase
                     LastScopeValidationAt = timeProvider.GetUtcNow(),
                     LastProviderSyncAt = timeProvider.GetUtcNow(),
                     LastSuccessfulRefreshAt = timeProvider.GetUtcNow(),
-                    CreatedAt = timeProvider.GetUtcNow()
-                };
-
-                var credential = new OAuthCredential
-                {
-                    AuthProviderId = newProvider.Id,
                     EncryptedAccessToken = encryptedAccess,
                     EncryptedRefreshToken = encryptedRefresh,
                     ExpiresAt = expiryTime,
-                    UpdatedAt = timeProvider.GetUtcNow()
+                    TokenUpdatedAt = timeProvider.GetUtcNow(),
+                    CreatedAt = timeProvider.GetUtcNow()
                 };
 
-                newProvider.OAuthCredential = credential;
                 dbContext.AuthProviders.Add(newProvider);
             }
 
@@ -944,7 +923,6 @@ public class AuthController : ControllerBase
         }
 
         var provider = await dbContext.AuthProviders
-            .Include(ap => ap.OAuthCredential)
             .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName == ProviderGitHub && ap.DeletedAt == null, cancellationToken);
 
         if (provider == null)
@@ -954,10 +932,6 @@ public class AuthController : ControllerBase
 
         var timeProvider = HttpContext.RequestServices.GetRequiredService<TimeProvider>();
         provider.DeletedAt = timeProvider.GetUtcNow();
-        if (provider.OAuthCredential != null)
-        {
-            dbContext.OAuthCredentials.Remove(provider.OAuthCredential);
-        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -1365,7 +1339,6 @@ public class AuthController : ControllerBase
 
         var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
         var user = await dbContext.Users
-            .Include(u => u.LinkedEmails)
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
         if (user == null)
@@ -1412,9 +1385,7 @@ public class AuthController : ControllerBase
 
         var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
 
-        // 1. Global uniqueness validation (Users & UserEmails)
-        var emailExists = await dbContext.Users.AnyAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken) ||
-                          await dbContext.UserEmails.AnyAsync(ue => ue.Email == normalizedEmail, cancellationToken);
+        var emailExists = await dbContext.CheckEmailExistsAsync(normalizedEmail, cancellationToken);
 
         if (emailExists)
         {
@@ -1422,7 +1393,12 @@ public class AuthController : ControllerBase
         }
 
         // 2. Count limits (Max 3 including primary)
-        var secondaryCount = await dbContext.UserEmails.CountAsync(ue => ue.UserId == userId, cancellationToken);
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+        var secondaryCount = user.LinkedEmails.Count;
         if (secondaryCount >= 2) // 1 primary + 2 secondary = 3 max
         {
             return BadRequest(new { message = "You have reached the maximum of 3 linked email addresses." });
@@ -1470,9 +1446,7 @@ public class AuthController : ControllerBase
 
         var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
 
-        // 1. TOCTOU Protection - re-validate global uniqueness before verification
-        var emailExists = await dbContext.Users.AnyAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken) ||
-                          await dbContext.UserEmails.AnyAsync(ue => ue.Email == normalizedEmail, cancellationToken);
+        var emailExists = await dbContext.CheckEmailExistsAsync(normalizedEmail, cancellationToken);
 
         if (emailExists)
         {
@@ -1480,7 +1454,12 @@ public class AuthController : ControllerBase
         }
 
         // 2. Count limits validation
-        var secondaryCount = await dbContext.UserEmails.CountAsync(ue => ue.UserId == userId, cancellationToken);
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+        var secondaryCount = user.LinkedEmails.Count;
         if (secondaryCount >= 2)
         {
             return BadRequest(new { message = "You have reached the maximum of 3 linked email addresses." });
@@ -1493,17 +1472,16 @@ public class AuthController : ControllerBase
             var verifyResult = await _authService.VerifyOtpAsync(verifyRequest, cancellationToken);
 
             // 4. Create and save verified UserEmail record
-            var userEmail = new UserEmail
+            var userEmail = new LinkedEmail
             {
                 Id = Guid.CreateVersion7(),
-                UserId = userId,
                 Email = normalizedEmail,
                 IsVerified = true,
                 VerifiedAt = DateTimeOffset.UtcNow,
                 CreatedAt = DateTimeOffset.UtcNow
             };
 
-            dbContext.UserEmails.Add(userEmail);
+            user.LinkedEmails.Add(userEmail);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             // Claim any pending relationships for the newly linked email
@@ -1550,7 +1528,6 @@ public class AuthController : ControllerBase
         var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
 
         var user = await dbContext.Users
-            .Include(u => u.LinkedEmails)
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
         if (user == null)
@@ -1582,20 +1559,19 @@ public class AuthController : ControllerBase
         using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            // Remove the newly promoted secondary email from secondary table
-            dbContext.UserEmails.Remove(secondaryEmail);
+            // Remove the newly promoted secondary email from secondary list
+            user.LinkedEmails.Remove(secondaryEmail);
 
-            // Add the old primary email to secondary emails table as a verified email
-            var oldPrimaryAsSecondary = new UserEmail
+            // Add the old primary email to secondary list as a verified email
+            var oldPrimaryAsSecondary = new LinkedEmail
             {
                 Id = Guid.CreateVersion7(),
-                UserId = userId,
                 Email = oldPrimaryEmail,
                 IsVerified = true,
                 VerifiedAt = DateTimeOffset.UtcNow,
                 CreatedAt = DateTimeOffset.UtcNow
             };
-            dbContext.UserEmails.Add(oldPrimaryAsSecondary);
+            user.LinkedEmails.Add(oldPrimaryAsSecondary);
 
             // Set users.email to the new primary email
             user.Email = newPrimaryEmail;
@@ -1630,8 +1606,16 @@ public class AuthController : ControllerBase
 
         var dbContext = HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
 
-        var userEmail = await dbContext.UserEmails
-            .FirstOrDefaultAsync(ue => ue.Id == id && ue.UserId == userId, cancellationToken);
+        var user = await dbContext.Users
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        var userEmail = user.LinkedEmails
+            .FirstOrDefault(ue => ue.Id == id);
 
         if (userEmail == null)
         {
@@ -1641,7 +1625,7 @@ public class AuthController : ControllerBase
         var oldEmail = userEmail.Email;
 
         // Perform removal
-        dbContext.UserEmails.Remove(userEmail);
+        user.LinkedEmails.Remove(userEmail);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Invalidate identity cache entry

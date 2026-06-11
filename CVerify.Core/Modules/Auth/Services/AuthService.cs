@@ -130,10 +130,7 @@ public class AuthService : IAuthService
     private async Task<AuthResponse> CreateAuthResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
     {
         var signedAvatar = await GetSignedAvatarUrlAsync(user.AvatarUrl, cancellationToken);
-        var passwordChangedAt = await _context.PasswordCredentials
-            .Where(pc => pc.UserId == user.Id && pc.IsActive && pc.DeletedAt == null)
-            .Select(pc => (DateTimeOffset?)pc.PasswordChangedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+        var passwordChangedAt = user.PasswordChangedAt;
         var hasPassword = !string.IsNullOrEmpty(user.PasswordHash);
         if (hasPassword && passwordChangedAt == null)
         {
@@ -145,10 +142,7 @@ public class AuthService : IAuthService
     private async Task<UserProfileResponse> CreateUserProfileResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
     {
         var signedAvatar = await GetSignedAvatarUrlAsync(user.AvatarUrl, cancellationToken);
-        var passwordChangedAt = await _context.PasswordCredentials
-            .Where(pc => pc.UserId == user.Id && pc.IsActive && pc.DeletedAt == null)
-            .Select(pc => (DateTimeOffset?)pc.PasswordChangedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+        var passwordChangedAt = user.PasswordChangedAt;
         var hasPassword = !string.IsNullOrEmpty(user.PasswordHash);
         if (hasPassword && passwordChangedAt == null)
         {
@@ -165,16 +159,14 @@ public class AuthService : IAuthService
     {
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
 
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail && le.IsVerified));
+        var user = await _context.FindUserByVerifiedEmailAsync(normalizedEmail);
 
         if (user == null && normalizedEmail.EndsWith("@gmail.com", StringComparison.OrdinalIgnoreCase))
         {
             var fallbackEmail = LegacyEmailCompatibilityHelper.ApplyOldGmailNormalization(normalizedEmail);
             if (fallbackEmail != normalizedEmail)
             {
-                user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == fallbackEmail || u.LinkedEmails.Any(le => le.Email == fallbackEmail && le.IsVerified));
+                user = await _context.FindUserByVerifiedEmailAsync(fallbackEmail);
             }
         }
 
@@ -298,7 +290,6 @@ public class AuthService : IAuthService
                 var user = await _context.Users
                     .Include(u => u.Roles)
                     .Include(u => u.AuthProviders)
-                    .Include(u => u.LinkedEmails)
                     .FirstOrDefaultAsync(u => u.AuthProviders.Any(ap => ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject && ap.DeletedAt == null));
 
                 // 2. Check for soft-deleted / unlinked record of this Google identity
@@ -316,11 +307,12 @@ public class AuthService : IAuthService
                     }
 
                     // 3. Fall back to email matching ONLY if eligible according to Fallback Eligibility Matrix
-                    var matchingUser = await _context.Users
-                        .Include(u => u.Roles)
-                        .Include(u => u.AuthProviders)
-                        .Include(u => u.LinkedEmails)
-                        .FirstOrDefaultAsync(u => u.Email == email || u.LinkedEmails.Any(le => le.Email == email && le.IsVerified));
+                    var matchingUser = await _context.FindUserByVerifiedEmailAsync(email);
+                    if (matchingUser != null)
+                    {
+                        await _context.Entry(matchingUser).Collection(u => u.Roles).LoadAsync();
+                        await _context.Entry(matchingUser).Collection(u => u.AuthProviders).LoadAsync();
+                    }
 
                     if (matchingUser != null)
                     {
@@ -334,8 +326,7 @@ public class AuthService : IAuthService
                         }
 
                         // Case C & D: Active local account with password or other provider connections
-                        var hasPassword = !string.IsNullOrEmpty(matchingUser.PasswordHash) || await _context.PasswordCredentials
-                            .AnyAsync(pc => pc.UserId == matchingUser.Id && pc.IsActive && pc.DeletedAt == null);
+                        var hasPassword = !string.IsNullOrEmpty(matchingUser.PasswordHash);
 
                         var hasOtherProviders = matchingUser.AuthProviders.Any(ap => ap.DeletedAt == null);
 
@@ -952,9 +943,7 @@ public class AuthService : IAuthService
 
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
 
-        var existingUser = await _context.Users
-            .Include(u => u.LinkedEmails)
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail), cancellationToken);
+        var existingUser = await _context.FindUserByEmailAsync(normalizedEmail, cancellationToken);
         if (existingUser != null)
         {
             // Idempotency: If pending verification and matches the primary email, rotate verification token and send a new link
@@ -1056,9 +1045,7 @@ public class AuthService : IAuthService
             await transaction.RollbackAsync(cancellationToken);
 
             // Fetch the existing user that just got created in the concurrent transaction
-            var concurrentUser = await _context.Users
-                .Include(u => u.LinkedEmails)
-                .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail), cancellationToken);
+            var concurrentUser = await _context.FindUserByEmailAsync(normalizedEmail, cancellationToken);
             if (concurrentUser != null)
             {
                 if (concurrentUser.Email == normalizedEmail && concurrentUser.Status == UserStatus.EMAIL_VERIFY_PENDING)
@@ -1613,7 +1600,6 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users
             .Include(u => u.AuthProviders)
-            .Include(u => u.PasswordCredentials)
             .FirstOrDefaultAsync(u => u.Id == userId);
             
         if (user == null)
@@ -1621,7 +1607,7 @@ public class AuthService : IAuthService
             throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
         }
 
-        var requiresPassword = !string.IsNullOrEmpty(user.PasswordHash) || user.PasswordCredentials.Any(pc => pc.DeletedAt == null && pc.IsActive);
+        var requiresPassword = !string.IsNullOrEmpty(user.PasswordHash);
         var activeProviders = user.AuthProviders.Where(ap => ap.DeletedAt == null).ToList();
         var requiresOAuthReauth = !requiresPassword && activeProviders.Any();
         var linkedProvider = activeProviders.FirstOrDefault()?.ProviderName;
@@ -1633,7 +1619,6 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users
             .Include(u => u.AuthProviders)
-            .Include(u => u.PasswordCredentials)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null || user.DeletedAt != null)
@@ -1692,14 +1677,6 @@ public class AuthService : IAuthService
                 if (!string.IsNullOrEmpty(user.PasswordHash))
                 {
                     isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-                }
-                if (!isPasswordValid)
-                {
-                    var activeCred = user.PasswordCredentials.FirstOrDefault(pc => pc.DeletedAt == null && pc.IsActive);
-                    if (activeCred != null)
-                    {
-                        isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, activeCred.PasswordHash);
-                    }
                 }
                 if (!isPasswordValid)
                 {
@@ -2056,10 +2033,10 @@ public class AuthService : IAuthService
         var primaryEmail = user.Email.Trim().ToLowerInvariant();
         var normalizedTarget = request.Email.Trim().ToLowerInvariant();
 
-        var linkedEmails = await _context.UserEmails
-            .Where(le => le.UserId == userId && le.IsVerified)
+        var linkedEmails = user.LinkedEmails
+            .Where(le => le.IsVerified)
             .Select(le => le.Email)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         bool isValidDestination = string.Equals(primaryEmail, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
                                   linkedEmails.Any(le => string.Equals(le.Trim().ToLowerInvariant(), normalizedTarget, StringComparison.OrdinalIgnoreCase));
@@ -2602,7 +2579,6 @@ public class AuthService : IAuthService
         {
             var user = await _context.Users
                 .Include(u => u.AuthProviders)
-                .Include(u => u.PasswordCredentials)
                 .FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
 
             var superAdminEmail = _envConfig.SuperAdmin.Email;
@@ -2661,25 +2637,7 @@ public class AuthService : IAuthService
             }
 
             // Password Credentials history management
-            var activeCredentials = user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null).ToList();
-            foreach (var cred in activeCredentials)
-            {
-                cred.IsActive = false;
-                cred.RevokedAt = _timeProvider.GetUtcNow();
-                cred.RevokedReason = "Password updated/rotated";
-                cred.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-            }
-
-            var newCred = new PasswordCredential
-            {
-                UserId = user.Id,
-                PasswordHash = passwordHash,
-                IsActive = true,
-                PasswordChangedAt = _timeProvider.GetUtcNow(),
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.PasswordCredentials.Add(newCred);
+            user.PasswordChangedAt = _timeProvider.GetUtcNow();
             await _context.SaveChangesAsync(cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
@@ -3437,16 +3395,10 @@ public class AuthService : IAuthService
                 CreatedAt = _timeProvider.GetUtcNow()
             };
 
-            var credential = new OAuthCredential
-            {
-                AuthProviderId = newProvider.Id,
-                EncryptedAccessToken = pending.EncryptedAccessToken,
-                EncryptedRefreshToken = pending.EncryptedRefreshToken,
-                ExpiresAt = null,
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-
-            newProvider.OAuthCredential = credential;
+            newProvider.EncryptedAccessToken = pending.EncryptedAccessToken;
+            newProvider.EncryptedRefreshToken = pending.EncryptedRefreshToken;
+            newProvider.ExpiresAt = null;
+            newProvider.TokenUpdatedAt = _timeProvider.GetUtcNow();
             _context.AuthProviders.Add(newProvider);
             _context.PendingAuthProviders.Remove(pending);
 
@@ -3498,8 +3450,7 @@ public class AuthService : IAuthService
             .Where(ap => ap.UserId == userId && ap.DeletedAt == null)
             .ToListAsync();
 
-        var hasPassword = !string.IsNullOrEmpty(matchedProvider.User?.PasswordHash) || await _context.PasswordCredentials
-            .AnyAsync(pc => pc.UserId == userId && pc.IsActive && pc.DeletedAt == null);
+        var hasPassword = !string.IsNullOrEmpty(matchedProvider.User?.PasswordHash);
 
         var totalMethods = activeProviders.Count + (hasPassword ? 1 : 0);
         if (totalMethods <= 1)
@@ -3507,15 +3458,12 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Cannot unlink provider because it is your only login method.");
         }
 
-        var credential = await _context.OAuthCredentials
-            .FirstOrDefaultAsync(oc => oc.AuthProviderId == matchedProvider.Id);
-
         string? decryptedAccessToken = null;
-        if (credential != null && !string.IsNullOrEmpty(credential.EncryptedAccessToken) && !string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
+        if (!string.IsNullOrEmpty(matchedProvider.EncryptedAccessToken) && !string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
         {
             try
             {
-                decryptedAccessToken = EncryptionHelper.Decrypt(credential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
+                decryptedAccessToken = EncryptionHelper.Decrypt(matchedProvider.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
             }
             catch (Exception ex)
             {
@@ -3550,10 +3498,6 @@ public class AuthService : IAuthService
         try
         {
             matchedProvider.DeletedAt = _timeProvider.GetUtcNow();
-            if (credential != null)
-            {
-                _context.OAuthCredentials.Remove(credential);
-            }
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -3629,10 +3573,7 @@ public class AuthService : IAuthService
             await _cacheService.SetAsync(throttleKey, true, TimeSpan.FromMinutes(2));
         }
 
-        var credential = await _context.OAuthCredentials
-            .FirstOrDefaultAsync(oc => oc.AuthProviderId == matchedProvider.Id);
-
-        if (credential == null || string.IsNullOrEmpty(credential.EncryptedAccessToken) || string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
+        if (string.IsNullOrEmpty(matchedProvider.EncryptedAccessToken) || string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
         {
             matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
             matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
@@ -3643,7 +3584,7 @@ public class AuthService : IAuthService
         string decryptedAccessToken;
         try
         {
-            decryptedAccessToken = EncryptionHelper.Decrypt(credential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
+            decryptedAccessToken = EncryptionHelper.Decrypt(matchedProvider.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
         }
         catch (Exception ex)
         {
@@ -3745,7 +3686,6 @@ public class AuthService : IAuthService
         var userId = Guid.Parse(userIdClaim.Value);
 
         var user = await _context.Users
-            .Include(u => u.PasswordCredentials)
             .FirstOrDefaultAsync(u => u.Id == userId && u.DeletedAt == null, cancellationToken);
 
         if (user == null)
@@ -3753,12 +3693,7 @@ public class AuthService : IAuthService
             throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
         }
 
-        var activeCred = user.PasswordCredentials
-            .Where(pc => pc.IsActive && pc.DeletedAt == null)
-            .OrderByDescending(pc => pc.CreatedAt)
-            .FirstOrDefault();
-
-        string? currentPasswordHash = activeCred?.PasswordHash ?? user.PasswordHash;
+        string? currentPasswordHash = user.PasswordHash;
 
         if (string.IsNullOrEmpty(currentPasswordHash))
         {
@@ -3781,29 +3716,8 @@ public class AuthService : IAuthService
 
         // Update primary User entity password hash to ensure login flows utilize the new credentials
         user.PasswordHash = newHash;
+        user.PasswordChangedAt = _timeProvider.GetUtcNow();
         user.UpdatedAt = _timeProvider.GetUtcNow();
-
-        // Deactivate active credentials
-        foreach (var cred in user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null))
-        {
-            cred.IsActive = false;
-            cred.RevokedAt = _timeProvider.GetUtcNow();
-            cred.RevokedReason = "PASSWORD_CHANGED";
-            cred.UpdatedAt = _timeProvider.GetUtcNow();
-        }
-
-        // Add new password credential
-        var newCred = new PasswordCredential
-        {
-            Id = Guid.CreateVersion7(),
-            UserId = user.Id,
-            PasswordHash = newHash,
-            IsActive = true,
-            PasswordChangedAt = _timeProvider.GetUtcNow(),
-            CreatedAt = _timeProvider.GetUtcNow(),
-            UpdatedAt = _timeProvider.GetUtcNow()
-        };
-        _context.PasswordCredentials.Add(newCred);
 
         // Revoke all other refresh tokens for user
         var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];

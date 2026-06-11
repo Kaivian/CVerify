@@ -69,6 +69,9 @@ public class CareerPreference
 
     public List<string> DesiredJobPositions { get; set; } = new();
 
+    public List<string> PreferredLocations { get; set; } = new();
+    public List<string> EmploymentPreferences { get; set; } = new();
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
