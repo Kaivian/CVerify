@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.SourceCode.Entities;
 
 namespace CVerify.API.Modules.Profiles.Services;
 
@@ -141,10 +142,26 @@ public class CareerReadinessEngine : ICareerReadinessEngine
         // 2. Calculate Skill Verification Strength (30% weight in discoverability)
         // Check how many target skills are backed by verified developer user skills
         double verificationStrength = 0;
-        var verifiedSkills = await _context.UserSkills
-            .Where(us => us.UserId == career.UserId)
-            .Select(us => us.Skill.ToLower().Trim())
+        var repositorySkills = await _context.SourceCodeRepositories
+            .FromSqlRaw(@"
+                SELECT r.* 
+                FROM source_code_repositories r
+                INNER JOIN auth_providers ap ON r.auth_provider_id = ap.id
+                WHERE ap.user_id = {0} 
+                  AND ap.deleted_at IS NULL
+                  AND r.latest_analysis_status = 'Completed'
+                  AND r.is_private = FALSE
+                  AND r.is_enabled = TRUE", 
+                career.UserId)
+            .Select(r => new { r.PrimaryLanguage, r.Classification })
             .ToListAsync(cancellationToken);
+
+        var verifiedSkills = repositorySkills
+            .SelectMany(r => new[] { r.PrimaryLanguage, r.Classification })
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s.ToLower().Trim())
+            .Distinct()
+            .ToList();
 
         if (career.TargetSkills != null && career.TargetSkills.Any())
         {

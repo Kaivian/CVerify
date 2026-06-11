@@ -52,7 +52,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative text-left">
-      <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-4 pb-20">
+      <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-20">
         <div className="flex flex-col gap-2">
           <label className="text-[11px] font-bold text-foreground">
             Target Skills
