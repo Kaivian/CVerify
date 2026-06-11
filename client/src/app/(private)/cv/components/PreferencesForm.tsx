@@ -138,13 +138,14 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               onSelectionChange={(key) => {
                 onChange({ openToWorkStatus: key as string });
               }}
+              aria-label="Search status"
             >
               <Select.Trigger className="rounded-xl border border-border bg-surface text-xs h-10 px-3">
                 <Select.Value />
                 <Select.Indicator />
               </Select.Trigger>
               <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
-                <ListBox>
+                <ListBox aria-label="Search status options">
                   {WORK_STATUS_OPTIONS.map((opt) => (
                     <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                       {opt.label}
@@ -164,13 +165,14 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               onSelectionChange={(key) => {
                 onChange({ remotePreference: key as string });
               }}
+              aria-label="Work arrangement"
             >
               <Select.Trigger className="rounded-xl border border-border bg-surface text-xs h-10 px-3">
                 <Select.Value />
                 <Select.Indicator />
               </Select.Trigger>
               <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
-                <ListBox>
+                <ListBox aria-label="Work arrangement options">
                   {REMOTE_OPTIONS.map((opt) => (
                     <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                       {opt.label}
@@ -198,6 +200,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 }
                 placeholder="e.g. 1500"
                 disabled={draft.expectedSalaryNegotiable}
+                aria-label="Expected salary min"
               />
             </div>
 
@@ -213,6 +216,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 }
                 placeholder="e.g. 3000"
                 disabled={draft.expectedSalaryNegotiable}
+                aria-label="Expected salary max"
               />
               {salaryError && (
                 <span className="text-[10px] text-danger">{salaryError}</span>
@@ -227,13 +231,14 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   onChange({ expectedSalaryCurrency: key as string });
                 }}
                 isDisabled={draft.expectedSalaryNegotiable}
+                aria-label="Expected salary currency"
               >
                 <Select.Trigger className="rounded-xl border border-border bg-surface text-xs h-10 px-3">
                   <Select.Value />
                   <Select.Indicator />
                 </Select.Trigger>
                 <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
-                  <ListBox>
+                  <ListBox aria-label="Expected salary currency options">
                     {CURRENCY_OPTIONS.map((opt) => (
                       <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                         {opt.label}
@@ -252,13 +257,14 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   onChange({ expectedSalaryType: key as string });
                 }}
                 isDisabled={draft.expectedSalaryNegotiable}
+                aria-label="Expected salary type"
               >
                 <Select.Trigger className="rounded-xl border border-border bg-surface text-xs h-10 px-3">
                   <Select.Value />
                   <Select.Indicator />
                 </Select.Trigger>
                 <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
-                  <ListBox>
+                  <ListBox aria-label="Expected salary type options">
                     {SALARY_TYPE_OPTIONS.map((opt) => (
                       <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                         {opt.label}
@@ -273,6 +279,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               <Checkbox
                 isSelected={draft.expectedSalaryNegotiable}
                 onChange={(isSelected: boolean) => onChange({ expectedSalaryNegotiable: isSelected })}
+                aria-label="Negotiable salary"
               />
               <span className="font-semibold text-foreground">Negotiable</span>
             </div>
@@ -281,6 +288,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               <Checkbox
                 isSelected={draft.isExpectedSalaryVisible}
                 onChange={(isSelected: boolean) => onChange({ isExpectedSalaryVisible: isSelected })}
+                aria-label="Show salary publicly"
               />
               <span className="font-semibold text-foreground">Show salary publicly</span>
             </div>
@@ -301,8 +309,9 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   handleAddPosition();
                 }
               }}
+              aria-label="New target role input"
             />
-            <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={handleAddPosition} type="button">
+            <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={handleAddPosition} type="button" aria-label="Add target role">
               <PlusCircle className="size-4" />
             </Button>
           </div>
@@ -317,7 +326,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               >
                 <span className="flex items-center gap-1">
                   {pos}
-                  <button type="button" onClick={() => handleRemovePosition(pos)} className="bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer flex items-center">
+                  <button type="button" onClick={() => handleRemovePosition(pos)} className="bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer flex items-center" aria-label={`Remove target role ${pos}`}>
                     <X className="size-2.5" />
                   </button>
                 </span>
@@ -340,8 +349,9 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   handleAddLocation();
                 }
               }}
+              aria-label="New preferred location input"
             />
-            <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={handleAddLocation} type="button">
+            <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={handleAddLocation} type="button" aria-label="Add preferred location">
               <PlusCircle className="size-4" />
             </Button>
           </div>
@@ -356,7 +366,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               >
                 <span className="flex items-center gap-1">
                   {loc}
-                  <button type="button" onClick={() => handleRemoveLocation(loc)} className="bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer flex items-center">
+                  <button type="button" onClick={() => handleRemoveLocation(loc)} className="bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer flex items-center" aria-label={`Remove preferred location ${loc}`}>
                     <X className="size-2.5" />
                   </button>
                 </span>
@@ -373,7 +383,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               const isSelected = draft.employmentPreferences.includes(opt.value);
               return (
                 <div key={opt.value} className="flex items-center gap-2">
-                  <Checkbox isSelected={isSelected} onChange={() => toggleEmployment(opt.value)} />
+                  <Checkbox isSelected={isSelected} onChange={() => toggleEmployment(opt.value)} aria-label={opt.label} />
                   <span className="font-semibold text-foreground">{opt.label}</span>
                 </div>
               );
@@ -403,6 +413,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             onChange={(e) => onChange({ workPreferenceNotes: e.target.value })}
             placeholder="e.g. Prefer collaborative engineering teams, hybrid model..."
             rows={3}
+            aria-label="Additional Work Preference Notes"
           />
         </div>
 

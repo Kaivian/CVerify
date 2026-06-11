@@ -102,6 +102,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
               className="rounded-xl border border-border/30 h-8 w-8"
               onPress={() => setEditingItem(null)}
               type="button"
+              aria-label="Close edit mode"
             >
               <X className="size-4" />
             </Button>
@@ -114,6 +115,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                 value={editingItem.schoolName}
                 onChange={(e) => setEditingItem({ ...editingItem, schoolName: e.target.value })}
                 placeholder="FPT University"
+                aria-label="School or University Name"
               />
               {errors.schoolName && <span className="text-[10px] text-danger">{errors.schoolName}</span>}
             </div>
@@ -124,6 +126,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                 value={editingItem.degree}
                 onChange={(e) => setEditingItem({ ...editingItem, degree: e.target.value, label: e.target.value })}
                 placeholder="Bachelor of Software Engineering"
+                aria-label="Degree title"
               />
               {errors.degree && <span className="text-[10px] text-danger">{errors.degree}</span>}
             </div>
@@ -134,6 +137,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                 value={editingItem.major}
                 onChange={(e) => setEditingItem({ ...editingItem, major: e.target.value })}
                 placeholder="Software Engineering"
+                aria-label="Major or Field of Study"
               />
             </div>
 
@@ -168,6 +172,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                     endDate: isSelected ? null : editingItem.endDate,
                   })
                 }
+                aria-label="Currently studying here"
               />
               <span className="text-xs font-semibold text-foreground">
                 Currently studying here
@@ -187,6 +192,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                   })
                 }
                 placeholder="3.6"
+                aria-label="GPA"
               />
             </div>
 
@@ -203,6 +209,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                   })
                 }
                 placeholder="4.0"
+                aria-label="GPA Scale"
               />
             </div>
           </div>
@@ -214,6 +221,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
               onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
               placeholder="e.g. GPA 3.6, Học bổng toàn phần..."
               rows={3}
+              aria-label="Education description"
             />
           </div>
 
@@ -262,6 +270,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                       className="rounded-xl border border-border/30 h-8 w-8"
                       onPress={() => handleEdit(item)}
                       type="button"
+                      aria-label={`Edit education at ${item.schoolName}`}
                     >
                       <Edit2 className="size-3.5" />
                     </Button>
@@ -272,6 +281,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({
                       className="rounded-xl border border-border/30 h-8 w-8 text-danger"
                       onPress={() => handleRemove(item.id)}
                       type="button"
+                      aria-label={`Remove education at ${item.schoolName}`}
                     >
                       <Trash2 className="size-3.5" />
                     </Button>

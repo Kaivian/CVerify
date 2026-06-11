@@ -12,6 +12,7 @@ interface BasicInfoFormProps {
   onReset: () => void;
   isSaving: boolean;
   isDirty: boolean;
+  avatarUrl?: string | null;
 }
 
 export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
@@ -22,6 +23,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
   onReset,
   isSaving,
   isDirty,
+  avatarUrl,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -140,6 +142,18 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
           <div className="w-20 h-20 rounded-full bg-surface-secondary flex items-center justify-center text-muted border border-border/40 overflow-hidden relative">
             {isUploading ? (
               <Spinner size="sm" />
+            ) : avatarUrl ? (
+              <>
+                <img
+                  src={avatarUrl}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="size-5 text-white" />
+                </div>
+              </>
             ) : (
               <Camera className="size-6 text-muted-foreground group-hover:scale-110 transition-transform" />
             )}
@@ -153,7 +167,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
           />
         </div>
         <div className="flex flex-col gap-1 select-none">
-          <span className="font-bold text-sm text-foreground">Full Name</span>
+          <span className="font-bold text-sm text-foreground">{draft.fullName || "Full Name"}</span>
           <span className="text-[10px] text-muted-foreground">JPEG, PNG, or WebP. Max 2MB.</span>
         </div>
       </div>
@@ -166,6 +180,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             value={draft.fullName}
             onChange={(e) => onChange({ fullName: e.target.value })}
             placeholder="John Doe"
+            aria-label="Full Name"
           />
           {errors.fullName && <span className="text-[10px] text-danger">{errors.fullName}</span>}
         </div>
@@ -177,6 +192,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             value={draft.username}
             onChange={(e) => onChange({ username: e.target.value })}
             placeholder="johndoe"
+            aria-label="Username"
           />
         </div>
 
@@ -187,6 +203,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             value={draft.headline}
             onChange={(e) => onChange({ headline: e.target.value })}
             placeholder="Senior Fullstack Engineer"
+            aria-label="Professional Headline"
           />
         </div>
 
@@ -197,6 +214,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             value={draft.publicEmail}
             onChange={(e) => onChange({ publicEmail: e.target.value })}
             placeholder="email@example.com"
+            aria-label="Public Email"
           />
           {errors.publicEmail && <span className="text-[10px] text-danger">{errors.publicEmail}</span>}
         </div>
@@ -208,6 +226,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             value={draft.phoneNumber}
             onChange={(e) => onChange({ phoneNumber: e.target.value })}
             placeholder="0987654321"
+            aria-label="Phone Number"
           />
           {errors.phoneNumber && <span className="text-[10px] text-danger">{errors.phoneNumber}</span>}
         </div>
@@ -219,6 +238,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             value={draft.location}
             onChange={(e) => onChange({ location: e.target.value })}
             placeholder="Hanoi, Vietnam"
+            aria-label="Location"
           />
         </div>
 
@@ -240,6 +260,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             value={draft.company}
             onChange={(e) => onChange({ company: e.target.value })}
             placeholder="CVerify AI Technology"
+            aria-label="Current Company"
           />
         </div>
 
@@ -252,13 +273,14 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             onSelectionChange={(key) => {
               onChange({ pronouns: key as string });
             }}
+            aria-label="Pronouns"
           >
             <Select.Trigger className="rounded-xl border border-border bg-surface text-xs h-10 px-3">
               <Select.Value />
               <Select.Indicator />
             </Select.Trigger>
             <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
-              <ListBox>
+              <ListBox aria-label="Pronoun options">
                 {pronounsOptions.map((opt) => (
                   <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                     {opt.label}
@@ -277,6 +299,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
               value={draft.customPronouns}
               onChange={(e) => onChange({ customPronouns: e.target.value })}
               placeholder="Custom pronouns"
+              aria-label="Custom Pronouns"
             />
           </div>
         )}
@@ -306,6 +329,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
                   value={link}
                   onChange={(e) => handleSocialLinkChange(e.target.value, index)}
                   placeholder="github.com/username"
+                  aria-label={`Social link ${index + 1}`}
                 />
                 {errors[`link-${index}`] && <span className="text-[10px] text-danger">{errors[`link-${index}`]}</span>}
               </div>
@@ -316,6 +340,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
                 className="rounded-xl border border-border/30 h-10 w-10 text-danger"
                 onPress={() => removeSocialLink(index)}
                 type="button"
+                aria-label={`Remove social link ${index + 1}`}
               >
                 <Trash2 className="size-4" />
               </Button>

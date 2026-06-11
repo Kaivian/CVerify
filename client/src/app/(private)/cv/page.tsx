@@ -1068,6 +1068,7 @@ export default function CvManagementCenter() {
                 onReset={handleResetActiveSection}
                 isSaving={isSaving}
                 isDirty={dirtyFlags["basic-info"]}
+                avatarUrl={user?.avatarUrl}
               />
             )}
             {activeTab === "career-summary" && (

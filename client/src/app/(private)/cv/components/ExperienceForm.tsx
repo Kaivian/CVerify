@@ -147,6 +147,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
               className="rounded-xl border border-border/30 h-8 w-8"
               onPress={() => setEditingItem(null)}
               type="button"
+              aria-label="Close edit mode"
             >
               <X className="size-4" />
             </Button>
@@ -159,6 +160,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                 value={editingItem.company}
                 onChange={(e) => setEditingItem({ ...editingItem, company: e.target.value })}
                 placeholder="Google"
+                aria-label="Company name"
               />
               {errors.company && <span className="text-[10px] text-danger">{errors.company}</span>}
             </div>
@@ -169,6 +171,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                 value={editingItem.jobTitle}
                 onChange={(e) => setEditingItem({ ...editingItem, jobTitle: e.target.value })}
                 placeholder="Software Engineer"
+                aria-label="Role or Position"
               />
               {errors.jobTitle && <span className="text-[10px] text-danger">{errors.jobTitle}</span>}
             </div>
@@ -179,6 +182,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                 value={editingItem.location}
                 onChange={(e) => setEditingItem({ ...editingItem, location: e.target.value })}
                 placeholder="Hanoi, Vietnam"
+                aria-label="Job location"
               />
             </div>
 
@@ -213,6 +217,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                     endDate: isSelected ? null : editingItem.endDate,
                   })
                 }
+                aria-label="Currently working here"
               />
               <span className="text-xs font-semibold text-foreground">
                 Currently working here
@@ -227,6 +232,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
               onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
               placeholder="Detail your responsibilities and achievements..."
               rows={4}
+              aria-label="Job description"
             />
           </div>
 
@@ -244,8 +250,9 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                     addTechnology();
                   }
                 }}
+                aria-label="Technology name"
               />
-              <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={addTechnology} type="button">
+              <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={addTechnology} type="button" aria-label="Add technology">
                 <Plus className="size-4" />
               </Button>
             </div>
@@ -260,7 +267,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                 >
                   <span className="flex items-center gap-1">
                     {tech}
-                    <button type="button" onClick={() => removeTechnology(tech)} className="bg-transparent border-none text-muted-foreground cursor-pointer flex items-center">
+                    <button type="button" onClick={() => removeTechnology(tech)} className="bg-transparent border-none text-muted-foreground cursor-pointer flex items-center" aria-label={`Remove ${tech} technology`}>
                       <X className="size-2.5" />
                     </button>
                   </span>
@@ -288,6 +295,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                     className="rounded-xl border border-border/30 absolute right-2 top-2 h-7 w-7 text-danger"
                     onPress={() => removeAchievement(idx)}
                     type="button"
+                    aria-label={`Remove achievement ${idx + 1}`}
                   >
                     <Trash2 className="size-3.5" />
                   </Button>
@@ -297,6 +305,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                       value={ach.title}
                       onChange={(e) => updateAchievement(idx, "title", e.target.value)}
                       placeholder="e.g. Optimize Database Query"
+                      aria-label={`Achievement title ${idx + 1}`}
                     />
                   </div>
                   <div className="flex flex-col gap-1 text-xs">
@@ -306,6 +315,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                       onChange={(e) => updateAchievement(idx, "description", e.target.value)}
                       placeholder="e.g. Tối ưu hóa truy vấn giúp giảm tải CPU 25%"
                       rows={2}
+                      aria-label={`Achievement description ${idx + 1}`}
                     />
                   </div>
                 </div>
@@ -358,6 +368,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                       className="rounded-xl border border-border/30 h-8 w-8"
                       onPress={() => handleEdit(item)}
                       type="button"
+                      aria-label={`Edit experience at ${item.company}`}
                     >
                       <Edit2 className="size-3.5" />
                     </Button>
@@ -368,6 +379,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                       className="rounded-xl border border-border/30 h-8 w-8 text-danger"
                       onPress={() => handleRemove(item.id)}
                       type="button"
+                      aria-label={`Remove experience at ${item.company}`}
                     >
                       <Trash2 className="size-3.5" />
                     </Button>

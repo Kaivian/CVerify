@@ -64,6 +64,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({
               onKeyDown={handleKeyDown}
               placeholder="Press Enter to add skill"
               className="flex-1"
+              aria-label="New skill input"
             />
             <Button
               size="sm"
@@ -71,6 +72,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({
               className="rounded-xl border border-border/30 h-10 w-10 min-w-10 flex items-center justify-center"
               onPress={addSkill}
               type="button"
+              aria-label="Add skill"
             >
               <PlusCircle className="size-4" />
             </Button>
@@ -97,6 +99,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({
                     type="button"
                     onClick={() => removeSkill(skill)}
                     className="bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer outline-none shrink-0"
+                    aria-label={`Remove ${skill} skill`}
                   >
                     <X className="size-3" />
                   </button>
