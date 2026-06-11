@@ -1164,6 +1164,10 @@ public class AuthController : ControllerBase
             var result = await _authService.RegisterCompanyAsync(request, userAgent, ipAddress, cancellationToken);
             return Ok(new { success = result });
         }
+        catch (AuthException ex) when (ex.Code == AuthErrorCodes.ServiceUnavailable)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { code = ex.Code, message = ex.Message });
+        }
         catch (AuthException ex)
         {
             return BadRequest(new { code = ex.Code, message = ex.Message });
@@ -1240,6 +1244,10 @@ public class AuthController : ControllerBase
         {
             var result = await _workspaceProvisioningService.VerifyCompanyOnboardingAsync(request, cancellationToken);
             return Ok(result);
+        }
+        catch (AuthException ex) when (ex.Code == AuthErrorCodes.ServiceUnavailable)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { code = ex.Code, message = ex.Message });
         }
         catch (AuthException ex)
         {

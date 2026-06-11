@@ -401,6 +401,13 @@ builder.Services.AddScoped<CVerify.API.Pipelines.Shared.AI.IPromptRegistry, CVer
 builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Queue.IPipelineQueue, CVerify.API.Pipelines.Shared.Queue.PipelineQueue>();
 builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Orchestration.IDagScheduler, CVerify.API.Pipelines.Shared.Orchestration.DagScheduler>();
 
+// Register VietQR Business Registry Client
+builder.Services.AddHttpClient("VietQR", client =>
+{
+    client.BaseAddress = new Uri("https://api.vietqr.io/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
 // Register AI Service
 builder.Services.AddScoped<IHmacSignatureService, HmacSignatureService>();
 builder.Services.AddHttpClient("AiServiceClient", client =>

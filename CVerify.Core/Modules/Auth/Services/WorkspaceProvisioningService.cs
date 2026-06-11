@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Polly;
+using Polly.Retry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Google.Apis.Auth;
@@ -169,6 +172,34 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
 
 
 
+    private async Task<HttpResponseMessage> SendVietQrRequestWithRetryAsync(string taxCode, CancellationToken cancellationToken)
+    {
+        var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
+            .AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = 1,
+                Delay = TimeSpan.FromSeconds(1),
+                ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+                    .HandleResult(r => (int)r.StatusCode >= 500 || r.StatusCode == HttpStatusCode.RequestTimeout)
+                    .Handle<HttpRequestException>()
+                    .Handle<TaskCanceledException>(ex => !cancellationToken.IsCancellationRequested),
+                OnRetry = args =>
+                {
+                    _logger.LogWarning(
+                        "VietQR lookup transient failure (attempt {Attempt}). Retrying in {Delay}s for tax code {TaxCode}.",
+                        args.AttemptNumber + 1, args.RetryDelay.TotalSeconds, taxCode);
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .Build();
+
+        return await pipeline.ExecuteAsync(async ct =>
+        {
+            var client = _httpClientFactory.CreateClient("VietQR");
+            return await client.GetAsync($"v2/business/{taxCode}", ct);
+        }, cancellationToken);
+    }
+
     public async Task<VerifyCompanyOnboardingResponse> VerifyCompanyOnboardingAsync(VerifyCompanyOnboardingRequest request, CancellationToken cancellationToken = default)
     {
         var taxCode = request.TaxCode.Trim();
@@ -177,11 +208,18 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Tax code format is invalid.");
         }
 
-        var client = _httpClientFactory.CreateClient();
-        var response = await client.GetAsync($"https://api.vietqr.io/v2/business/{taxCode}", cancellationToken);
+        var response = await SendVietQrRequestWithRetryAsync(taxCode, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
+            var statusCode = (int)response.StatusCode;
+            _logger.LogWarning("VietQR business registry lookup returned HTTP {StatusCode} for tax code {TaxCode}.", statusCode, taxCode);
+
+            if (statusCode >= 500 || response.StatusCode == HttpStatusCode.RequestTimeout)
+            {
+                throw new AuthException(AuthErrorCodes.ServiceUnavailable, "The business registry service is temporarily unavailable. Please try again.");
+            }
+
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "The business tax registry lookup failed.");
         }
 
