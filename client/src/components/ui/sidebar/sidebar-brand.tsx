@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
 import { Typography } from "@heroui/react";
 import { useThemeStore } from "../../../stores/use-theme-store";
 
@@ -10,7 +9,6 @@ interface SidebarBrandProps {
 }
 
 export const SidebarBrand: React.FC<SidebarBrandProps> = ({ collapsed }) => {
-  const { t } = useTranslation(["common"]);
   const theme = useThemeStore((state) => state.theme);
 
   // SSR hydration safeguard: only render theme-dependent assets after client mount
@@ -46,7 +44,7 @@ export const SidebarBrand: React.FC<SidebarBrandProps> = ({ collapsed }) => {
           type="body-sm"
           className="font-bold font-lato text-xl truncate"
         >
-          {t("common:branding.title", { defaultValue: "CVerify" })}
+          CVerify
         </Typography>
       </div>
     </div>

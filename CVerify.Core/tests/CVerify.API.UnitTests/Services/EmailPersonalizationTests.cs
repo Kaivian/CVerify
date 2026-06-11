@@ -87,10 +87,9 @@ public class EmailPersonalizationTests
             Status = UserStatus.ACTIVE
         };
 
-        var linkedEmail = new UserEmail
+        var linkedEmail = new LinkedEmail
         {
             Id = Guid.Parse("018fbfb3-caab-7df2-a384-25e22709e3e4"),
-            UserId = targetUser.Id,
             Email = "linked@cverify.ai",
             IsVerified = true
         };

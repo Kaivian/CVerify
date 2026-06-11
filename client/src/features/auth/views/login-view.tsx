@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { Google } from "@thesvg/react";
 import {
@@ -26,6 +26,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     loginWithGoogle,
     login,
@@ -35,8 +36,8 @@ function LoginContent() {
   } = useAuth();
 
   // Engineer state
-  const [email, setEmail] = useState("");
-  const [emailTouched, setEmailTouched] = useState(false);
+  const [email, setEmail] = useState(() => searchParams?.get("email") || "");
+  const [emailTouched, setEmailTouched] = useState(() => !!searchParams?.get("email"));
   const [isEmailLoading, setIsEmailLoading] = useState(false);
 
   // Engineer identity flow phase: email input → password login (if credentials exist)
@@ -556,11 +557,11 @@ function LoginContent() {
                     onReset={handleBusinessReset}
                   >
                     <TextField isRequired name="username" type="text">
-                      <Label>Username</Label>
+                      <Label>Organization Slug</Label>
                       <Input
-                        placeholder="Enter your username"
+                        placeholder="Enter workspace handle (e.g. fpt-software)"
                         value={businessUsername}
-                        onChange={(e) => setBusinessUsername(e.target.value)}
+                        onChange={(e) => setBusinessUsername(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
                       />
                       <FieldError />
                     </TextField>

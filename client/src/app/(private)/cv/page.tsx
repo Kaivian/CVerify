@@ -1,0 +1,1240 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Typography,
+  Button,
+  Spinner,
+  toast,
+} from "@heroui/react";
+import { Card } from "@/components/ui/card";
+import {
+  User,
+  Briefcase,
+  GraduationCap,
+  Award,
+  FileText,
+  Sparkles,
+  ChevronRight,
+  ArrowLeft,
+  Printer,
+  FolderCode,
+  AlertCircle,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+
+import { useProfile } from "@/hooks/use-profile";
+import { useCareerPreferences } from "@/hooks/use-career-preferences";
+import { useEducation } from "@/hooks/use-education";
+import { useWorkExperience } from "@/hooks/use-work-experience";
+import { useAchievements } from "@/hooks/use-achievements";
+import { useAuth } from "@/features/auth/hooks/use-auth";
+import { isDeepEqual } from "@/components/ui/unsaved-changes-bar";
+
+import {
+  type CvDraftState,
+  type CvSectionId,
+  type BasicInfoDraft,
+  type CareerSummaryDraft,
+  type SkillsDraft,
+  type ExperienceDraftItem,
+  type EducationDraftItem,
+  type AchievementsDraftItem,
+  type PreferencesDraft,
+} from "./components/types";
+
+import { BasicInfoForm } from "./components/BasicInfoForm";
+import { CareerSummaryForm } from "./components/CareerSummaryForm";
+import { SkillsForm } from "./components/SkillsForm";
+import { ProjectsForm } from "./components/ProjectsForm";
+import { ExperienceForm } from "./components/ExperienceForm";
+import { EducationForm } from "./components/EducationForm";
+import { AchievementsForm } from "./components/AchievementsForm";
+import { PreferencesForm } from "./components/PreferencesForm";
+import { CvLivePreview } from "./components/CvLivePreview";
+import { CVPreview } from "./components/CVPreview";
+import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
+import type { SourceCodeRepository } from "@/types/source-code-provider.types";
+
+// Mock Sample Data for testing the standard A4 template
+const SAMPLE_DATA = {
+  profile: {
+    fullName: "Nguyễn Văn A",
+    headline: "Senior Fullstack Engineer",
+    bio: "Đam mê xây dựng các sản phẩm phần mềm chất lượng cao và có thể mở rộng. Hơn 5 năm kinh nghiệm làm việc với các hệ thống phân tán, React, Node.js, .NET Core và thiết kế cơ sở dữ liệu lớn.",
+    location: "Hà Nội, Việt Nam",
+    publicEmail: "nguyenvana@cverify.com",
+    phoneNumber: "0987654321",
+    socialLinks: ["github.com/nguyenvana", "linkedin.com/in/nguyenvana"],
+  },
+  education: [
+    {
+      id: "sample-edu-1",
+      schoolName: "Đại học FPT",
+      label: "Cử nhân Kỹ thuật phần mềm",
+      startDate: "2018-09-01",
+      endDate: "2022-06-30",
+      gpa: 3.6,
+      gpaScale: 4.0,
+      description: "Thủ khoa đầu ra, học bổng 100% toàn khóa học.",
+    },
+  ],
+  experience: [
+    {
+      id: "sample-exp-1",
+      company: "CVerify AI Technology",
+      jobTitle: "Lead Fullstack Engineer",
+      startDate: "2022-07-01",
+      endDate: null,
+      isCurrentlyWorking: true,
+      description: "Kiến trúc và triển khai giải pháp xác minh danh tính lập trình viên bằng AI. Tối ưu hóa hiệu năng cơ sở dữ liệu giúp tốc độ phân tích tăng 40%.",
+      technologies: ["React", ".NET Core", "PostgreSQL", "Docker"],
+      achievements: [
+        { title: "Optimize DB", description: "Tối ưu hóa thành công truy vấn lớn giúp giảm tải CPU 25%" }
+      ],
+      links: []
+    },
+  ],
+  achievements: [
+    {
+      id: "sample-ach-1",
+      title: "AWS Certified Solutions Architect",
+      issuer: "Amazon Web Services (AWS)",
+      issueDate: "2023-05-15",
+      description: "Chứng chỉ thiết kế hệ thống điện toán đám mây cấp độ chuyên nghiệp.",
+    },
+  ],
+  projects: [
+    {
+      id: "sample-proj-1",
+      name: "CVerify AI Portal",
+      startDate: "2025-04-01",
+      endDate: null,
+      description: "Hệ thống tự động xác thực thông tin ứng viên và lịch sử hoạt động lập trình dựa trên phân tích mã nguồn bằng trí tuệ nhân tạo.",
+      technologies: ["React.js", "Tailwind CSS", "TypeScript", "Node.js"],
+      role: "Lead Front-end Developer",
+      contributions: [
+        "Xây dựng giao diện xem trước CV trực quan theo chuẩn A4, hỗ trợ in ấn và xuất PDF tự động.",
+        "Thiết kế và triển khai cơ chế đồng bộ hóa dữ liệu thời gian thực giữa cài đặt tài khoản và CV.",
+        "Tối ưu hóa tài nguyên hình ảnh và script giúp giảm 35% dung lượng bundle đầu ra."
+      ]
+    },
+    {
+      id: "sample-proj-2",
+      name: "OpenSource Analytics",
+      startDate: "2024-10-01",
+      endDate: "2025-02-15",
+      description: "Hệ thống phân tích hiệu năng đóng góp mã nguồn mở trên GitHub.",
+      technologies: ["Next.js", "PostgreSQL", "D3.js", "Docker"],
+      role: "Full-stack Developer",
+      contributions: [
+        "Tích hợp API GitHub REST & GraphQL để thu thập thông tin hoạt động commits và pull requests.",
+        "Xây dựng các biểu đồ tương tác trực quan hóa tần suất đóng góp mã nguồn của lập trình viên.",
+        "Triển khai Docker hóa toàn bộ ứng dụng và thiết lập pipeline CI/CD tự động lên AWS."
+      ]
+    }
+  ],
+  career: {
+    targetSkills: ["React", "TypeScript", "Node.js", ".NET Core", "Kubernetes"],
+    desiredJobPositions: ["Software Architect", "Fullstack Tech Lead"],
+  },
+};
+
+type ViewState = "overview" | "editor";
+
+// Initial draft states to prevent undefined errors before hydration
+const INITIAL_DRAFT_STATE: CvDraftState = {
+  "basic-info": {
+    fullName: "",
+    username: "",
+    headline: "",
+    publicEmail: "",
+    phoneNumber: "",
+    location: "",
+    pronouns: "prefer_not",
+    customPronouns: "",
+    company: "",
+    birthDate: "",
+    socialLinks: [],
+  },
+  "career-summary": {
+    bio: "",
+  },
+  "skills": {
+    targetSkills: [],
+  },
+  "projects": {},
+  "experience": [],
+  "education": [],
+  "achievements": [],
+  "preferences": {
+    availableForHire: true,
+    openToWorkStatus: "casual",
+    preferredLanguage: "en",
+    remotePreference: "any",
+    openToRelocation: false,
+    preferredLocations: [],
+    employmentPreferences: [],
+    expectedSalaryMin: null,
+    expectedSalaryMax: null,
+    expectedSalaryCurrency: "USD",
+    expectedSalaryType: "Monthly",
+    expectedSalaryNegotiable: false,
+    isExpectedSalaryVisible: false,
+    desiredJobPositions: [],
+    leadershipTrack: "undecided",
+    companyStagePreferences: [],
+    preferredIndustries: [],
+    preferredWorkEnvironments: [],
+    workStyles: [],
+    companyValues: [],
+    workPreferenceNotes: "",
+  },
+};
+
+export default function CvManagementCenter() {
+  const router = useRouter();
+  const { user } = useAuth();
+
+  // Page Views State
+  const [viewState, setViewState] = useState<ViewState>("overview");
+  const [activeTab, setActiveTab] = useState<CvSectionId>("basic-info");
+  const [isSaving, setIsSaving] = useState(false);
+  const [mobileShowPreview, setMobileShowPreview] = useState(false);
+
+  // Dynamic Data hooks
+  const { profile, isLoading: isProfileLoading, updateProfile, updateUsername, refreshProfile } = useProfile();
+  const { career, isLoading: isCareerLoading, updateCareer, refreshCareer } = useCareerPreferences();
+  const { education, isLoading: isEduLoading, addEducation, updateEducation, deleteEducation, reorderEducation, refreshEducation } = useEducation();
+  const { workExperiences, isLoading: isWorkLoading, addWorkExperience, updateWorkExperience, deleteWorkExperience, reorderWorkExperiences, refreshWorkExperiences } = useWorkExperience();
+  const { achievements, isLoading: isAchLoading, addAchievement, updateAchievement, deleteAchievement, reorderAchievements, refreshAchievements } = useAchievements();
+
+  // Baseline and local drafts state
+  const [baselines, setBaselines] = useState<CvDraftState>(INITIAL_DRAFT_STATE);
+  const [drafts, setDrafts] = useState<CvDraftState>(INITIAL_DRAFT_STATE);
+
+  // A4 Preview Overlay state
+  const [isA4PreviewOpen, setIsA4PreviewOpen] = useState(false);
+  const [useSampleData, setUseSampleData] = useState(false);
+
+  // Fetch verified repositories
+  const [repositories, setRepositories] = useState<SourceCodeRepository[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchRepos = async () => {
+      try {
+        const result = await sourceCodeProviderApi.fetchRepositories({
+          page: 1,
+          pageSize: 100,
+        });
+        if (active) {
+          const verifiedRepos = result.items.filter(
+            (r) => r.isVerified || r.latestAnalysisStatus === "Completed"
+          );
+          setRepositories(verifiedRepos);
+        }
+      } catch (err) {
+        console.error("Failed to load repositories for CV page:", err);
+      }
+    };
+    fetchRepos();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Manage parent dashboard layout overflow on desktop
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const parentMain = document.querySelector("main.flex-1.overflow-y-auto");
+    if (!parentMain) return;
+
+    if (viewState === "editor") {
+      parentMain.classList.add("lg:overflow-hidden");
+    } else {
+      parentMain.classList.remove("lg:overflow-hidden");
+    }
+
+    return () => {
+      parentMain.classList.remove("lg:overflow-hidden");
+    };
+  }, [viewState]);
+
+  // Hydrate states when server data fetches successfully
+  useEffect(() => {
+    if (profile) {
+      const basicMapped: BasicInfoDraft = {
+        fullName: profile.fullName || "",
+        username: profile.username || "",
+        headline: profile.headline || "",
+        publicEmail: profile.publicEmail || "",
+        phoneNumber: profile.phoneNumber || "",
+        location: profile.location || "",
+        pronouns: profile.pronouns || "prefer_not",
+        customPronouns: profile.customPronouns || "",
+        company: profile.company || "",
+        birthDate: profile.birthDate ? profile.birthDate.split("T")[0] : "",
+        socialLinks: profile.socialLinks || [],
+      };
+
+      const summaryMapped: CareerSummaryDraft = {
+        bio: profile.bio || "",
+      };
+
+      const timer = setTimeout(() => {
+        setBaselines((prev) => ({
+          ...prev,
+          "basic-info": basicMapped,
+          "career-summary": summaryMapped,
+        }));
+        setDrafts((prev) => ({
+          ...prev,
+          "basic-info": basicMapped,
+          "career-summary": summaryMapped,
+        }));
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (career) {
+      const declared = career.declaredPreferences || {};
+      const skillsMapped: SkillsDraft = {
+        targetSkills: declared.targetSkills || [],
+      };
+
+      const prefMapped: PreferencesDraft = {
+        availableForHire: declared.availableForHire ?? true,
+        openToWorkStatus: declared.openToWorkStatus || "casual",
+        preferredLanguage: declared.preferredLanguage || "en",
+        remotePreference: declared.remotePreference || "any",
+        openToRelocation: declared.openToRelocation ?? false,
+        preferredLocations: declared.preferredLocations || [],
+        employmentPreferences: declared.employmentPreferences || [],
+        expectedSalaryMin: declared.expectedSalaryMin ?? null,
+        expectedSalaryMax: declared.expectedSalaryMax ?? null,
+        expectedSalaryCurrency: declared.expectedSalaryCurrency || "USD",
+        expectedSalaryType: declared.expectedSalaryType || "Monthly",
+        expectedSalaryNegotiable: declared.expectedSalaryNegotiable ?? false,
+        isExpectedSalaryVisible: declared.isExpectedSalaryVisible ?? false,
+        desiredJobPositions: declared.desiredJobPositions || [],
+        leadershipTrack: declared.leadershipTrack || "undecided",
+        companyStagePreferences: declared.companyStagePreferences || [],
+        preferredIndustries: declared.preferredIndustries || [],
+        preferredWorkEnvironments: declared.preferredWorkEnvironments || [],
+        workStyles: declared.workStyles || [],
+        companyValues: declared.companyValues || [],
+        workPreferenceNotes: declared.workPreferenceNotes || "",
+      };
+
+      const timer = setTimeout(() => {
+        setBaselines((prev) => ({
+          ...prev,
+          "skills": skillsMapped,
+          "preferences": prefMapped,
+        }));
+        setDrafts((prev) => ({
+          ...prev,
+          "skills": skillsMapped,
+          "preferences": prefMapped,
+        }));
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [career]);
+
+  useEffect(() => {
+    if (workExperiences) {
+      const expMapped: ExperienceDraftItem[] = workExperiences.map((we) => ({
+        id: we.id,
+        jobTitle: we.jobTitle,
+        company: we.company,
+        experienceCategory: we.experienceCategory,
+        employmentType: we.employmentType,
+        location: we.location || "",
+        startDate: we.startDate ? we.startDate.split("T")[0] : "",
+        endDate: we.endDate ? we.endDate.split("T")[0] : null,
+        isCurrentlyWorking: we.isCurrentlyWorking,
+        description: we.description,
+        technologies: we.technologies || [],
+        achievements: we.achievements || [],
+        links: we.links || [],
+      }));
+
+      const timer = setTimeout(() => {
+        setBaselines((prev) => ({ ...prev, "experience": expMapped }));
+        setDrafts((prev) => ({ ...prev, "experience": expMapped }));
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [workExperiences]);
+
+  useEffect(() => {
+    if (education) {
+      const eduMapped: EducationDraftItem[] = education.map((edu) => ({
+        id: edu.id,
+        label: edu.label,
+        schoolName: edu.schoolName,
+        degree: edu.degree || "",
+        major: edu.major || "",
+        gpa: edu.gpa,
+        gpaScale: edu.gpaScale,
+        description: edu.description || "",
+        startDate: edu.startDate ? edu.startDate.split("T")[0] : "",
+        endDate: edu.endDate ? edu.endDate.split("T")[0] : null,
+        isCurrentlyStudying: edu.isCurrentlyStudying,
+      }));
+
+      const timer = setTimeout(() => {
+        setBaselines((prev) => ({ ...prev, "education": eduMapped }));
+        setDrafts((prev) => ({ ...prev, "education": eduMapped }));
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [education]);
+
+  useEffect(() => {
+    if (achievements) {
+      const achMapped: AchievementsDraftItem[] = achievements.map((ach) => ({
+        id: ach.id,
+        title: ach.title,
+        issuer: ach.issuer,
+        issueDate: ach.issueDate ? ach.issueDate.split("T")[0] : "",
+        description: ach.description || "",
+        credentialUrl: ach.credentialUrl || "",
+        attachmentId: ach.attachment?.id || null,
+        attachmentName: ach.attachment?.fileName,
+        attachmentSize: ach.attachment?.fileSize,
+        attachmentUrl: ach.attachment?.fileUrl,
+      }));
+
+      const timer = setTimeout(() => {
+        setBaselines((prev) => ({ ...prev, "achievements": achMapped }));
+        setDrafts((prev) => ({ ...prev, "achievements": achMapped }));
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [achievements]);
+
+  // Compute dirty states per section
+  const dirtyFlags = {
+    "basic-info": !isDeepEqual(drafts["basic-info"], baselines["basic-info"]),
+    "career-summary": !isDeepEqual(drafts["career-summary"], baselines["career-summary"]),
+    "skills": !isDeepEqual(drafts["skills"], baselines["skills"]),
+    "projects": false,
+    "experience": !isDeepEqual(drafts["experience"], baselines["experience"]),
+    "education": !isDeepEqual(drafts["education"], baselines["education"]),
+    "achievements": !isDeepEqual(drafts["achievements"], baselines["achievements"]),
+    "preferences": !isDeepEqual(drafts["preferences"], baselines["preferences"]),
+  };
+
+  const calculateCompleteness = () => {
+    if (career?.readinessReport?.completenessPercent !== undefined) {
+      return career.readinessReport.completenessPercent;
+    }
+
+    let count = 0;
+    const total = 8;
+    if (profile?.fullName) count++;
+    if (profile?.bio) count++;
+    if (education && education.length > 0) count++;
+    if (workExperiences && workExperiences.length > 0) count++;
+    if (achievements && achievements.length > 0) count++;
+    if (career?.declaredPreferences?.targetSkills && career.declaredPreferences.targetSkills.length > 0) count++;
+    if (career?.declaredPreferences?.desiredJobPositions && career.declaredPreferences.desiredJobPositions.length > 0) count++;
+    if (career?.declaredPreferences?.openToWorkStatus) count++;
+
+    return Math.round((count / total) * 100);
+  };
+
+  const completenessPercent = calculateCompleteness();
+
+  const getCompletenessStatus = (percent: number) => {
+    if (percent < 50) return { label: "Needs Improvement", color: "warning" as const };
+    if (percent < 80) return { label: "In Progress", color: "default" as const };
+    return { label: "Strong", color: "success" as const };
+  };
+
+  const status = getCompletenessStatus(completenessPercent);
+
+  // Suggested Actions Checklist
+  const getSuggestedActions = () => {
+    if (career?.readinessReport?.actionItems && career.readinessReport.actionItems.length > 0) {
+      return career.readinessReport.actionItems.map((item, idx) => ({
+        id: item.id || `ai-action-${idx}`,
+        text: item.message,
+      }));
+    }
+
+    const actions = [];
+    if (!profile?.fullName) actions.push({ id: "fullName", text: "Add your full name" });
+    if (!profile?.bio) actions.push({ id: "bio", text: "Add your profile summary / bio" });
+    if (!education || education.length === 0) actions.push({ id: "education", text: "Add school and education information" });
+    if (!workExperiences || workExperiences.length === 0) actions.push({ id: "experience", text: "Add work experience" });
+    if (!achievements || achievements.length === 0) actions.push({ id: "achievements", text: "Update achievements and certificates" });
+    if (!career?.declaredPreferences?.targetSkills || career.declaredPreferences.targetSkills.length === 0) {
+      actions.push({ id: "skills", text: "Update your target skills" });
+    }
+    return actions;
+  };
+
+  const suggestedActions = getSuggestedActions();
+
+  const handlePrint = () => {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  };
+
+  const isLoading = isProfileLoading || isCareerLoading || isEduLoading || isWorkLoading || isAchLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Spinner size="lg" color="accent" />
+      </div>
+    );
+  }
+
+  // Handle saving of active section
+  const handleSaveActiveSection = async (sectionData?: any) => {
+    setIsSaving(true);
+    try {
+      if (activeTab === "basic-info") {
+        const payload = sectionData || drafts["basic-info"];
+
+        // 1. Separate Username update if it changed from baseline
+        if (payload.username !== baselines["basic-info"].username) {
+          try {
+            await updateUsername(payload.username);
+            toast.success("Username updated successfully!");
+          } catch (err: any) {
+            console.error(err);
+            const errMsg = err.response?.data?.message || "Username is already taken, please choose another one.";
+            toast.danger(errMsg);
+            setIsSaving(false);
+            return; // Halt save operation if username update fails
+          }
+        }
+
+        // 2. Profile Details Save
+        const response = await updateProfile({
+          fullName: payload.fullName || null,
+          bio: profile?.bio || null,
+          location: payload.location || null,
+          phoneNumber: payload.phoneNumber || null,
+          birthDate: payload.birthDate ? new Date(payload.birthDate).toISOString() : null,
+          headline: payload.headline || null,
+          company: payload.company || null,
+          pronouns: payload.pronouns || null,
+          customPronouns: payload.customPronouns || null,
+          publicEmail: payload.publicEmail || null,
+          profileVisibility: profile?.profileVisibility || "public",
+          recruiterVisibility: profile?.recruiterVisibility ?? true,
+          aiTalentDiscovery: profile?.aiTalentDiscovery || "disabled",
+          socialLinks: payload.socialLinks || [],
+          version: profile?.version || 0,
+        });
+
+        const updatedBasic: BasicInfoDraft = {
+          fullName: response.fullName || "",
+          username: response.username || "",
+          headline: response.headline || "",
+          publicEmail: response.publicEmail || "",
+          phoneNumber: response.phoneNumber || "",
+          location: response.location || "",
+          pronouns: response.pronouns || "prefer_not",
+          customPronouns: response.customPronouns || "",
+          company: response.company || "",
+          birthDate: response.birthDate ? response.birthDate.split("T")[0] : "",
+          socialLinks: response.socialLinks || [],
+        };
+
+        setBaselines((prev) => ({ ...prev, "basic-info": updatedBasic }));
+        setDrafts((prev) => ({ ...prev, "basic-info": updatedBasic }));
+        toast.success("Changes saved successfully!");
+        await refreshProfile();
+      } else if (activeTab === "career-summary") {
+        const payload = drafts["career-summary"];
+        const response = await updateProfile({
+          fullName: profile?.fullName || null,
+          bio: payload.bio || null,
+          location: profile?.location || null,
+          phoneNumber: profile?.phoneNumber || null,
+          birthDate: profile?.birthDate || null,
+          headline: profile?.headline || null,
+          company: profile?.company || null,
+          pronouns: profile?.pronouns || null,
+          customPronouns: profile?.customPronouns || null,
+          publicEmail: profile?.publicEmail || null,
+          profileVisibility: profile?.profileVisibility || "public",
+          recruiterVisibility: profile?.recruiterVisibility ?? true,
+          aiTalentDiscovery: profile?.aiTalentDiscovery || "disabled",
+          socialLinks: profile?.socialLinks || [],
+          version: profile?.version || 0,
+        });
+
+        const updatedSummary: CareerSummaryDraft = { bio: response.bio || "" };
+        setBaselines((prev) => ({ ...prev, "career-summary": updatedSummary }));
+        setDrafts((prev) => ({ ...prev, "career-summary": updatedSummary }));
+        toast.success("Changes saved successfully!");
+        await refreshProfile();
+      } else if (activeTab === "skills") {
+        const payload = drafts["skills"];
+        const response = await updateCareer({
+          targetSkills: payload.targetSkills,
+          version: career?.declaredPreferences?.version || 0,
+        });
+
+        const updatedSkills: SkillsDraft = { targetSkills: response.declaredPreferences.targetSkills || [] };
+        setBaselines((prev) => ({ ...prev, "skills": updatedSkills }));
+        setDrafts((prev) => ({ ...prev, "skills": updatedSkills }));
+        toast.success("Changes saved successfully!");
+        await refreshCareer();
+      } else if (activeTab === "preferences") {
+        const payload = drafts["preferences"];
+        const response = await updateCareer({
+          availableForHire: payload.availableForHire,
+          openToWorkStatus: payload.openToWorkStatus,
+          preferredLanguage: payload.preferredLanguage,
+          remotePreference: payload.remotePreference,
+          openToRelocation: payload.openToRelocation,
+          preferredLocations: payload.preferredLocations,
+          employmentPreferences: payload.employmentPreferences,
+          expectedSalaryMin: payload.expectedSalaryMin,
+          expectedSalaryMax: payload.expectedSalaryMax,
+          expectedSalaryCurrency: payload.expectedSalaryCurrency,
+          expectedSalaryType: payload.expectedSalaryType,
+          expectedSalaryNegotiable: payload.expectedSalaryNegotiable,
+          isExpectedSalaryVisible: payload.isExpectedSalaryVisible,
+          desiredJobPositions: payload.desiredJobPositions,
+          leadershipTrack: payload.leadershipTrack,
+          companyStagePreferences: payload.companyStagePreferences,
+          preferredIndustries: payload.preferredIndustries,
+          preferredWorkEnvironments: payload.preferredWorkEnvironments,
+          workStyles: payload.workStyles,
+          companyValues: payload.companyValues,
+          workPreferenceNotes: payload.workPreferenceNotes,
+          version: career?.declaredPreferences?.version || 0,
+        });
+
+        const declared = response.declaredPreferences || {};
+        const updatedPref: PreferencesDraft = {
+          availableForHire: declared.availableForHire ?? true,
+          openToWorkStatus: declared.openToWorkStatus || "casual",
+          preferredLanguage: declared.preferredLanguage || "en",
+          remotePreference: declared.remotePreference || "any",
+          openToRelocation: declared.openToRelocation ?? false,
+          preferredLocations: declared.preferredLocations || [],
+          employmentPreferences: declared.employmentPreferences || [],
+          expectedSalaryMin: declared.expectedSalaryMin ?? null,
+          expectedSalaryMax: declared.expectedSalaryMax ?? null,
+          expectedSalaryCurrency: declared.expectedSalaryCurrency || "USD",
+          expectedSalaryType: declared.expectedSalaryType || "Monthly",
+          expectedSalaryNegotiable: declared.expectedSalaryNegotiable ?? false,
+          isExpectedSalaryVisible: declared.isExpectedSalaryVisible ?? false,
+          desiredJobPositions: declared.desiredJobPositions || [],
+          leadershipTrack: declared.leadershipTrack || "undecided",
+          companyStagePreferences: declared.companyStagePreferences || [],
+          preferredIndustries: declared.preferredIndustries || [],
+          preferredWorkEnvironments: declared.preferredWorkEnvironments || [],
+          workStyles: declared.workStyles || [],
+          companyValues: declared.companyValues || [],
+          workPreferenceNotes: declared.workPreferenceNotes || "",
+        };
+
+        setBaselines((prev) => ({ ...prev, "preferences": updatedPref }));
+        setDrafts((prev) => ({ ...prev, "preferences": updatedPref }));
+        toast.success("Changes saved successfully!");
+        await refreshCareer();
+      } else if (activeTab === "experience") {
+        // List-based Work Experience save
+        const formItems = drafts["experience"];
+        const baselineItems = baselines["experience"];
+        const finalIds: string[] = [];
+
+        // 1. Delete removed items
+        const formIds = formItems.map((item) => item.id);
+        const toDelete = baselineItems.filter((item) => !formIds.includes(item.id));
+        for (const item of toDelete) {
+          await deleteWorkExperience(item.id);
+        }
+
+        // 2. Add or Update remaining items
+        for (const item of formItems) {
+          const payload = {
+            jobTitle: item.jobTitle,
+            company: item.company,
+            experienceCategory: item.experienceCategory,
+            employmentType: item.employmentType,
+            location: item.location || null,
+            startDate: new Date(item.startDate).toISOString(),
+            endDate: item.endDate ? new Date(item.endDate).toISOString() : null,
+            isCurrentlyWorking: item.isCurrentlyWorking,
+            description: item.description,
+            achievements: item.achievements,
+            technologies: item.technologies,
+            links: item.links,
+          };
+
+          if (item.id.startsWith("temp-")) {
+            const response = await addWorkExperience(payload);
+            finalIds.push(response.id);
+          } else {
+            const response = await updateWorkExperience(item.id, payload);
+            finalIds.push(response.id);
+          }
+        }
+
+        // 3. Reorder list
+        if (finalIds.length > 0) {
+          await reorderWorkExperiences(finalIds);
+        }
+
+        toast.success("Changes saved successfully!");
+        await refreshWorkExperiences();
+      } else if (activeTab === "education") {
+        // List-based Education save
+        const formItems = drafts["education"];
+        const baselineItems = baselines["education"];
+        const finalIds: string[] = [];
+
+        const formIds = formItems.map((item) => item.id);
+        const toDelete = baselineItems.filter((item) => !formIds.includes(item.id));
+        for (const item of toDelete) {
+          await deleteEducation(item.id);
+        }
+
+        for (const item of formItems) {
+          const payload = {
+            label: item.label,
+            schoolName: item.schoolName,
+            degree: item.degree || null,
+            major: item.major || null,
+            gpa: item.gpa,
+            gpaScale: item.gpaScale,
+            description: item.description || null,
+            startDate: new Date(item.startDate).toISOString(),
+            endDate: item.endDate ? new Date(item.endDate).toISOString() : null,
+            isCurrentlyStudying: item.isCurrentlyStudying,
+          };
+
+          if (item.id.startsWith("temp-")) {
+            const response = await addEducation(payload);
+            finalIds.push(response.id);
+          } else {
+            const response = await updateEducation(item.id, payload);
+            finalIds.push(response.id);
+          }
+        }
+
+        if (finalIds.length > 0) {
+          await reorderEducation(finalIds);
+        }
+
+        toast.success("Changes saved successfully!");
+        await refreshEducation();
+      } else if (activeTab === "achievements") {
+        // List-based Achievements save
+        const formItems = drafts["achievements"];
+        const baselineItems = baselines["achievements"];
+        const finalIds: string[] = [];
+
+        const formIds = formItems.map((item) => item.id);
+        const toDelete = baselineItems.filter((item) => !formIds.includes(item.id));
+        for (const item of toDelete) {
+          await deleteAchievement(item.id);
+        }
+
+        for (const item of formItems) {
+          const payload = {
+            title: item.title,
+            issuer: item.issuer,
+            issueDate: new Date(item.issueDate).toISOString(),
+            description: item.description,
+            credentialUrl: item.credentialUrl || null,
+            attachmentId: item.attachmentId,
+          };
+
+          if (item.id.startsWith("temp-")) {
+            const response = await addAchievement(payload);
+            finalIds.push(response.id);
+          } else {
+            const response = await updateAchievement(item.id, payload);
+            finalIds.push(response.id);
+          }
+        }
+
+        if (finalIds.length > 0) {
+          await reorderAchievements(finalIds);
+        }
+
+        toast.success("Changes saved successfully!");
+        await refreshAchievements();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.danger("Some changes failed to save. Re-syncing with server...");
+      // Resynchronize client list with store upon partial failure
+      if (activeTab === "experience") await refreshWorkExperiences();
+      if (activeTab === "education") await refreshEducation();
+      if (activeTab === "achievements") await refreshAchievements();
+      if (activeTab === "basic-info" || activeTab === "career-summary") await refreshProfile();
+      if (activeTab === "skills" || activeTab === "preferences") await refreshCareer();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleResetActiveSection = () => {
+    setDrafts((prev) => ({ ...prev, [activeTab]: baselines[activeTab] }));
+    toast.success("Section reset successfully!");
+  };
+
+  const activeProfile = useSampleData ? SAMPLE_DATA.profile : {
+    fullName: drafts["basic-info"].fullName || "Untitled",
+    headline: drafts["basic-info"].headline || "Headline not set",
+    bio: drafts["career-summary"].bio || "",
+    location: drafts["basic-info"].location || "",
+    publicEmail: drafts["basic-info"].publicEmail || "",
+    phoneNumber: drafts["basic-info"].phoneNumber || "",
+    socialLinks: drafts["basic-info"].socialLinks || [],
+  };
+
+  const activeEdu = useSampleData ? SAMPLE_DATA.education : drafts["education"];
+  const activeExp = useSampleData ? SAMPLE_DATA.experience : drafts["experience"];
+  const activeAch = useSampleData ? SAMPLE_DATA.achievements : drafts["achievements"];
+  const activeCareer = useSampleData ? SAMPLE_DATA.career : {
+    targetSkills: drafts["skills"].targetSkills || [],
+    desiredJobPositions: drafts["preferences"].desiredJobPositions || [],
+  };
+
+  const activePreferences = useSampleData ? INITIAL_DRAFT_STATE["preferences"] : drafts["preferences"];
+  const activeProjects = useSampleData ? SAMPLE_DATA.projects : repositories;
+
+  const renderOverview = () => (
+    <div className="flex flex-col gap-6 text-left w-full">
+      {/* Layer 1: Profile Completeness */}
+      <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            <Typography type="body-sm" className="font-bold text-foreground">
+              Profile Completeness
+            </Typography>
+            <Typography type="body-xs" className="text-muted">
+              Completing your profile highlights helps recruiters discover your profile.
+            </Typography>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold">{completenessPercent}%</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-${status.color}-soft text-${status.color}`}>
+              {String(status.label)}
+            </span>
+          </div>
+        </div>
+
+        <div className="w-full bg-surface-secondary/50 rounded-full h-2.5 overflow-hidden">
+          <div
+            className="bg-accent h-full rounded-full transition-all duration-300"
+            style={{ width: `${completenessPercent}%` }}
+          />
+        </div>
+
+        {suggestedActions.length > 0 && (
+          <div className="flex flex-col gap-2 border-t border-border/30 pt-3 mt-1">
+            <span className="text-[10px] text-muted uppercase font-bold tracking-wider">
+              Suggested Actions
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {suggestedActions.map((action) => (
+                <div key={action.id} className="flex gap-2 items-start text-xs text-muted-foreground">
+                  <AlertCircle className="size-3.5 text-warning shrink-0 mt-0.5" />
+                  <span>{String(action.text)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Layer 2: Profile Preview options */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+        {/* Card 1: Standard A4 Preview */}
+        <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col justify-between items-start gap-4">
+          <div className="flex flex-col text-left gap-1">
+            <div className="flex items-center gap-2 text-accent">
+              <FileText className="size-5" />
+              <h4 className="font-extrabold text-sm uppercase tracking-wide">Standard A4 CV</h4>
+            </div>
+            <p className="text-xs text-muted leading-relaxed">
+              Traditional A4 layout ready for download or printing.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-xl font-bold text-xs select-none w-full border-border/30"
+            onPress={() => setIsA4PreviewOpen(true)}
+          >
+            Open A4 Preview
+          </Button>
+        </Card>
+
+        {/* Card 2: CVerify Digital Profile */}
+        <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col justify-between items-start gap-4">
+          <div className="flex flex-col text-left gap-1">
+            <div className="flex items-center gap-2 text-emerald-500">
+              <Sparkles className="size-5" />
+              <h4 className="font-extrabold text-sm uppercase tracking-wide">CVerify Digital Profile</h4>
+            </div>
+            <p className="text-xs text-muted leading-relaxed">
+              Online portfolio containing your AI verification Trust Score badges.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none"
+            onPress={() => {
+              if (profile?.username) {
+                router.push(`/${profile.username.toLowerCase()}`);
+              } else {
+                toast.danger("Please set your Username in Basic Information before viewing your public profile.");
+              }
+            }}
+          >
+            Open Digital Profile
+          </Button>
+        </Card>
+      </div>
+
+      {/* Layer 3: CV Structure Grid */}
+      <div className="flex flex-col gap-4 text-left w-full">
+        <Typography type="body-sm" className="font-bold text-foreground">
+          CV Profile Structure
+        </Typography>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {[
+            { id: "basic-info" as const, label: "Basic Information", desc: "Name, avatar, headline, contact info", icon: User },
+            { id: "career-summary" as const, label: "Career Summary", desc: "Brief description of yourself and career direction (Uses Bio)", icon: FileText },
+            { id: "skills" as const, label: "Target Skills", desc: "Target skills you want to develop", icon: Sparkles },
+            { id: "projects" as const, label: "Linked Projects", desc: "Projects linked from source code repositories", icon: FolderCode },
+            { id: "experience" as const, label: "Work Experience", desc: "Work history, companies, roles, and achievements", icon: Briefcase },
+            { id: "education" as const, label: "Education", desc: "Schools, majors, degrees, and durations", icon: GraduationCap },
+            { id: "achievements" as const, label: "Achievements & Certificates", desc: "Awards, professional and academic certificates", icon: Award },
+            { id: "preferences" as const, label: "Career Preferences", desc: "Target roles, expected salary, locations", icon: Briefcase },
+          ].map((section) => {
+            const Icon = section.icon;
+            const hasDraftChanges = dirtyFlags[section.id];
+            return (
+              <Card
+                key={section.id}
+                rounded="xl"
+                className="p-4 border border-border/40 hover:border-accent/40 bg-surface flex items-start gap-3.5 cursor-pointer text-left select-none relative group"
+                onClick={() => {
+                  setActiveTab(section.id);
+                  setViewState("editor");
+                }}
+              >
+                <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors">
+                  <Icon className="size-5" />
+                </div>
+                <div className="flex flex-col gap-0.5 min-w-0 pr-4">
+                  <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                    {section.label}
+                    {hasDraftChanges && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
+                    )}
+                  </span>
+                  <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
+                </div>
+                <ChevronRight className="size-4 text-muted absolute right-3 top-1/2 -translate-y-1/2 group-hover:text-accent transition-colors" />
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderEditor = () => (
+    <div className="flex flex-col gap-6 text-left w-full h-full relative">
+      {/* Editor Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-border/40">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="rounded-xl font-bold text-xs select-none border-border/40 flex items-center gap-1.5"
+          onPress={() => setViewState("overview")}
+        >
+          <ArrowLeft className="size-3.5" />
+          <span>Back to Overview</span>
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="lg:hidden rounded-xl font-bold text-xs select-none border-border/40 flex items-center gap-1"
+            onPress={() => setMobileShowPreview((prev) => !prev)}
+          >
+            {mobileShowPreview ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            <span>{mobileShowPreview ? "Hide Preview" : "Show Preview"}</span>
+          </Button>
+          <Typography.Heading level={4} className="font-bold text-accent">
+            Edit: {activeTab === "basic-info" ? "Basic Information" :
+              activeTab === "career-summary" ? "Career Summary" :
+                activeTab === "skills" ? "Target Skills" :
+                  activeTab === "projects" ? "Linked Projects" :
+                    activeTab === "experience" ? "Work Experience" :
+                      activeTab === "education" ? "Education" :
+                        activeTab === "achievements" ? "Achievements & Certificates" :
+                          "Career Preferences"}
+          </Typography.Heading>
+        </div>
+      </div>
+
+      {/* Grid Layout: Forms and Preview */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 xl:gap-6 h-full lg:overflow-hidden min-h-0 lg:h-[calc(100dvh-var(--cv-editor-offset,185px))]">
+        {/* Left column: Sidebar navigator */}
+        <div className="lg:col-span-2 min-h-0 h-full overflow-hidden flex flex-col border-r border-border/30 pr-3">
+          <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1 pb-10">
+            {[
+              { id: "basic-info" as const, label: "Basic Information", icon: User },
+              { id: "career-summary" as const, label: "Career Summary", icon: FileText },
+              { id: "skills" as const, label: "Target Skills", icon: Sparkles },
+              { id: "projects" as const, label: "Linked Projects", icon: FolderCode },
+              { id: "experience" as const, label: "Work Experience", icon: Briefcase },
+              { id: "education" as const, label: "Education", icon: GraduationCap },
+              { id: "achievements" as const, label: "Achievements & Certificates", icon: Award },
+              { id: "preferences" as const, label: "Career Preferences", icon: Briefcase },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              const hasDraftChanges = dirtyFlags[tab.id];
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                  }}
+                  className={[
+                    "flex items-center justify-between px-3 py-2.5 rounded-xl text-left border-none text-xs font-bold transition-colors w-full cursor-pointer",
+                    isActive ? "bg-accent/10 text-accent font-extrabold" : "text-muted hover:bg-surface-secondary/40"
+                  ].join(" ")}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <Icon className="size-4 shrink-0" />
+                    <span className="truncate">{tab.label}</span>
+                  </div>
+                  {hasDraftChanges && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse shrink-0 ml-1.5" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Center column: Form editor */}
+        <div className={`lg:col-span-5 xl:col-span-6 min-h-0 h-full overflow-hidden flex flex-col ${mobileShowPreview ? "hidden lg:flex" : "flex"}`}>
+          <Card rounded="xl" className="flex-1 min-h-0 p-4 xl:p-6 border border-border/40 bg-surface flex flex-col gap-4 xl:gap-6 text-left relative overflow-hidden h-full">
+            <div className="flex flex-col gap-1.5 border-b border-border/20 pb-3 shrink-0">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-foreground">
+                Section: {activeTab === "basic-info" ? "Basic Information" :
+                  activeTab === "career-summary" ? "Career Summary" :
+                    activeTab === "skills" ? "Target Skills" :
+                      activeTab === "projects" ? "Linked Projects" :
+                        activeTab === "experience" ? "Work Experience" :
+                          activeTab === "education" ? "Education" :
+                            activeTab === "achievements" ? "Achievements & Certificates" :
+                              "Career Preferences"}
+              </h3>
+              <p className="text-[11px] text-muted">
+                Changes made here are saved directly into your CVerify CV data.
+              </p>
+            </div>
+
+            {/* Sub-form render switches */}
+            {activeTab === "basic-info" && (
+              <BasicInfoForm
+                draft={drafts["basic-info"]}
+                baseline={baselines["basic-info"]}
+                onChange={(updated) => setDrafts((prev) => ({ ...prev, "basic-info": { ...prev["basic-info"], ...updated } }))}
+                onSave={handleSaveActiveSection}
+                onReset={handleResetActiveSection}
+                isSaving={isSaving}
+                isDirty={dirtyFlags["basic-info"]}
+                avatarUrl={user?.avatarUrl}
+              />
+            )}
+            {activeTab === "career-summary" && (
+              <CareerSummaryForm
+                draft={drafts["career-summary"]}
+                onChange={(updated) => setDrafts((prev) => ({ ...prev, "career-summary": { ...prev["career-summary"], ...updated } }))}
+                onSave={handleSaveActiveSection}
+                onReset={handleResetActiveSection}
+                isSaving={isSaving}
+                isDirty={dirtyFlags["career-summary"]}
+              />
+            )}
+            {activeTab === "skills" && (
+              <SkillsForm
+                draft={drafts["skills"]}
+                onChange={(updated) => setDrafts((prev) => ({ ...prev, "skills": { ...prev["skills"], ...updated } }))}
+                onSave={handleSaveActiveSection}
+                onReset={handleResetActiveSection}
+                isSaving={isSaving}
+                isDirty={dirtyFlags["skills"]}
+              />
+            )}
+            {activeTab === "projects" && <ProjectsForm />}
+            {activeTab === "experience" && (
+              <ExperienceForm
+                draft={drafts["experience"]}
+                onChange={(updated) => setDrafts((prev) => ({ ...prev, "experience": updated }))}
+                onSave={handleSaveActiveSection}
+                onReset={handleResetActiveSection}
+                isSaving={isSaving}
+                isDirty={dirtyFlags["experience"]}
+              />
+            )}
+            {activeTab === "education" && (
+              <EducationForm
+                draft={drafts["education"]}
+                onChange={(updated) => setDrafts((prev) => ({ ...prev, "education": updated }))}
+                onSave={handleSaveActiveSection}
+                onReset={handleResetActiveSection}
+                isSaving={isSaving}
+                isDirty={dirtyFlags["education"]}
+              />
+            )}
+            {activeTab === "achievements" && (
+              <AchievementsForm
+                draft={drafts["achievements"]}
+                onChange={(updated) => setDrafts((prev) => ({ ...prev, "achievements": updated }))}
+                onSave={handleSaveActiveSection}
+                onReset={handleResetActiveSection}
+                isSaving={isSaving}
+                isDirty={dirtyFlags["achievements"]}
+              />
+            )}
+            {activeTab === "preferences" && (
+              <PreferencesForm
+                draft={drafts["preferences"]}
+                onChange={(updated) => setDrafts((prev) => ({ ...prev, "preferences": { ...prev["preferences"], ...updated } }))}
+                onSave={handleSaveActiveSection}
+                onReset={handleResetActiveSection}
+                isSaving={isSaving}
+                isDirty={dirtyFlags["preferences"]}
+              />
+            )}
+          </Card>
+        </div>
+
+        {/* Right column: Live CV Preview */}
+        <div className={`lg:col-span-5 xl:col-span-4 min-h-0 h-full overflow-hidden flex flex-col gap-3 xl:gap-4 text-left border-l border-border/30 pl-3 xl:pl-4 ${mobileShowPreview ? "flex" : "hidden lg:flex"}`}>
+          <div className="flex items-center justify-between select-none shrink-0">
+            <span className="text-[10px] text-muted font-bold uppercase tracking-wider">Live Preview</span>
+            <button
+              onClick={() => setIsA4PreviewOpen(true)}
+              className="text-[10px] bg-accent-soft text-accent hover:bg-accent/20 px-2.5 py-0.5 rounded-full font-extrabold uppercase cursor-pointer border-none outline-none transition-colors select-none"
+            >
+              View Live
+            </button>
+          </div>
+
+          <CvLivePreview drafts={drafts} avatarUrl={user?.avatarUrl} />
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col w-full h-full text-left relative overflow-hidden" style={{ "--cv-editor-offset": "185px" } as React.CSSProperties}>
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-1 select-none cv-management-header">
+        <div className="flex flex-col text-left">
+          <Typography.Heading level={2} className="font-extrabold">
+            CV Management
+          </Typography.Heading>
+          <Typography type="body-sm" className="text-muted mt-1 max-w-xl">
+            Manage and update your professional CV profile. All changes sync with your Account Settings.
+          </Typography>
+        </div>
+      </div>
+
+      <div className="w-full h-px bg-separator my-3" />
+
+      {/* Main Content Areas */}
+      <main className={`w-full flex-1 cv-management-main ${viewState === "editor" ? "lg:overflow-hidden" : "overflow-y-auto"}`}>
+        {viewState === "overview" ? renderOverview() : renderEditor()}
+      </main>
+
+      {/* Dialog standard A4 Preview overlay */}
+      {isA4PreviewOpen && (
+        <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 cv-preview-overlay">
+          <Card rounded="xl" className="w-full max-w-[850px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left cv-preview-card">
+            {/* Header controls */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 select-none bg-surface/80 backdrop-blur-md">
+              <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
+                <FileText className="size-4 text-accent" />
+                CV Preview
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={useSampleData ? "primary" : "secondary"}
+                  className={["rounded-xl text-[10px] font-bold select-none border-border/30", useSampleData ? "bg-accent text-accent-foreground border-none" : ""].join(" ")}
+                  onPress={() => setUseSampleData((prev) => !prev)}
+                >
+                  {useSampleData ? "Clear Sample Data" : "Load Sample Data"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-xl text-[10px] font-bold select-none border-border/30 flex items-center gap-1.5"
+                  onPress={handlePrint}
+                >
+                  <Printer className="size-3.5" />
+                  <span>Print</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-xl text-[10px] font-bold select-none border-border/30"
+                  onPress={() => {
+                    setIsA4PreviewOpen(false);
+                    setUseSampleData(false);
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+
+            {/* A4 Printable content frame */}
+            <div className="flex-1 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start cv-preview-content-frame">
+              <div className="shadow-md border border-border rounded-xs overflow-hidden cv-preview-box">
+                <CVPreview
+                  basic={activeProfile}
+                  summary={{ bio: activeProfile.bio }}
+                  skills={{ targetSkills: activeCareer.targetSkills }}
+                  experience={activeExp}
+                  education={activeEdu}
+                  achievements={activeAch}
+                  preferences={activePreferences}
+                  projects={activeProjects}
+                />
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}

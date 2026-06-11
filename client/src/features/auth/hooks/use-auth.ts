@@ -17,9 +17,13 @@ import { useState, useCallback } from 'react';
 import { normalizeError } from '../../../services/axios-client';
 import { normalizeRole } from '../../../lib/utils/auth-utils';
 
+// Configurable timeout constant for cold starts and slow networks
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 15000;
+
 // Shared module-level bootstrap promise to deduplicate parallel mounts during app initialization
 let bootstrapPromise: Promise<{ authenticated: boolean; user: User | null; isUnverified?: boolean; nextStep?: string }> | null = null;
 let activeAuthAbortController: AbortController | null = null;
+let bootstrapGeneration = 0;
 
 export const useAuth = () => {
   const storeUser = useAuthStore(s => s.user);
@@ -256,6 +260,10 @@ export const useAuth = () => {
       }
     }
 
+    // Increment request generation ID for concurrency sanity
+    bootstrapGeneration += 1;
+    const currentGeneration = bootstrapGeneration;
+
     // Determine if we should perform a silent background revalidation
     // Silent revalidation happens if we're forcing revalidate while already READY.
     const isSilentRevalidation = forceRevalidate && currentStore.bootstrapState === 'READY';
@@ -266,37 +274,42 @@ export const useAuth = () => {
     }
 
     // Create a new AbortController for this request
-    activeAuthAbortController = new AbortController();
-    const signal = activeAuthAbortController.signal;
+    const controller = new AbortController();
+    activeAuthAbortController = controller;
+    const signal = controller.signal;
 
-    bootstrapPromise = new Promise(async (resolve) => {
+    const currentPromise = new Promise<{ authenticated: boolean; user: User | null; isUnverified?: boolean; nextStep?: string }>(async (resolve) => {
       const stateStore = useAuthStore.getState();
       if (!isSilentRevalidation) {
         stateStore.setBootstrapState('VALIDATING');
         stateStore.setLoading(true);
       }
-      console.log(`[Auth System] Session validation started${isSilentRevalidation ? ' (silent)' : ''}.`);
+      console.log(`[Auth System] Session validation started${isSilentRevalidation ? ' (silent)' : ''}. Generation: ${currentGeneration}`);
 
-      // Timeout protection to prevent permanent deadlock
+      // Timeout protection using configurable constant
       const timeoutId = setTimeout(() => {
-        if (activeAuthAbortController) {
-          activeAuthAbortController.abort('Timeout');
+        controller.abort('Timeout');
+        console.error(`[Auth System] Session bootstrap timed out after ${AUTH_BOOTSTRAP_TIMEOUT_MS}ms. Preserving current session.`);
+        
+        // Preserve current session state on timeout instead of force logout
+        if (bootstrapGeneration === currentGeneration) {
+          stateStore.setInitialized(true);
+          stateStore.setBootstrapState('READY');
+          stateStore.setLoading(false);
+          bootstrapPromise = null;
         }
-        console.error('[Auth System] Session bootstrap timed out after 3000ms. Forcing exit.');
-        stateStore.logout(false);
-        stateStore.setInitialized(true);
-        stateStore.setBootstrapState('READY');
-        stateStore.setLoading(false);
-        bootstrapPromise = null;
-        resolve({ authenticated: false, user: null });
-      }, 3000);
+        resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
+      }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
       try {
         const response = await authApi.fetchMe(signal);
         clearTimeout(timeoutId);
         
-        // Ensure we don't proceed if the timeout already fired and cleared the promise
-        if (!bootstrapPromise && !isSilentRevalidation) return;
+        // Discard updates if a newer request has started
+        if (bootstrapGeneration !== currentGeneration) {
+          resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
+          return;
+        }
         
         if (response.status === 'EMAIL_VERIFY_PENDING' || response.nextStep === 'VERIFY_EMAIL') {
           stateStore.setPendingVerificationEmail(response.email);
@@ -330,6 +343,7 @@ export const useAuth = () => {
           name?: string;
           response?: { status?: number };
           status?: number;
+          message?: string;
         }
         const error = err as AxiosErrorLike;
         
@@ -340,24 +354,41 @@ export const useAuth = () => {
           return;
         }
 
-        // Ensure we don't proceed if the timeout already fired
-        if (!bootstrapPromise && !isSilentRevalidation) return;
+        // Discard updates if a newer request has started
+        if (bootstrapGeneration !== currentGeneration) {
+          resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
+          return;
+        }
 
         const status = error?.response?.status || error?.status;
+        const isNetworkError =
+          !status ||
+          status === 502 ||
+          status === 503 ||
+          status === 504 ||
+          error?.message === 'Network Error' ||
+          error?.message?.includes('Failed to fetch');
+
         if (status === 401) {
           console.log('[Auth System] Session validation: No active session (unauthenticated guest).');
+          stateStore.logout(false);
+          resolve({ authenticated: false, user: null });
+        } else if (isNetworkError) {
+          console.warn('[Auth System] Session validation connection offline or backend restarting. Preserving session.', error);
+          resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
         } else {
           console.warn('[Auth System] Session validation failed. Cleaning local session.', error);
+          stateStore.logout(false);
+          resolve({ authenticated: false, user: null });
         }
-        stateStore.logout(false);
-        resolve({ authenticated: false, user: null });
       } finally {
         // Clean up the abort controller if it's the current one
-        if (activeAuthAbortController?.signal === signal) {
+        if (activeAuthAbortController === controller) {
           activeAuthAbortController = null;
         }
 
-        if (bootstrapPromise) { // Only run this if not aborted by timeout
+        // Only transition to READY and reset bootstrapPromise if this request is still the active one
+        if (bootstrapGeneration === currentGeneration) {
           stateStore.setInitialized(true);
           stateStore.setBootstrapState('READY');
           stateStore.setLoading(false);
@@ -366,6 +397,7 @@ export const useAuth = () => {
       }
     });
 
+    bootstrapPromise = currentPromise;
     return bootstrapPromise;
   }, []);
 
@@ -496,27 +528,15 @@ export const useAuth = () => {
     setAuthError(null);
     try {
       const response = await authApi.setupWorkspace(payload);
-      const user: User = {
-        id: response.id,
-        email: response.email,
-        fullName: response.fullName,
-        avatarUrl: response.avatarUrl,
-        role: normalizeRole(response.roles),
-        permissions: response.permissions,
-        isEmailVerified: response.isEmailVerified,
-        passwordChangedAt: response.passwordChangedAt,
-        hasPassword: response.hasPassword,
-      };
-      login(user);
-      setAuthStatusAndNextStep(response.status, response.nextStep);
-      return { success: true, user, nextStep: response.nextStep };
+      setLoading(false);
+      return { success: true, data: response };
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
       setLoading(false);
       return { success: false, error: parsedError };
     }
-  }, [setLoading, login, setAuthStatusAndNextStep]);
+  }, [setLoading]);
 
   // Company Login
   const companyLogin = useCallback(async (payload: CompanyLoginPayload) => {
@@ -633,9 +653,8 @@ export const useAuth = () => {
     payload: {
       step2Token: string;
       organizationUsername: string;
-      password: string;
-      confirmPassword: string;
       companyDisplayName: string;
+      password?: string;
     },
     idempotencyKey: string
   ) => {
@@ -643,28 +662,15 @@ export const useAuth = () => {
     setAuthError(null);
     try {
       const response = await authApi.completeOnboarding(payload, idempotencyKey);
-      const user: User = {
-        id: response.id,
-        email: response.email,
-        fullName: response.fullName,
-        avatarUrl: response.avatarUrl,
-        role: normalizeRole(response.roles),
-        permissions: response.permissions,
-        isEmailVerified: response.isEmailVerified,
-        passwordChangedAt: response.passwordChangedAt,
-        hasPassword: response.hasPassword,
-      };
-      login(user);
-      setAuthStatusAndNextStep(response.status, response.nextStep);
       setLoading(false);
-      return { success: true, user, nextStep: response.nextStep };
+      return { success: true, data: response };
     } catch (err: unknown) {
       const parsedError = normalizeError(err);
       setAuthError(parsedError.message);
       setLoading(false);
       return { success: false, error: parsedError };
     }
-  }, [setLoading, login, setAuthStatusAndNextStep]);
+  }, [setLoading]);
 
   // Delete account action
   const deleteAccount = useCallback(async () => {

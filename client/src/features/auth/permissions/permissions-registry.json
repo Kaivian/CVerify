@@ -9,15 +9,14 @@
       "displayName": "Administrator",
       "description": "Administrative control over users, roles, and system logs",
       "permissions": [
-        "users:view:list",
-        "users:create:user",
-        "users:update:user",
-        "roles:view:list",
-        "roles:create:role",
-        "roles:update:role",
-        "verification:view:list",
-        "ai:audit:view",
-        "components:system:read"
+        "admin:users:view",
+        "admin:users:manage",
+        "admin:roles:view",
+        "admin:roles:manage",
+        "admin:verification:view",
+        "admin:verification:manage",
+        "admin:ai:audit",
+        "admin:components:read"
       ]
     },
     "BUSINESS": {
@@ -53,70 +52,62 @@
         "dangerous": true
       }
     ],
-    "users": [
+    "admin": [
       {
-        "name": "users:view:list",
-        "displayName": "View User Directory",
-        "description": "Allows search, pagination, and listing of active user directories",
-        "system": false,
+        "name": "admin:users:view",
+        "displayName": "View Administrative Users",
+        "description": "Allows search, pagination, and listing of administrative user accounts",
+        "system": true,
         "dangerous": false
       },
       {
-        "name": "users:create:user",
-        "displayName": "Create User Account",
-        "description": "Allows adding new administrative or user accounts manually",
-        "system": false,
-        "dangerous": false,
-        "dependsOn": ["users:view:list"]
+        "name": "admin:users:manage",
+        "displayName": "Manage Administrative Users",
+        "description": "Allows inviting, onboarding, suspending, or reassigning roles on administrators",
+        "system": true,
+        "dangerous": true
       },
       {
-        "name": "users:update:user",
-        "displayName": "Modify User Accounts",
-        "description": "Allows locking, unlocking, suspending, or reassigning roles on user accounts",
-        "system": false,
-        "dangerous": true,
-        "dependsOn": ["users:view:list"]
-      },
-      {
-        "name": "users:delete:user",
-        "displayName": "Purge User Profile",
-        "description": "Allows soft-deletion or irreversible purging of user accounts",
-        "system": false,
-        "dangerous": true,
-        "dependsOn": ["users:view:list"]
-      }
-    ],
-    "roles": [
-      {
-        "name": "roles:view:list",
-        "displayName": "View System Roles",
-        "description": "Allows listing of active system and custom roles with permissions mapping",
-        "system": false,
+        "name": "admin:roles:view",
+        "displayName": "View Administrative Roles",
+        "description": "Allows viewing security roles and dynamic permission mapping matrices",
+        "system": true,
         "dangerous": false
       },
       {
-        "name": "roles:create:role",
-        "displayName": "Create Custom Roles",
-        "description": "Allows custom building and mapping of new administrative roles",
-        "system": false,
-        "dangerous": false,
-        "dependsOn": ["roles:view:list"]
+        "name": "admin:roles:manage",
+        "displayName": "Manage Administrative Roles",
+        "description": "Allows creating, updating, and deleting dynamic administrative roles",
+        "system": true,
+        "dangerous": true
       },
       {
-        "name": "roles:update:role",
-        "displayName": "Modify Roles Mapping",
-        "description": "Allows altering permissions assigned to active roles",
-        "system": false,
-        "dangerous": true,
-        "dependsOn": ["roles:view:list"]
+        "name": "admin:verification:view",
+        "displayName": "View Audit Verifications",
+        "description": "Allows reading system-wide verified repository audit logs",
+        "system": true,
+        "dangerous": false
       },
       {
-        "name": "roles:delete:role",
-        "displayName": "Delete Custom Roles",
-        "description": "Allows deleting custom roles that have no active bindings",
-        "system": false,
-        "dangerous": true,
-        "dependsOn": ["roles:view:list"]
+        "name": "admin:verification:manage",
+        "displayName": "Manage Audit Verifications",
+        "description": "Allows overriding verification status, clearing fraud flags, and managing claims",
+        "system": true,
+        "dangerous": true
+      },
+      {
+        "name": "admin:ai:audit",
+        "displayName": "Review AI Audit Telemetry",
+        "description": "Allows reviewing prompt execution logs, system safety flags, and token cost usage",
+        "system": true,
+        "dangerous": false
+      },
+      {
+        "name": "admin:components:read",
+        "displayName": "Access Component Platform",
+        "description": "Allows viewing visual platform component architecture and dependency graphs",
+        "system": true,
+        "dangerous": false
       }
     ],
     "verification": [
@@ -141,13 +132,6 @@
         "name": "ai:chat:use",
         "displayName": "Interact with AI Engine",
         "description": "Allows sending prompt parameters and receiving dynamic planner streams",
-        "system": false,
-        "dangerous": false
-      },
-      {
-        "name": "ai:audit:view",
-        "displayName": "Review AI Audit Logs",
-        "description": "Allows administrators to review systemic prompt cost metrics and safety violations",
         "system": false,
         "dangerous": false
       }
@@ -186,15 +170,6 @@
         "name": "evidence:collaborator:comment",
         "displayName": "Review & Commend",
         "description": "Allows providing technical validation comments on candidate evidence graph blocks",
-        "system": false,
-        "dangerous": false
-      }
-    ],
-    "components": [
-      {
-        "name": "components:system:read",
-        "displayName": "View Component Intelligence Platform",
-        "description": "Allows access to the internal components intelligence platform and visual component architecture explorer",
         "system": false,
         "dangerous": false
       }

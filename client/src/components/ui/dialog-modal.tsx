@@ -50,7 +50,7 @@ export const DialogModal: React.FC<DialogModalProps> = ({
       className="bg-background/80 backdrop-blur-sm animate-in fade-in duration-200"
     >
       <Modal.Container size={size}>
-        <Modal.Dialog className="w-full max-w-2xl bg-overlay border border-border rounded-2xl shadow-modal p-[var(--modal-padding)] text-left relative focus-visible:outline-hidden focus:outline-hidden">
+        <Modal.Dialog className="w-full max-w-2xl bg-overlay border border-border rounded-2xl shadow-modal p-6 text-left relative focus-visible:outline-hidden focus:outline-hidden">
           <Modal.CloseTrigger 
             aria-label="Close dialog"
             className="absolute right-4 top-4 p-1 rounded-full hover:bg-surface-secondary text-muted hover:text-foreground cursor-pointer transition-colors"

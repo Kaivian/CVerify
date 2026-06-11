@@ -14,7 +14,7 @@ using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.SourceCode.DTOs;
 using CVerify.API.Modules.SourceCode.Entities;
-using CVerify.API.Modules.Admin.DTOs;
+using CVerify.API.Modules.Shared.System.DTOs;
 
 namespace CVerify.API.Modules.SourceCode.Services;
 
@@ -308,7 +308,6 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             if (job.AuthProviderId.HasValue)
             {
                 var matched = await _context.AuthProviders
-                    .Include(ap => ap.OAuthCredential)
                     .FirstOrDefaultAsync(ap => ap.Id == job.AuthProviderId.Value && ap.UserId == job.UserId && ap.DeletedAt == null, cancellationToken);
                 
                 providersToSync = matched != null ? new List<AuthProvider> { matched } : new List<AuthProvider>();
@@ -316,7 +315,6 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             else
             {
                 providersToSync = await _context.AuthProviders
-                    .Include(ap => ap.OAuthCredential)
                     .Where(ap => ap.UserId == job.UserId && ap.DeletedAt == null && (ap.ProviderName == "github" || ap.ProviderName == "gitlab"))
                     .ToListAsync(cancellationToken);
             }
@@ -380,19 +378,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
     private async Task<string> GetOrRefreshAccessTokenAsync(AuthProvider provider, CancellationToken cancellationToken)
     {
-        if (provider.OAuthCredential == null)
-        {
-            provider.OAuthCredential = await _context.OAuthCredentials
-                .FirstOrDefaultAsync(oc => oc.AuthProviderId == provider.Id, cancellationToken);
-        }
-
-        if (provider.OAuthCredential == null)
-        {
-            throw new InvalidOperationException("OAuth connection credentials are missing.");
-        }
-
-        if (provider.OAuthCredential.ExpiresAt.HasValue && 
-            provider.OAuthCredential.ExpiresAt.Value - _timeProvider.GetUtcNow() < TimeSpan.FromMinutes(5))
+        if (provider.ExpiresAt.HasValue && 
+            provider.ExpiresAt.Value - _timeProvider.GetUtcNow() < TimeSpan.FromMinutes(5))
         {
             _logger.LogInformation("Access token for provider {ProviderId} ({ProviderName}) is expired or close to expiry. Refreshing...", 
                 provider.Id, provider.ProviderName);
@@ -412,33 +399,27 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             throw new InvalidOperationException("Token encryption key is not configured on server.");
         }
 
-        return EncryptionHelper.Decrypt(provider.OAuthCredential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
-    }
-
-    private async Task<string> RefreshTokenInternalAsync(AuthProvider provider, CancellationToken cancellationToken)
-    {
-        if (provider.OAuthCredential == null)
-        {
-            provider.OAuthCredential = await _context.OAuthCredentials
-                .FirstOrDefaultAsync(oc => oc.AuthProviderId == provider.Id, cancellationToken);
-        }
-
-        if (provider.OAuthCredential == null)
+        if (string.IsNullOrEmpty(provider.EncryptedAccessToken))
         {
             throw new InvalidOperationException("OAuth connection credentials are missing.");
         }
 
+        return EncryptionHelper.Decrypt(provider.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
+    }
+
+    private async Task<string> RefreshTokenInternalAsync(AuthProvider provider, CancellationToken cancellationToken)
+    {
         if (string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
         {
             throw new InvalidOperationException("Token encryption key is not configured on server.");
         }
 
-        if (string.IsNullOrEmpty(provider.OAuthCredential.EncryptedRefreshToken))
+        if (string.IsNullOrEmpty(provider.EncryptedRefreshToken))
         {
             throw new InvalidOperationException("OAuth refresh token is missing. Re-authorization is required.");
         }
 
-        var decryptedRefreshToken = EncryptionHelper.Decrypt(provider.OAuthCredential.EncryptedRefreshToken, _envConfig.Security.TokenEncryptionKey);
+        var decryptedRefreshToken = EncryptionHelper.Decrypt(provider.EncryptedRefreshToken, _envConfig.Security.TokenEncryptionKey);
         var httpClient = _httpClientFactory.CreateClient();
         
         string tokenEndpoint;
@@ -512,23 +493,23 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         }
 
         var encryptedAccess = EncryptionHelper.Encrypt(newAccessToken, _envConfig.Security.TokenEncryptionKey);
-        provider.OAuthCredential.EncryptedAccessToken = encryptedAccess;
+        provider.EncryptedAccessToken = encryptedAccess;
 
         if (!string.IsNullOrEmpty(newRefreshToken))
         {
-            provider.OAuthCredential.EncryptedRefreshToken = EncryptionHelper.Encrypt(newRefreshToken, _envConfig.Security.TokenEncryptionKey);
+            provider.EncryptedRefreshToken = EncryptionHelper.Encrypt(newRefreshToken, _envConfig.Security.TokenEncryptionKey);
         }
 
         if (expiresIn.HasValue)
         {
-            provider.OAuthCredential.ExpiresAt = _timeProvider.GetUtcNow().AddSeconds(expiresIn.Value);
+            provider.ExpiresAt = _timeProvider.GetUtcNow().AddSeconds(expiresIn.Value);
         }
         else
         {
-            provider.OAuthCredential.ExpiresAt = null;
+            provider.ExpiresAt = null;
         }
 
-        provider.OAuthCredential.UpdatedAt = _timeProvider.GetUtcNow();
+        provider.TokenUpdatedAt = _timeProvider.GetUtcNow();
         provider.LastSuccessfulRefreshAt = _timeProvider.GetUtcNow();
         provider.RefreshFailureCount = 0;
 
@@ -539,22 +520,6 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
     private async Task SyncProviderRepositoriesAsync(AuthProvider provider, CancellationToken cancellationToken)
     {
-        if (provider.OAuthCredential == null)
-        {
-            provider.OAuthCredential = await _context.OAuthCredentials
-                .FirstOrDefaultAsync(oc => oc.AuthProviderId == provider.Id, cancellationToken);
-        }
-
-        if (provider.OAuthCredential == null)
-        {
-            throw new InvalidOperationException("OAuth connection credentials are missing.");
-        }
-
-        if (string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
-        {
-            throw new InvalidOperationException("Token encryption key is not configured on server.");
-        }
-
         var decryptedToken = await GetOrRefreshAccessTokenAsync(provider, cancellationToken);
         var httpClient = _httpClientFactory.CreateClient();
         

@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 # 1. Setup mock environment before importing components
-from app.config import settings
+from app.core.config import settings
 settings.shared_secret = "test_shared_secret_key_12345"
 settings.client_id = "cverify-core"
 
@@ -31,7 +31,7 @@ class MockRedis:
 mock_redis = MockRedis()
 
 # Patch redis_client in middleware
-import app.middleware.hmac_auth as hmac_auth
+import app.core.middleware.hmac_auth as hmac_auth
 hmac_auth.redis_client = mock_redis
 
 from app.main import app

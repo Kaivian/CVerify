@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Modal, Typography, Button, Spinner, Chip, ProgressBar, toast, SearchField, Accordion } from "@heroui/react";
 import {
   X,
+  XCircle,
+  AlertCircle,
   LayoutDashboard,
   Terminal,
   AlertTriangle,
@@ -38,7 +40,9 @@ import type {
 import { repositoryAnalysisApi } from "@/services/repository-analysis.service";
 import { AnalysisTaskTimeline } from "./AnalysisTaskTimeline";
 import { AIStreamViewer } from "./AIStreamViewer";
+import { parseAndSanitizeMarkdown } from "@/lib/markdown";
 import { useTrustGraphStore } from "./stores/use-trust-graph-store";
+import { useAnalysisJobStore } from "./stores/use-analysis-job-store";
 
 interface ProgressEventData {
   taskId?: string;
@@ -66,10 +70,7 @@ interface ProgressEventData {
 interface DetailedAnalysisModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  analysis: RepositoryAnalysis | null;
-  jobId: string | null;
   repoId: string;
-  onAnalysisComplete?: (report: RepositoryAnalysis) => void;
 }
 
 const FRIENDLY_NAMES: Record<string, string> = {
@@ -200,6 +201,7 @@ const nodeTypes = {
 };
 
 interface TrustGraphViewProps {
+  shadowClass?: string; // Add if needed, keeping consistent with standard React Flow types
   trustGraph: {
     nodes: any[];
     edges: any[];
@@ -574,7 +576,7 @@ const TrustGraphView: React.FC<TrustGraphViewProps> = ({ trustGraph, localAnalys
       </div>
 
       {/* Main Graph & Inspect split screen container */}
-      <div className="flex gap-0 border border-border/80 bg-surface rounded-3xl overflow-hidden relative h-[520px]">
+      <div className="flex gap-0 border border-border/80 bg-surface rounded-3xl overflow-hidden relative h-[750px]">
         {/* Left main area: ReactFlow interactive canvas */}
         <div className="flex-1 h-full relative">
           <ReactFlow
@@ -639,11 +641,13 @@ const parseSectionItem = (item: any) => {
 export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   isOpen,
   onOpenChange,
-  analysis,
-  jobId,
   repoId,
-  onAnalysisComplete,
 }) => {
+  const repoState = useAnalysisJobStore((state) => state.repoStates[repoId]);
+  const jobId = repoState?.jobId || repoState?.latestReport?.jobId || repoState?.partialSnapshot?.jobId || (repoState?.latestReport as any)?.job_id || null;
+  const localAnalysis = repoState?.latestReport || repoState?.partialSnapshot || null;
+  const status = repoState?.status || "idle";
+
   const [viewMode, setViewMode] = useState<"report" | "graph" | "logs" | "costs" | "cv">("report");
   const [costs, setCosts] = useState<{
     jobId: string;
@@ -670,73 +674,45 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
   const [job, setJob] = useState<AnalysisJob | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [taskEvents, setTaskEvents] = useState<(AnalysisTaskEvent & { taskType?: string })[]>([]);
-  const [liveTaskEvents, setLiveTaskEvents] = useState<(AnalysisTaskEvent & { taskType?: string })[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [isRetryingTaskId, setIsRetryingTaskId] = useState<string | null>(null);
-  const [localAnalysis, setLocalAnalysis] = useState<RepositoryAnalysis | null>(analysis);
   const [elapsedTime, setElapsedTime] = useState<string>("00:00");
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const onAnalysisCompleteRef = useRef(onAnalysisComplete);
-  useEffect(() => {
-    onAnalysisCompleteRef.current = onAnalysisComplete;
-  }, [onAnalysisComplete]);
+  const [prevJobId, setPrevJobId] = useState<string | null>(null);
+  const [prevIsOpen, setPrevIsOpen] = useState<boolean>(false);
+  const [prevLocalAnalysis, setPrevLocalAnalysis] = useState<RepositoryAnalysis | null>(null);
 
-  const eventBuffer = useRef<ProgressEventData[]>([]);
-
-  // Previous values for render-time state synchronization
-  const [prevAnalysis, setPrevAnalysis] = useState<RepositoryAnalysis | null>(analysis);
-  const [prevJobId, setPrevJobId] = useState<string | null>(jobId);
-  const [prevIsOpen, setPrevIsOpen] = useState<boolean>(isOpen);
-
-  // Sync analysis when prop updates
-  if (analysis !== prevAnalysis) {
-    setPrevAnalysis(analysis);
-    setLocalAnalysis(analysis);
-    setValidationError(null);
-    if (analysis) {
-      setViewMode("report");
-    } else {
-      setViewMode("logs");
-    }
-  }
-
-  // Clear job/task state when modal closes or jobId changes
-  const inputsChanged = jobId !== prevJobId || isOpen !== prevIsOpen;
-  if (inputsChanged) {
+  // Synchronize modal view mode and resets when jobId or modal open state changes (render-phase sync to avoid eslint set-state-in-effect warning)
+  if (jobId !== prevJobId || isOpen !== prevIsOpen) {
     setPrevJobId(jobId);
     setPrevIsOpen(isOpen);
+    setPrevLocalAnalysis(localAnalysis);
     setValidationError(null);
     if (!jobId || !isOpen) {
       setJob(null);
-      setLiveTaskEvents([]);
       setElapsedTime("00:00");
       setCosts(null);
     }
+    // Set initial view mode on open or repo switch
+    if (isOpen) {
+      if (localAnalysis) {
+        setViewMode("report");
+      } else {
+        setViewMode("logs");
+      }
+    }
+  } else if (localAnalysis !== prevLocalAnalysis) {
+    // Just sync the ref without resetting the view mode so that it doesn't hijack the user's active tab!
+    setPrevLocalAnalysis(localAnalysis);
   }
 
-  // Auto-switch view modes based on job status
-  const isJobRunning = useMemo(() => {
-    return !!(
-      job &&
-      [
-        "Queued",
-        "Preparing",
-        "CloningRepository",
-        "DetectingTechnologyStack",
-        "SamplingCode",
-        "RunningAgents",
-        "SavingReport",
-        "AggregatingResults"
-      ].includes(job.status)
-    );
-  }, [job]);
-
-  const activeViewMode = isJobRunning ? "logs" : viewMode;
+  const isJobRunning = status === "ANALYZING" || status === "QUEUED";
+  const activeViewMode = viewMode;
 
   // Fetch costs when switching to costs tab
   useEffect(() => {
-    if (!jobId || !isOpen || viewMode !== "costs") return;
+    if (!jobId || jobId.startsWith("optimistic-") || !isOpen || viewMode !== "costs") return;
 
     const loadCosts = async () => {
       setLoadingCosts(true);
@@ -753,39 +729,41 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     loadCosts();
   }, [jobId, isOpen, viewMode]);
 
-  // Load snapshot on mount for instant recovery
+  // Load snapshot or report on open
   useEffect(() => {
-    if (!jobId || !isOpen) return;
+    if (!isOpen || !repoId) return;
 
-    const loadSnapshot = async () => {
-      try {
-        const snapshot = await repositoryAnalysisApi.getJobSnapshot(jobId);
-        if (snapshot) {
-          setLocalAnalysis(snapshot);
-        }
-      } catch (err: any) {
-        console.error("Failed to load job snapshot:", err);
-        if (err.name === "ZodError" || err.issues) {
-          setValidationError(err.issues ? JSON.stringify(err.issues, null, 2) : err.message || String(err));
+    const loadData = async () => {
+      if (!repoState?.latestReport && repoState?.status === "COMPLETED") {
+        try {
+          await useAnalysisJobStore.getState().loadLatestReport(repoId);
+        } catch (err) {
+          console.error("Failed to load report in modal:", err);
         }
       }
     };
 
-    loadSnapshot();
-  }, [jobId, isOpen]);
+    loadData();
+  }, [isOpen, repoId, repoState?.status, repoState?.latestReport]);
 
-  // Fetch initial job status and all events on mount
+  // Consolidated fetch and polling effect for job status and task events
   useEffect(() => {
-    if (!jobId || !isOpen) return;
+    if (!jobId || jobId.startsWith("optimistic-") || !isOpen) return;
 
-    const loadInitialJob = async () => {
+    let isSubscribed = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const poll = async (showLoading = false) => {
+      if (showLoading && isSubscribed) {
+        setLoadingEvents(true);
+      }
       try {
         const jobData = await repositoryAnalysisApi.getJobStatus(jobId);
+        if (!isSubscribed) return;
         setJob(jobData);
 
-        const tasks = jobData.tasks;
-        if (tasks && tasks.length > 0) {
-          // Fetch events for all tasks in parallel
+        const tasks = jobData.tasks || [];
+        if (tasks.length > 0) {
           const promises = tasks.map(async (t) => {
             try {
               const events = await repositoryAnalysisApi.getTaskEvents(jobId, t.id);
@@ -799,191 +777,116 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
             }
           });
           const results = await Promise.all(promises);
-          const flatSorted = results
-            .flat()
-            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          setTaskEvents(flatSorted);
+          if (isSubscribed) {
+            const flatSorted = results
+              .flat()
+              .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            setTaskEvents(flatSorted);
 
-          setSelectedTaskId((prev) => {
-            if (prev && tasks.some((t) => t.id === prev)) {
-              return prev;
-            }
-            const activeOrFailed = tasks.find(
-              (t) => t.status === "Running" || t.status === "Failed" || t.status === "Retrying"
-            );
-            return activeOrFailed?.id || tasks[0].id;
-          });
+            setSelectedTaskId((prev) => {
+              if (prev && tasks.some((t) => t.id === prev)) {
+                return prev;
+              }
+              const activeOrFailed = tasks.find(
+                (t) => t.status === "Running" || t.status === "Failed" || t.status === "Retrying"
+              );
+              return activeOrFailed?.id || tasks[0].id;
+            });
+          }
+        }
+
+        // If the job is still running, poll again in 4 seconds
+        const isTerminal = ["Completed", "Failed", "Cancelled", "TimedOut"].includes(jobData.status);
+        if (!isTerminal && isSubscribed) {
+          timeoutId = setTimeout(() => {
+            poll(false);
+          }, 4000);
         }
       } catch (err) {
-        console.error("Failed to load initial job status & events:", err);
+        console.error("Failed to fetch job status & events:", err);
+      } finally {
+        if (isSubscribed) {
+          setLoadingEvents(false);
+        }
       }
     };
 
-    loadInitialJob();
+    poll(true);
+
+    return () => {
+      isSubscribed = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [jobId, isOpen]);
 
-  // Debouncing: 250ms batching interval for progress updates
+  // Sync live task updates from store into our local job state
   useEffect(() => {
-    if (!jobId || !isOpen) return;
+    if (!job || !repoState?.taskEvents || repoState.taskEvents.length === 0) return;
 
-    const intervalId = setInterval(() => {
-      if (eventBuffer.current.length === 0) return;
+    let updated = false;
 
-      const eventsToProcess = [...eventBuffer.current];
-      eventBuffer.current = [];
-
+    const runSync = () => {
       setJob((prevJob) => {
-        if (!prevJob) return prevJob;
+        if (!prevJob || !prevJob.tasks) return prevJob;
 
-        let updatedTasks = prevJob.tasks ? [...prevJob.tasks] : [];
-        let latestJobProgress = prevJob.progress;
-        let latestJobStatus = prevJob.status;
-        let latestJobStep = prevJob.currentStep;
+        const updatedTasks = prevJob.tasks.map((t) => {
+          const taskEventsForThis = repoState.taskEvents.filter((e) => e.taskId === t.id);
+          if (taskEventsForThis.length === 0) return t;
 
-        eventsToProcess.forEach((data) => {
-          if (data.taskId) {
-            updatedTasks = updatedTasks.map((t) => {
-              if (t.id === data.taskId) {
-                return {
-                  ...t,
-                  status: data.taskStatus || t.status,
-                  progress: data.taskProgress !== undefined ? data.taskProgress : t.progress,
-                  durationMs: data.taskDurationMs !== undefined ? data.taskDurationMs : t.durationMs,
-                  errorMessage: data.taskErrorMessage !== undefined ? data.taskErrorMessage : t.errorMessage,
-                  promptTokens: data.promptTokens !== undefined ? data.promptTokens : t.promptTokens,
-                  completionTokens: data.completionTokens !== undefined ? data.completionTokens : t.completionTokens,
-                  estimatedCostUsd: data.estimatedCostUsd !== undefined ? data.estimatedCostUsd : t.estimatedCostUsd,
-                  modelName: data.modelName || t.modelName,
-                  resultData: data.resultData || t.resultData,
-                };
-              }
-              return t;
-            });
+          const latestEvent = taskEventsForThis[taskEventsForThis.length - 1];
+
+          const taskStatus = (latestEvent as any).taskStatus || t.status;
+          const taskProgress = (latestEvent as any).taskProgress !== undefined ? (latestEvent as any).taskProgress : t.progress;
+          const durationMs = (latestEvent as any).taskDurationMs !== undefined ? (latestEvent as any).taskDurationMs : t.durationMs;
+          const errorMessage = (latestEvent as any).taskErrorMessage !== undefined ? (latestEvent as any).taskErrorMessage : t.errorMessage;
+          const promptTokens = (latestEvent as any).promptTokens !== undefined ? (latestEvent as any).promptTokens : t.promptTokens;
+          const completionTokens = (latestEvent as any).completionTokens !== undefined ? (latestEvent as any).completionTokens : t.completionTokens;
+          const estimatedCostUsd = (latestEvent as any).estimatedCostUsd !== undefined ? (latestEvent as any).estimatedCostUsd : t.estimatedCostUsd;
+          const modelName = (latestEvent as any).modelName || t.modelName;
+          const resultData = (latestEvent as any).resultData || t.resultData;
+
+          if (
+            t.status !== taskStatus ||
+            t.progress !== taskProgress ||
+            t.durationMs !== durationMs ||
+            t.errorMessage !== errorMessage ||
+            t.promptTokens !== promptTokens ||
+            t.completionTokens !== completionTokens ||
+            t.estimatedCostUsd !== estimatedCostUsd ||
+            t.modelName !== modelName ||
+            t.resultData !== resultData
+          ) {
+            updated = true;
+            return {
+              ...t,
+              status: taskStatus,
+              progress: taskProgress,
+              durationMs,
+              errorMessage,
+              promptTokens,
+              completionTokens,
+              estimatedCostUsd,
+              modelName,
+              resultData,
+            };
           }
-          if (data.progress !== undefined) latestJobProgress = data.progress;
-          if (data.status) latestJobStatus = data.status;
-          if (data.step) latestJobStep = data.step;
+          return t;
         });
 
+        if (!updated) return prevJob;
         return {
           ...prevJob,
-          status: latestJobStatus,
-          progress: latestJobProgress,
-          currentStep: latestJobStep,
           tasks: updatedTasks,
         };
       });
-    }, 250);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [jobId, isOpen]);
-
-  // SSE Subscription for real-time updates (Stays open without tearing down)
-  useEffect(() => {
-    if (!jobId || !isOpen) return;
-
-    const sseUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/repository-analyses/jobs/${jobId}/progress-stream`;
-    const eventSource = new EventSource(sseUrl, { withCredentials: true });
-
-    eventSource.onmessage = async (event) => {
-      if (event.data === "[DONE]") {
-        eventSource.close();
-
-        // Final sync: load complete report, final job status, and all final task events
-        try {
-          const [report, finalJob] = await Promise.all([
-            repositoryAnalysisApi.getLatestReport(repoId),
-            repositoryAnalysisApi.getJobStatus(jobId)
-          ]);
-          setLocalAnalysis(report);
-          setJob(finalJob);
-
-          const allTasks = finalJob.tasks || [];
-          const promises = allTasks.map(async (t) => {
-            try {
-              const events = await repositoryAnalysisApi.getTaskEvents(jobId, t.id);
-              return events.map(e => ({
-                ...e,
-                taskType: t.taskType
-              }));
-            } catch (err) {
-              console.error(`Failed to fetch events for task ${t.id}:`, err);
-              return [];
-            }
-          });
-          const results = await Promise.all(promises);
-          const flatSorted = results
-            .flat()
-            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          setTaskEvents(flatSorted);
-
-          if (onAnalysisCompleteRef.current) {
-            onAnalysisCompleteRef.current(report);
-          }
-        } catch (err: any) {
-          console.error("Failed to load completed final data:", err);
-          if (err.name === "ZodError" || err.issues) {
-            setValidationError(err.issues ? JSON.stringify(err.issues, null, 2) : err.message || String(err));
-          }
-        }
-        return;
-      }
-
-      try {
-        const data = JSON.parse(event.data);
-        eventBuffer.current.push(data);
-
-        // Capture real-time log messages
-        if (data.taskType && data.message) {
-          const newEvent: AnalysisTaskEvent & { taskType?: string } = {
-            id: data.id || `live-${Date.now()}-${Math.random()}`,
-            taskId: data.taskId || "",
-            timestamp: data.timestamp || new Date().toISOString(),
-            level: data.level || "Info",
-            eventType: data.eventType || "ProgressUpdate",
-            message: data.message,
-            metadata: data.metadata,
-            taskType: data.taskType
-          };
-
-          setLiveTaskEvents((prev) => {
-            if (prev.some((e) => e.message === newEvent.message && e.timestamp === newEvent.timestamp)) {
-              return prev;
-            }
-            return [...prev, newEvent];
-          });
-        }
-
-        // If a task completed, fetch job snapshot to get latest resultData/findings
-        if (data.taskStatus === "Completed") {
-          repositoryAnalysisApi
-            .getJobSnapshot(jobId)
-            .then((snapshot) => {
-              if (snapshot) {
-                setLocalAnalysis(snapshot);
-              }
-            })
-            .catch((err: any) => {
-              if (err.name === "ZodError" || err.issues) {
-                setValidationError(err.issues ? JSON.stringify(err.issues, null, 2) : err.message || String(err));
-              }
-            });
-        }
-      } catch (err) {
-        console.error("Failed to parse SSE message:", err);
-      }
     };
 
-    eventSource.onerror = (err) => {
-      console.error("EventSource error in modal:", err);
-    };
+    Promise.resolve().then(runSync);
+  }, [repoState?.taskEvents, job]);
 
-    return () => {
-      eventSource.close();
-    };
-  }, [jobId, isOpen, repoId]);
+
 
   // Live Runtime Clock
   const formatDuration = (ms: number): string => {
@@ -1024,58 +927,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     return () => clearInterval(interval);
   }, [isJobRunning, job?.startedAt, job?.createdAtUtc, job]);
 
-  useEffect(() => {
-    if (!jobId || !isOpen || !job?.tasks) return;
 
-    let isSubscribed = true;
-    const fetchAllEvents = async () => {
-      setLoadingEvents(true);
-      try {
-        const allTasks = job.tasks || [];
-        const promises = allTasks.map(async (t) => {
-          try {
-            const events = await repositoryAnalysisApi.getTaskEvents(jobId, t.id);
-            return events.map(e => ({
-              ...e,
-              taskType: t.taskType
-            }));
-          } catch (err) {
-            console.error(`Failed to fetch events for task ${t.id}:`, err);
-            return [];
-          }
-        });
-        const results = await Promise.all(promises);
-        if (isSubscribed) {
-          const flatSorted = results
-            .flat()
-            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-          setTaskEvents(flatSorted);
-        }
-      } catch (err) {
-        console.error("Failed to fetch task events:", err);
-      } finally {
-        if (isSubscribed) setLoadingEvents(false);
-      }
-    };
-
-    fetchAllEvents();
-
-    const hasRunningTasks = job.tasks.some(
-      (t) => t.status === "Running" || t.status === "Retrying" || t.status === "Queued"
-    );
-
-    let intervalId: NodeJS.Timeout | null = null;
-    if (hasRunningTasks) {
-      intervalId = setInterval(() => {
-        if (isSubscribed) fetchAllEvents();
-      }, 4000);
-    }
-
-    return () => {
-      isSubscribed = false;
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [jobId, isOpen, job?.tasks?.length, job?.status]);
 
   const handleRetryTask = async (taskId: string) => {
     setIsRetryingTaskId(taskId);
@@ -1147,14 +999,14 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     );
   }, [tasks]);
 
-  const repoName = localAnalysis?.repo.full_name || job?.currentStep || "Repository Analysis";
+  const repoName = localAnalysis?.repo?.full_name || job?.currentStep || "Repository Analysis";
   const commitsCount = localAnalysis?.facts?.git_metrics?.total_commits ?? 0;
   const contributorsCount = localAnalysis?.facts?.git_metrics?.active_contributors ?? 1;
 
   // Merge database logs with real-time SSE logs
   const combinedLogs = useMemo(() => {
     const dbEvents = taskEvents;
-    const liveEvents = liveTaskEvents;
+    const liveEvents = repoState?.taskEvents || [];
     const combined = [...dbEvents];
 
     liveEvents.forEach((liveEv) => {
@@ -1167,7 +1019,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
     });
 
     return combined.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-  }, [taskEvents, liveTaskEvents]);
+  }, [taskEvents, repoState?.taskEvents]);
 
   // Bento Grid Report Render Method
   const renderBentoGrid = () => {
@@ -1211,7 +1063,9 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
       return `Exceptional (${ep} Signals)`;
     };
 
-    const totalEvidencePoints = sections.reduce((sum, s) => sum + (s.items?.length ?? 0), 0);
+    const hasWeightedStrength = !!localAnalysis.evidenceStrength;
+    const totalEvidencePoints = localAnalysis.evidenceStrength?.score ?? sections.reduce((sum, s) => sum + (s.items?.length ?? 0), 0);
+    const strengthLabel = localAnalysis.evidenceStrength?.label ?? getEvidenceStrength(totalEvidencePoints);
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-left font-sans  items-start">
@@ -1239,14 +1093,29 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                 {risk.level} Risk
               </div>
             </div>
-            <p className="text-xs text-muted leading-relaxed font-light">
-              {localAnalysis.narrative?.recruiter_summary || (risk.reasons.length > 0 ? risk.reasons.join(", ") : "Authentic workspace scan complete.")}
-            </p>
+            <Accordion className="w-full" variant="surface">
+              <Accordion.Item key="ai-summary" id="ai-summary" aria-label="AI Summary">
+                <Accordion.Heading>
+                  <Accordion.Trigger className="text-[10.5px] font-bold text-foreground flex items-center justify-between w-full py-1.5 px-1 cursor-pointer select-none">
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="size-3.5 text-accent shrink-0" />
+                      AI Detailed Report
+                    </span>
+                    <Accordion.Indicator />
+                  </Accordion.Trigger>
+                </Accordion.Heading>
+                <Accordion.Panel>
+                  <Accordion.Body className="text-xs text-muted-foreground leading-relaxed pl-5.5 font-light pt-2 pb-3 select-text markdown-summary">
+                    <div dangerouslySetInnerHTML={{ __html: parseAndSanitizeMarkdown(localAnalysis.narrative?.recruiter_summary || (risk.reasons.length > 0 ? risk.reasons.join(", ") : "Authentic workspace scan complete.")) }} />
+                  </Accordion.Body>
+                </Accordion.Panel>
+              </Accordion.Item>
+            </Accordion>
             <div className="flex items-center justify-between">
               <div className="flex flex-col items-start justify-center gap-2">
                 <span className="text-[9px] text-muted uppercase font-bold">Evidence Strength:</span>
                 <strong className="text-sm text-foreground font-extrabold font-mono">
-                  {getEvidenceStrength(totalEvidencePoints)}
+                  {hasWeightedStrength ? `${strengthLabel} (${totalEvidencePoints.toFixed(0)} pts)` : strengthLabel}
                 </strong>
               </div>
               <div className="flex flex-col items-start justify-center gap-2">
@@ -1273,7 +1142,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
               <div className="space-y-1">
                 <span className="text-[8px] text-muted uppercase font-bold block">Languages</span>
                 <div className="flex flex-wrap gap-1">
-                  {Object.entries(localAnalysis.repo.languages || {}).map(([lang, pct]) => (
+                  {Object.entries(localAnalysis?.repo?.languages || {}).map(([lang, pct]) => (
                     <span
                       key={lang}
                       className="text-[10px] border border-border/60 bg-surface-secondary text-foreground px-2 py-0.5 rounded-md font-medium"
@@ -1284,7 +1153,7 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                 </div>
               </div>
 
-              {localAnalysis.repo.topics && localAnalysis.repo.topics.length > 0 && (
+              {localAnalysis?.repo?.topics && localAnalysis.repo.topics.length > 0 && (
                 <div className="space-y-1">
                   <span className="text-[8px] text-accent uppercase font-extrabold block">
                     Repository Topics
@@ -1896,8 +1765,8 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                 </span>
               </div>
 
-              {/* View mode toggle (only shown when job is completed) */}
-              {job?.status === "Completed" && (
+              {/* View mode toggle (shown when job is completed or report is loaded) */}
+              {(job?.status === "Completed" || localAnalysis) && (
                 <div className="flex gap-1 bg-surface-secondary border border-border/80 rounded-xl p-1 shrink-0 font-sans ">
                   <Button
                     size="sm"
@@ -1967,24 +1836,39 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                   Status
                 </span>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  {isJobRunning ? (
+                  {status === "QUEUED" ? (
+                    <>
+                      <Spinner size="sm" color="warning" className="scale-65 shrink-0" />
+                      <span className="text-warning font-extrabold capitalize text-[10px]">Queued</span>
+                    </>
+                  ) : status === "ANALYZING" ? (
                     <>
                       <Spinner size="sm" color="warning" className="scale-65 shrink-0" />
                       <span className="text-warning font-extrabold capitalize text-[10px]">Running</span>
                     </>
-                  ) : job?.status === "Completed" || (localAnalysis && !job) ? (
+                  ) : status === "COMPLETED" ? (
                     <>
                       <CheckCircle2 size={12} className="text-success shrink-0" />
                       <span className="text-success font-extrabold capitalize text-[10px]">Complete</span>
                     </>
-                  ) : job?.status === "Failed" ? (
+                  ) : status === "CANCELLED_PARTIAL" ? (
+                    <>
+                      <AlertCircle size={12} className="text-warning shrink-0" />
+                      <span className="text-warning font-extrabold capitalize text-[10px]">Stopped (Partial)</span>
+                    </>
+                  ) : status === "CANCELLED" ? (
+                    <>
+                      <AlertCircle size={12} className="text-muted shrink-0" />
+                      <span className="text-muted-foreground font-bold capitalize text-[10px]">Cancelled</span>
+                    </>
+                  ) : status === "FAILED" ? (
                     <>
                       <AlertTriangle size={12} className="text-danger shrink-0" />
                       <span className="text-danger font-extrabold capitalize text-[10px]">Failed</span>
                     </>
                   ) : (
                     <span className="text-foreground/80 font-bold capitalize text-[10px]">
-                      {job?.status || "Idle"}
+                      Never Analyzed
                     </span>
                   )}
                 </div>
@@ -1997,8 +1881,8 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                 <span className="text-foreground font-bold truncate block mt-0.5 text-[10px]">
                   {isJobRunning
                     ? FRIENDLY_NAMES[job?.currentStep || ""] || job?.currentStep || "Running"
-                    : job?.status === "Completed"
-                      ? "Report persited"
+                    : (job?.status === "Completed" || localAnalysis)
+                      ? "Report persisted"
                       : "Idle"}
                 </span>
               </div>
@@ -2056,15 +1940,33 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
             </div>
 
             {/* Overall Job Progress Ticker */}
-            {isJobRunning && job && (
-              <div className="w-full space-y-1 mt-1 font-mono text-[10px]  text-muted-foreground">
+            {isJobRunning && (
+              <div className="w-full space-y-1 mt-1 font-mono text-[10px] text-muted-foreground">
                 <div className="flex justify-between items-center">
                   <span>Pipeline Execution Progress</span>
-                  <span className="text-accent font-bold">{Math.round(job.progress)}%</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-accent font-bold">{Math.round(repoState?.progress || 0)}%</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px] font-extrabold uppercase rounded-lg border-danger/30 hover:bg-danger/10 text-danger cursor-pointer"
+                      onClick={async () => {
+                        try {
+                          await useAnalysisJobStore.getState().cancelReanalyze(repoId);
+                          toast.success("Analysis stopped.");
+                        } catch (err: any) {
+                          toast.danger("Failed to stop analysis: " + err.message);
+                        }
+                      }}
+                    >
+                      <XCircle size={10} className="shrink-0" />
+                      <span>Stop Analysis</span>
+                    </Button>
+                  </div>
                 </div>
                 <ProgressBar
                   aria-label="Job progress"
-                  value={job.progress}
+                  value={repoState?.progress || 0}
                   color="accent"
                   size="sm"
                   className="w-full"
@@ -2094,9 +1996,9 @@ export const DetailedAnalysisModal: React.FC<DetailedAnalysisModalProps> = ({
                     onClick={() => {
                       if (repoId) {
                         setValidationError(null);
-                        repositoryAnalysisApi.triggerAnalysis(repoId)
+                        useAnalysisJobStore.getState().triggerReanalyze(repoId)
                           .then(() => toast.success("Reanalysis queued successfully!"))
-                          .catch((e) => toast.danger("Failed to trigger reanalysis: " + e.message));
+                          .catch((e) => toast.danger("Failed to trigger reanalysis: " + (e.message || String(e))));
                       }
                     }}
                   >

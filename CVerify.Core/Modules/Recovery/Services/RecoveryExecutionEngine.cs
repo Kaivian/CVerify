@@ -80,7 +80,6 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             var user = await _context.Users
                 .Include(u => u.Roles)
                 .Include(u => u.AuthProviders)
-                .Include(u => u.PasswordCredentials)
                 .FirstOrDefaultAsync(u => u.Email == claimantEmail && u.DeletedAt == null, cancellationToken);
 
             if (user == null)
@@ -139,16 +138,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             }
 
             // Save credential record
-            var newCred = new PasswordCredential
-            {
-                UserId = user.Id,
-                PasswordHash = passwordHash,
-                IsActive = true,
-                PasswordChangedAt = _timeProvider.GetUtcNow(),
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.PasswordCredentials.Add(newCred);
+            user.PasswordChangedAt = _timeProvider.GetUtcNow();
 
             // 4. Create fresh Workspace
             var workspace = new Workspace
@@ -197,6 +187,33 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                 .Where(oa => oa.OrganizationId == org.Id && oa.UserId != user.Id)
                 .ToListAsync(cancellationToken);
             _context.OrganizationAuthorities.RemoveRange(otherAuthorities);
+
+            // 6b. Setup organization membership
+            var orgMembership = await _context.OrganizationMemberships
+                .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == user.Id, cancellationToken);
+            if (orgMembership == null)
+            {
+                orgMembership = new OrganizationMembership
+                {
+                    OrganizationId = org.Id,
+                    UserId = user.Id,
+                    Role = "OWNER",
+                    Status = "active",
+                    JoinedAt = _timeProvider.GetUtcNow()
+                };
+                _context.OrganizationMemberships.Add(orgMembership);
+            }
+            else
+            {
+                orgMembership.Role = "OWNER";
+                orgMembership.Status = "active";
+            }
+
+            // Remove other OWNER organization memberships to prevent multi-ownership leakage
+            var otherOrgMemberships = await _context.OrganizationMemberships
+                .Where(om => om.OrganizationId == org.Id && om.UserId != user.Id && om.Role == "OWNER")
+                .ToListAsync(cancellationToken);
+            _context.OrganizationMemberships.RemoveRange(otherOrgMemberships);
 
             // Set verification level and status
             org.VerificationLevel = 2; // Level 2 (Domain/Ownership verified)
@@ -269,7 +286,6 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             var user = await _context.Users
                 .Include(u => u.Roles)
                 .Include(u => u.AuthProviders)
-                .Include(u => u.PasswordCredentials)
                 .FirstOrDefaultAsync(u => u.Email == claimantEmail && u.DeletedAt == null, cancellationToken);
 
             if (user == null)
@@ -350,6 +366,33 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                 .ToListAsync(cancellationToken);
             _context.OrganizationAuthorities.RemoveRange(otherAuthorities);
 
+            // Setup organization membership
+            var orgMembership = await _context.OrganizationMemberships
+                .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == user.Id, cancellationToken);
+            if (orgMembership == null)
+            {
+                orgMembership = new OrganizationMembership
+                {
+                    OrganizationId = org.Id,
+                    UserId = user.Id,
+                    Role = "OWNER",
+                    Status = "active",
+                    JoinedAt = _timeProvider.GetUtcNow()
+                };
+                _context.OrganizationMemberships.Add(orgMembership);
+            }
+            else
+            {
+                orgMembership.Role = "OWNER";
+                orgMembership.Status = "active";
+            }
+
+            // Remove other OWNER organization memberships to prevent multi-ownership leakage
+            var otherOrgMemberships = await _context.OrganizationMemberships
+                .Where(om => om.OrganizationId == org.Id && om.UserId != user.Id && om.Role == "OWNER")
+                .ToListAsync(cancellationToken);
+            _context.OrganizationMemberships.RemoveRange(otherOrgMemberships);
+
             // Invalidate/rotate webhook and API credentials
             // Audited as part of compliance security actions
             await LogAuditEventAsync(user.Id, "CREDENTIAL_ROTATION", $"Force rotated all webhooks, integration API keys, OAuth sessions and refresh tokens for MST: {org.TaxCode}.", ipAddress, userAgent);
@@ -373,16 +416,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
                 _context.AuthProviders.Add(passwordProvider);
             }
 
-            var newCred = new PasswordCredential
-            {
-                UserId = user.Id,
-                PasswordHash = passwordHash,
-                IsActive = true,
-                PasswordChangedAt = _timeProvider.GetUtcNow(),
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.PasswordCredentials.Add(newCred);
+            user.PasswordChangedAt = _timeProvider.GetUtcNow();
 
             // Update presentation details
             workspace.DisplayName = displayName;

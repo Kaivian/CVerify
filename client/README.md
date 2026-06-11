@@ -1,6 +1,6 @@
 # CVerify Frontend Client Layer
 
-Welcome to the **CVerify AI Client Layer**. This is a state-of-the-art, premium frontend application built with React 19 and Next.js 16 (App Router). The UI features responsive glassmorphic interfaces, smooth animations, dynamic states, and robust edge-level security protections. It serves as the primary collaboration and itinerary planning interface for CVerify travelers and business partners.
+Welcome to the **CVerify AI Client Layer**. This is a state-of-the-art, premium frontend application built with React 19 and Next.js 16 (App Router). The UI features responsive glassmorphic interfaces, smooth animations, dynamic states, and robust edge-level security protections. It serves as the primary verification and evaluation portal for CVerify developers and recruitment partners.
 
 ---
 
@@ -29,7 +29,7 @@ client/
 │   ├── app/                # Next.js App Router (Layouts, Routing, Styles)
 │   │   ├── (auth)/         # Gated authentication routes group
 │   │   │   ├── login/      # Sign-in page
-│   │   │   ├── register/   # Sign-up page (Traveler/Business)
+│   │   │   ├── register/   # Sign-up page (Developer/Business)
 │   │   │   ├── forgot-.../ # Password recovery trigger
 │   │   │   ├── reset-p.../ # Secure token-based password reset
 │   │   │   └── verify-e.../# Post-registration email verification page
@@ -100,7 +100,7 @@ cp .env.example .env.local
 
 ## 🚀 Setup & Running Locally
 
-Ensure all project [Prerequisites](file:///d:/Coding%20Space/FPT/SWP391/swp391-su26-ai-audit-project-swp391_se20a02_group-05/CVerify/README.md#prerequisites) are met before starting.
+Ensure all project [Prerequisites](../README.md#prerequisites) are met before starting.
 
 ### 1. Installation
 Navigate into the client directory and install the required dependencies:
@@ -127,7 +127,7 @@ npm run start
 
 ## 📡 API Integration & HTTP Resiliency
 
-All network calls to the backend use a highly resilient, customized Axios wrapper located in [`src/lib/api/axios-client.ts`](file:///d:/Coding%20Space/FPT/SWP391/swp391-su26-ai-audit-project-swp391_se20a02_group-05/CVerify/client/src/lib/api/axios-client.ts).
+All network calls to the backend use a highly resilient, customized Axios wrapper located in [`src/lib/api/axios-client.ts`](src/lib/api/axios-client.ts).
 
 ```mermaid
 sequenceDiagram
@@ -171,7 +171,7 @@ sequenceDiagram
 
 ## 🔒 Security Proxy & Edge-Gating Route Flow
 
-The client features a Next.js Edge Middleware proxy ([`src/proxy.ts`](file:///d:/Coding%20Space/FPT/SWP391/swp391-su26-ai-audit-project-swp391_se20a02_group-05/CVerify/client/src/proxy.ts)) that executes cryptographically at the edge before any page assets are transmitted to the user.
+The client features a Next.js Edge Middleware proxy ([`src/proxy.ts`](src/proxy.ts)) that executes cryptographically at the edge before any page assets are transmitted to the user.
 
 ### Routing Gatekeeper Execution Lifecycle
 
@@ -182,7 +182,7 @@ The client features a Next.js Edge Middleware proxy ([`src/proxy.ts`](file:///d:
     *   `/dashboard/business/**/*` requires `BUSINESS` or `ADMIN` roles.
     *   `/dashboard/user/**/*` requires `USER`, `BUSINESS`, or `ADMIN` roles.
     *   *Note: Claims are normalized to handle both custom JWT payloads and standard .NET ClaimTypes (`http://schemas.microsoft.com/ws/2008/06/identity/claims/role`).*
-4.  **Multi-Tab Session Broadcast**: When a user logs in, logs out, or has their session extended, the change is broadcast via a `BroadcastChannel` in the Zustand store ([`src/store/use-auth-store.ts`](file:///d:/Coding%20Space/FPT/SWP391/swp391-su26-ai-audit-project-swp391_se20a02_group-05/CVerify/client/src/store/use-auth-store.ts)). If a user signs out in one tab, **all other open browser tabs immediately terminate their sessions and redirect to `/login`**.
+4.  **Multi-Tab Session Broadcast**: When a user logs in, logs out, or has their session extended, the change is broadcast via a `BroadcastChannel` in the Zustand store ([`src/features/auth/store/use-auth-store.ts`](src/features/auth/store/use-auth-store.ts)). If a user signs out in one tab, **all other open browser tabs immediately terminate their sessions and redirect to `/login`**.
 
 ---
 

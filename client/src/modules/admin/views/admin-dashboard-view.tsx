@@ -4,12 +4,9 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ShieldAlert, Server, Activity, Users, Lock, Eye } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { Typography } from '@heroui/react';
 
 export function AdminDashboardView() {
-  const { t } = useTranslation(['dashboard-admin', 'common']);
-
   return (
     <div className="space-y-6 font-outfit">
       
@@ -17,17 +14,17 @@ export function AdminDashboardView() {
       <div className="dark flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-background border border-border text-foreground select-none">
         <div className="space-y-1">
           <Typography type="h2" className="text-xl font-bold flex items-center gap-2 text-foreground">
-            {t('dashboard-admin:banner.title')}{' '}
+            System Administrator Console{' '}
             <ShieldAlert size={20} className="text-danger animate-pulse" />
           </Typography>
           <Typography type="body-xs" className="text-muted font-light mt-0.5">
-            {t('dashboard-admin:banner.subtitle')}
+            Deploy operational changes, audit logs, and toggle emergency API locks.
           </Typography>
         </div>
         <div className="flex gap-2">
           <Button variant="solid" className="w-fit self-start shrink-0 text-danger bg-danger/10 hover:bg-danger/20 border border-danger/25 cursor-pointer" size="sm">
             <Lock size={14} className="mr-1" />
-            {t('dashboard-admin:banner.lockApi')}
+            Toggle API Lock
           </Button>
         </div>
       </div>
@@ -40,7 +37,7 @@ export function AdminDashboardView() {
           <div className="flex justify-between items-start mb-4 select-none">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold block mb-1 tracking-wider">
-                {t('dashboard-admin:kpis.platformLoad')}
+                Platform CPU/Memory
               </Typography>
               <Typography type="h2" className="text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
                 18.4%
@@ -51,7 +48,7 @@ export function AdminDashboardView() {
             </div>
           </div>
           <Typography type="body-xs" className="text-muted">
-            {t('dashboard-admin:kpis.platformLoadSub', { used: "4.2", total: "16" })}
+            Platform utilization: 4.2 of 16 GB RAM
           </Typography>
         </Card>
 
@@ -60,7 +57,7 @@ export function AdminDashboardView() {
           <div className="flex justify-between items-start mb-4 select-none">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold block mb-1 tracking-wider">
-                {t('dashboard-admin:kpis.apiHealth')}
+                API Response Health
               </Typography>
               <Typography type="h2" className="text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
                 99.98%
@@ -71,7 +68,7 @@ export function AdminDashboardView() {
             </div>
           </div>
           <Typography type="body-xs" className="text-muted">
-            {t('dashboard-admin:kpis.apiHealthSub', { ms: 140 })}
+            Healthy average response latency: 140ms
           </Typography>
         </Card>
 
@@ -80,7 +77,7 @@ export function AdminDashboardView() {
           <div className="flex justify-between items-start mb-4 select-none">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-extrabold block mb-1 tracking-wider">
-                {t('dashboard-admin:kpis.totalUsers')}
+                Total User Accounts
               </Typography>
               <Typography type="h2" className="text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
                 142,500
@@ -91,7 +88,7 @@ export function AdminDashboardView() {
             </div>
           </div>
           <Typography type="body-xs" className="text-muted">
-            {t('dashboard-admin:kpis.totalUsersSub', { count: "1,820" })}
+            Total user database records (1,820 active today)
           </Typography>
         </Card>
       </div>
@@ -101,15 +98,15 @@ export function AdminDashboardView() {
         <div className="flex justify-between items-center mb-5 select-none">
           <div>
             <Typography type="h3" className="font-bold text-foreground">
-              {t('dashboard-admin:console.title')}
+              Live Diagnostic Logs
             </Typography>
             <Typography type="body-xs" className="text-muted">
-              {t('dashboard-admin:console.subtitle')}
+              Realtime monitoring feed of system events and OAuth flows.
             </Typography>
           </div>
           <Button variant="bordered" size="sm" className="cursor-pointer">
             <Eye size={14} className="mr-1" />
-            {t('dashboard-admin:console.auditTrail')}
+            Inspect Audit Trail
           </Button>
         </div>
 
@@ -117,22 +114,22 @@ export function AdminDashboardView() {
           <div className="flex items-start gap-2.5">
             <span className="text-muted font-semibold">[15:48:10]</span>
             <span className="text-success font-bold">[SUCCESS]</span>
-            <span>{t('dashboard-admin:console.logs.successRotation', { email: 'admin@cverify.ai' })}</span>
+            <span>Cryptographic key rotation completed successfully by admin@cverify.ai</span>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="text-muted font-semibold">[15:44:22]</span>
             <span className="text-danger font-bold">[WARN]</span>
-            <span>{t('dashboard-admin:console.logs.warnBruteForce', { ip: '192.168.1.42' })}</span>
+            <span>Brute-force security mitigation triggered on router IP: 192.168.1.42</span>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="text-muted font-semibold">[15:39:15]</span>
             <span className="text-success font-bold">[SUCCESS]</span>
-            <span>{t('dashboard-admin:console.logs.successOAuth', { email: 'traveler_4892@gmail.com' })}</span>
+            <span>OAuth Federated sign-in completed for traveler_4892@gmail.com</span>
           </div>
           <div className="flex items-start gap-2.5">
             <span className="text-muted font-semibold">[15:32:04]</span>
             <span className="text-warning font-bold">[INFO]</span>
-            <span>{t('dashboard-admin:console.logs.infoJwt')}</span>
+            <span>Stateless JWT authorization context validated for route prefix.</span>
           </div>
         </div>
       </Card>

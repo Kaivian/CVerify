@@ -115,6 +115,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     logout: (broadcast = true) => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem("cverify_company_onboarding_state");
+      }
       set({
         user: null,
         isAuthenticated: false,
@@ -158,9 +161,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
     hasPermission: (permission) => {
       const user = get().user;
       if (!user) return false;
-      
-      // Admin bypass - Admin has all privileges
-      if (user.role === 'ADMIN') return true;
 
       // Optimization: Exact match check
       if (user.permissions.includes(permission)) return true;

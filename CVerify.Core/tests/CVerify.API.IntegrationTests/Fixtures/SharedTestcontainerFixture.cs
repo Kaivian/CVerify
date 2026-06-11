@@ -75,19 +75,21 @@ public class SharedTestcontainerFixture : IAsyncLifetime
 
     private async Task InitializeDbSchemaAsync()
     {
-        // Search absolute pathway first, fallback to relative lookup if run in nested directories
-        var scriptPath = @"d:\Coding Space\FPT\swp391-su26-ai-audit-project-swp391_se20a02_group-05\CVerify\resources\Initialize SQL.sql";
-        if (!File.Exists(scriptPath))
+        // Search relative lookup from BaseDirectory up to locate resources folder
+        var currentDir = AppContext.BaseDirectory;
+        string scriptPath = null;
+        while (currentDir != null && !File.Exists(Path.Combine(currentDir, "resources", "Initialize SQL.sql")))
         {
-            var currentDir = AppContext.BaseDirectory;
-            while (currentDir != null && !File.Exists(Path.Combine(currentDir, "resources", "Initialize SQL.sql")))
-            {
-                currentDir = Directory.GetParent(currentDir)?.FullName;
-            }
-            if (currentDir != null)
-            {
-                scriptPath = Path.Combine(currentDir, "resources", "Initialize SQL.sql");
-            }
+            currentDir = Directory.GetParent(currentDir)?.FullName;
+        }
+        if (currentDir != null)
+        {
+            scriptPath = Path.Combine(currentDir, "resources", "Initialize SQL.sql");
+        }
+        else
+        {
+            // Fallback to absolute workspace path if running in some isolated host context
+            scriptPath = @"d:\Coding Space\Projects\CVerify\resources\Initialize SQL.sql";
         }
 
         if (!File.Exists(scriptPath))

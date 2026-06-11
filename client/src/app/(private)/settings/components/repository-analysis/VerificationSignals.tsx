@@ -1,5 +1,5 @@
 import React from "react";
-import { Chip, Typography } from "@heroui/react";
+import { Chip, Typography, Accordion } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import {
   ShieldCheck,
@@ -9,8 +9,10 @@ import {
   GitCommit,
   AlertTriangle,
   Fingerprint,
+  Sparkles,
 } from "lucide-react";
 import type { RepositoryAnalysis } from "@/types/repository-analysis.types";
+import { parseAndSanitizeMarkdown } from "@/lib/markdown";
 
 interface VerificationSignalsProps {
   analysis: RepositoryAnalysis;
@@ -70,8 +72,8 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
       {/* Top Banner: Verification Verdict */}
       <div
         className={`flex items-start gap-4 p-5 rounded-2xl border ${totalFlagsCount > 0
-            ? "bg-warning/5 border-warning/20 text-warning"
-            : "bg-success/5 border-success/20 text-success"
+          ? "bg-warning/5 border-warning/20 text-warning"
+          : "bg-success/5 border-success/20 text-success"
           }`}
       >
         <div className="p-2 rounded-xl bg-background border border-current/10 shrink-0">
@@ -91,9 +93,24 @@ export const VerificationSignals: React.FC<VerificationSignalsProps> = ({
             </Typography>
             {getClassificationBadge(analysis.repo.repo_type)}
           </div>
-          <Typography type="body-xs" className="text-muted leading-relaxed mt-1">
-            {narrative?.recruiter_summary || (risk.reasons.length > 0 ? risk.reasons.join(". ") : "No anomalies detected.")}
-          </Typography>
+          <Accordion className="w-full mt-2" variant="surface">
+            <Accordion.Item key="ai-summary" id="ai-summary" aria-label="AI Summary">
+              <Accordion.Heading>
+                <Accordion.Trigger className="text-[10.5px] font-bold text-foreground flex items-center justify-between w-full py-1.5 px-1 cursor-pointer select-none">
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="size-3.5 text-accent shrink-0" />
+                    AI Detailed Report
+                  </span>
+                  <Accordion.Indicator />
+                </Accordion.Trigger>
+              </Accordion.Heading>
+              <Accordion.Panel>
+                <Accordion.Body className="text-xs text-muted-foreground leading-relaxed pl-5.5 font-light pt-2 pb-3 select-text markdown-summary">
+                  <div dangerouslySetInnerHTML={{ __html: parseAndSanitizeMarkdown(narrative?.recruiter_summary || (risk.reasons.length > 0 ? risk.reasons.join(". ") : "No anomalies detected.")) }} />
+                </Accordion.Body>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
         </div>
       </div>
 

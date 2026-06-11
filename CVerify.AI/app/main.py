@@ -17,13 +17,13 @@ import redis.asyncio as redis
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import StreamingResponse, JSONResponse
-from app.config import settings
-from app.middleware.hmac_auth import verify_hmac_signature
-from app.services.claude_service import ClaudeService
+from app.core.config import settings
+from app.core.middleware.hmac_auth import verify_hmac_signature
+from app.core.services.claude_service import ClaudeService
 from pydantic import BaseModel
 
 # Initialize logging
-from app.monitoring.observability import setup_logging, UIStreamingManager, TraceContext, span_context
+from app.core.monitoring.observability import setup_logging, UIStreamingManager, TraceContext, span_context
 
 setup_logging()
 
@@ -161,7 +161,7 @@ async def add_trace_context_middleware(request: Request, call_next):
     finally:
         TraceContext.reset(token)
 
-from app.routes.analysis_router import router as analysis_router
+from app.api.routes.analysis_router import router as analysis_router
 app.include_router(analysis_router)
 
 claude_service = ClaudeService()
@@ -226,6 +226,7 @@ async def readiness():
 
 @app.post("/api/v1/chat/stream")
 async def chat_stream(
+    request: Request,
     request_data: ChatStreamRequest,
     correlation_id: str = Depends(verify_hmac_signature)
 ):
@@ -234,18 +235,37 @@ async def chat_stream(
     logger.info(f"Initiated AI stream request processing", extra=extra_log)
     
     async def sse_generator():
+        # Emit STARTED status event
+        yield f"data: {json.dumps({'status': 'STARTED'})}\n\n"
+        
+        interrupted = True
         try:
             msg_list = [{"role": msg.role, "content": msg.content} for msg in request_data.messages]
             
             async for token in claude_service.stream_chat(msg_list, correlation_id):
-                # Send the token in clean JSON SSE formatting
-                yield f"data: {json.dumps({'token': token})}\n\n"
+                if await request.is_disconnected():
+                    logger.warning("Client disconnected from chat stream", extra=extra_log)
+                    yield f"data: {json.dumps({'status': 'ABORTED', 'event': 'AI_STREAM_ABORTED'})}\n\n"
+                    return
+                
+                # Send the token in clean JSON SSE formatting with status STREAMING
+                yield f"data: {json.dumps({'status': 'STREAMING', 'token': token})}\n\n"
             
+            interrupted = False
+            # Emit COMPLETED status event
+            yield f"data: {json.dumps({'status': 'COMPLETED'})}\n\n"
             # Send done frame to close client loop
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Error yielding SSE stream: {e}", extra=extra_log)
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'status': 'FAILED', 'error': str(e)})}\n\n"
+        finally:
+            if interrupted:
+                logger.warning("Stream was interrupted or aborted", extra=extra_log)
+                try:
+                    yield f"data: {json.dumps({'status': 'ABORTED', 'event': 'AI_STREAM_ABORTED'})}\n\n"
+                except Exception:
+                    pass
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 

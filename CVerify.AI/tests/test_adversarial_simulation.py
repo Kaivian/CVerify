@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 os.environ["ANTHROPIC_API_KEY"] = "dummy-key"
 os.environ["SHARED_SECRET"] = "dummy-secret"
 
-from app.github.repo_classifier import classify_repository, RepoClassification
+from app.pipelines.repository.github.repo_classifier import classify_repository, RepoClassification
 
 class TestAdversarialSimulation(unittest.IsolatedAsyncioTestCase):
 

@@ -288,10 +288,17 @@ public class RepositoryAnalysisController : ControllerBase
             while (!HttpContext.RequestAborted.IsCancellationRequested)
             {
                 var message = await channelQueue.Reader.ReadAsync(HttpContext.RequestAborted);
+
+                using var doc = JsonDocument.Parse(message);
+                if (doc.RootElement.TryGetProperty("eventType", out var eventTypeProp) && eventTypeProp.GetString() == "AI_TASK_FAILED")
+                {
+                    await Response.WriteAsync($"event: AI_TASK_FAILED\ndata: {message}\n\n", HttpContext.RequestAborted);
+                    await Response.Body.FlushAsync(HttpContext.RequestAborted);
+                }
+
                 await Response.WriteAsync($"data: {message}\n\n", HttpContext.RequestAborted);
                 await Response.Body.FlushAsync(HttpContext.RequestAborted);
 
-                using var doc = JsonDocument.Parse(message);
                 if (doc.RootElement.TryGetProperty("status", out var statusProp))
                 {
                     var status = statusProp.GetString();

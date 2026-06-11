@@ -7,10 +7,8 @@ import { Table, Button, Card, Typography } from "@heroui/react";
 import { Search, RotateCw, ShieldCheck } from "lucide-react";
 import { PaginationWrapper } from "@/components/ui/pagination-wrapper";
 import { SkeletonLoader, EmptyState } from "@/components/ui/states";
-import { useTranslation } from "react-i18next";
 
 export function AuditLogsView() {
-  const { t } = useTranslation(["dashboard-admin", "common"]);
   const [logs, setLogs] = useState<AuditLogListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -100,10 +98,10 @@ export function AuditLogsView() {
             className="text-2xl font-extrabold tracking-tight text-foreground flex items-center gap-2 font-display"
           >
             <ShieldCheck className="text-accent" size={24} />
-            {t("dashboard-admin:auditLogs.title")}
+            Security Audit Log
           </Typography>
           <Typography type="body-sm" className="text-muted mt-1 font-outfit">
-            {t("dashboard-admin:auditLogs.subtitle")}
+            Trace admin logins, role modifications, credential events, and system errors.
           </Typography>
         </div>
         <Button
@@ -112,7 +110,7 @@ export function AuditLogsView() {
           className="w-fit px-4 py-2.5 bg-foreground text-background font-bold rounded-xl text-xs flex items-center gap-2 hover:bg-foreground/90 transition-all select-none cursor-pointer"
         >
           <RotateCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-          {t("dashboard-admin:auditLogs.syncRecords")}
+          Sync Records
         </Button>
       </div>
 
@@ -122,7 +120,7 @@ export function AuditLogsView() {
           <Search size={16} className="absolute left-3 top-3.5 text-muted" />
           <input
             type="text"
-            placeholder={t("dashboard-admin:auditLogs.searchPlaceholder")}
+            placeholder="Search by email, event type or description..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-surface/50 text-xs focus:outline-none focus:ring-2 focus:ring-focus/20"
@@ -136,39 +134,37 @@ export function AuditLogsView() {
           <SkeletonLoader rows={6} columns={5} />
         ) : logs.length === 0 ? (
           <EmptyState
-            title={t("dashboard-admin:auditLogs.empty.title")}
-            description={t("dashboard-admin:auditLogs.empty.description")}
+            title="No Logs Found"
+            description="No security audit entries match your operational query."
           />
         ) : (
           <div className="overflow-x-auto">
             <Table
-              aria-label={t("dashboard-admin:auditLogs.table.ariaLabel")}
+              aria-label="Audit Logs Table"
               className="w-full"
             >
               <Table.ScrollContainer>
                 <Table.Content
-                  aria-label={t(
-                    "dashboard-admin:auditLogs.table.ariaLabelContent",
-                  )}
+                  aria-label="Audit Logs Table Body"
                 >
                   <Table.Header>
                     <Table.Column
                       isRowHeader
-                      className="font-extrabold uppercase text-[10px] tracking-wider py-4"
+                      className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted"
                     >
-                      {t("dashboard-admin:auditLogs.table.timestamp")}
+                      Timestamp
                     </Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
-                      {t("dashboard-admin:auditLogs.table.triggeredBy")}
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">
+                      Triggered By
                     </Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
-                      {t("dashboard-admin:auditLogs.table.eventType")}
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">
+                      Event Type
                     </Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4">
-                      {t("dashboard-admin:auditLogs.table.actionDetail")}
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">
+                      Action Detail
                     </Table.Column>
-                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 hidden md:table-cell">
-                      {t("dashboard-admin:auditLogs.table.connectionOrigin")}
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted hidden md:table-cell">
+                      Connection Origin
                     </Table.Column>
                   </Table.Header>
                   <Table.Body>
@@ -179,17 +175,17 @@ export function AuditLogsView() {
                           key={log.id}
                           className="border-b border-separator last:border-none hover:bg-surface-secondary/40"
                         >
-                          <Table.Cell className="text-muted font-mono text-[11px] py-4 whitespace-nowrap">
+                          <Table.Cell className="text-muted font-mono text-[11px] py-4 px-6 whitespace-nowrap">
                             {new Date(log.createdAt).toLocaleString()}
                           </Table.Cell>
-                          <Table.Cell className="font-bold text-foreground text-xs py-4">
+                          <Table.Cell className="font-bold text-foreground text-xs py-4 px-6">
                             {log.userEmail || (
                               <span className="text-muted font-normal">
-                                {t("dashboard-admin:auditLogs.systemContext")}
+                                System Context
                               </span>
                             )}
                           </Table.Cell>
-                          <Table.Cell className="py-4">
+                          <Table.Cell className="py-4 px-6">
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold tracking-wide uppercase ${
                                 badge.color === "danger"
@@ -204,10 +200,10 @@ export function AuditLogsView() {
                               {badge.label}
                             </span>
                           </Table.Cell>
-                          <Table.Cell className="text-muted text-xs max-w-md py-4 leading-relaxed font-normal">
+                          <Table.Cell className="text-muted text-xs max-w-md py-4 px-6 leading-relaxed font-normal">
                             {log.description}
                           </Table.Cell>
-                          <Table.Cell className="py-4 whitespace-nowrap hidden md:table-cell">
+                          <Table.Cell className="py-4 px-6 whitespace-nowrap hidden md:table-cell">
                             <div className="flex flex-col text-[10px] text-muted font-mono">
                               <span>IP: {log.ipAddress || "Internal"}</span>
                               <span
@@ -229,13 +225,15 @@ export function AuditLogsView() {
         )}
 
         {logs.length > 0 && (
-          <PaginationWrapper
-            page={page}
-            totalPages={totalPages}
-            totalItems={totalCount}
-            itemsPerPage={pageSize}
-            onPageChange={(p) => setPage(p)}
-          />
+          <div className="p-4 border-t border-separator/60">
+            <PaginationWrapper
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalCount}
+              itemsPerPage={pageSize}
+              onPageChange={(p) => setPage(p)}
+            />
+          </div>
         )}
       </Card>
     </div>

@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using CVerify.API.Modules.Auth.Services;
 using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Shared.Diagnostics;
@@ -18,6 +17,7 @@ using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Shared.Storage.Enums;
 using CVerify.API.Modules.Shared.Storage.Interfaces;
 using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.SourceCode.Entities;
 
 namespace CVerify.API.Modules.Profiles.Services;
 
@@ -77,12 +77,7 @@ public class ProfileService : IProfileService
             profile.User = user;
         }
 
-        var socialLinks = await _context.SocialLinks
-            .Where(sl => sl.UserId == userId)
-            .Select(sl => sl.Url)
-            .ToListAsync(cancellationToken);
-
-        return MapToResponse(profile, socialLinks);
+        return MapToResponse(profile, profile.SocialLinks);
     }
 
     public async Task<ProfileResponse> UpdateProfileAsync(
@@ -132,46 +127,33 @@ public class ProfileService : IProfileService
         profile.AiTalentDiscovery = request.AiTalentDiscovery;
         profile.UpdatedAt = DateTimeOffset.UtcNow;
 
-        // Sync Social Links (Delete existing and insert new is safest)
-        var existingLinks = await _context.SocialLinks
-            .Where(sl => sl.UserId == userId)
-            .ToListAsync(cancellationToken);
-        _context.SocialLinks.RemoveRange(existingLinks);
-
         var newSocialUrls = new List<string>();
         if (request.SocialLinks != null)
         {
-            foreach (var url in request.SocialLinks.Where(u => !string.IsNullOrWhiteSpace(u)))
-            {
-                var socialLink = new SocialLink
-                {
-                    Id = Guid.CreateVersion7(),
-                    UserId = userId,
-                    Url = url.Trim(),
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                };
-                _context.SocialLinks.Add(socialLink);
-                newSocialUrls.Add(socialLink.Url);
-            }
+            newSocialUrls = request.SocialLinks
+                .Where(u => !string.IsNullOrWhiteSpace(u))
+                .Select(u => u.Trim())
+                .ToList();
         }
+        profile.SocialLinks = newSocialUrls;
 
         // Log the state transition
         var logResponse = MapToResponse(profile, newSocialUrls);
         var newStateJson = JsonSerializer.Serialize(logResponse);
 
-        var log = new ProfileActivityLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
-            ActionType = "UPDATE_PROFILE",
+            EventType = "UPDATE_PROFILE",
+            Description = $"User profile updated for {profile.User?.FullName ?? userId.ToString()}.",
             OldStateJson = oldStateJson,
             NewStateJson = newStateJson,
             IpAddress = ipAddress,
             UserAgent = userAgent,
             CreatedAt = DateTimeOffset.UtcNow
         };
-        _context.ProfileActivityLogs.Add(log);
+        _context.AuditLogs.Add(log);
 
         try
         {
@@ -231,18 +213,19 @@ public class ProfileService : IProfileService
         }
 
         // Log the state transition
-        var log = new ProfileActivityLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
-            ActionType = "UPDATE_USERNAME",
+            EventType = "UPDATE_USERNAME",
+            Description = $"Username updated to {newUsername}.",
             OldStateJson = oldStateJson,
             NewStateJson = newStateJson,
             IpAddress = ipAddress,
             UserAgent = userAgent,
             CreatedAt = _timeProvider.GetUtcNow()
         };
-        _context.ProfileActivityLogs.Add(log);
+        _context.AuditLogs.Add(log);
 
         try
         {
@@ -280,12 +263,80 @@ public class ProfileService : IProfileService
             throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
         }
 
-        var socialLinks = await _context.SocialLinks
-            .Where(sl => sl.UserId == profile.UserId)
-            .Select(sl => sl.Url)
-            .ToListAsync(cancellationToken);
+        var socialLinks = profile.SocialLinks;
 
         var signedAvatarUrl = await GetSignedAvatarUrlAsync(profile.User?.AvatarUrl, cancellationToken);
+
+        var careerPreference = await _context.CareerPreferences
+            .FirstOrDefaultAsync(cp => cp.UserId == profile.UserId, cancellationToken);
+
+        PublicCareerPreferenceDto? publicCareerPreference = null;
+        if (careerPreference != null)
+        {
+            var employmentPrefs = careerPreference.EmploymentPreferences ?? new List<string>();
+            var preferredLocations = careerPreference.PreferredLocations ?? new List<string>();
+
+            var preferredWorkEnvironments = careerPreference.PreferredWorkEnvironments ?? new List<string>();
+            var workStyles = careerPreference.WorkStyles ?? new List<string>();
+            var companyValues = careerPreference.CompanyValues ?? new List<string>();
+            var desiredJobPositions = careerPreference.DesiredJobPositions ?? new List<string>();
+
+            decimal? expectedSalaryMin = careerPreference.IsExpectedSalaryVisible ? careerPreference.ExpectedSalaryMin : null;
+            decimal? expectedSalaryMax = careerPreference.IsExpectedSalaryVisible ? careerPreference.ExpectedSalaryMax : null;
+            string? expectedSalaryCurrency = careerPreference.IsExpectedSalaryVisible ? careerPreference.ExpectedSalaryCurrency : null;
+            string? expectedSalaryType = careerPreference.IsExpectedSalaryVisible ? careerPreference.ExpectedSalaryType : null;
+
+            publicCareerPreference = new PublicCareerPreferenceDto(
+                careerPreference.AvailableForHire,
+                careerPreference.PreferredLanguage,
+                employmentPrefs,
+                preferredWorkEnvironments,
+                workStyles,
+                companyValues,
+                preferredLocations,
+                desiredJobPositions,
+                expectedSalaryMin,
+                expectedSalaryMax,
+                expectedSalaryCurrency,
+                expectedSalaryType,
+                careerPreference.ExpectedSalaryNegotiable,
+                careerPreference.IsExpectedSalaryVisible,
+                careerPreference.WorkPreferenceNotes
+            );
+        }
+
+        var publicRepos = await _context.SourceCodeRepositories
+            .FromSqlRaw(@"
+                SELECT r.* 
+                FROM source_code_repositories r
+                INNER JOIN auth_providers ap ON r.auth_provider_id = ap.id
+                WHERE ap.user_id = {0} 
+                  AND ap.deleted_at IS NULL
+                  AND r.latest_analysis_status = 'Completed'
+                  AND r.is_private = FALSE
+                  AND r.is_enabled = TRUE
+                ORDER BY r.latest_analysis_completed_at_utc DESC", 
+                profile.UserId)
+            .ToListAsync(cancellationToken);
+
+        double? avgTrustScore = null;
+        if (publicRepos.Any())
+        {
+            avgTrustScore = publicRepos.Average(r => r.TrustScore);
+        }
+
+        var publicRepoDtos = publicRepos.Select(r => new PublicRepositoryDto(
+            r.Id,
+            r.Name,
+            r.Owner,
+            r.Description,
+            r.HtmlUrl,
+            r.PrimaryLanguage,
+            r.TrustScore,
+            r.Classification,
+            r.LatestAnalysisStatus,
+            r.LatestAnalysisCompletedAtUtc
+        )).ToList();
 
         return new PublicProfileResponse(
             profile.UserId,
@@ -296,7 +347,10 @@ public class ProfileService : IProfileService
             profile.Headline,
             profile.Company,
             profile.Location,
-            socialLinks
+            socialLinks,
+            publicCareerPreference,
+            avgTrustScore,
+            publicRepoDtos
         );
     }
 
@@ -413,7 +467,6 @@ public class ProfileService : IProfileService
         }
 
         var user = await _context.Users
-            .Include(u => u.AuthProviders)
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
         if (user == null)
@@ -421,10 +474,14 @@ public class ProfileService : IProfileService
             throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
         }
 
-        var provider = user.AuthProviders
-            .FirstOrDefault(ap => ap.ProviderName.ToLower() == canonicalName && ap.DeletedAt == null);
+        var providerAvatarUrl = await _context.Database
+            .SqlQueryRaw<string>(
+                "SELECT provider_avatar_url AS \"Value\" FROM auth_providers WHERE user_id = {0} AND LOWER(provider_name) = {1} AND deleted_at IS NULL LIMIT 1",
+                userId,
+                canonicalName)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (provider == null || string.IsNullOrEmpty(provider.ProviderAvatarUrl))
+        if (string.IsNullOrEmpty(providerAvatarUrl))
         {
             throw new BusinessRuleException("PROVIDER_AVATAR_MISSING", $"No connected {providerName} account or provider avatar URL found.");
         }
@@ -444,7 +501,7 @@ public class ProfileService : IProfileService
             }
         }
 
-        user.AvatarUrl = provider.ProviderAvatarUrl;
+        user.AvatarUrl = providerAvatarUrl;
         user.AvatarSource = canonicalName switch
         {
             "google" => AvatarSource.Google,
@@ -456,19 +513,20 @@ public class ProfileService : IProfileService
         
         await _context.SaveChangesAsync(cancellationToken);
 
-        var log = new ProfileActivityLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
-            ActionType = "SYNC_AVATAR",
+            EventType = "SYNC_AVATAR",
+            Description = $"Avatar synchronized with provider: {canonicalName}.",
             OldStateJson = JsonSerializer.Serialize(new { Source = "Manual" }),
-            NewStateJson = JsonSerializer.Serialize(new { Source = canonicalName, Url = provider.ProviderAvatarUrl }),
+            NewStateJson = JsonSerializer.Serialize(new { Source = canonicalName, Url = providerAvatarUrl }),
             CreatedAt = DateTimeOffset.UtcNow
         };
-        _context.ProfileActivityLogs.Add(log);
+        _context.AuditLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
 
-        return (provider.ProviderAvatarUrl, provider.ProviderAvatarUrl);
+        return (providerAvatarUrl, providerAvatarUrl);
     }
 
     public async Task DeleteAvatarAsync(
@@ -503,16 +561,35 @@ public class ProfileService : IProfileService
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        var log = new ProfileActivityLog
+        var log = new AuditLog
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
-            ActionType = "DELETE_AVATAR",
+            EventType = "DELETE_AVATAR",
+            Description = "User avatar deleted.",
             OldStateJson = oldStateJson,
             NewStateJson = JsonSerializer.Serialize(new { AvatarUrl = (string?)null, AvatarSource = AvatarSource.Default }),
             CreatedAt = DateTimeOffset.UtcNow
         };
-        _context.ProfileActivityLogs.Add(log);
+        _context.AuditLogs.Add(log);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private static List<string> SafeDeserializeList(string? json, string fieldName)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return new List<string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"[JSON Deserialization Warning] Failed to deserialize career preference field '{fieldName}': {ex.Message}. Falling back to empty list.");
+            return new List<string>();
+        }
     }
 }

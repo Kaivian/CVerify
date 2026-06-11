@@ -10,6 +10,8 @@ using Microsoft.IdentityModel.Tokens;
 using CVerify.API.Modules.Shared.Configuration;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;
+using CVerify.API.Modules.Shared.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace CVerify.API.Modules.Auth.Services;
 
@@ -20,11 +22,13 @@ public class TokenService : ITokenService
 {
     private readonly EnvConfiguration _config;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ApplicationDbContext _dbContext;
 
-    public TokenService(EnvConfiguration config, IHttpContextAccessor httpContextAccessor)
+    public TokenService(EnvConfiguration config, IHttpContextAccessor httpContextAccessor, ApplicationDbContext dbContext)
     {
         _config = config;
         _httpContextAccessor = httpContextAccessor;
+        _dbContext = dbContext;
     }
 
     public string GenerateJwtToken(User user, IEnumerable<string> roles, IEnumerable<string> permissions, Guid? organizationId = null, string? organizationSlug = null, Guid? sessionId = null)
@@ -40,6 +44,12 @@ public class TokenService : ITokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
+        var adminMember = _dbContext.AdminMembers.AsNoTracking().FirstOrDefault(am => am.UserId == user.Id);
+        if (adminMember != null)
+        {
+            claims.Add(new Claim("admin_session_version", adminMember.SessionVersion.ToString()));
+        }
+
         if (sessionId.HasValue)
         {
             claims.Add(new("sid", sessionId.Value.ToString()));
@@ -53,6 +63,44 @@ public class TokenService : ITokenService
         {
             claims.Add(new("org_slug", organizationSlug));
         }
+
+        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config.Jwt.Key));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expires = DateTime.UtcNow.AddMinutes(_config.Jwt.DurationInMinutes);
+
+        var token = new JwtSecurityToken(
+            _config.Jwt.Issuer,
+            _config.Jwt.Audience,
+            claims,
+            expires: expires,
+            signingCredentials: creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public string GenerateCompanyJwtToken(CVerify.API.Modules.Auth.Entities.OrganizationCredential credential, IEnumerable<string> roles, IEnumerable<string> permissions, Guid? sessionId = null)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, credential.OrganizationId.ToString()),
+            new(ClaimTypes.Name, credential.Username),
+            new("actor_type", "business"),
+            new("isEmailVerified", "true"),
+            new("status", "ACTIVE"),
+            new("session_version", "1"),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        if (sessionId.HasValue)
+        {
+            claims.Add(new("sid", sessionId.Value.ToString()));
+        }
+
+        claims.Add(new("org_id", credential.OrganizationId.ToString()));
+        claims.Add(new("org_slug", credential.Username));
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 

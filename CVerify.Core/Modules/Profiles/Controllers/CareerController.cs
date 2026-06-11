@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Services;
-using CVerify.API.Modules.Shared.Domain.Entities;
 
 namespace CVerify.API.Modules.Profiles.Controllers;
 
@@ -37,16 +36,16 @@ public class CareerController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CareerPreferenceResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CareerPreferencesDashboardResponse))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetCareer(CancellationToken cancellationToken)
     {
-        var career = await _careerService.GetCareerPreferenceByUserIdAsync(CurrentUserId, cancellationToken);
+        var career = await _careerService.GetCareerDashboardAsync(CurrentUserId, cancellationToken);
         return Ok(career);
     }
 
-    [HttpPut]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CareerPreferenceResponse))]
+    [HttpPatch]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CareerPreferencesDashboardResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -58,6 +57,38 @@ public class CareerController : ControllerBase
         }
 
         var career = await _careerService.UpdateCareerPreferenceAsync(CurrentUserId, request, cancellationToken);
+        return Ok(career);
+    }
+
+    [HttpPut]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CareerPreferencesDashboardResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> PutCareer([FromBody] UpdateCareerPreferenceRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var career = await _careerService.UpdateCareerPreferenceAsync(CurrentUserId, request, cancellationToken);
+        return Ok(career);
+    }
+
+    [HttpPost("accept-suggestions")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CareerPreferencesDashboardResponse))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> AcceptSuggestions([FromBody] AcceptAiSuggestionsRequest request, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var career = await _careerService.AcceptAiSuggestionsAsync(CurrentUserId, request, cancellationToken);
         return Ok(career);
     }
 }

@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import unittest
 from pydantic import ValidationError
-from app.orchestrators.github_analysis_orchestrator import (
+from app.pipelines.repository.orchestrators.github_analysis_orchestrator import (
     ReportV2Contract, ClassificationV2, SectionV2, RiskV2
 )
 
@@ -95,12 +95,12 @@ class TestContractValidation(unittest.TestCase):
 
     def test_valid_cv_synthesis_passes(self):
         """Verifies that a valid CvSynthesisContract payload parses successfully."""
-        from app.orchestrators.github_analysis_orchestrator import CvSynthesisContract
+        from app.pipelines.repository.orchestrators.github_analysis_orchestrator import CvSynthesisContract
         valid_cv = {
             "schemaVersion": "v2",
             "title": "SaaS Platform Developer",
             "skills": ["Python", "FastAPI", "React"],
-            "summary": "Designed and maintained key backend services for CVerify repository intelligence.",
+            "summary": "Led the architectural design and full-stack development of the CVerify platform, implementing robust OAuth2 authorization flows, optimizing Postgres database queries to achieve a 40% reduction in API response latency, and establishing automated CI/CD workflows using GitHub Actions.",
             "highlights": [
                 {"signal": "Implemented OAuth token authorization controls.", "impact": "positive"},
                 {"signal": "Optimized SQL query response latency.", "impact": "positive"}
@@ -114,12 +114,12 @@ class TestContractValidation(unittest.TestCase):
 
     def test_invalid_ownership_profile(self):
         """Verifies that an invalid ownershipProfile raises ValidationError."""
-        from app.orchestrators.github_analysis_orchestrator import CvSynthesisContract
+        from app.pipelines.repository.orchestrators.github_analysis_orchestrator import CvSynthesisContract
         invalid_cv = {
             "schemaVersion": "v2",
             "title": "SaaS Platform Developer",
             "skills": ["Python"],
-            "summary": "Designed and maintained key backend services.",
+            "summary": "Led the architectural design and full-stack development of the CVerify platform, implementing robust OAuth2 authorization flows, optimizing Postgres database queries to achieve a 40% reduction in API response latency, and establishing automated CI/CD workflows using GitHub Actions.",
             "highlights": [
                 {"signal": "Implemented OAuth controls.", "impact": "positive"}
             ],
@@ -150,6 +150,75 @@ class TestContractValidation(unittest.TestCase):
             ReportV2Contract.model_validate(payload)
         except ValidationError as e:
             self.fail(f"ValidationError raised unexpectedly on dictionary section items: {e}")
+
+    def test_json_repair_scanner(self):
+        """Verifies that the internal JSON repair scanner correctly fixes malformed JSON."""
+        from app.pipelines.repository.orchestrators.github_analysis_orchestrator import GitHubAnalysisOrchestrator
+        orchestrator = GitHubAnalysisOrchestrator()
+        
+        test_cases = [
+            (
+                r'{"evidence": ["Uses "Streams API" in UserService.java"]}',
+                {"evidence": ["Uses \"Streams API\" in UserService.java"]}
+            ),
+            (
+                '{"summary": "Line 1.\nLine 2."}',
+                {"summary": "Line 1.\nLine 2."}
+            ),
+            (
+                r'{"skills": ["Java", "C#",], "meta": {"a": 1,}}',
+                {"skills": ["Java", "C#"], "meta": {"a": 1}}
+            ),
+            (
+                r'{"msg": "He said \"hello\""}',
+                {"msg": 'He said "hello"'}
+            ),
+            (
+                r'{"my "key"": "val"}',
+                {"my \"key\"": "val"}
+            ),
+            (
+                r'{"path": "client\\package.json"}',
+                {"path": "client\\package.json"}
+            ),
+            (
+                r'{"path": "client\package.json"}',
+                {"path": "client\\package.json"}
+            ),
+            (
+                r'{"path": "C:\Users\LucFr\.gemini\temp"}',
+                {"path": r"C:\Users\LucFr\.gemini\temp"}
+            ),
+            (
+                r'{"path": "C:\Users\LucFr\.gemini\temp\new\path"}',
+                {"path": r"C:\Users\LucFr\.gemini\temp\new\path"}
+            ),
+            (
+                r'{"a": {"b": [1, 2, "hello"',
+                {"a": {"b": [1, 2, "hello"]}}
+            ),
+            (
+                r'{"a": {"b": [1, 2, 3',
+                {"a": {"b": [1, 2, 3]}}
+            ),
+            (
+                r'{"a": {"b": [1, 2, 3, ',
+                {"a": {"b": [1, 2, 3]}}
+            ),
+            (
+                r'{"schemaVersion": "2.0.0", "data": {"skills": [{"skill": "Monorepo", "evidence": ["CVerify.sln',
+                {"schemaVersion": "2.0.0", "data": {"skills": [{"skill": "Monorepo", "evidence": ["CVerify.sln"]}]}}
+            )
+        ]
+        
+        for raw, expected in test_cases:
+            repaired = orchestrator._repair_json_string(raw)
+            try:
+                import json
+                parsed = json.loads(repaired)
+                self.assertEqual(parsed, expected)
+            except Exception as e:
+                self.fail(f"Failed to parse repaired JSON: {repaired}. Error: {e}")
 
 if __name__ == "__main__":
     unittest.main()

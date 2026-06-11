@@ -7,11 +7,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Shared.Persistence;
 
+using CVerify.API.Modules.Shared.Security.Authorization.Attributes;
+
 namespace CVerify.API.Modules.Admin.Controllers;
 
 [ApiController]
 [Route("api/admin/permissions")]
-[Authorize(Roles = "SUPER_ADMIN,ADMIN")]
 public class PermissionsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -22,6 +23,7 @@ public class PermissionsController : ControllerBase
     }
 
     [HttpGet]
+    [HasPermission("admin:roles:view")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPermissions()
     {

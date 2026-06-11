@@ -68,6 +68,7 @@ appsettings.local.json
 project.lock.json
 project.fragment.lock.json
 artifacts/
+!Pipelines/Shared/Artifacts/
 
 # ASP.NET Core
 UserSecrets/

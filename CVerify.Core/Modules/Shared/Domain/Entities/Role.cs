@@ -19,6 +19,19 @@ public class Role
 
     public string? Description { get; set; }
 
+    [Required]
+    [MaxLength(30)]
+    public string Domain { get; set; } = "SYSTEM"; // "SYSTEM" or "TENANT"
+
+    public Guid? TenantId { get; set; } // OrganizationId for tenant roles
+
+    public Guid? ParentRoleId { get; set; }
+
+    [ForeignKey(nameof(ParentRoleId))]
+    public virtual Role? ParentRole { get; set; }
+
+    public virtual ICollection<Role> ChildRoles { get; set; } = new List<Role>();
+
     public bool IsSystem { get; set; }
     public bool IsActive { get; set; } = true;
 

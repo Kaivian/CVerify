@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ROUTES } from './lib/constants/auth.constants';
+import { isProtectedRoute } from './lib/utils/auth-utils';
 
 const SUPPORTED_LANGS = ['vi', 'en'];
 const DEFAULT_LANG = 'vi';
@@ -43,13 +44,13 @@ export async function proxy(request: NextRequest) {
   // Extract tokens from cookies, aligned with C# snake_case cookie naming
   const accessToken = request.cookies.get('access_token')?.value;
 
-  // Define route classifications
-  const isDashboardRoute = ['/admin', '/business', '/user', '/chat'].some(p => pathname.startsWith(p));
+  // Define route classifications using shared logic
+  const isDashboardRoute = isProtectedRoute(pathname);
 
   // Development environment gated edge logging to prevent production data leakage
   if (isDev) {
     console.log(
-      `[Security Proxy] Route: ${pathname} | Token Present: ${!!accessToken}`
+      `[Security Proxy] Route: ${pathname} | Token Present: ${!!accessToken} | Dashboard: ${isDashboardRoute}`
     );
   }
 

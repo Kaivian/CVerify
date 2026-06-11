@@ -25,7 +25,8 @@ public class UsernameService : IUsernameService
     {
         "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
         "chat", "business", "user", "organization", "auth", "system", "unauthorized", "company-onboarding", 
-        "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email", "workspace-setup"
+        "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email", "workspace-setup",
+        "cv"
     };
 
     private static readonly Regex UsernamePattern = new(@"^[a-zA-Z0-9_\-\.]+$", RegexOptions.Compiled);

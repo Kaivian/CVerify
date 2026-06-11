@@ -18,6 +18,7 @@ import {
   Skeleton,
   Link,
   AlertDialog,
+  Accordion,
 } from "@heroui/react";
 import { Github, Gitlab } from "@thesvg/react";
 import {
@@ -27,23 +28,23 @@ import {
   Globe,
   Star,
   GitFork,
-  CheckCircle2,
   AlertCircle,
   Info,
   Sparkles,
   AlertTriangle,
+  Terminal,
+  XCircle,
 } from "lucide-react";
+import { parseAndSanitizeMarkdown } from "@/lib/markdown";
 import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
 import type {
   SourceCodeProvider,
   SourceCodeRepository,
 } from "@/types/source-code-provider.types";
 import { useDebounce } from "@/hooks/use-debounce";
-import type { AnalysisStatus, RepositoryAnalysis } from "@/types/repository-analysis.types";
-import { repositoryAnalysisApi } from "@/services/repository-analysis.service";
 import { AnalysisStatusBadge } from "../components/repository-analysis/AnalysisStatusBadge";
 import { DetailedAnalysisModal } from "../components/repository-analysis/DetailedAnalysisModal";
-import { motion, AnimatePresence } from "framer-motion";
+import { useAnalysisJobStore, getDerivedUIState } from "../components/repository-analysis/stores/use-analysis-job-store";
 
 const POPULAR_LANGUAGES = [
   "TypeScript",
@@ -88,21 +89,13 @@ export default function SourceCodeProvidersPage() {
   const [pageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Repository Analysis States
-  const [analysisStatuses, setAnalysisStatuses] = useState<Record<string, AnalysisStatus>>({});
-  const [analysisResults, setAnalysisResults] = useState<Record<string, RepositoryAnalysis>>({});
-  const [analysisProgress, setAnalysisProgress] = useState<Record<string, number>>({});
-  const [analysisSteps, setAnalysisSteps] = useState<Record<string, string>>({});
-  const [analysisLogs, setAnalysisLogs] = useState<Record<string, string[]>>({});
+  // Repository Analysis States (Zustand subscribed)
+  const repoStates = useAnalysisJobStore((state) => state.repoStates);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedAnalysis, setSelectedAnalysis] = useState<RepositoryAnalysis | null>(null);
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedRepoId, setSelectedRepoId] = useState<string>("");
   const [repoToReanalyze, setRepoToReanalyze] = useState<{ id: string; name: string; owner: string } | null>(null);
   const [isReanalyzeConfirmOpen, setIsReanalyzeConfirmOpen] = useState(false);
-  const activeJobsRef = useRef<Record<string, string>>({});
-  const lastJobIdsRef = useRef<Record<string, string>>({});
-  const eventSourcesRef = useRef<Record<string, EventSource>>({});
   const loadedReportsRef = useRef<Record<string, boolean>>({});
 
 
@@ -167,6 +160,7 @@ export default function SourceCodeProvidersPage() {
           return [...prev, ...newItems];
         }
       });
+      useAnalysisJobStore.getState().initializeRepoStates(result.items);
       setTotalCount(result.totalCount);
     } catch (err) {
       console.error("Failed to load repositories:", err);
@@ -183,201 +177,39 @@ export default function SourceCodeProvidersPage() {
     return fetchRepos(1, true);
   }, [fetchRepos, loadCategories]);
 
-  const connectToProgressStream = useCallback((repoId: string, jobId: string) => {
-    if (eventSourcesRef.current[repoId]) {
-      eventSourcesRef.current[repoId].close();
-    }
-
-    activeJobsRef.current[repoId] = jobId;
-    lastJobIdsRef.current[repoId] = jobId;
-
-    const sseUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/repository-analyses/jobs/${jobId}/progress-stream`;
-    const eventSource = new EventSource(sseUrl, { withCredentials: true });
-    eventSourcesRef.current[repoId] = eventSource;
-
-    eventSource.onmessage = async (event) => {
-      const dataStr = event.data;
-      if (dataStr === "[DONE]") {
-        eventSource.close();
-        delete eventSourcesRef.current[repoId];
-        delete activeJobsRef.current[repoId];
-
-        try {
-          const report = await repositoryAnalysisApi.getLatestReport(repoId);
-          setAnalysisResults((prev) => ({ ...prev, [repoId]: report }));
-          setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "success" }));
-          toast.success("Repository analysis completed successfully!");
-          loadRepositories();
-        } catch (err: unknown) {
-          console.error("Failed to load completed analysis report:", err);
-          setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
-        }
-        return;
-      }
-
-      try {
-        const payload = JSON.parse(dataStr);
-        if (payload.status) {
-          const isAnalyzing = [
-            "Queued", "Preparing", "CloningRepository", "DetectingTechnologyStack",
-            "SamplingCode", "RunningAgents", "AggregatingResults", "SavingReport", "analyzing"
-          ].includes(payload.status);
-
-          const isError = [
-            "Failed", "Cancelled", "TimedOut", "error"
-          ].includes(payload.status);
-
-          const status: AnalysisStatus = isError
-            ? "error"
-            : isAnalyzing
-              ? "analyzing"
-              : payload.status === "Completed" || payload.status === "success"
-                ? "success"
-                : "idle";
-          const step = payload.step || status;
-          const progress = payload.progress || 0;
-          const message = payload.message || step;
-
-          setAnalysisStatuses((prev) => ({ ...prev, [repoId]: status }));
-          setAnalysisProgress((prev) => ({ ...prev, [repoId]: progress }));
-          setAnalysisSteps((prev) => ({ ...prev, [repoId]: step }));
-          if (message) {
-            setAnalysisLogs((prev) => {
-              const current = prev[repoId] || [];
-              if (current.includes(message)) return prev;
-              return { ...prev, [repoId]: [...current, message] };
-            });
-          }
-
-          if (payload.status === "error" || payload.status === "Failed" || payload.status === "Cancelled" || payload.status === "TimedOut") {
-            eventSource.close();
-            delete eventSourcesRef.current[repoId];
-            delete activeJobsRef.current[repoId];
-            setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
-            toast.danger(`Analysis failed: ${message}`);
-          }
-        }
-      } catch (err) {
-        console.error("Error parsing progress stream chunk:", err);
-      }
-    };
-
-    eventSource.onerror = (err) => {
-      console.error(`EventSource error for repository ${repoId}:`, err);
-    };
-  }, [loadRepositories]);
-
   const handleAnalyzeRepository = async (repoId: string, _repoName: string, _repoOwner: string) => {
-    setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "analyzing" }));
-    setAnalysisProgress((prev) => ({ ...prev, [repoId]: 0 }));
-    setAnalysisSteps((prev) => ({ ...prev, [repoId]: "Initializing..." }));
-    setAnalysisLogs((prev) => ({ ...prev, [repoId]: [] }));
-
     toast.info("Repository analysis started...");
     try {
-      const response = await repositoryAnalysisApi.triggerAnalysis(repoId);
-      const jobId = response.jobId;
-      lastJobIdsRef.current[repoId] = jobId;
-
-      try {
-        const history = await repositoryAnalysisApi.getJobEvents(jobId);
-        if (history && history.length > 0) {
-          const messages = history.map(h => h.message);
-          setAnalysisLogs((prev) => ({ ...prev, [repoId]: messages }));
-          const latest = history[history.length - 1];
-          setAnalysisProgress((prev) => ({ ...prev, [repoId]: latest.progress }));
-          setAnalysisSteps((prev) => ({ ...prev, [repoId]: latest.step }));
-        }
-      } catch (err) {
-        console.error("Failed to fetch historical job events:", err);
-      }
-
-      connectToProgressStream(repoId, jobId);
+      await useAnalysisJobStore.getState().triggerReanalyze(repoId);
     } catch (err: unknown) {
-      console.error("Repository analysis trigger failed:", err);
+      console.error("Repository reanalysis failed:", err);
       const axiosError = err as { response?: { data?: { message?: string } }; message?: string };
-      setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "error" }));
-      toast.danger("Repository analysis failed", {
+      toast.danger("Repository reanalysis failed", {
         description: axiosError.response?.data?.message || axiosError.message || "An unexpected error occurred during AI analysis."
       });
     }
   };
 
-  const handleCancelAnalysis = async (repoId: string) => {
-    const jobId = activeJobsRef.current[repoId];
-    if (!jobId) return;
-    try {
-      await repositoryAnalysisApi.cancelJob(jobId);
-      toast.success("Analysis cancellation requested.");
-    } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { message?: string } }; message?: string };
-      toast.danger("Failed to cancel analysis", {
-        description: axiosError.response?.data?.message || axiosError.message
-      });
-    }
-  };
 
-  const handleAnalysisComplete = useCallback((report: RepositoryAnalysis) => {
-    if (!selectedRepoId) return;
-    setAnalysisResults((prev) => ({ ...prev, [selectedRepoId]: report }));
-    setAnalysisStatuses((prev) => ({ ...prev, [selectedRepoId]: "success" }));
-    loadRepositories();
-  }, [selectedRepoId, loadRepositories]);
 
   // Check and restore active jobs on page load
   useEffect(() => {
-    const checkActiveJobs = async () => {
-      try {
-        const activeJobs = await repositoryAnalysisApi.getActiveJobs();
-        for (const job of activeJobs) {
-          const repoId = job.repositoryId;
-          const jobId = job.id;
-          lastJobIdsRef.current[repoId] = jobId;
-
-          setAnalysisStatuses((prev) => ({ ...prev, [repoId]: "analyzing" }));
-          setAnalysisProgress((prev) => ({ ...prev, [repoId]: job.progress }));
-          setAnalysisSteps((prev) => ({ ...prev, [repoId]: job.currentStep || "Running..." }));
-
-          try {
-            const history = await repositoryAnalysisApi.getJobEvents(jobId);
-            if (history && history.length > 0) {
-              const messages = history.map(h => h.message);
-              setAnalysisLogs((prev) => ({ ...prev, [repoId]: messages }));
-            }
-          } catch (hErr) {
-            console.error("Failed to fetch historical events for active job:", jobId, hErr);
-          }
-
-          connectToProgressStream(repoId, jobId);
-        }
-      } catch (err) {
-        console.error("Failed to check active analysis jobs:", err);
-      }
-    };
-
-    checkActiveJobs();
-
-    const currentEventSources = eventSourcesRef.current;
-    return () => {
-      Object.values(currentEventSources).forEach((es) => es.close());
-    };
-  }, [connectToProgressStream]);
+    useAnalysisJobStore.getState().checkActiveJobs();
+  }, []);
 
   // Background load reports for completed analyses
   useEffect(() => {
     if (repositories.length === 0) return;
 
     repositories.forEach(async (repo) => {
-      if (repo.latestAnalysisStatus === "Completed" && !loadedReportsRef.current[repo.id] && !activeJobsRef.current[repo.id]) {
+      const repoState = useAnalysisJobStore.getState().repoStates[repo.id];
+      if (repo.latestAnalysisStatus === "Completed" && !repoState?.latestReport && !loadedReportsRef.current[repo.id]) {
         loadedReportsRef.current[repo.id] = true;
         try {
-          const report = await repositoryAnalysisApi.getLatestReport(repo.id);
-          setAnalysisResults((prev) => ({ ...prev, [repo.id]: report }));
-          setAnalysisStatuses((prev) => ({ ...prev, [repo.id]: "success" }));
+          await useAnalysisJobStore.getState().loadLatestReport(repo.id);
         } catch (err) {
           loadedReportsRef.current[repo.id] = false;
           console.error(`Failed to load report for repository ${repo.id}:`, err);
-          setAnalysisStatuses((prev) => ({ ...prev, [repo.id]: "error" }));
         }
       }
     });
@@ -602,85 +434,26 @@ export default function SourceCodeProvidersPage() {
           ))}
         </div>
       );
-    } catch (e) {
+    } catch {
       return null;
     }
   };
 
   const renderRepositoryCard = (repo: SourceCodeRepository) => {
-    const status = analysisStatuses[repo.id] || "idle";
-    const analysisResult = analysisResults[repo.id];
+    const repoState = repoStates[repo.id];
+    const derivedState = getDerivedUIState(repo, repoState);
+    const status = derivedState.status;
+    const analysisResult = repoState?.latestReport || repoState?.partialSnapshot || null;
     const provider = providers.find((p) => p.id === repo.authProviderId);
     const providerName = provider?.providerName;
 
-    if (repo.latestAnalysisStatus === "Completed") {
+    if (derivedState.renderSource === "report" || derivedState.renderSource === "snapshot") {
       if (!analysisResult) {
-        if (status === "error") {
-          return (
-            <div
-              key={repo.id}
-              className="col-span-1 md:col-span-2 flex flex-col border border-danger/30 rounded-2xl p-6 bg-surface relative w-full"
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
-                {/* Left Compartment: Core Details & Repo Stats */}
-                <div className="lg:col-span-5 flex flex-col justify-between text-left">
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="shrink-0 text-foreground/80">
-                          {providerName === "github" ? <Github className="size-5" /> : <Gitlab className="size-5 text-[#FC6D26]" />}
-                        </span>
-                        <Link href={repo.htmlUrl || "#"} target="_blank" rel="noopener noreferrer" className="min-w-0">
-                          <Typography.Heading level={4} className="font-extrabold truncate text-foreground hover:text-accent transition-colors">
-                            {repo.name}
-                          </Typography.Heading>
-                        </Link>
-                      </div>
-                      <Chip size="sm" color="default" variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
-                        Corrupted Data
-                      </Chip>
-                    </div>
-                    <span className="text-[10px] text-muted block">
-                      Owner: <strong className="text-foreground">{repo.owner}</strong>
-                    </span>
-                    <p className="text-xs text-muted leading-relaxed">
-                      {repo.description || "No description provided."}
-                    </p>
-                  </div>
-                  <div className="space-y-3 mt-4">
-                    <div className="flex items-center gap-2 pt-2.5 border-t border-border/15">
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        className="text-xs font-bold rounded-xl"
-                        onClick={() => {
-                          setRepoToReanalyze({ id: repo.id, name: repo.name, owner: repo.owner });
-                          setIsReanalyzeConfirmOpen(true);
-                        }}
-                      >
-                        <RefreshCw size={12} className="shrink-0" />
-                        <span>Reanalyze</span>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Compartment: Corrupted Warning */}
-                <div className="lg:col-span-7 flex flex-col items-center justify-center border-l border-border/20 pl-6 text-center gap-3">
-                  <AlertTriangle className="size-8 text-danger animate-pulse" />
-                  <span className="text-xs font-bold text-foreground">Analysis Data Corrupted</span>
-                  <span className="text-[10px] text-muted-foreground max-w-xs leading-normal">
-                    The AI snapshot response failed to satisfy the strict V2 contract validation checks.
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        }
         return renderSkeletonCard(true, repo.id);
       }
 
-      const totalEvidence = analysisResult.sections?.reduce((sum, s) => sum + s.items.length, 0) ?? 0;
+      const hasWeightedStrength = !!analysisResult.evidenceStrength;
+      const totalEvidence = analysisResult.evidenceStrength?.score ?? analysisResult.sections?.reduce((sum, s) => sum + s.items.length, 0) ?? 0;
       const trustScorePct = ((analysisResult.classification?.trustScore ?? 0) * 100).toFixed(0);
       const primaryDomain = analysisResult.classification?.primaryDomain || "Unclassified";
       const riskLevel = analysisResult.risk?.level ?? "low";
@@ -702,7 +475,7 @@ export default function SourceCodeProvidersPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
             {/* Left Compartment: Core Details & Repo Stats & Actions */}
             <div className="lg:col-span-5 flex flex-col justify-between text-left">
-              <div className="space-y-3">
+              <div className="flex flex-col justify-between gap-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="shrink-0 text-foreground/80">
@@ -748,13 +521,66 @@ export default function SourceCodeProvidersPage() {
                 <p className="text-xs text-muted leading-relaxed">
                   {repo.description || "No description provided."}
                 </p>
+
+                <Separator variant="tertiary" />
+
+                {/* AI REPO SUMARRY */}
+                {analysisResult.cvSynthesis && (
+                  <div className="space-y-2 mt-2 bg-surface-secondary/30 border border-tertiary p-3 rounded-xl text-left">
+                    <div className="flex items-center justify-between border-b border-border/10 pb-1.5">
+                      <div className="flex items-center gap-1">
+                        <Sparkles className="size-3.5 text-accent shrink-0" />
+                        <span className="text-[10px] text-foreground uppercase font-black tracking-wider font-sans">
+                          AI CV Profile
+                        </span>
+                      </div>
+                      {analysisResult.cvSynthesis.ownershipProfile && (
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color="default"
+                          className="h-4.5 px-1.5 text-[10px] uppercase rounded-md"
+                        >
+                          {analysisResult.cvSynthesis.ownershipProfile}
+                        </Chip>
+                      )}
+                    </div>
+                    {analysisResult.cvSynthesis.title && (
+                      <h5 className="text-[11px] font-extrabold text-foreground tracking-wide font-sans">
+                        {analysisResult.cvSynthesis.title}
+                      </h5>
+                    )}
+                    <p className="text-[10.5px] text-muted-foreground leading-relaxed font-light whitespace-pre-wrap line-clamp-4">
+                      {analysisResult.cvSynthesis.summary}
+                    </p>
+                    {analysisResult.cvSynthesis.skills && analysisResult.cvSynthesis.skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1 border-t border-border/10 mt-1">
+                        {analysisResult.cvSynthesis.skills.slice(0, 4).map((skill, idx) => (
+                          <Chip
+                            key={`${skill}-${idx}`}
+                            size="sm"
+                            variant="soft"
+                            color="default"
+                            className="h-4.5 px-1.5 text-[8.5px] font-bold rounded-md"
+                          >
+                            {skill}
+                          </Chip>
+                        ))}
+                        {analysisResult.cvSynthesis.skills.length > 3 && (
+                          <span className="text-[8.5px] text-muted font-bold self-center">
+                            +{analysisResult.cvSynthesis.skills.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-3 mt-4">
-                {/* Repo Meta Stats Pill */}
-                <div className="flex flex-wrap items-center gap-2 bg-surface-secondary/40 border border-border/20 px-3 py-2 rounded-xl text-[11px] text-muted font-mono w-fit">
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex flex-wrap items-center gap-2 bg-surface-secondary/30 border border-tertiary px-3 py-2 rounded-xl text-[11px] text-muted font-mono w-fit">
                   {repo.primaryLanguage && (
-                    <span className="font-bold text-foreground pr-2 border-r border-border/30">
+                    <span className="font-bold text-foreground pr-2 border-r border-tertiary">
                       {repo.primaryLanguage}
                     </span>
                   )}
@@ -767,21 +593,7 @@ export default function SourceCodeProvidersPage() {
                     <span className="font-black text-foreground">{repo.forksCount}</span>
                   </span>
                 </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 pt-2.5 border-t border-border/15">
-                  <Button
-                    size="sm"
-                    className="text-xs font-bold rounded-xl bg-accent text-accent-foreground"
-                    onClick={() => {
-                      setSelectedAnalysis(analysisResult);
-                      setSelectedJobId(analysisResult.jobId || lastJobIdsRef.current[repo.id] || activeJobsRef.current[repo.id] || null);
-                      setSelectedRepoId(repo.id);
-                      setIsModalOpen(true);
-                    }}
-                  >
-                    <span>View Details</span>
-                  </Button>
+                <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="secondary"
@@ -794,31 +606,41 @@ export default function SourceCodeProvidersPage() {
                     <RefreshCw size={12} className="shrink-0" />
                     <span>Reanalyze</span>
                   </Button>
+                  <Button
+                    size="sm"
+                    className="text-xs font-bold rounded-xl bg-accent text-accent-foreground"
+                    onClick={() => {
+                      setSelectedRepoId(repo.id);
+                      setIsModalOpen(true);
+                    }}
+                  >
+                    <span>View Details</span>
+                  </Button>
                 </div>
               </div>
             </div>
 
             {/* Right Compartment: Bento AI findings */}
-            <div className="lg:col-span-7 flex flex-col gap-4 text-left lg:border-l lg:border-border/20 lg:pl-6 pt-4 lg:pt-0">
+            <div className="lg:col-span-7 flex flex-col gap-4 text-left lg:border-l lg:border-tertiary lg:pl-6 pt-4 lg:pt-0">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-accent">
                   <Sparkles className="size-4" /> AI Analysis
                 </span>
-                <AnalysisStatusBadge status="success" />
+                <AnalysisStatusBadge status={status} />
               </div>
 
               {/* Nested 2x2 Grid of Bento Blocks */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="flex gap-4 items-center justify-between">
                 {/* Block 1: Evidence Coverage */}
-                <div className="flex flex-col justify-between p-3 rounded-xl border border-border/40 bg-surface-secondary/30">
+                <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Evidence Strength</span>
                   <span className="text-sm font-black text-foreground font-mono mt-1">
-                    {totalEvidence} <span className="text-[10px] text-muted font-normal">Signals</span>
+                    {totalEvidence.toFixed(0)} <span className="text-[10px] text-muted font-normal">{hasWeightedStrength ? "Weighted Pts" : "Signals"}</span>
                   </span>
                 </div>
 
                 {/* Block 2: Trust Confidence */}
-                <div className="flex flex-col justify-between p-3 rounded-xl border border-border/40 bg-surface-secondary/30">
+                <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Trust Level</span>
                   <span className="text-sm font-black text-foreground font-mono mt-1">
                     {trustScorePct}%
@@ -826,16 +648,18 @@ export default function SourceCodeProvidersPage() {
                 </div>
 
                 {/* Block 3: Classification */}
-                <div className="flex flex-col justify-between p-3 rounded-xl border border-border/40 bg-surface-secondary/30">
+                <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Classification</span>
                   <span className="text-sm font-bold text-foreground truncate block mt-1">
                     {primaryDomain}
                   </span>
                 </div>
+              </div>
 
-                {/* Block 4: Risk Profile */}
-                <div className="flex flex-col justify-between p-3 rounded-xl border border-border/40 bg-surface-secondary/30">
-                  <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold mb-1">Risk Level</span>
+              {/* Block 4: Risk Profile */}
+              <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Risk Level</span>
                   <div>
                     {(() => {
                       const getRiskColor = (level: string) => {
@@ -847,29 +671,29 @@ export default function SourceCodeProvidersPage() {
                         }
                       };
                       return (
-                        <Chip size="sm" color={getRiskColor(riskLevel)} variant="soft" className="h-5.5 px-2 text-[9px] font-extrabold uppercase">
+                        <Chip size="sm" color={getRiskColor(riskLevel)} variant="soft" className="h-5.5 px-2 text-[9px] font-extrabold uppercase mb-1 rounded-md">
                           {riskLevel} Risk
                         </Chip>
                       );
                     })()}
                   </div>
-                  {analysisResult.risk?.reasons && analysisResult.risk.reasons.length > 0 && (
-                    <div className="mt-2 text-[10px] text-muted-foreground flex flex-wrap gap-1">
-                      {analysisResult.risk.reasons.slice(0, 2).map((reason: string) => (
-                        <span key={reason} className="bg-surface-secondary px-1.5 py-0.5 rounded-md border border-border/10 truncate max-w-[120px]">• {reason}</span>
-                      ))}
-                    </div>
-                  )}
                 </div>
+                {analysisResult.risk?.reasons && analysisResult.risk.reasons.length > 0 && (
+                  <div className=" text-[10px] text-muted-foreground flex flex-wrap gap-1">
+                    {analysisResult.risk.reasons.map((reason: string) => (
+                      <Chip key={reason} color="default" variant="soft" className="h-5.5 px-2 text-[9px] uppercase truncate rounded-md border border-border">{reason}</Chip>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Skills Highlights */}
               {analysisResult.narrative?.top_strengths && analysisResult.narrative.top_strengths.length > 0 && (
-                <div className="p-3 rounded-xl border border-border/40 bg-surface-secondary/15 flex flex-col gap-2">
+                <div className="flex flex-col gap-2 p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
                   <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Top Skills</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {analysisResult.narrative.top_strengths.slice(0, 3).map((strengthItem, idx) => (
-                      <Chip key={idx} size="sm" variant="soft" className="text-[9.5px] font-bold">
+                    {analysisResult.narrative.top_strengths.map((strengthItem, idx) => (
+                      <Chip key={idx} color="default" variant="soft" className="h-5.5 px-2 text-[9px] uppercase truncate rounded-md border border-border">
                         {strengthItem.strength}
                       </Chip>
                     ))}
@@ -880,12 +704,24 @@ export default function SourceCodeProvidersPage() {
           </div>
 
           {/* AI Summary Compartment - moved outside the grid to span full-width and balance layout */}
-          <div className="p-4 rounded-xl border border-border/40 bg-surface-secondary/15 mt-5 text-left">
-            <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold block mb-1">AI Summary</span>
-            <p className="text-[11.5px] text-muted leading-relaxed">
-              {analysisResult.narrative?.recruiter_summary || (analysisResult.risk?.reasons && analysisResult.risk.reasons.join(", ")) || "No summary available."}
-            </p>
-          </div>
+          <Accordion className="w-full mt-4 border border-tertiary bg-surface-secondary/30 rounded-xl" variant="surface">
+            <Accordion.Item key="ai-summary" id="ai-summary" aria-label="AI Summary">
+              <Accordion.Heading>
+                <Accordion.Trigger className="text-[10.5px] font-bold text-foreground flex items-center justify-between w-full py-2 px-2 cursor-pointer select-none rounded-md transition-all duration-300 hover:bg-surface-secondary/70">
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="size-3.5 text-accent shrink-0" />
+                    AI Detailed Report
+                  </span>
+                  <Accordion.Indicator />
+                </Accordion.Trigger>
+              </Accordion.Heading>
+              <Accordion.Panel>
+                <Accordion.Body className="text-[11.5px] text-muted-foreground leading-relaxed pl-5.5 font-light pt-2 pb-3 select-text markdown-summary">
+                  <div dangerouslySetInnerHTML={{ __html: parseAndSanitizeMarkdown(analysisResult.narrative?.recruiter_summary || (analysisResult.risk?.reasons && analysisResult.risk.reasons.join(", ")) || "No summary available.") }} />
+                </Accordion.Body>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
         </div>
       );
     }
@@ -983,18 +819,20 @@ export default function SourceCodeProvidersPage() {
         </div>
 
         {/* Verification and Trust Indicators / Status Display (only for active loading/error states) */}
-        {(status === "analyzing" || status === "error") && (
+        {(status === "QUEUED" || status === "ANALYZING" || status === "FAILED" || status === "CANCELLED") && (
           <div className="my-3">
-            {status === "error" ? (
+            {status === "FAILED" || status === "CANCELLED" ? (
               <div className="p-3 rounded-xl border border-danger/20 bg-danger/5 flex items-center justify-between text-left transition-all">
                 <div className="flex items-center gap-1.5">
                   <Chip size="sm" color="danger" variant="soft" className="h-5 px-1.5">
-                    <span className="text-[8.5px] uppercase tracking-wider font-extrabold">Error</span>
+                    <span className="text-[8.5px] uppercase tracking-wider font-extrabold">
+                      {status === "CANCELLED" ? "Stopped" : "Error"}
+                    </span>
                   </Chip>
-                  <AnalysisStatusBadge status="error" />
+                  <AnalysisStatusBadge status={status} />
                 </div>
                 <span className="text-[10px] text-danger max-w-[150px] truncate font-medium">
-                  Analysis failed. Click retry.
+                  {status === "CANCELLED" ? "Analysis cancelled." : "Analysis failed. Click retry."}
                 </span>
               </div>
             ) : (
@@ -1003,19 +841,30 @@ export default function SourceCodeProvidersPage() {
                   <div className="flex items-center gap-2">
                     <Spinner size="sm" color="warning" />
                     <span className="text-xs font-bold text-warning">
-                      {analysisSteps[repo.id] || "Initializing..."}
+                      {derivedState.description}
                     </span>
                   </div>
-                  <span className="text-xs font-mono font-black text-warning">
-                    {Math.round(analysisProgress[repo.id] || 0)}%
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono font-black text-warning">
+                      {Math.round(derivedState.progress)}%
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 min-w-0 text-[10px] font-extrabold uppercase rounded-md flex items-center gap-1 border-danger/30 hover:bg-danger/10 text-danger cursor-pointer"
+                      onClick={() => useAnalysisJobStore.getState().cancelReanalyze(repo.id)}
+                    >
+                      <XCircle size={12} className="shrink-0" />
+                      <span>Stop</span>
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
                 <div className="w-full bg-surface-tertiary rounded-full h-1.5 overflow-hidden mt-2 border border-border/10">
                   <div
                     className="bg-warning h-full rounded-full transition-all duration-500 ease-out"
-                    style={{ width: `${analysisProgress[repo.id] || 0}%` }}
+                    style={{ width: `${derivedState.progress}%` }}
                   />
                 </div>
               </div>
@@ -1026,7 +875,7 @@ export default function SourceCodeProvidersPage() {
         {/* Stats footer & actions */}
         <div className="flex items-center justify-between pt-3 border-t border-border/15 mt-auto">
           <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
-            {/* Verification and Status Badges tucked in footer for idle state */}
+            {/* Verification and Status Badges tucked in footer */}
             {status === "idle" && (
               <>
                 <Chip size="sm" variant="soft" color="default" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
@@ -1035,36 +884,40 @@ export default function SourceCodeProvidersPage() {
                 <AnalysisStatusBadge status="idle" className="h-5 px-1.5 rounded-md" />
               </>
             )}
+            {(status === "QUEUED" || status === "ANALYZING") && (
+              <>
+                <AnalysisStatusBadge status={status} className="h-5 px-1.5 rounded-md" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md flex items-center gap-1 border-border/40 hover:bg-surface-secondary text-warning"
+                  onClick={() => {
+                    setSelectedRepoId(repo.id);
+                    setIsModalOpen(true);
+                  }}
+                >
+                  <Terminal size={10} className="shrink-0" />
+                  <span>Monitor Logs</span>
+                </Button>
+              </>
+            )}
+            {(status === "FAILED" || status === "CANCELLED") && (
+              <>
+                <AnalysisStatusBadge status={status} className="h-5 px-1.5 rounded-md" />
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
             {repo.isAccessible && (
               <>
-                {status === "analyzing" && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="text-xs font-bold rounded-xl flex items-center gap-1 border-border/40"
-                    onClick={() => {
-                      setSelectedAnalysis(null);
-                      setSelectedJobId(lastJobIdsRef.current[repo.id] || activeJobsRef.current[repo.id] || null);
-                      setSelectedRepoId(repo.id);
-                      setIsModalOpen(true);
-                    }}
-                  >
-                    <RefreshCw size={12} className="shrink-0 animate-spin" />
-                    <span>Progress</span>
-                  </Button>
-                )}
-                {status === "error" && (
+                {(status === "FAILED" || status === "CANCELLED") && (
                   <>
                     <Button
                       size="sm"
                       variant="secondary"
                       className="text-xs font-bold rounded-xl border-border/40"
                       onClick={() => {
-                        setSelectedAnalysis(null);
-                        setSelectedJobId(lastJobIdsRef.current[repo.id] || activeJobsRef.current[repo.id] || null);
                         setSelectedRepoId(repo.id);
                         setIsModalOpen(true);
                       }}
@@ -1177,6 +1030,7 @@ export default function SourceCodeProvidersPage() {
                           <Avatar.Image
                             src={prov.providerAvatarUrl}
                             alt={prov.providerDisplayName || prov.providerUsername || ""}
+                            referrerPolicy="no-referrer"
                           />
                         )}
                         <Avatar.Fallback>
@@ -1276,11 +1130,11 @@ export default function SourceCodeProvidersPage() {
                       setSelectedProviderId(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-full min-w-40"
                     variant="secondary"
                     aria-label="Account"
                   >
-                    <Select.Trigger className="bg-surface border border-border text-xs">
+                    <Select.Trigger className="bg-surface border border-border text-xs items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1324,11 +1178,11 @@ export default function SourceCodeProvidersPage() {
                       setLanguageFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-auto min-w-35"
                     variant="secondary"
                     aria-label="Language"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1370,11 +1224,11 @@ export default function SourceCodeProvidersPage() {
                       setCategoryFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-auto min-w-37"
                     variant="secondary"
                     aria-label="Category"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1416,11 +1270,11 @@ export default function SourceCodeProvidersPage() {
                       setVisibilityFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-auto min-w-32"
                     variant="secondary"
                     aria-label="Visibility"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1467,11 +1321,11 @@ export default function SourceCodeProvidersPage() {
                       setSortBy(val as string);
                       setPage(1);
                     }}
-                    className="w-auto"
+                    className="w-auto min-w-38"
                     variant="secondary"
                     aria-label="Sort By"
                   >
-                    <Select.Trigger className="bg-surface border border-border">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
@@ -1568,10 +1422,7 @@ export default function SourceCodeProvidersPage() {
       <DetailedAnalysisModal
         isOpen={isModalOpen}
         onOpenChange={setIsModalOpen}
-        analysis={selectedAnalysis}
-        jobId={selectedJobId}
         repoId={selectedRepoId}
-        onAnalysisComplete={handleAnalysisComplete}
       />
 
       {/* Reanalyze Confirmation Modal */}

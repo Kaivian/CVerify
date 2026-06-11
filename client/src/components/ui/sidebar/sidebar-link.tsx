@@ -2,7 +2,6 @@
 
 import React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useTranslation } from "react-i18next";
 import { Tooltip } from "@heroui/react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
 import { isActiveRoute } from "../../../lib/navigation-utils";
@@ -23,16 +22,12 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
 }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { t } = useTranslation(["common"]);
   const { setMobileOpen } = useSidebarStore();
 
   const active = isActiveRoute(pathname, item.href, item.exactMatch);
   const Icon = item.icon;
 
-  // Localized label with fallback
-  const label = item.translationKey
-    ? t(item.translationKey, { defaultValue: item.label })
-    : item.label;
+  const label = item.label;
 
   // Badge styles
   const getBadgeClass = (color = "default") => {
@@ -71,11 +66,11 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       style={{
         paddingLeft: collapsed
           ? undefined
-          : `${depth > 0 ? (isMobile ? 12 : 6) : isMobile ? 14 : 9}px`,
+          : `${depth > 0 ? (isMobile ? 12 : 6) : isMobile ? 14 : 16}px`,
       }}
       className={[
         "relative flex items-center w-full rounded-xl font-semibold transition-all duration-200 group cursor-pointer",
-        isMobile ? "h-12 text-base px-3.5 gap-3" : "h-10 text-sm gap-2",
+        isMobile ? "h-12 text-base px-3.5 gap-3" : "h-10 text-sm gap-2 pr-4",
         active
           ? "bg-accent/10 text-accent"
           : "text-muted hover:bg-accent/10 hover:text-accent",
@@ -95,8 +90,8 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       {/* Render icon if provided */}
       {Icon && (
         <Icon
-          size={isMobile ? 20 : 20}
-          className="shrink-0 transition-transform duration-200 ml-1"
+          size={20}
+          className="shrink-0 transition-transform duration-200"
         />
       )}
 
@@ -115,7 +110,9 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
     return (
       <Tooltip delay={0}>
         <Tooltip.Trigger>
-          {linkContent}
+          <div className="w-full">
+            {linkContent}
+          </div>
         </Tooltip.Trigger>
         <Tooltip.Content
           placement="right"
@@ -129,6 +126,25 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
               </span>
             )}
           </div>
+        </Tooltip.Content>
+      </Tooltip>
+    );
+  }
+
+  // If expanded desktop/mobile with a tooltip, wrap item inside HeroUI Tooltip
+  if (!collapsed && item.tooltip) {
+    return (
+      <Tooltip delay={0}>
+        <Tooltip.Trigger>
+          <div className="w-full">
+            {linkContent}
+          </div>
+        </Tooltip.Trigger>
+        <Tooltip.Content
+          placement="top"
+          className="font-outfit text-xs font-semibold px-2.5 py-1.5 shadow-md border border-border"
+        >
+          <span>{item.tooltip}</span>
         </Tooltip.Content>
       </Tooltip>
     );

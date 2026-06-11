@@ -29,17 +29,17 @@ public class EmailSnapshotTests
         
         // Save snapshots inside the project source folder so they are checked into git,
         // and fall back to bin directory if running in isolated settings.
-        var projectDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..");
-        var targetSnapshotsDir = Path.Combine(projectDir, "Snapshots");
-        
-        if (Directory.Exists(projectDir))
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && dir.Name != "CVerify.Core")
         {
-            _snapshotsDirectory = targetSnapshotsDir;
+            dir = dir.Parent;
         }
-        else
-        {
-            _snapshotsDirectory = Path.Combine(AppContext.BaseDirectory, "Snapshots");
-        }
+
+        var targetSnapshotsDir = dir != null 
+            ? Path.Combine(dir.FullName, "Snapshots") 
+            : Path.Combine(AppContext.BaseDirectory, "Snapshots");
+
+        _snapshotsDirectory = targetSnapshotsDir;
 
         Directory.CreateDirectory(_snapshotsDirectory);
 

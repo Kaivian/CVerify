@@ -1,0 +1,12 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace CVerify.API.Modules.Auth.Services;
+
+public interface IOrganizationAuthorizationService
+{
+    Task<bool> AuthorizeAsync(Guid userId, Guid organizationId, string requiredPermission, string scopeType = "ORGANIZATION", Guid? scopeId = null, CancellationToken cancellationToken = default);
+    Task<bool> IsMemberAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken = default);
+    Task<System.Collections.Generic.List<string>> GetPermissionsAsync(Guid userId, Guid organizationId, CancellationToken cancellationToken = default);
+}

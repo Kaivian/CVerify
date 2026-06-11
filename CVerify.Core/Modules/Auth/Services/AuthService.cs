@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
+using Polly;
+using Polly.Retry;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -60,6 +63,7 @@ public class AuthService : IAuthService
     private readonly IRateLimitPolicyService _rateLimitPolicyService;
     private readonly IGoogleTokenValidator _googleTokenValidator;
     private readonly IUsernameService _usernameService;
+    private readonly IWorkspaceMembershipService _workspaceMembershipService;
  
     public AuthService(
         ApplicationDbContext context,
@@ -79,7 +83,8 @@ public class AuthService : IAuthService
         IStorageService storageService,
         IRateLimitPolicyService rateLimitPolicyService,
         IGoogleTokenValidator googleTokenValidator,
-        IUsernameService usernameService)
+        IUsernameService usernameService,
+        IWorkspaceMembershipService workspaceMembershipService)
     {
         _context = context;
         _tokenService = tokenService;
@@ -99,6 +104,7 @@ public class AuthService : IAuthService
         _rateLimitPolicyService = rateLimitPolicyService;
         _googleTokenValidator = googleTokenValidator;
         _usernameService = usernameService;
+        _workspaceMembershipService = workspaceMembershipService;
     }
 
 
@@ -124,10 +130,7 @@ public class AuthService : IAuthService
     private async Task<AuthResponse> CreateAuthResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
     {
         var signedAvatar = await GetSignedAvatarUrlAsync(user.AvatarUrl, cancellationToken);
-        var passwordChangedAt = await _context.PasswordCredentials
-            .Where(pc => pc.UserId == user.Id && pc.IsActive && pc.DeletedAt == null)
-            .Select(pc => (DateTimeOffset?)pc.PasswordChangedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+        var passwordChangedAt = user.PasswordChangedAt;
         var hasPassword = !string.IsNullOrEmpty(user.PasswordHash);
         if (hasPassword && passwordChangedAt == null)
         {
@@ -139,10 +142,7 @@ public class AuthService : IAuthService
     private async Task<UserProfileResponse> CreateUserProfileResponseAsync(User user, IEnumerable<string> roles, IEnumerable<string> permissions, bool isEmailVerified, string status, string nextStep, CancellationToken cancellationToken = default)
     {
         var signedAvatar = await GetSignedAvatarUrlAsync(user.AvatarUrl, cancellationToken);
-        var passwordChangedAt = await _context.PasswordCredentials
-            .Where(pc => pc.UserId == user.Id && pc.IsActive && pc.DeletedAt == null)
-            .Select(pc => (DateTimeOffset?)pc.PasswordChangedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+        var passwordChangedAt = user.PasswordChangedAt;
         var hasPassword = !string.IsNullOrEmpty(user.PasswordHash);
         if (hasPassword && passwordChangedAt == null)
         {
@@ -159,16 +159,14 @@ public class AuthService : IAuthService
     {
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
 
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail && le.IsVerified));
+        var user = await _context.FindUserByVerifiedEmailAsync(normalizedEmail);
 
         if (user == null && normalizedEmail.EndsWith("@gmail.com", StringComparison.OrdinalIgnoreCase))
         {
             var fallbackEmail = LegacyEmailCompatibilityHelper.ApplyOldGmailNormalization(normalizedEmail);
             if (fallbackEmail != normalizedEmail)
             {
-                user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == fallbackEmail || u.LinkedEmails.Any(le => le.Email == fallbackEmail && le.IsVerified));
+                user = await _context.FindUserByVerifiedEmailAsync(fallbackEmail);
             }
         }
 
@@ -220,6 +218,9 @@ public class AuthService : IAuthService
 
         await _accountService.ResetFailedAttemptsAsync(user);
 
+        // Bootstrap workspace admin if email matches organization contact email
+        await _workspaceMembershipService.BootstrapInitialAdminAsync(user.Email);
+
         var roles = await _identityRepository.GetUserRolesAsync(user.Id);
         var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
 
@@ -239,7 +240,7 @@ public class AuthService : IAuthService
         var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
         var rememberMe = request.RememberMe;
-        await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, rememberMe);
+        await SaveRefreshTokenAsync(user.Id, null, refreshTokenStr, sessionId, rememberMe);
 
         var refreshExpiry = rememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
         _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -289,7 +290,6 @@ public class AuthService : IAuthService
                 var user = await _context.Users
                     .Include(u => u.Roles)
                     .Include(u => u.AuthProviders)
-                    .Include(u => u.LinkedEmails)
                     .FirstOrDefaultAsync(u => u.AuthProviders.Any(ap => ap.ProviderName.ToLower() == "google" && ap.ProviderKey == payload.Subject && ap.DeletedAt == null));
 
                 // 2. Check for soft-deleted / unlinked record of this Google identity
@@ -307,11 +307,12 @@ public class AuthService : IAuthService
                     }
 
                     // 3. Fall back to email matching ONLY if eligible according to Fallback Eligibility Matrix
-                    var matchingUser = await _context.Users
-                        .Include(u => u.Roles)
-                        .Include(u => u.AuthProviders)
-                        .Include(u => u.LinkedEmails)
-                        .FirstOrDefaultAsync(u => u.Email == email || u.LinkedEmails.Any(le => le.Email == email && le.IsVerified));
+                    var matchingUser = await _context.FindUserByVerifiedEmailAsync(email);
+                    if (matchingUser != null)
+                    {
+                        await _context.Entry(matchingUser).Collection(u => u.Roles).LoadAsync();
+                        await _context.Entry(matchingUser).Collection(u => u.AuthProviders).LoadAsync();
+                    }
 
                     if (matchingUser != null)
                     {
@@ -325,8 +326,7 @@ public class AuthService : IAuthService
                         }
 
                         // Case C & D: Active local account with password or other provider connections
-                        var hasPassword = !string.IsNullOrEmpty(matchingUser.PasswordHash) || await _context.PasswordCredentials
-                            .AnyAsync(pc => pc.UserId == matchingUser.Id && pc.IsActive && pc.DeletedAt == null);
+                        var hasPassword = !string.IsNullOrEmpty(matchingUser.PasswordHash);
 
                         var hasOtherProviders = matchingUser.AuthProviders.Any(ap => ap.DeletedAt == null);
 
@@ -372,16 +372,13 @@ public class AuthService : IAuthService
                         FullName = payload.Name ?? "Google User",
                         AvatarUrl = payload.Picture,
                         AvatarSource = !string.IsNullOrEmpty(payload.Picture) ? AvatarSource.Google : AvatarSource.Default,
-                        Status = UserStatus.ACTIVE,
-                        EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime,
+                        Status = UserStatus.EMAIL_VERIFY_PENDING,
                         CreatedAt = _timeProvider.GetUtcNow().UtcDateTime,
                         UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime,
                         Roles = new List<Role> { userRole }
                     };
 
                     _context.Users.Add(user);
-                    await _usernameService.RunWithUsernameRetryAsync(user, email, async () => 
-                        await _context.SaveChangesAsync(), cancellationToken: default);
 
                     // Create Google Provider row
                     var googleProvider = new AuthProvider
@@ -394,7 +391,8 @@ public class AuthService : IAuthService
                         CreatedAt = _timeProvider.GetUtcNow()
                     };
                     _context.AuthProviders.Add(googleProvider);
-                    await _context.SaveChangesAsync();
+
+                    await ActivateUserAsync(user);
 
                     await LogAuditEventAsync(user.Id, "PROVIDER_LINKED", $"Linked Google provider to user {user.Email}.");
                     await LogAuditEventAsync(user.Id, "USER_GOOGLE_REGISTER", $"New user {user.Email} registered via Google OAuth.");
@@ -444,15 +442,6 @@ public class AuthService : IAuthService
                         user.FullName = payload.Name;
                     }
 
-                    if (user.Status == UserStatus.EMAIL_VERIFY_PENDING)
-                    {
-                        user.TransitionTo(UserStatus.ACTIVE);
-                        user.EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime;
-                    }
-
-                    user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-                    await _context.SaveChangesAsync();
-
                     // Dynamically map AuthProvider link if not present or needs email update
                     if (googleProvider == null)
                     {
@@ -466,27 +455,21 @@ public class AuthService : IAuthService
                             CreatedAt = _timeProvider.GetUtcNow()
                         };
                         _context.AuthProviders.Add(googleProvider);
-                        await _context.SaveChangesAsync();
                         await LogAuditEventAsync(user.Id, "PROVIDER_LINKED", $"Dynamically mapped Google provider link for existing user {user.Email}.");
                     }
                     else
                     {
-                        bool providerNeedsUpdate = false;
                         if (googleProvider.ProviderAccountId != payload.Email)
                         {
                             googleProvider.ProviderAccountId = payload.Email ?? payload.Name ?? payload.Subject;
-                            providerNeedsUpdate = true;
                         }
                         if (googleProvider.ProviderAvatarUrl != payload.Picture)
                         {
                             googleProvider.ProviderAvatarUrl = payload.Picture;
-                            providerNeedsUpdate = true;
-                        }
-                        if (providerNeedsUpdate)
-                        {
-                            await _context.SaveChangesAsync();
                         }
                     }
+
+                    await ActivateUserAsync(user);
                 }
 
                 await transaction.CommitAsync();
@@ -508,7 +491,7 @@ public class AuthService : IAuthService
                 var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
                 var rememberMe = true; 
-                await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, rememberMe);
+                await SaveRefreshTokenAsync(user.Id, null, refreshTokenStr, sessionId, rememberMe);
 
                 var refreshExpiry = DateTime.UtcNow.AddDays(7);
                 _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -592,12 +575,14 @@ public class AuthService : IAuthService
         {
             var storedToken = await _context.RefreshTokens
                 .Include(t => t.User)
+                .Include(t => t.Organization)
                 .FirstOrDefaultAsync(t => t.Token == refreshTokenStr);
 
             if (storedToken == null) return null;
 
             // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
-            var userLockKey = $"lock:user:sessions:{storedToken.UserId}";
+            var lockTargetId = storedToken.UserId ?? storedToken.OrganizationId;
+            var userLockKey = $"lock:user:sessions:{lockTargetId}";
             var userLockValue = Guid.NewGuid().ToString("N");
             var userLockAcquired = await _cacheService.AcquireLockAsync(userLockKey, userLockValue, TimeSpan.FromSeconds(10));
             if (!userLockAcquired)
@@ -610,6 +595,7 @@ public class AuthService : IAuthService
                 // Re-fetch token within the user-scoped lock to ensure it wasn't mutated or revoked concurrently
                 var reFetchedToken = await _context.RefreshTokens
                     .Include(t => t.User)
+                    .Include(t => t.Organization)
                     .FirstOrDefaultAsync(t => t.Id == storedToken.Id);
 
                 var validationResult = ValidateRefreshToken(reFetchedToken);
@@ -658,63 +644,136 @@ public class AuthService : IAuthService
                     {
                         _logger.LogInformation("Safe concurrent refresh race handled. SessionId: {SessionId}.", reFetchedToken!.SessionId);
 
-                        var user = reFetchedToken.User;
-                        var roles = await _identityRepository.GetUserRolesAsync(user.Id);
-                        var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
+                        if (reFetchedToken.UserId.HasValue)
+                        {
+                            var user = reFetchedToken.User;
+                            var roles = await _identityRepository.GetUserRolesAsync(user.Id);
+                            var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
 
-                        var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: reFetchedToken.SessionId);
+                            var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: reFetchedToken.SessionId);
 
-                        // Re-set cookies for the active rotated token
-                        var refreshExpiry = activeReplacement.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
-                        _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
-                        _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
+                            // Re-set cookies for the active rotated token
+                            var refreshExpiry = activeReplacement.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                            _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
+                            _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
 
-                        return await CreateAuthResponseAsync(user, roles, permissions,
-                            user.Status == UserStatus.ACTIVE, user.Status.ToString(),
-                            user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                            return await CreateAuthResponseAsync(user, roles, permissions,
+                                user.Status == UserStatus.ACTIVE, user.Status.ToString(),
+                                user.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                        }
+                        else if (reFetchedToken.OrganizationId.HasValue)
+                        {
+                            var credential = await _context.OrganizationCredentials
+                                .Include(oc => oc.Organization)
+                                .FirstOrDefaultAsync(oc => oc.OrganizationId == reFetchedToken.OrganizationId && oc.DeletedAt == null);
+
+                            if (credential == null || credential.Organization.DeletedAt != null) return null;
+
+                            var roles = new[] { "BUSINESS" };
+                            var permissions = Enumerable.Empty<string>();
+
+                            var jwt = _tokenService.GenerateCompanyJwtToken(credential, roles, permissions, sessionId: reFetchedToken.SessionId);
+
+                            var refreshExpiry = activeReplacement.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                            _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
+                            _tokenService.SetTokenInsideCookie("refresh_token", activeReplacement.Token, refreshExpiry);
+
+                            return new AuthResponse(credential.OrganizationId, credential.Organization.Email, credential.Username, credential.Organization.Name, null, roles, permissions, true, "ACTIVE", "DASHBOARD");
+                        }
+                        return null;
                     }
                 }
 
                 // Normal path: validationResult == RefreshTokenValidationResult.Valid
-                var oldUser = reFetchedToken!.User;
-                var oldRoles = await _identityRepository.GetUserRolesAsync(oldUser.Id);
-                var oldPermissions = await _identityRepository.GetUserPermissionsAsync(oldUser.Id);
-
-                // Compare User-Agents for hijack warnings
-                var currentUserAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString();
-                if (!string.IsNullOrWhiteSpace(reFetchedToken.UserAgent) &&
-                    !string.Equals(reFetchedToken.UserAgent, currentUserAgent, StringComparison.OrdinalIgnoreCase))
+                if (reFetchedToken!.UserId.HasValue)
                 {
-                    _logger.LogWarning("SECURITY WARNING: User-Agent changed during token refresh for Session {SessionId}. Original: '{OriginalUA}', Current: '{CurrentUA}'",
-                        reFetchedToken.SessionId, reFetchedToken.UserAgent, currentUserAgent);
+                    var oldUser = reFetchedToken.User;
+                    var oldRoles = await _identityRepository.GetUserRolesAsync(oldUser.Id);
+                    var oldPermissions = await _identityRepository.GetUserPermissionsAsync(oldUser.Id);
+
+                    // Compare User-Agents for hijack warnings
+                    var currentUserAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString();
+                    if (!string.IsNullOrWhiteSpace(reFetchedToken.UserAgent) &&
+                        !string.Equals(reFetchedToken.UserAgent, currentUserAgent, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogWarning("SECURITY WARNING: User-Agent changed during token refresh for Session {SessionId}. Original: '{OriginalUA}', Current: '{CurrentUA}'",
+                            reFetchedToken.SessionId, reFetchedToken.UserAgent, currentUserAgent);
+                    }
+
+                    var newRefreshTokenStr = _tokenService.GenerateRefreshToken();
+
+                    using var rotationTx = await _context.Database.BeginTransactionAsync();
+                    RefreshToken newRefreshToken;
+                    try
+                    {
+                        newRefreshToken = await RotateRefreshTokenAsync(reFetchedToken, newRefreshTokenStr);
+                        await rotationTx.CommitAsync();
+                    }
+                    catch
+                    {
+                        await rotationTx.RollbackAsync();
+                        throw;
+                    }
+
+                    var newJwt = _tokenService.GenerateJwtToken(oldUser, oldRoles, oldPermissions, sessionId: reFetchedToken.SessionId);
+
+                    var newRefreshExpiry = newRefreshToken.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                    _tokenService.SetTokenInsideCookie("access_token", newJwt, DateTime.UtcNow.AddMinutes(15));
+                    _tokenService.SetTokenInsideCookie("refresh_token", newRefreshTokenStr, newRefreshExpiry);
+
+                    await LogAuditEventAsync(oldUser.Id, "TOKEN_ROTATED", $"Token rotated successfully. New token issued for Session {reFetchedToken.SessionId}.");
+
+                    return await CreateAuthResponseAsync(oldUser, oldRoles, oldPermissions,
+                        oldUser.Status == UserStatus.ACTIVE, oldUser.Status.ToString(),
+                        oldUser.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                }
+                else if (reFetchedToken.OrganizationId.HasValue)
+                {
+                    var credential = await _context.OrganizationCredentials
+                        .Include(oc => oc.Organization)
+                        .FirstOrDefaultAsync(oc => oc.OrganizationId == reFetchedToken.OrganizationId && oc.DeletedAt == null);
+
+                    if (credential == null || credential.Organization.DeletedAt != null) return null;
+
+                    var roles = new[] { "BUSINESS" };
+                    var permissions = Enumerable.Empty<string>();
+
+                    // Compare User-Agents for hijack warnings
+                    var currentUserAgent = _httpContextAccessor.HttpContext?.Request.Headers["User-Agent"].ToString();
+                    if (!string.IsNullOrWhiteSpace(reFetchedToken.UserAgent) &&
+                        !string.Equals(reFetchedToken.UserAgent, currentUserAgent, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogWarning("SECURITY WARNING: User-Agent changed during token refresh for Session {SessionId}. Original: '{OriginalUA}', Current: '{CurrentUA}'",
+                            reFetchedToken.SessionId, reFetchedToken.UserAgent, currentUserAgent);
+                    }
+
+                    var newRefreshTokenStr = _tokenService.GenerateRefreshToken();
+
+                    using var rotationTx = await _context.Database.BeginTransactionAsync();
+                    RefreshToken newRefreshToken;
+                    try
+                    {
+                        newRefreshToken = await RotateRefreshTokenAsync(reFetchedToken, newRefreshTokenStr);
+                        await rotationTx.CommitAsync();
+                    }
+                    catch
+                    {
+                        await rotationTx.RollbackAsync();
+                        throw;
+                    }
+
+                    var newJwt = _tokenService.GenerateCompanyJwtToken(credential, roles, permissions, sessionId: reFetchedToken.SessionId);
+
+                    var newRefreshExpiry = newRefreshToken.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
+                    _tokenService.SetTokenInsideCookie("access_token", newJwt, DateTime.UtcNow.AddMinutes(15));
+                    _tokenService.SetTokenInsideCookie("refresh_token", newRefreshTokenStr, newRefreshExpiry);
+
+                    await LogAuditEventAsync(null, "COMPANY_TOKEN_ROTATED", $"Company Token rotated successfully. New token issued for Session {reFetchedToken.SessionId}.");
+
+                    return new AuthResponse(credential.OrganizationId, credential.Organization.Email, credential.Username, credential.Organization.Name, null, roles, permissions, true, "ACTIVE", "DASHBOARD");
                 }
 
-                var newRefreshTokenStr = _tokenService.GenerateRefreshToken();
-
-                using var rotationTx = await _context.Database.BeginTransactionAsync();
-                RefreshToken newRefreshToken;
-                try
-                {
-                    newRefreshToken = await RotateRefreshTokenAsync(reFetchedToken, newRefreshTokenStr);
-                    await rotationTx.CommitAsync();
-                }
-                catch
-                {
-                    await rotationTx.RollbackAsync();
-                    throw;
-                }
-
-                var newJwt = _tokenService.GenerateJwtToken(oldUser, oldRoles, oldPermissions, sessionId: reFetchedToken.SessionId);
-
-                var newRefreshExpiry = newRefreshToken.RememberMe ? DateTime.UtcNow.AddDays(7) : DateTime.UtcNow.AddHours(24);
-                _tokenService.SetTokenInsideCookie("access_token", newJwt, DateTime.UtcNow.AddMinutes(15));
-                _tokenService.SetTokenInsideCookie("refresh_token", newRefreshTokenStr, newRefreshExpiry);
-
-                await LogAuditEventAsync(oldUser.Id, "TOKEN_ROTATED", $"Token rotated successfully. New token issued for Session {reFetchedToken.SessionId}.");
-
-                return await CreateAuthResponseAsync(oldUser, oldRoles, oldPermissions,
-                    oldUser.Status == UserStatus.ACTIVE, oldUser.Status.ToString(),
-                    oldUser.Status == UserStatus.EMAIL_VERIFY_PENDING ? "VERIFY_EMAIL" : "DASHBOARD");
+                return null;
             }
             finally
             {
@@ -785,6 +844,7 @@ public class AuthService : IAuthService
         var newRefreshToken = new RefreshToken
         {
             UserId = oldToken.UserId,
+            OrganizationId = oldToken.OrganizationId,
             Token = newRefreshTokenStr,
             SessionId = oldToken.SessionId,
             RememberMe = oldToken.RememberMe,
@@ -826,6 +886,33 @@ public class AuthService : IAuthService
 
         var userId = Guid.Parse(userIdClaim.Value);
 
+        var actorTypeClaim = _httpContextAccessor.HttpContext?.User.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+
+        if (isBusiness)
+        {
+            var credential = await _context.OrganizationCredentials
+                .Include(oc => oc.Organization)
+                .FirstOrDefaultAsync(oc => oc.OrganizationId == userId && oc.DeletedAt == null);
+
+            if (credential == null || credential.Organization.DeletedAt != null) return null;
+
+            return new UserProfileResponse(
+                credential.OrganizationId,
+                credential.Organization.Email,
+                credential.Username,
+                credential.Organization.Name,
+                null,
+                new[] { "BUSINESS" },
+                Enumerable.Empty<string>(),
+                true,
+                "ACTIVE",
+                "DASHBOARD",
+                null,
+                true
+            );
+        }
+
         var roles = (await _cacheService.GetSetAsync($"auth:user:{userId}:roles")).ToList();
         var permissions = (await _cacheService.GetSetAsync($"auth:user:{userId}:permissions")).ToList();
 
@@ -856,9 +943,7 @@ public class AuthService : IAuthService
 
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
 
-        var existingUser = await _context.Users
-            .Include(u => u.LinkedEmails)
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail), cancellationToken);
+        var existingUser = await _context.FindUserByEmailAsync(normalizedEmail, cancellationToken);
         if (existingUser != null)
         {
             // Idempotency: If pending verification and matches the primary email, rotate verification token and send a new link
@@ -960,9 +1045,7 @@ public class AuthService : IAuthService
             await transaction.RollbackAsync(cancellationToken);
 
             // Fetch the existing user that just got created in the concurrent transaction
-            var concurrentUser = await _context.Users
-                .Include(u => u.LinkedEmails)
-                .FirstOrDefaultAsync(u => u.Email == normalizedEmail || u.LinkedEmails.Any(le => le.Email == normalizedEmail), cancellationToken);
+            var concurrentUser = await _context.FindUserByEmailAsync(normalizedEmail, cancellationToken);
             if (concurrentUser != null)
             {
                 if (concurrentUser.Email == normalizedEmail && concurrentUser.Status == UserStatus.EMAIL_VERIFY_PENDING)
@@ -1021,11 +1104,7 @@ public class AuthService : IAuthService
             tokenEntity.ConsumedAt = _timeProvider.GetUtcNow();
             
             var user = tokenEntity.User;
-            user.TransitionTo(UserStatus.ACTIVE);
-            user.EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime;
-            user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-
-            await _context.SaveChangesAsync(cancellationToken);
+            await ActivateUserAsync(user);
 
             // Queue onboarding welcome email via Outbox Pattern
             var payloadObj = new
@@ -1043,6 +1122,8 @@ public class AuthService : IAuthService
             await LogAuditEventAsync(user.Id, "USER_EMAIL_VERIFIED", $"User email {user.Email} successfully verified.");
             await _identityStateResolver.InvalidateCacheAsync(user.Email);
 
+
+
             var roles = await _identityRepository.GetUserRolesAsync(user.Id);
             var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
 
@@ -1053,7 +1134,7 @@ public class AuthService : IAuthService
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
             var rememberMe = false; // default to false
-            await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, rememberMe);
+            await SaveRefreshTokenAsync(user.Id, null, refreshTokenStr, sessionId, rememberMe);
 
             var refreshExpiry = DateTime.UtcNow.AddHours(24);
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -1379,7 +1460,7 @@ public class AuthService : IAuthService
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
             var rememberMe = false; // default to false
-            await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, rememberMe);
+            await SaveRefreshTokenAsync(user.Id, null, refreshTokenStr, sessionId, rememberMe);
 
             var refreshExpiry = DateTime.UtcNow.AddHours(24);
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -1417,7 +1498,7 @@ public class AuthService : IAuthService
         foreach (var perm in permissions) await _cacheService.AddToSetAsync(permsKey, perm);
     }
 
-    private async Task SaveRefreshTokenAsync(Guid userId, string tokenStr, Guid sessionId, bool rememberMe, Guid? replacedByTokenId = null)
+    private async Task SaveRefreshTokenAsync(Guid? userId, Guid? organizationId, string tokenStr, Guid sessionId, bool rememberMe, Guid? replacedByTokenId = null)
     {
         var httpContext = _httpContextAccessor.HttpContext;
         var userAgent = httpContext?.Request.Headers["User-Agent"].ToString();
@@ -1428,6 +1509,7 @@ public class AuthService : IAuthService
         var refreshToken = new RefreshToken
         {
             UserId = userId,
+            OrganizationId = organizationId,
             Token = tokenStr,
             SessionId = sessionId,
             RememberMe = rememberMe,
@@ -1518,7 +1600,6 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users
             .Include(u => u.AuthProviders)
-            .Include(u => u.PasswordCredentials)
             .FirstOrDefaultAsync(u => u.Id == userId);
             
         if (user == null)
@@ -1526,7 +1607,7 @@ public class AuthService : IAuthService
             throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
         }
 
-        var requiresPassword = !string.IsNullOrEmpty(user.PasswordHash) || user.PasswordCredentials.Any(pc => pc.DeletedAt == null && pc.IsActive);
+        var requiresPassword = !string.IsNullOrEmpty(user.PasswordHash);
         var activeProviders = user.AuthProviders.Where(ap => ap.DeletedAt == null).ToList();
         var requiresOAuthReauth = !requiresPassword && activeProviders.Any();
         var linkedProvider = activeProviders.FirstOrDefault()?.ProviderName;
@@ -1538,7 +1619,6 @@ public class AuthService : IAuthService
     {
         var user = await _context.Users
             .Include(u => u.AuthProviders)
-            .Include(u => u.PasswordCredentials)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null || user.DeletedAt != null)
@@ -1597,14 +1677,6 @@ public class AuthService : IAuthService
                 if (!string.IsNullOrEmpty(user.PasswordHash))
                 {
                     isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-                }
-                if (!isPasswordValid)
-                {
-                    var activeCred = user.PasswordCredentials.FirstOrDefault(pc => pc.DeletedAt == null && pc.IsActive);
-                    if (activeCred != null)
-                    {
-                        isPasswordValid = BCrypt.Net.BCrypt.Verify(request.Password, activeCred.PasswordHash);
-                    }
                 }
                 if (!isPasswordValid)
                 {
@@ -1764,7 +1836,7 @@ public class AuthService : IAuthService
             var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-            await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
+            await SaveRefreshTokenAsync(user.Id, null, refreshTokenStr, sessionId, false);
 
             var refreshExpiry = DateTime.UtcNow.AddHours(24);
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
@@ -1961,10 +2033,10 @@ public class AuthService : IAuthService
         var primaryEmail = user.Email.Trim().ToLowerInvariant();
         var normalizedTarget = request.Email.Trim().ToLowerInvariant();
 
-        var linkedEmails = await _context.UserEmails
-            .Where(le => le.UserId == userId && le.IsVerified)
+        var linkedEmails = user.LinkedEmails
+            .Where(le => le.IsVerified)
             .Select(le => le.Email)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         bool isValidDestination = string.Equals(primaryEmail, normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
                                   linkedEmails.Any(le => string.Equals(le.Trim().ToLowerInvariant(), normalizedTarget, StringComparison.OrdinalIgnoreCase));
@@ -2507,7 +2579,6 @@ public class AuthService : IAuthService
         {
             var user = await _context.Users
                 .Include(u => u.AuthProviders)
-                .Include(u => u.PasswordCredentials)
                 .FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
 
             var superAdminEmail = _envConfig.SuperAdmin.Email;
@@ -2531,15 +2602,13 @@ public class AuthService : IAuthService
                         ? request.FullName
                         : GetDefaultFullNameFromEmail(normalizedEmail),
                     PasswordHash = passwordHash,
-                    Status = UserStatus.ACTIVE,
-                    EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime,
+                    Status = UserStatus.EMAIL_VERIFY_PENDING,
                     CreatedAt = _timeProvider.GetUtcNow().UtcDateTime,
                     UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime,
                     Roles = new List<Role> { userRole }
                 };
                 _context.Users.Add(user);
-                await _usernameService.RunWithUsernameRetryAsync(user, normalizedEmail, async () => 
-                    await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
+                await ActivateUserAsync(user);
             }
             else
             {
@@ -2548,19 +2617,7 @@ public class AuthService : IAuthService
                 {
                     user.FullName = request.FullName;
                 }
-                user.EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime;
-                user.TransitionTo(UserStatus.ACTIVE);
-                user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-
-                if (string.IsNullOrEmpty(user.Username))
-                {
-                    await _usernameService.RunWithUsernameRetryAsync(user, normalizedEmail, async () => 
-                        await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
-                }
-                else
-                {
-                    await _context.SaveChangesAsync(cancellationToken);
-                }
+                await ActivateUserAsync(user);
             }
 
 
@@ -2580,28 +2637,12 @@ public class AuthService : IAuthService
             }
 
             // Password Credentials history management
-            var activeCredentials = user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null).ToList();
-            foreach (var cred in activeCredentials)
-            {
-                cred.IsActive = false;
-                cred.RevokedAt = _timeProvider.GetUtcNow();
-                cred.RevokedReason = "Password updated/rotated";
-                cred.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-            }
-
-            var newCred = new PasswordCredential
-            {
-                UserId = user.Id,
-                PasswordHash = passwordHash,
-                IsActive = true,
-                PasswordChangedAt = _timeProvider.GetUtcNow(),
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.PasswordCredentials.Add(newCred);
+            user.PasswordChangedAt = _timeProvider.GetUtcNow();
             await _context.SaveChangesAsync(cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
+
+
 
             // Invalidate identity state cache — user now has a Password provider
             await _identityStateResolver.InvalidateCacheAsync(normalizedEmail);
@@ -2617,7 +2658,7 @@ public class AuthService : IAuthService
             var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
             var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-            await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
+            await SaveRefreshTokenAsync(user.Id, null, refreshTokenStr, sessionId, false);
 
             _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
             _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, DateTime.UtcNow.AddHours(24));
@@ -2636,6 +2677,34 @@ public class AuthService : IAuthService
 
     // --- COMPANY TRUST ONBOARDING ---
 
+    private async Task<HttpResponseMessage> SendVietQrRequestWithRetryAsync(string taxCode, CancellationToken cancellationToken)
+    {
+        var pipeline = new ResiliencePipelineBuilder<HttpResponseMessage>()
+            .AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = 1,
+                Delay = TimeSpan.FromSeconds(1),
+                ShouldHandle = new PredicateBuilder<HttpResponseMessage>()
+                    .HandleResult(r => (int)r.StatusCode >= 500 || r.StatusCode == HttpStatusCode.RequestTimeout)
+                    .Handle<HttpRequestException>()
+                    .Handle<TaskCanceledException>(ex => !cancellationToken.IsCancellationRequested),
+                OnRetry = args =>
+                {
+                    _logger.LogWarning(
+                        "VietQR lookup transient failure (attempt {Attempt}). Retrying in {Delay}s for tax code {TaxCode}.",
+                        args.AttemptNumber + 1, args.RetryDelay.TotalSeconds, taxCode);
+                    return ValueTask.CompletedTask;
+                }
+            })
+            .Build();
+
+        return await pipeline.ExecuteAsync(async ct =>
+        {
+            var client = _httpClientFactory.CreateClient("VietQR");
+            return await client.GetAsync($"v2/business/{taxCode}", ct);
+        }, cancellationToken);
+    }
+
     public async Task<bool> RegisterCompanyAsync(RegisterCompanyRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = NormalizeEmailPolicy(request.CompanyEmail);
@@ -2644,11 +2713,18 @@ public class AuthService : IAuthService
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Disposable email addresses are not permitted.");
         }
 
-        var client = _httpClientFactory.CreateClient();
-        var response = await client.GetAsync($"https://api.vietqr.io/v2/business/{request.TaxCode}", cancellationToken);
+        var response = await SendVietQrRequestWithRetryAsync(request.TaxCode, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
+            var statusCode = (int)response.StatusCode;
+            _logger.LogWarning("VietQR business registry lookup returned HTTP {StatusCode} for tax code {TaxCode}.", statusCode, request.TaxCode);
+
+            if (statusCode >= 500 || response.StatusCode == HttpStatusCode.RequestTimeout)
+            {
+                throw new AuthException(AuthErrorCodes.ServiceUnavailable, "The business registry service is temporarily unavailable. Please try again.");
+            }
+
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "The business tax registry lookup failed.");
         }
 
@@ -2739,209 +2815,6 @@ public class AuthService : IAuthService
         return new VerifyCompanyLinkResponse(link.CompanyName ?? string.Empty, link.TaxCode ?? string.Empty, link.Email, workspaceToken);
     }
 
-    public async Task<AuthResponse> SetupWorkspaceAsync(SetupWorkspaceRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
-    {
-        await _passwordPolicyService.ValidateAndThrowAsync(request.Password, "Enterprise");
-
-        var normalizedEmail = NormalizeEmailPolicy(request.CompanyEmail);
-        var cachedToken = await _cacheService.GetAsync<string>($"workspace:token:{normalizedEmail}");
-
-        if (cachedToken == null || !ConstantTimeEquals(cachedToken, request.VerificationToken))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidToken, "The workspace setup session has expired or is invalid.");
-        }
-
-        // Reservation blocklist
-        var reservedUsernames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "admin", "support", "api", "auth", "login", "billing", "security", "careers", "jobs", "cverify", "system", "root", "portal"
-        };
-        var normalizedUsername = request.OrganizationUsername.Trim().ToLowerInvariant();
-        if (reservedUsernames.Contains(normalizedUsername))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, $"The workspace username '{request.OrganizationUsername}' is reserved.");
-        }
-
-        using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            var existingOrg = await _context.Organizations
-                .FirstOrDefaultAsync(o => o.Username == normalizedUsername && o.DeletedAt == null, cancellationToken);
-            if (existingOrg != null)
-            {
-                throw new AuthException(AuthErrorCodes.InvalidCredentials, "This organization workspace username is already taken.");
-            }
-
-            var link = await _context.VerificationLinks
-                .Where(vl => vl.Email == normalizedEmail && vl.Purpose == "CompanyVerification" && vl.DeletedAt == null)
-                .OrderByDescending(vl => vl.CreatedAt)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (link == null)
-            {
-                throw new AuthException(AuthErrorCodes.InvalidToken, "Company ownership details not found.");
-            }
-
-            var org = new Organization
-            {
-                Name = link.CompanyName ?? "Default Organization",
-                TaxCode = link.TaxCode ?? string.Empty,
-                Email = normalizedEmail,
-                Username = normalizedUsername,
-                IsVerified = true,
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.Organizations.Add(org);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            var user = await _context.Users
-                .Include(u => u.PasswordCredentials)
-                .Include(u => u.AuthProviders)
-                .FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.DeletedAt == null, cancellationToken);
-
-            var ownerRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "USER", cancellationToken);
-            if (ownerRole == null)
-            {
-                throw new InvalidOperationException("Default owner role not found in database.");
-            }
-
-            var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
-            if (user == null)
-            {
-                user = new User
-                {
-                    Email = normalizedEmail,
-                    FullName = $"{org.Name} Owner",
-                    Status = UserStatus.ACTIVE,
-                    EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime,
-                    CreatedAt = _timeProvider.GetUtcNow().UtcDateTime,
-                    UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime,
-                    Roles = new List<Role> { ownerRole }
-                };
-                _context.Users.Add(user);
-                await _usernameService.RunWithUsernameRetryAsync(user, normalizedEmail, async () =>
-                    await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(user.Username))
-                {
-                    await _usernameService.RunWithUsernameRetryAsync(user, normalizedEmail, async () =>
-                        await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
-                }
-            }
-
-            // Create Password linkage
-            var provider = await _context.AuthProviders
-                .FirstOrDefaultAsync(ap => ap.UserId == user.Id && ap.ProviderName == "Password" && ap.DeletedAt == null, cancellationToken);
-            if (provider == null)
-            {
-                provider = new AuthProvider
-                {
-                    UserId = user.Id,
-                    ProviderName = "Password",
-                    ProviderKey = normalizedEmail,
-                    CreatedAt = _timeProvider.GetUtcNow()
-                };
-                _context.AuthProviders.Add(provider);
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-
-            // Deactivate existing active credentials
-            var activeCredentials = user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null).ToList();
-            foreach (var cred in activeCredentials)
-            {
-                cred.IsActive = false;
-                cred.RevokedAt = _timeProvider.GetUtcNow();
-                cred.RevokedReason = "Password updated/rotated during workspace setup";
-                cred.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-            }
-
-            // Add active PasswordCredential
-            var newCred = new PasswordCredential
-            {
-                UserId = user.Id,
-                PasswordHash = passwordHash,
-                IsActive = true,
-                PasswordChangedAt = _timeProvider.GetUtcNow(),
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.PasswordCredentials.Add(newCred);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Member mapping
-            var authority = new OrganizationAuthority
-            {
-                OrganizationId = org.Id,
-                UserId = user.Id,
-                Role = "organization_owner",
-                JoinedAt = _timeProvider.GetUtcNow()
-            };
-            _context.OrganizationAuthorities.Add(authority);
-
-            // Create Workspace presentation details
-            var workspace = new Workspace
-            {
-                OrganizationId = org.Id,
-                DisplayName = org.Name,
-                Slug = org.Username,
-                Status = "active",
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.Workspaces.Add(workspace);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Create WorkspaceMember
-            var workspaceMember = new WorkspaceMember
-            {
-                WorkspaceId = workspace.Id,
-                UserId = user.Id,
-                Role = "workspace_admin",
-                JoinedAt = _timeProvider.GetUtcNow()
-            };
-            _context.WorkspaceMembers.Add(workspaceMember);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Map Verification Link ownership for audits
-            link.UserId = user.Id;
-            link.OrganizationId = org.Id;
-            await _context.SaveChangesAsync(cancellationToken);
-
-            await transaction.CommitAsync(cancellationToken);
-
-            await _cacheService.RemoveAsync($"workspace:token:{normalizedEmail}");
-
-            var roles = await _identityRepository.GetUserRolesAsync(user.Id);
-            var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
-
-            await CacheUserAuthDataAsync(user.Id, roles, permissions);
-
-            var workspaceRoles = roles.Contains("BUSINESS") ? roles : roles.Concat(new[] { "BUSINESS" }).ToList();
-
-            var sessionId = Guid.CreateVersion7();
-            var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username, sessionId: sessionId);
-            var refreshTokenStr = _tokenService.GenerateRefreshToken();
-
-            await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
-
-            _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
-            _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, DateTime.UtcNow.AddHours(24));
-
-            await LogAuditEventAsync(user.Id, "ORGANIZATION_CREATED", $"Workspace organization '{normalizedUsername}' registered successfully.");
-            return new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            _logger.LogError(ex, "Workspace setup flow failed.");
-            throw;
-        }
-    }
-
     private bool VerifyPassword(User user, string? hash, string inputPassword)
     {
         if (string.IsNullOrEmpty(hash)) return false;
@@ -3007,561 +2880,82 @@ public class AuthService : IAuthService
         return false;
     }
 
-    // --- 3-STEP UNIFIED ONBOARDING IMPLEMENTATION ---
 
-    private static int GetLevenshteinDistance(string s, string t)
-    {
-        if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;
-        if (string.IsNullOrEmpty(t)) return s.Length;
-
-        int n = s.Length;
-        int m = t.Length;
-        int[,] d = new int[n + 1, m + 1];
-
-        for (int i = 0; i <= n; d[i, 0] = i++) { }
-        for (int j = 0; j <= m; d[0, j] = j++) { }
-
-        for (int i = 1; i <= n; i++)
-        {
-            for (int j = 1; j <= m; j++)
-            {
-                int cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
-                d[i, j] = Math.Min(
-                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
-                    d[i - 1, j - 1] + cost);
-            }
-        }
-        return d[n, m];
-    }
-
-    private bool IsFuzzyMatch(string officialName, string inputName)
-    {
-        var normOfficial = NormalizeCompanyNameForMatching(officialName);
-        var normUser = NormalizeCompanyNameForMatching(inputName);
-
-        if (normOfficial == normUser) return true;
-
-        // Allow minor typo tolerance (up to Levenshtein distance 2 or 15% mismatch)
-        var distance = GetLevenshteinDistance(normOfficial, normUser);
-        var maxLength = Math.Max(normOfficial.Length, normUser.Length);
-        if (maxLength == 0) return false;
-
-        double errorRate = (double)distance / maxLength;
-        return distance <= 2 || errorRate <= 0.15;
-    }
-
-    public async Task<VerifyCompanyOnboardingResponse> VerifyCompanyOnboardingAsync(VerifyCompanyOnboardingRequest request, CancellationToken cancellationToken = default)
-    {
-        var taxCode = request.TaxCode.Trim();
-        if (!System.Text.RegularExpressions.Regex.IsMatch(taxCode, @"^\d{10}(-\d{3})?$"))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Tax code format is invalid.");
-        }
-
-        var client = _httpClientFactory.CreateClient();
-        var response = await client.GetAsync($"https://api.vietqr.io/v2/business/{taxCode}", cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "The business tax registry lookup failed.");
-        }
-
-        var json = await response.Content.ReadAsStringAsync(cancellationToken);
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        
-        if (!root.TryGetProperty("code", out var codeProp) || codeProp.GetString() != "00")
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Invalid business tax code.");
-        }
-
-        if (!root.TryGetProperty("data", out var dataElement) || dataElement.ValueKind == System.Text.Json.JsonValueKind.Null)
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "No business record found matching this tax code.");
-        }
-
-        var officialName = dataElement.GetProperty("name").GetString() ?? string.Empty;
-        var status = dataElement.GetProperty("status").GetString() ?? string.Empty;
-
-        if (!status.Contains("đang hoạt động", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, $"This company is inactive/suspended: {status}.");
-        }
-
-        if (!IsFuzzyMatch(officialName, request.CompanyName))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Company name does not match the official tax registry business name.");
-        }
-
-        // Check if organization already exists in database
-        var existingOrg = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.TaxCode == taxCode && o.DeletedAt == null, cancellationToken);
-
-        if (existingOrg == null)
-        {
-            var normalizedOfficial = NormalizeCompanyNameForMatching(officialName);
-            var allActiveOrgs = await _context.Organizations
-                .Where(o => o.DeletedAt == null)
-                .ToListAsync(cancellationToken);
-
-            existingOrg = allActiveOrgs.FirstOrDefault(o => NormalizeCompanyNameForMatching(o.Name) == normalizedOfficial);
-        }
-
-        if (existingOrg != null)
-        {
-            return new VerifyCompanyOnboardingResponse(
-                SignedToken: null,
-                OfficialCompanyName: existingOrg.Name,
-                TaxCode: existingOrg.TaxCode,
-                OrganizationExists: true,
-                OrganizationDisplayName: existingOrg.Name,
-                OrganizationSlug: existingOrg.Username,
-                RecoveryRequired: true
-            );
-        }
-
-        var signedToken = OnboardingTokenHelper.GenerateStep1Token(taxCode, officialName, _envConfig.Jwt.Key);
-
-        return new VerifyCompanyOnboardingResponse(signedToken, officialName, taxCode);
-    }
-
-    public async Task<VerifyOtpResponse> VerifyOnboardingOtpAsync(VerifyOtpRequest request, string step1Token, CancellationToken cancellationToken = default)
-    {
-        var step1Payload = OnboardingTokenHelper.VerifyToken(step1Token, _envConfig.Jwt.Key);
-        if (step1Payload == null || step1Payload["step"] != "1")
-        {
-            throw new AuthException(AuthErrorCodes.InvalidToken, "Company verification context is invalid or expired.");
-        }
-
-        var taxCode = step1Payload["taxCode"];
-        var companyName = step1Payload["companyName"];
-
-        var normalizedEmail = NormalizeEmailPolicy(request.Email);
-        if (!await ValidateEmailDomainMxAsync(normalizedEmail))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Email domain does not resolve to active mail hosts.");
-        }
-
-        var otpResult = await VerifyOtpAsync(request, cancellationToken);
-
-        var signedStep2Token = OnboardingTokenHelper.GenerateStep2Token(taxCode, companyName, normalizedEmail, false, _envConfig.Jwt.Key);
-
-        return new VerifyOtpResponse(request.ChallengeId, normalizedEmail, signedStep2Token);
-    }
-
-    public async Task<VerifyOtpResponse> VerifyOnboardingGoogleAsync(GoogleOnboardingLinkRequest request, CancellationToken cancellationToken = default)
-    {
-        var step1Payload = OnboardingTokenHelper.VerifyToken(request.Step1Token, _envConfig.Jwt.Key);
-        if (step1Payload == null || step1Payload["step"] != "1")
-        {
-            throw new AuthException(AuthErrorCodes.InvalidToken, "Company verification context is invalid or expired.");
-        }
-
-        var taxCode = step1Payload["taxCode"];
-        var companyName = step1Payload["companyName"];
-
-        var settings = new GoogleJsonWebSignature.ValidationSettings
-        {
-            Audience = new[] { _envConfig.Auth.GoogleClientId },
-            IssuedAtClockTolerance = TimeSpan.FromMinutes(5),
-            ExpirationTimeClockTolerance = TimeSpan.FromMinutes(5)
-        };
-
-        var payload = await _googleTokenValidator.ValidateAsync(request.IdToken, settings);
-        if (payload == null)
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Google ID token validation failed.");
-        }
-
-        var googleEmail = NormalizeEmailPolicy(payload.Email);
-
-        var signedStep2Token = OnboardingTokenHelper.GenerateStep2Token(taxCode, companyName, googleEmail, true, _envConfig.Jwt.Key);
-
-        return new VerifyOtpResponse(Guid.Empty, googleEmail, signedStep2Token);
-    }
-
-    public async Task<AuthResponse> CompleteOnboardingAsync(CompleteOnboardingRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
-    {
-        await _passwordPolicyService.ValidateAndThrowAsync(request.Password, "Enterprise");
-
-        // 1. Idempotency Protection check
-        var httpContext = _httpContextAccessor.HttpContext;
-        string? idempotencyKey = httpContext?.Request.Headers["X-Idempotency-Key"];
-        if (!string.IsNullOrEmpty(idempotencyKey))
-        {
-            var cacheKey = $"idempotency:onboarding:{idempotencyKey}";
-            var cachedResponse = await _cacheService.GetAsync<AuthResponse>(cacheKey);
-            if (cachedResponse != null)
-            {
-                _logger.LogInformation("Idempotent onboarding complete request served from cache. Key: {Key}", idempotencyKey);
-                return cachedResponse;
-            }
-        }
-
-        // 2. Step 2 Token Validation
-        var step2Payload = OnboardingTokenHelper.VerifyToken(request.Step2Token, _envConfig.Jwt.Key);
-        if (step2Payload == null || step2Payload["step"] != "2")
-        {
-            throw new AuthException(AuthErrorCodes.InvalidToken, "Onboarding session is invalid or expired.");
-        }
-
-        var taxCode = step2Payload["taxCode"];
-        var companyName = step2Payload["companyName"];
-        var email = step2Payload["email"];
-        var isGoogleLinked = bool.Parse(step2Payload["isGoogleLinked"]);
-
-        // 3. Organization Identifier Slug constraints
-        var normalizedSlug = request.OrganizationUsername.Trim().ToLowerInvariant();
-        if (!System.Text.RegularExpressions.Regex.IsMatch(normalizedSlug, @"^[a-z0-9-]{4,32}$"))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Slug must be 4-32 alphanumeric or dash characters.");
-        }
-
-        var reservedList = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "admin", "root", "support", "system", "api", "cverify", "auth", "login", "workspace", "billing"
-        };
-        if (reservedList.Contains(normalizedSlug))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, $"The handle '{request.OrganizationUsername}' is a reserved keyword.");
-        }
-
-        if (IsImpersonatingBrand(normalizedSlug))
-        {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Impersonation of protected brands is prohibited.");
-        }
-
-        // 4. Atomic provision transaction boundary
-        using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            var existingOrg = await _context.Organizations
-                .FirstOrDefaultAsync(o => o.Username == normalizedSlug && o.DeletedAt == null, cancellationToken);
-            if (existingOrg != null)
-            {
-                throw new AuthException(AuthErrorCodes.InvalidCredentials, "This organization handle is already taken.");
-            }
-
-            var user = await _context.Users
-                .Include(u => u.Roles)
-                .Include(u => u.AuthProviders)
-                .Include(u => u.PasswordCredentials)
-                .Include(u => u.LinkedEmails)
-                .FirstOrDefaultAsync(u => (u.Email == email || u.LinkedEmails.Any(le => le.Email == email && le.IsVerified)) && u.DeletedAt == null, cancellationToken);
-
-            var defaultRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "USER", cancellationToken);
-            if (defaultRole == null)
-            {
-                throw new InvalidOperationException("Default user role not found.");
-            }
-
-            var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
-            if (user == null)
-            {
-                user = new User
-                {
-                    Email = email,
-                    FullName = $"{request.CompanyDisplayName} Owner",
-                    Status = UserStatus.ACTIVE,
-                    EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime,
-                    CreatedAt = _timeProvider.GetUtcNow().UtcDateTime,
-                    UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime,
-                    Roles = new List<Role> { defaultRole }
-                };
-
-                // Hash password via BCrypt
-                user.PasswordHash = passwordHash;
-
-                _context.Users.Add(user);
-                await _usernameService.RunWithUsernameRetryAsync(user, email, async () =>
-                    await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
-            }
-            else
-            {
-                // Multi-organization linking: update credentials and promotion
-                user.PasswordHash = passwordHash;
-                user.TransitionTo(UserStatus.ACTIVE);
-                user.EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime;
-                user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-                
-                if (string.IsNullOrEmpty(user.Username))
-                {
-                    await _usernameService.RunWithUsernameRetryAsync(user, email, async () =>
-                        await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
-                }
-                else
-                {
-                    await _context.SaveChangesAsync(cancellationToken);
-                }
-            }
-
-            // Map Password Auth Provider (always created/updated because a password is set)
-            var passwordProvider = user.AuthProviders.FirstOrDefault(ap => ap.ProviderName == "Password" && ap.DeletedAt == null);
-            if (passwordProvider == null)
-            {
-                passwordProvider = new AuthProvider
-                {
-                    UserId = user.Id,
-                    ProviderName = "Password",
-                    ProviderKey = email,
-                    CreatedAt = _timeProvider.GetUtcNow()
-                };
-                _context.AuthProviders.Add(passwordProvider);
-            }
-
-            // Map Google Auth Provider if linked during onboarding
-            if (isGoogleLinked)
-            {
-                var googleProvider = user.AuthProviders.FirstOrDefault(ap => ap.ProviderName == "Google" && ap.DeletedAt == null);
-                if (googleProvider == null)
-                {
-                    googleProvider = new AuthProvider
-                    {
-                        UserId = user.Id,
-                        ProviderName = "Google",
-                        ProviderKey = email,
-                        CreatedAt = _timeProvider.GetUtcNow()
-                    };
-                    _context.AuthProviders.Add(googleProvider);
-                }
-            }
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Deactivate existing active credentials
-            var activeCredentials = user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null).ToList();
-            foreach (var cred in activeCredentials)
-            {
-                cred.IsActive = false;
-                cred.RevokedAt = _timeProvider.GetUtcNow();
-                cred.RevokedReason = "Password updated/rotated during onboarding";
-                cred.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-            }
-
-            // Password history register
-            var newCred = new PasswordCredential
-            {
-                UserId = user.Id,
-                PasswordHash = user.PasswordHash,
-                IsActive = true,
-                PasswordChangedAt = _timeProvider.GetUtcNow(),
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.PasswordCredentials.Add(newCred);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Create Organization with verification level 1 (Legal Verified!)
-            var org = new Organization
-            {
-                Name = companyName,
-                TaxCode = taxCode,
-                Email = email,
-                Username = normalizedSlug,
-                IsVerified = true,
-                VerificationLevel = 1,
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.Organizations.Add(org);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Link as Owner
-            var authority = new OrganizationAuthority
-            {
-                OrganizationId = org.Id,
-                UserId = user.Id,
-                Role = "organization_owner",
-                JoinedAt = _timeProvider.GetUtcNow()
-            };
-            _context.OrganizationAuthorities.Add(authority);
-
-            // Create Workspace presentation details
-            var workspace = new Workspace
-            {
-                OrganizationId = org.Id,
-                DisplayName = org.Name,
-                Slug = org.Username,
-                Status = "active",
-                CreatedAt = _timeProvider.GetUtcNow(),
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-            _context.Workspaces.Add(workspace);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Create WorkspaceMember
-            var workspaceMember = new WorkspaceMember
-            {
-                WorkspaceId = workspace.Id,
-                UserId = user.Id,
-                Role = "workspace_admin",
-                JoinedAt = _timeProvider.GetUtcNow()
-            };
-            _context.WorkspaceMembers.Add(workspaceMember);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Save Level 1 Verification audit metadata
-            var verification = new OrganizationVerification
-            {
-                OrganizationId = org.Id,
-                VerificationType = "Legal",
-                IsVerified = true,
-                VerifiedValue = taxCode,
-                VerifiedAt = _timeProvider.GetUtcNow(),
-                VerifiedBy = "System_VietQR_Lookups",
-                Metadata = System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    OfficialCompanyName = companyName,
-                    TaxCode = taxCode,
-                    VerifiedAt = DateTimeOffset.UtcNow,
-                    ClientIp = ipAddress,
-                    ClientAgent = userAgent
-                })
-            };
-            _context.OrganizationVerifications.Add(verification);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            await transaction.CommitAsync(cancellationToken);
-
-            // JWT session generation
-            var roles = await _identityRepository.GetUserRolesAsync(user.Id);
-            var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
-
-            await CacheUserAuthDataAsync(user.Id, roles, permissions);
-
-            var workspaceRoles = roles.Contains("BUSINESS") ? roles : roles.Concat(new[] { "BUSINESS" }).ToList();
-
-            var sessionId = Guid.CreateVersion7();
-            var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username, sessionId: sessionId);
-            var refreshTokenStr = _tokenService.GenerateRefreshToken();
-
-            await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
-
-            _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
-            _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, DateTime.UtcNow.AddHours(24));
-
-            await LogAuditEventAsync(user.Id, "ORGANIZATION_CREATED", $"Workspace organization '{normalizedSlug}' registered successfully.");
-            
-            var authResponse = new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
-
-            // Cache for idempotency keys
-            if (!string.IsNullOrEmpty(idempotencyKey))
-            {
-                var cacheKey = $"idempotency:onboarding:{idempotencyKey}";
-                await _cacheService.SetAsync(cacheKey, authResponse, TimeSpan.FromMinutes(10));
-            }
-
-            return authResponse;
-        }
-        catch (DbUpdateException ex)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            _logger.LogWarning(ex, "Concurrency or duplicate database constraint triggered during workspace provisioning.");
-            
-            var exString = ex.ToString();
-            if (exString.Contains("tax_code") || ex.InnerException?.Message.Contains("tax_code") == true)
-            {
-                throw new AuthException(AuthErrorCodes.InvalidCredentials, "This company has already been onboarded.", ex);
-            }
-            if (exString.Contains("username") || exString.Contains("organizations") || ex.InnerException?.Message.Contains("username") == true)
-            {
-                throw new AuthException(AuthErrorCodes.InvalidCredentials, "This organization handle is already taken.", ex);
-            }
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Workspace provisioning conflict.", ex);
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            _logger.LogError(ex, "Transaction failed during complete onboarding workspace provision.");
-            throw;
-        }
-    }
 
     public async Task<AuthResponse?> CompanyLoginAsync(OrganizationLoginRequest request, string userAgent, string ipAddress)
     {
         var normalizedUsername = request.OrganizationUsername.Trim().ToLowerInvariant();
-        var org = await _context.Organizations
-            .Where(o => o.Username == normalizedUsername && o.DeletedAt == null)
-            .FirstOrDefaultAsync();
+        var credential = await _context.OrganizationCredentials
+            .Include(oc => oc.Organization)
+            .FirstOrDefaultAsync(oc => oc.Username == normalizedUsername && oc.DeletedAt == null);
 
-        if (org == null)
+        if (credential == null || credential.Organization.DeletedAt != null)
         {
             return null;
         }
 
-        var ownerMember = await _context.OrganizationAuthorities
-            .Where(om => om.OrganizationId == org.Id && om.Role == "organization_owner")
-            .FirstOrDefaultAsync();
-
-        if (ownerMember == null)
+        var utcNow = _timeProvider.GetUtcNow();
+        if (credential.LockoutEnd.HasValue && credential.LockoutEnd.Value > utcNow)
         {
+            throw new AuthException(AuthErrorCodes.LockedOut, $"This business account is temporarily locked out until {credential.LockoutEnd.Value.ToLocalTime()}.");
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, credential.PasswordHash))
+        {
+            credential.FailedLoginAttempts++;
+            if (credential.FailedLoginAttempts >= 5)
+            {
+                credential.LockoutEnd = utcNow.AddMinutes(15);
+                credential.FailedLoginAttempts = 0;
+            }
+            credential.UpdatedAt = utcNow;
+            await _context.SaveChangesAsync();
+            
+            await LogAuditEventAsync(null, "COMPANY_LOGIN_FAILED_CREDENTIALS", $"Invalid workspace password login attempt for company {normalizedUsername}.");
             return null;
         }
 
-        var user = await _context.Users
-            .Include(u => u.PasswordCredentials)
-            .Where(u => u.Id == ownerMember.UserId && u.DeletedAt == null)
-            .FirstOrDefaultAsync();
-
-        if (user == null)
+        if (credential.FailedLoginAttempts > 0 || credential.LockoutEnd != null)
         {
-            return null;
+            credential.FailedLoginAttempts = 0;
+            credential.LockoutEnd = null;
+            credential.UpdatedAt = utcNow;
+            await _context.SaveChangesAsync();
         }
 
-        if (_accountService.IsAccountDisabled(user))
-        {
-            throw new UnauthorizedAccessException("Account is disabled.");
-        }
-
-        if (_accountService.IsAccountLocked(user))
-        {
-            throw new UnauthorizedAccessException($"Account is locked.");
-        }
-
-        var activeCred = user.PasswordCredentials
-            .Where(pc => pc.IsActive && pc.DeletedAt == null)
-            .OrderByDescending(pc => pc.CreatedAt)
-            .FirstOrDefault();
-        if (activeCred == null || !VerifyPassword(user, activeCred.PasswordHash, request.Password))
-        {
-            await _accountService.HandleFailedLoginAsync(user);
-            await LogAuditEventAsync(user.Id, "USER_LOGIN_FAILED_CREDENTIALS", $"Invalid workspace password login attempt for org {normalizedUsername}.");
-            return null;
-        }
-
-        await _accountService.ResetFailedAttemptsAsync(user);
-
-        var roles = await _identityRepository.GetUserRolesAsync(user.Id);
-        var permissions = await _identityRepository.GetUserPermissionsAsync(user.Id);
-
-        await CacheUserAuthDataAsync(user.Id, roles, permissions);
-
-        var workspaceRoles = roles.Contains("BUSINESS") ? roles : roles.Concat(new[] { "BUSINESS" }).ToList();
+        var roles = new[] { "BUSINESS" };
+        var permissions = Enumerable.Empty<string>();
 
         var sessionId = Guid.CreateVersion7();
-        var jwt = _tokenService.GenerateJwtToken(user, workspaceRoles, permissions, org.Id, org.Username, sessionId: sessionId);
+        var jwt = _tokenService.GenerateCompanyJwtToken(credential, roles, permissions, sessionId: sessionId);
         var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-        await SaveRefreshTokenAsync(user.Id, refreshTokenStr, sessionId, false);
+        await SaveRefreshTokenAsync(null, credential.OrganizationId, refreshTokenStr, sessionId, false);
 
         _tokenService.SetTokenInsideCookie("access_token", jwt, DateTime.UtcNow.AddMinutes(15));
         _tokenService.SetTokenInsideCookie("refresh_token", refreshTokenStr, DateTime.UtcNow.AddHours(24));
 
-        await LogAuditEventAsync(user.Id, "USER_LOGIN_SUCCESS", $"Logged in successfully via workspace organization {normalizedUsername}.");
-        return new AuthResponse(org.Id, org.Email, org.Username, org.Name, null, workspaceRoles, permissions, true, "ACTIVE", "DASHBOARD");
+        await LogAuditEventAsync(null, "COMPANY_LOGIN_SUCCESS", $"Company '{normalizedUsername}' logged in successfully.");
+        return new AuthResponse(credential.OrganizationId, credential.Organization.Email, credential.Username, credential.Organization.Name, null, roles, permissions, true, "ACTIVE", "DASHBOARD");
     }
 
     // --- ACTIVE SESSIONS & REVOCATIONS ---
 
     public async Task<IEnumerable<SessionInfo>> GetActiveSessionsAsync()
     {
-        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null) return Enumerable.Empty<SessionInfo>();
+        var httpContext = _httpContextAccessor.HttpContext;
+        var user = httpContext?.User;
+        if (user == null) return Enumerable.Empty<SessionInfo>();
 
-        var userId = Guid.Parse(userIdClaim.Value);
+        var idClaim = user.FindFirst(ClaimTypes.NameIdentifier);
+        if (idClaim == null || !Guid.TryParse(idClaim.Value, out var targetId))
+            return Enumerable.Empty<SessionInfo>();
+
+        var actorType = user.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
 
         // Primary: Retrieve current SessionId from the cryptographically verified JWT 'sid' claim
-        var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+        var currentSessionIdClaim = user.FindFirst("sid")?.Value;
         Guid? currentSessionId = null;
         if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
         {
@@ -3571,7 +2965,7 @@ public class AuthService : IAuthService
         {
             // Rolling Deployment Fallback: if JWT token is older and lacks the 'sid' claim,
             // fall back to reading & validating the refresh token cookie
-            var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+            var currentRefreshToken = httpContext?.Request.Cookies["refresh_token"];
             if (!string.IsNullOrEmpty(currentRefreshToken))
             {
                 var storedToken = await _context.RefreshTokens
@@ -3583,9 +2977,13 @@ public class AuthService : IAuthService
             }
         }
 
-        var activeTokens = await _context.RefreshTokens
-            .Where(t => t.UserId == userId && t.RevokedAt == null && t.ExpiresAt > _timeProvider.GetUtcNow())
-            .ToListAsync();
+        var activeTokens = isBusiness
+            ? await _context.RefreshTokens
+                .Where(t => t.OrganizationId == targetId && t.RevokedAt == null && t.ExpiresAt > _timeProvider.GetUtcNow())
+                .ToListAsync()
+            : await _context.RefreshTokens
+                .Where(t => t.UserId == targetId && t.RevokedAt == null && t.ExpiresAt > _timeProvider.GetUtcNow())
+                .ToListAsync();
 
         var sessions = activeTokens
             .GroupBy(t => t.SessionId)
@@ -3611,13 +3009,18 @@ public class AuthService : IAuthService
 
     public async Task<bool> RevokeSessionAsync(Guid sessionId)
     {
-        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null) return false;
+        var httpContext = _httpContextAccessor.HttpContext;
+        var user = httpContext?.User;
+        if (user == null) return false;
 
-        var userId = Guid.Parse(userIdClaim.Value);
+        var idClaim = user.FindFirst(ClaimTypes.NameIdentifier);
+        if (idClaim == null || !Guid.TryParse(idClaim.Value, out var targetId)) return false;
+
+        var actorType = user.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
 
         // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
-        var lockKey = $"lock:user:sessions:{userId}";
+        var lockKey = $"lock:user:sessions:{targetId}";
         var lockValue = Guid.NewGuid().ToString("N");
         var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
         if (!acquired)
@@ -3628,7 +3031,7 @@ public class AuthService : IAuthService
         try
         {
             // Find current SessionId to determine if it is a self-revocation
-            var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+            var currentSessionIdClaim = user.FindFirst("sid")?.Value;
             Guid? currentSessionId = null;
             if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
             {
@@ -3637,7 +3040,7 @@ public class AuthService : IAuthService
             else
             {
                 // Fallback for rolling deployment
-                var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+                var currentRefreshToken = httpContext?.Request.Cookies["refresh_token"];
                 if (!string.IsNullOrEmpty(currentRefreshToken))
                 {
                     var storedToken = await _context.RefreshTokens
@@ -3652,14 +3055,18 @@ public class AuthService : IAuthService
             // Reject current session revocation (Self-Revocation Prevention)
             if (currentSessionId.HasValue && sessionId == currentSessionId.Value)
             {
-                _logger.LogWarning("Revocation rejected: Attempted self-revocation of active session {SessionId} for User {UserId}.", sessionId, userId);
-                await LogAuditEventAsync(userId, "SELF_REVOCATION_REJECTED", $"User attempted to revoke current active session {sessionId}. Operation rejected.");
+                _logger.LogWarning("Revocation rejected: Attempted self-revocation of active session {SessionId} for User {UserId}.", sessionId, targetId);
+                await LogAuditEventAsync(isBusiness ? null : targetId, "SELF_REVOCATION_REJECTED", $"User attempted to revoke current active session {sessionId}. Operation rejected.");
                 throw new AuthException(AuthErrorCodes.InvalidToken, "You cannot revoke your currently active session.");
             }
 
-            var activeTokens = await _context.RefreshTokens
-                .Where(t => t.UserId == userId && t.SessionId == sessionId && t.RevokedAt == null)
-                .ToListAsync();
+            var activeTokens = isBusiness
+                ? await _context.RefreshTokens
+                    .Where(t => t.OrganizationId == targetId && t.SessionId == sessionId && t.RevokedAt == null)
+                    .ToListAsync()
+                : await _context.RefreshTokens
+                    .Where(t => t.UserId == targetId && t.SessionId == sessionId && t.RevokedAt == null)
+                    .ToListAsync();
 
             if (!activeTokens.Any()) return false;
 
@@ -3674,7 +3081,7 @@ public class AuthService : IAuthService
             // Cache invalidation: write false to Redis to block access instantly
             await _cacheService.SetAsync($"auth:session:{sessionId}:active", "false", TimeSpan.FromHours(24));
 
-            await LogAuditEventAsync(userId, "SESSION_REVOKED", $"Session {sessionId} successfully revoked by owner.");
+            await LogAuditEventAsync(isBusiness ? null : targetId, "SESSION_REVOKED", $"Session {sessionId} successfully revoked by owner.");
 
             return true;
         }
@@ -3686,13 +3093,18 @@ public class AuthService : IAuthService
 
     public async Task<bool> RevokeAllOtherSessionsAsync(CancellationToken cancellationToken = default)
     {
-        var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null) return false;
+        var httpContext = _httpContextAccessor.HttpContext;
+        var user = httpContext?.User;
+        if (user == null) return false;
 
-        var userId = Guid.Parse(userIdClaim.Value);
+        var idClaim = user.FindFirst(ClaimTypes.NameIdentifier);
+        if (idClaim == null || !Guid.TryParse(idClaim.Value, out var targetId)) return false;
+
+        var actorType = user.FindFirst("actor_type")?.Value;
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
 
         // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
-        var lockKey = $"lock:user:sessions:{userId}";
+        var lockKey = $"lock:user:sessions:{targetId}";
         var lockValue = Guid.NewGuid().ToString("N");
         var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
         if (!acquired)
@@ -3703,7 +3115,7 @@ public class AuthService : IAuthService
         try
         {
             // Find current SessionId
-            var currentSessionIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst("sid")?.Value;
+            var currentSessionIdClaim = user.FindFirst("sid")?.Value;
             Guid? currentSessionId = null;
             if (!string.IsNullOrEmpty(currentSessionIdClaim) && Guid.TryParse(currentSessionIdClaim, out var parsedSid))
             {
@@ -3712,7 +3124,7 @@ public class AuthService : IAuthService
             else
             {
                 // Fallback for rolling deployment
-                var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
+                var currentRefreshToken = httpContext?.Request.Cookies["refresh_token"];
                 if (!string.IsNullOrEmpty(currentRefreshToken))
                 {
                     var storedToken = await _context.RefreshTokens
@@ -3724,9 +3136,13 @@ public class AuthService : IAuthService
                 }
             }
 
-            var otherActiveTokens = await _context.RefreshTokens
-                .Where(t => t.UserId == userId && t.RevokedAt == null && (currentSessionId == null || t.SessionId != currentSessionId))
-                .ToListAsync(cancellationToken);
+            var otherActiveTokens = isBusiness
+                ? await _context.RefreshTokens
+                    .Where(t => t.OrganizationId == targetId && t.RevokedAt == null && (currentSessionId == null || t.SessionId != currentSessionId))
+                    .ToListAsync(cancellationToken)
+                : await _context.RefreshTokens
+                    .Where(t => t.UserId == targetId && t.RevokedAt == null && (currentSessionId == null || t.SessionId != currentSessionId))
+                    .ToListAsync(cancellationToken);
 
             if (!otherActiveTokens.Any()) return true;
 
@@ -3748,7 +3164,7 @@ public class AuthService : IAuthService
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                _logger.LogError(ex, "Failed to revoke all other sessions for user {UserId}", userId);
+                _logger.LogError(ex, "Failed to revoke all other sessions for target {TargetId}", targetId);
                 return false;
             }
 
@@ -3758,7 +3174,7 @@ public class AuthService : IAuthService
                 await _cacheService.SetAsync($"auth:session:{token.SessionId}:active", "false", TimeSpan.FromHours(24));
             }
 
-            await LogAuditEventAsync(userId, "ALL_OTHER_SESSIONS_REVOKED", $"Revoked {uniqueSessionCount} other active sessions successfully.");
+            await LogAuditEventAsync(isBusiness ? null : targetId, "ALL_OTHER_SESSIONS_REVOKED", $"Revoked {uniqueSessionCount} other active sessions successfully.");
 
             return true;
         }
@@ -3979,16 +3395,10 @@ public class AuthService : IAuthService
                 CreatedAt = _timeProvider.GetUtcNow()
             };
 
-            var credential = new OAuthCredential
-            {
-                AuthProviderId = newProvider.Id,
-                EncryptedAccessToken = pending.EncryptedAccessToken,
-                EncryptedRefreshToken = pending.EncryptedRefreshToken,
-                ExpiresAt = null,
-                UpdatedAt = _timeProvider.GetUtcNow()
-            };
-
-            newProvider.OAuthCredential = credential;
+            newProvider.EncryptedAccessToken = pending.EncryptedAccessToken;
+            newProvider.EncryptedRefreshToken = pending.EncryptedRefreshToken;
+            newProvider.ExpiresAt = null;
+            newProvider.TokenUpdatedAt = _timeProvider.GetUtcNow();
             _context.AuthProviders.Add(newProvider);
             _context.PendingAuthProviders.Remove(pending);
 
@@ -4040,8 +3450,7 @@ public class AuthService : IAuthService
             .Where(ap => ap.UserId == userId && ap.DeletedAt == null)
             .ToListAsync();
 
-        var hasPassword = !string.IsNullOrEmpty(matchedProvider.User?.PasswordHash) || await _context.PasswordCredentials
-            .AnyAsync(pc => pc.UserId == userId && pc.IsActive && pc.DeletedAt == null);
+        var hasPassword = !string.IsNullOrEmpty(matchedProvider.User?.PasswordHash);
 
         var totalMethods = activeProviders.Count + (hasPassword ? 1 : 0);
         if (totalMethods <= 1)
@@ -4049,15 +3458,12 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Cannot unlink provider because it is your only login method.");
         }
 
-        var credential = await _context.OAuthCredentials
-            .FirstOrDefaultAsync(oc => oc.AuthProviderId == matchedProvider.Id);
-
         string? decryptedAccessToken = null;
-        if (credential != null && !string.IsNullOrEmpty(credential.EncryptedAccessToken) && !string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
+        if (!string.IsNullOrEmpty(matchedProvider.EncryptedAccessToken) && !string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
         {
             try
             {
-                decryptedAccessToken = EncryptionHelper.Decrypt(credential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
+                decryptedAccessToken = EncryptionHelper.Decrypt(matchedProvider.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
             }
             catch (Exception ex)
             {
@@ -4092,10 +3498,6 @@ public class AuthService : IAuthService
         try
         {
             matchedProvider.DeletedAt = _timeProvider.GetUtcNow();
-            if (credential != null)
-            {
-                _context.OAuthCredentials.Remove(credential);
-            }
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -4171,10 +3573,7 @@ public class AuthService : IAuthService
             await _cacheService.SetAsync(throttleKey, true, TimeSpan.FromMinutes(2));
         }
 
-        var credential = await _context.OAuthCredentials
-            .FirstOrDefaultAsync(oc => oc.AuthProviderId == matchedProvider.Id);
-
-        if (credential == null || string.IsNullOrEmpty(credential.EncryptedAccessToken) || string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
+        if (string.IsNullOrEmpty(matchedProvider.EncryptedAccessToken) || string.IsNullOrEmpty(_envConfig.Security.TokenEncryptionKey))
         {
             matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
             matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
@@ -4185,7 +3584,7 @@ public class AuthService : IAuthService
         string decryptedAccessToken;
         try
         {
-            decryptedAccessToken = EncryptionHelper.Decrypt(credential.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
+            decryptedAccessToken = EncryptionHelper.Decrypt(matchedProvider.EncryptedAccessToken, _envConfig.Security.TokenEncryptionKey);
         }
         catch (Exception ex)
         {
@@ -4287,7 +3686,6 @@ public class AuthService : IAuthService
         var userId = Guid.Parse(userIdClaim.Value);
 
         var user = await _context.Users
-            .Include(u => u.PasswordCredentials)
             .FirstOrDefaultAsync(u => u.Id == userId && u.DeletedAt == null, cancellationToken);
 
         if (user == null)
@@ -4295,12 +3693,7 @@ public class AuthService : IAuthService
             throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
         }
 
-        var activeCred = user.PasswordCredentials
-            .Where(pc => pc.IsActive && pc.DeletedAt == null)
-            .OrderByDescending(pc => pc.CreatedAt)
-            .FirstOrDefault();
-
-        string? currentPasswordHash = activeCred?.PasswordHash ?? user.PasswordHash;
+        string? currentPasswordHash = user.PasswordHash;
 
         if (string.IsNullOrEmpty(currentPasswordHash))
         {
@@ -4323,29 +3716,8 @@ public class AuthService : IAuthService
 
         // Update primary User entity password hash to ensure login flows utilize the new credentials
         user.PasswordHash = newHash;
+        user.PasswordChangedAt = _timeProvider.GetUtcNow();
         user.UpdatedAt = _timeProvider.GetUtcNow();
-
-        // Deactivate active credentials
-        foreach (var cred in user.PasswordCredentials.Where(pc => pc.IsActive && pc.DeletedAt == null))
-        {
-            cred.IsActive = false;
-            cred.RevokedAt = _timeProvider.GetUtcNow();
-            cred.RevokedReason = "PASSWORD_CHANGED";
-            cred.UpdatedAt = _timeProvider.GetUtcNow();
-        }
-
-        // Add new password credential
-        var newCred = new PasswordCredential
-        {
-            Id = Guid.CreateVersion7(),
-            UserId = user.Id,
-            PasswordHash = newHash,
-            IsActive = true,
-            PasswordChangedAt = _timeProvider.GetUtcNow(),
-            CreatedAt = _timeProvider.GetUtcNow(),
-            UpdatedAt = _timeProvider.GetUtcNow()
-        };
-        _context.PasswordCredentials.Add(newCred);
 
         // Revoke all other refresh tokens for user
         var currentRefreshToken = _httpContextAccessor.HttpContext?.Request.Cookies["refresh_token"];
@@ -4473,6 +3845,43 @@ public class AuthService : IAuthService
         var domain = parts[1];
         if (local.Length <= 2) return $"*@{domain}";
         return $"{local[0]}***{local[^1]}@{domain}";
+    }
+
+    public async Task ClaimPendingRelationshipsAsync(Guid userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("ClaimPendingRelationshipsAsync: User {UserId} not found.", userId);
+            return;
+        }
+
+        await _workspaceMembershipService.DiscoverPendingInvitationsAsync(userId);
+    }
+
+    private async Task ActivateUserAsync(User user)
+    {
+        if (user.Status != UserStatus.ACTIVE)
+        {
+            user.TransitionTo(UserStatus.ACTIVE);
+        }
+        if (!user.EmailVerifiedAt.HasValue)
+        {
+            user.EmailVerifiedAt = _timeProvider.GetUtcNow().UtcDateTime;
+        }
+        user.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
+
+        if (string.IsNullOrEmpty(user.Username))
+        {
+            await _usernameService.RunWithUsernameRetryAsync(user, user.Email, async () =>
+                await _context.SaveChangesAsync());
+        }
+        else
+        {
+            await _context.SaveChangesAsync();
+        }
+
+        await ClaimPendingRelationshipsAsync(user.Id);
     }
 }
 

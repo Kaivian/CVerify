@@ -16,44 +16,62 @@ export const evidenceFileSchema = z.object({
 
 export type EvidenceFile = z.infer<typeof evidenceFileSchema>;
 
-// Education item schema with coerced numeric GPA & Scale
-export const educationEntrySchema = z.object({
-  id: z.string().optional(),
-  label: z.string().min(1, "Label is required"),
-  school: z
-    .string()
-    .min(2, "School/University name must be at least 2 characters"),
-  period: z.any().refine((val) => val && val.start && val.end, {
-    message: "Valid study period is required",
-  }),
-  gpa: z
-    .number()
-    .min(0, "GPA must be at least 0")
-    .nullable()
-    .optional(),
-  gpaScale: z
-    .number()
-    .min(1, "Scale must be at least 1")
-    .max(100, "Scale must be at most 100")
-    .nullable()
-    .optional(),
-}).refine(
-  (data) => {
-    if (
-      data.gpa === null ||
-      data.gpa === undefined ||
-      data.gpaScale === null ||
-      data.gpaScale === undefined
-    ) {
-      return true;
+export const educationEntrySchema = z
+  .object({
+    id: z.string().optional(),
+    label: z.string().min(1, "Label is required"),
+    school: z
+      .string()
+      .min(2, "School/University name must be at least 2 characters"),
+    degree: z.string().nullable().optional(),
+    major: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
+    isCurrentlyStudying: z.boolean(),
+    period: z.any().nullable().optional(),
+    gpa: z
+      .number()
+      .min(0, "GPA must be at least 0")
+      .nullable()
+      .optional(),
+    gpaScale: z
+      .number()
+      .min(1, "Scale must be at least 1")
+      .max(100, "Scale must be at most 100")
+      .nullable()
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      const start = data.period?.start;
+      const end = data.period?.end;
+      if (!start) return false;
+      if (data.isCurrentlyStudying) {
+        return true;
+      }
+      return !!end;
+    },
+    {
+      message: "Valid study period is required",
+      path: ["period"],
     }
-    return data.gpa <= data.gpaScale;
-  },
-  {
-    message: "GPA cannot exceed the GPA Scale",
-    path: ["gpa"],
-  }
-);
+  )
+  .refine(
+    (data) => {
+      if (
+        data.gpa === null ||
+        data.gpa === undefined ||
+        data.gpaScale === null ||
+        data.gpaScale === undefined
+      ) {
+        return true;
+      }
+      return data.gpa <= data.gpaScale;
+    },
+    {
+      message: "GPA cannot exceed the GPA Scale",
+      path: ["gpa"],
+    }
+  );
 
 export type EducationEntry = z.infer<typeof educationEntrySchema>;
 

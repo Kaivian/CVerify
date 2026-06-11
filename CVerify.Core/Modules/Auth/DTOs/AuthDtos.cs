@@ -187,11 +187,8 @@ public class SetupWorkspaceRequest
     public string OrganizationUsername { get; init; } = null!;
 
     [Required]
+    [MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
     public string Password { get; init; } = null!;
-
-    [Required]
-    [Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
-    public string ConfirmPassword { get; init; } = null!;
 
     public SetupWorkspaceRequest() { }
 }
@@ -237,9 +234,8 @@ public record VerifyCompanyOnboardingResponse(
 public record CompleteOnboardingRequest(
     [Required] string Step2Token,
     [Required][RegularExpression(@"^[a-z0-9-]{4,32}$", ErrorMessage = "Workspace handle must be 4-32 characters, lowercase alphanumeric or dash")] string OrganizationUsername,
-    [Required] string Password,
-    [Required] string ConfirmPassword,
-    [Required][MaxLength(255)] string CompanyDisplayName
+    [Required][MaxLength(255)] string CompanyDisplayName,
+    [Required][MinLength(8, ErrorMessage = "Password must be at least 8 characters.")] string Password
 );
 
 public record GoogleOnboardingLinkRequest(
@@ -315,5 +311,11 @@ public class ChangePasswordRequest
 public record LinkGoogleRequest(
     [Required]
     string IdToken
+);
+
+public record SetupWorkspaceResponse(
+    bool Success,
+    string Email,
+    string OrganizationUsername
 );
 

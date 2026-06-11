@@ -64,10 +64,12 @@ END $$;
 -- Stores user roles for the Role-Based Access Control (RBAC) system
 CREATE TABLE roles (
     id UUID PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,          -- Internal identifier (e.g., 'SUPER_ADMIN')
+    name VARCHAR(50) NOT NULL,          -- Internal identifier (e.g., 'SUPER_ADMIN')
     display_name VARCHAR(100) NOT NULL,        -- User-friendly name
     description TEXT,
-    
+    domain VARCHAR(30) NOT NULL DEFAULT 'SYSTEM',
+    tenant_id UUID NULL,
+    parent_role_id UUID NULL REFERENCES roles(id) ON DELETE RESTRICT,
     is_system BOOLEAN NOT NULL DEFAULT FALSE,  -- Prevents deletion of core system roles
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
 
@@ -75,6 +77,8 @@ CREATE TABLE roles (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE        -- Support for soft deletion
 );
+CREATE UNIQUE INDEX idx_roles_tenant_id_name ON roles(tenant_id, name);
+CREATE UNIQUE INDEX idx_roles_name_system ON roles(name) WHERE tenant_id IS NULL;
 
 -- =========================================================
 -- 5. USERS TABLE
@@ -99,8 +103,11 @@ CREATE TABLE users (
     failed_attempts INT DEFAULT 0,             -- Counter for consecutive failed logins
     last_failed_at TIMESTAMP WITH TIME ZONE,   -- Timestamp of the last failed attempt
     lock_until TIMESTAMP WITH TIME ZONE,       -- Account lockout expiration time
+    password_changed_at TIMESTAMP WITH TIME ZONE,
     session_version INTEGER NOT NULL DEFAULT 1,
     is_legal_hold BOOLEAN NOT NULL DEFAULT FALSE,
+    linked_emails JSONB,
+    version INTEGER NOT NULL DEFAULT 1,
 
     -- Audit trails
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -123,6 +130,20 @@ CREATE TABLE user_roles (
 );
 
 -- =========================================================
+-- 6.5. ROLE_ASSIGNMENTS TABLE
+-- =========================================================
+-- Scoped assignments mapping users to roles
+CREATE TABLE role_assignments (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    scope_type VARCHAR(30) NOT NULL,
+    scope_id UUID NOT NULL,
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_role_assignments_unique ON role_assignments(user_id, role_id, scope_type, scope_id);
+
+-- =========================================================
 -- 7. PERMISSIONS TABLE
 -- =========================================================
 -- Granular permissions using a hierarchical naming convention
@@ -139,6 +160,33 @@ CREATE TABLE permissions (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+-- =========================================================
+-- 7.5. ORGANIZATIONS TABLE
+-- =========================================================
+-- Stores verified organization workspaces
+CREATE TABLE IF NOT EXISTS organizations (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    tax_code VARCHAR(50) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    username VARCHAR(100) NOT NULL,
+    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    verification_level INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    registration_number VARCHAR(50),
+    representative_name VARCHAR(255),
+    representative_email VARCHAR(255),
+    representative_phone VARCHAR(50),
+    recovery_authority VARCHAR(255),
+    representative_identity VARCHAR(255),
+    initial_admin_assigned_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_username_active ON organizations(username) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_tax_code_active ON organizations(tax_code) WHERE deleted_at IS NULL;
 
 -- =========================================================
 -- 8. ROLE_PERMISSIONS JUNCTION TABLE
@@ -160,7 +208,8 @@ CREATE TABLE role_permissions (
 -- Manages long-lived refresh tokens for maintaining user sessions securely
 CREATE TABLE refresh_tokens (
     id UUID PRIMARY KEY,
-    user_id UUID NOT NULL,
+    user_id UUID,
+    organization_id UUID,
     token VARCHAR(255) NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -172,7 +221,8 @@ CREATE TABLE refresh_tokens (
     remember_me BOOLEAN NOT NULL DEFAULT FALSE,
     replaced_by_token_id UUID,
 
-    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_refresh_tokens_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
 );
 
 -- =========================================================
@@ -224,15 +274,22 @@ CREATE TABLE outbox_messages (
 -- Security Audit Logs Table for tracking major events
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY,
-    user_id UUID,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     event_type VARCHAR(100) NOT NULL,
     description TEXT NOT NULL,
     ip_address VARCHAR(45),
     anonymized_actor_hash VARCHAR(64),
     user_agent VARCHAR(500),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_audit_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    target_role_name VARCHAR(50),
+    scope_type VARCHAR(30),
+    scope_id UUID,
+    details_json JSONB,
+    old_state_json JSONB,
+    new_state_json JSONB,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 -- =========================================================
@@ -270,8 +327,10 @@ CREATE TABLE messages (
 -- General Indexes
 CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
 CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_organization_id ON refresh_tokens(organization_id);
 CREATE INDEX idx_refresh_tokens_session_id ON refresh_tokens(session_id);
 CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
+
 
 -- Partial Indexes
 CREATE INDEX idx_verification_tokens_active ON verification_tokens(token_hash) WHERE consumed_at IS NULL;
@@ -288,6 +347,9 @@ CREATE INDEX idx_messages_conversation_id_created_at ON messages(conversation_id
 CREATE INDEX idx_verification_tokens_user_id ON verification_tokens(user_id);
 CREATE INDEX idx_reset_password_tokens_user_id ON reset_password_tokens(user_id);
 CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX idx_audit_logs_actor_user_id ON audit_logs(actor_user_id);
+CREATE INDEX idx_audit_logs_target_user_id ON audit_logs(target_user_id);
+CREATE INDEX idx_audit_logs_organization_id ON audit_logs(organization_id);
 
 -- =========================================================
 -- 17. TRIGGERS REGISTRATION
@@ -314,7 +376,7 @@ INSERT INTO roles (id, name, display_name, description, is_system)
 VALUES 
     ('018fc35b-1c5c-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'SUPER_ADMIN', 'System Administrator', 'Root access to all modules', TRUE),
     ('018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'USER', 'General User', 'Basic application access', TRUE)
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT (name) WHERE tenant_id IS NULL DO NOTHING;
 
 -- Bootstrap root wildcard permission
 INSERT INTO permissions (id, name, display_name, description, module, is_system)
@@ -359,23 +421,6 @@ ON CONFLICT DO NOTHING;
 -- ADDITIONAL DDL FOR TEST BUSINESS RELATION TABLES
 -- =========================================================
 
-CREATE TABLE IF NOT EXISTS organizations (
-    id UUID PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    tax_code VARCHAR(50) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    username VARCHAR(100) NOT NULL,
-    is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    verification_level INTEGER NOT NULL DEFAULT 0,
-    status VARCHAR(50) NOT NULL DEFAULT 'active',
-    registration_number VARCHAR(50),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    deleted_at TIMESTAMP WITH TIME ZONE
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_username_active ON organizations(username) WHERE deleted_at IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_tax_code_active ON organizations(tax_code) WHERE deleted_at IS NULL;
-
 CREATE TABLE IF NOT EXISTS organization_authorities (
     id UUID PRIMARY KEY,
     organization_id UUID NOT NULL,
@@ -385,6 +430,18 @@ CREATE TABLE IF NOT EXISTS organization_authorities (
     CONSTRAINT fk_organization_authorities_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
     CONSTRAINT fk_organization_authorities_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS organization_memberships (
+    id UUID PRIMARY KEY,
+    organization_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_organization_memberships_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organization_memberships_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_memberships_org_user ON organization_memberships(organization_id, user_id);
 
 CREATE TABLE IF NOT EXISTS workspaces (
     id UUID PRIMARY KEY,
@@ -474,3 +531,48 @@ WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE slug = 'tier2-workspace');
 INSERT INTO workspace_members (id, workspace_id, user_id, role)
 SELECT '01900000-0000-0000-0000-000000000015'::uuid, '01900000-0000-0000-0000-000000000014'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'workspace_admin'
 WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000014'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
+
+-- Seed Tier 1 Organization Membership (Owner)
+INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+SELECT '01900000-0000-0000-0000-000000000006'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'OWNER', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
+
+-- Seed Tier 1 HR User
+INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
+SELECT '01900000-0000-0000-0000-000000000007'::uuid, 'hr1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 HR Manager', 'ACTIVE', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'hr1@testbusiness.com');
+
+-- Seed Tier 1 HR Organization Membership
+INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+SELECT '01900000-0000-0000-0000-000000000008'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000007'::uuid, 'HR', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000007'::uuid);
+
+-- Seed Tier 1 Representative User
+INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
+SELECT '01900000-0000-0000-0000-000000000009'::uuid, 'rep1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Representative', 'ACTIVE', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'rep1@testbusiness.com');
+
+-- Seed Tier 1 Representative Organization Membership
+INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+SELECT '01900000-0000-0000-0000-00000000001a'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000009'::uuid, 'REPRESENTATIVE', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000009'::uuid);
+
+-- Seed Tier 1 Standard Member User
+INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
+SELECT '01900000-0000-0000-0000-00000000001b'::uuid, 'member1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Staff Member', 'ACTIVE', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'member1@testbusiness.com');
+
+-- Seed Tier 1 Standard Member Organization Membership
+INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+SELECT '01900000-0000-0000-0000-00000000001c'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-00000000001b'::uuid, 'MEMBER', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-00000000001b'::uuid);
+
+-- Seed Tier 2 Organization Membership (Owner)
+INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+SELECT '01900000-0000-0000-0000-000000000016'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'OWNER', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
+
+-- Seed Tier 2 Organization Membership for Tier 1 Owner (as MEMBER)
+INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+SELECT '01900000-0000-0000-0000-00000000001d'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'MEMBER', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);

@@ -3,13 +3,14 @@
 import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Breadcrumbs } from "@heroui/react";
-import { useTranslation } from "react-i18next";
 import { getRouteMetadata, getDynamicSegmentLabel } from "../../config/routes";
+import { useAuth } from "../../features/auth/hooks/use-auth";
 
 export const AppBreadcrumbs: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const { t } = useTranslation(["common"]);
+  const { user } = useAuth();
+  const isBusiness = user?.role === "BUSINESS";
 
   if (!pathname) return null;
 
@@ -22,31 +23,39 @@ export const AppBreadcrumbs: React.FC = () => {
     );
 
   // Build breadcrumb items based on accumulated path segments
-  const breadcrumbItems = segments.map((segment, index) => {
-    // Construct cumulative URL path up to current index
+  const breadcrumbItems: Array<{ href: string; label: string; isLast: boolean }> = [];
+
+  for (let index = 0; index < segments.length; index++) {
+    const segment = segments[index];
+    if (segment === "workspace" && isBusiness) {
+      continue;
+    }
+
+    // Construct cumulative URL path up to current index from the original segments array
     const href = "/" + segments.slice(0, index + 1).join("/");
     const metadata = getRouteMetadata(href);
 
     let label = "";
 
     if (metadata) {
-      // Resolve localized label using standard translation key if present
-      label = t(metadata.translationKey, {
-        defaultValue: metadata.fallbackLabel,
-      });
+      // Use fallbackLabel directly (English text)
+      label = metadata.fallbackLabel;
     } else {
       // If no route metadata exists, dynamically format the raw segment (e.g. UUID, number, slug)
       label = getDynamicSegmentLabel(segment);
     }
 
-    const isLast = index === segments.length - 1;
-
-    return {
+    breadcrumbItems.push({
       href,
       label,
-      isLast,
-    };
-  });
+      isLast: false,
+    });
+  }
+
+  // Set the isLast property for the final item
+  if (breadcrumbItems.length > 0) {
+    breadcrumbItems[breadcrumbItems.length - 1].isLast = true;
+  }
 
   return (
     <nav aria-label="Breadcrumbs Navigation" className="hidden md:flex">

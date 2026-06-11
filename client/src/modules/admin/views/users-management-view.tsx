@@ -3,17 +3,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { adminService } from '@/services/admin.service';
 import { type UserListItem, type RoleListItem } from '@/types/admin.types';
-import { Spinner, Checkbox, Label, Typography } from '@heroui/react';
+import { Spinner, Checkbox, Label, Typography, Table, Card } from '@heroui/react';
 import { Search, RotateCw, Users, Edit2, AlertCircle } from 'lucide-react';
 import { DialogModal } from '@/components/ui/dialog-modal';
 import { SelectDropdown } from '@/components/ui/select-dropdown';
 import { PaginationWrapper } from '@/components/ui/pagination-wrapper';
 import { SkeletonLoader, EmptyState } from '@/components/ui/states';
-import { useTranslation } from 'react-i18next';
 import { TableActionDropdown } from '@/components/ui/table-action-dropdown';
 
 export function UsersManagementView() {
-  const { t } = useTranslation(['dashboard-admin', 'common']);
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [roles, setRoles] = useState<RoleListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -147,10 +145,10 @@ export function UsersManagementView() {
         <div>
           <Typography type="h2" className="text-2xl font-extrabold tracking-tight flex items-center gap-2 font-display">
             <Users className="text-accent" size={24} />
-            {t('dashboard-admin:users.title')}
+            User Account Directory
           </Typography>
           <Typography type="body-sm" className="text-muted mt-1 font-outfit">
-            {t('dashboard-admin:users.subtitle')}
+            Manage user accounts, toggle access, adjust permissions, and track status.
           </Typography>
         </div>
         <button
@@ -158,7 +156,7 @@ export function UsersManagementView() {
           className="w-fit px-4 py-2.5 bg-foreground text-background rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-foreground/90 transition-all select-none cursor-pointer"
         >
           <RotateCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-          {t('dashboard-admin:users.syncRecords')}
+          Sync Records
         </button>
       </div>
 
@@ -169,7 +167,7 @@ export function UsersManagementView() {
             <Search size={16} className="absolute left-3 top-3.5 text-muted" />
             <input
               type="text"
-              placeholder={t('dashboard-admin:users.searchPlaceholder')}
+              placeholder="Search users by name or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-surface/50 text-xs focus:outline-none focus:ring-2 focus:ring-focus/20"
@@ -183,12 +181,12 @@ export function UsersManagementView() {
                 setPage(1);
               }}
               options={[
-                { value: "", label: t('dashboard-admin:users.status.all') },
-                { value: "ACTIVE", label: t('dashboard-admin:users.status.active') },
-                { value: "SUSPENDED", label: t('dashboard-admin:users.status.suspended') },
-                { value: "BANNED", label: t('dashboard-admin:users.status.banned') },
+                { value: "", label: "All Statuses" },
+                { value: "ACTIVE", label: "Active" },
+                { value: "SUSPENDED", label: "Suspended" },
+                { value: "BANNED", label: "Banned" },
               ]}
-              placeholder={t('dashboard-admin:users.status.all')}
+              placeholder="All Statuses"
             />
           </div>
           <div>
@@ -199,98 +197,102 @@ export function UsersManagementView() {
                 setPage(1);
               }}
               options={[
-                { value: "", label: t('dashboard-admin:users.roles.all') },
+                { value: "", label: "All Roles" },
                 ...roles.map((r) => ({ value: r.name, label: r.displayName })),
               ]}
-              placeholder={t('dashboard-admin:users.roles.all')}
+              placeholder="All Roles"
             />
           </div>
         </div>
       </div>
 
       {/* User Directory Table */}
-      <div className="rounded-2xl border border-border bg-surface/80 shadow-surface overflow-hidden">
+      <Card className="p-0 overflow-hidden border border-border bg-surface/80 rounded-2xl shadow-surface">
         {isLoading ? (
           <SkeletonLoader rows={6} columns={6} />
         ) : users.length === 0 ? (
           <EmptyState
-            title={t('dashboard-admin:users.empty.title')}
-            description={t('dashboard-admin:users.empty.description')}
+            title="No Users Found"
+            description="No accounts match your specified filter query."
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-separator bg-surface-secondary/45">
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.fullName')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.email')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">{t('dashboard-admin:users.table.status')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted hidden sm:table-cell">{t('dashboard-admin:users.table.roles')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-center text-muted hidden md:table-cell">{t('dashboard-admin:users.table.session')}</th>
-                  <th className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-right text-muted">{t('dashboard-admin:users.table.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b border-separator last:border-none hover:bg-surface-secondary/40 transition-colors">
-                    <td className="font-bold text-xs py-4 px-6">
-                      {u.fullName}
-                    </td>
-                    <td className="text-muted font-medium text-xs py-4 px-6 font-mono">
-                      {u.email}
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${getUserStatusStyle(u.status)}`}>
-                        {u.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 hidden sm:table-cell">
-                      <div className="flex flex-wrap gap-1.5">
-                        {u.roles.map((r) => (
-                          <span key={r} className="px-2 py-0.5 rounded border border-border text-[10px] font-bold text-muted bg-surface/50">
-                            {r}
+            <Table aria-label="Users Directory Table" className="w-full">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Users Directory Content">
+                  <Table.Header>
+                    <Table.Column isRowHeader className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">Full Name</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">Email Address</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted">Status</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-muted hidden sm:table-cell">Assigned Roles</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-center text-muted hidden md:table-cell">Session V</Table.Column>
+                    <Table.Column className="font-extrabold uppercase text-[10px] tracking-wider py-4 px-6 text-right text-muted">Actions</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {users.map((u) => (
+                      <Table.Row key={u.id} className="border-b border-separator last:border-none hover:bg-surface-secondary/40 transition-colors">
+                        <Table.Cell className="font-bold text-xs py-4 px-6">
+                          {u.fullName}
+                        </Table.Cell>
+                        <Table.Cell className="text-muted font-medium text-xs py-4 px-6 font-mono">
+                          {u.email}
+                        </Table.Cell>
+                        <Table.Cell className="py-4 px-6">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${getUserStatusStyle(u.status)}`}>
+                            {u.status}
                           </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="text-center font-mono font-bold text-xs py-4 px-6 text-muted hidden md:table-cell">
-                      v{u.sessionVersion}
-                    </td>
-                    <td className="text-right py-4 px-6">
-                      <TableActionDropdown
-                        actions={[
-                          {
-                            id: 'edit',
-                            label: t('dashboard-admin:users.table.adjust'),
-                            icon: Edit2,
-                            onSelect: () => handleEditClick(u),
-                          }
-                        ]}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        </Table.Cell>
+                        <Table.Cell className="py-4 px-6 hidden sm:table-cell">
+                          <div className="flex flex-wrap gap-1.5">
+                            {u.roles.map((r) => (
+                              <span key={r} className="px-2 py-0.5 rounded border border-border text-[10px] font-bold text-muted bg-surface/50">
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                        </Table.Cell>
+                        <Table.Cell className="text-center font-mono font-bold text-xs py-4 px-6 text-muted hidden md:table-cell">
+                          v{u.sessionVersion}
+                        </Table.Cell>
+                        <Table.Cell className="text-right py-4 px-6">
+                          <TableActionDropdown
+                            actions={[
+                              {
+                                id: 'edit',
+                                label: "Adjust Settings",
+                                icon: Edit2,
+                                onSelect: () => handleEditClick(u),
+                              }
+                            ]}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
           </div>
         )}
 
         {users.length > 0 && (
-          <PaginationWrapper
-            page={page}
-            totalPages={totalPages}
-            totalItems={totalCount}
-            itemsPerPage={pageSize}
-            onPageChange={(p) => setPage(p)}
-          />
+          <div className="p-4 border-t border-separator/60">
+            <PaginationWrapper
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalCount}
+              itemsPerPage={pageSize}
+              onPageChange={(p) => setPage(p)}
+            />
+          </div>
         )}
-      </div>
+      </Card>
 
       {/* Edit User Modal Dialog */}
       <DialogModal
         isOpen={isEditOpen}
         onOpenChange={setIsEditOpen}
-        title={t('dashboard-admin:users.modal.title')}
+        title="Adjust User Parameters"
         size="md"
         footer={
           <>
@@ -299,7 +301,7 @@ export function UsersManagementView() {
               disabled={isSaving}
               className="px-4 py-2 border border-border rounded-xl font-bold text-xs hover:bg-surface-secondary disabled:opacity-50 select-none cursor-pointer transition-colors"
             >
-              {t('dashboard-admin:users.modal.cancel')}
+              Cancel
             </button>
             <button
               onClick={handleSaveUser}
@@ -307,7 +309,7 @@ export function UsersManagementView() {
               className="px-4 py-2 bg-accent text-accent-foreground hover:bg-accent/90 font-bold rounded-xl text-xs hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 select-none cursor-pointer transition-colors"
             >
               {isSaving && <Spinner size="sm" color="accent" />}
-              {t('dashboard-admin:users.modal.apply')}
+              Apply Changes
             </button>
           </>
         }
@@ -315,20 +317,20 @@ export function UsersManagementView() {
         <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 text-warning flex gap-3 text-xs leading-relaxed select-none">
           <AlertCircle size={18} className="shrink-0 text-warning mt-0.5" />
           <div>
-            <span className="font-extrabold block mb-0.5">{t('dashboard-admin:users.modal.warningTitle')}</span>
-            {t('dashboard-admin:users.modal.warningDesc')}
+            <span className="font-extrabold block mb-0.5">Operational Precaution Warning</span>
+            Modifying roles or status values may immediately terminate active sessions. Proceed with caution.
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted">{t('dashboard-admin:users.modal.targetDetails')}</label>
+          <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted">Target Account Details</label>
           <div className="p-3.5 rounded-xl border border-border bg-surface-secondary text-xs font-medium space-y-1">
             <div className="flex justify-between">
-              <span className="text-muted">{t('dashboard-admin:users.modal.name')}</span>
+              <span className="text-muted">Name</span>
               <span className="font-bold text-foreground">{selectedUser?.fullName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted">{t('dashboard-admin:users.modal.email')}</span>
+              <span className="text-muted">Email</span>
               <span className="font-mono font-bold text-foreground">{selectedUser?.email}</span>
             </div>
           </div>
@@ -339,16 +341,16 @@ export function UsersManagementView() {
             value={editStatus}
             onChange={(val) => setEditStatus(val)}
             options={[
-              { value: "ACTIVE", label: t('dashboard-admin:users.modal.statusOptions.active') },
-              { value: "SUSPENDED", label: t('dashboard-admin:users.modal.statusOptions.suspended') },
-              { value: "BANNED", label: t('dashboard-admin:users.modal.statusOptions.banned') },
+              { value: "ACTIVE", label: "Active" },
+              { value: "SUSPENDED", label: "Suspended" },
+              { value: "BANNED", label: "Banned" },
             ]}
-            label={t('dashboard-admin:users.modal.statusLabel')}
+            label="Account Status"
           />
         </div>
 
         <div className="space-y-2.5">
-          <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted">{t('dashboard-admin:users.modal.rolesLabel')}</label>
+          <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted">Roles Hierarchy</label>
           <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
             {roles.map((role) => {
               const isChecked = editRoles.includes(role.name);
