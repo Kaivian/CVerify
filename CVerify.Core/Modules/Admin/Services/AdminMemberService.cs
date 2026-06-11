@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using CVerify.API.Modules.Admin.DTOs;
 using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Email.Services;

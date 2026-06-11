@@ -3,7 +3,33 @@
     "success": "Thành công!",
     "error": "Lỗi!",
     "warning": "Cảnh báo!",
-    "info": "Thông tin"
+    "info": "Thông tin",
+    "notifications": "Thông báo",
+    "preferences": "Cài đặt thông báo",
+    "markAllAsRead": "Đánh dấu tất cả đã đọc",
+    "unread": "Chưa đọc",
+    "all": "Tất cả",
+    "noNotifications": "Chưa có thông báo nào",
+    "settings": "Cài đặt",
+    "save": "Lưu thay đổi",
+    "delete": "Xóa",
+    "someone": "Ai đó",
+    "channels": {
+      "in_app": "Ứng dụng",
+      "email": "Email"
+    },
+    "time": {
+      "justNow": "Vừa xong",
+      "minutesAgo": "{{count}} phút trước",
+      "hoursAgo": "{{count}} giờ trước",
+      "daysAgo": "{{count}} ngày trước"
+    },
+    "categories": {
+      "memberTitle": "Thành viên & Vai trò",
+      "projectTitle": "Dự án & Kho mã nguồn",
+      "verificationTitle": "Xác minh & Tuân thủ",
+      "securityTitle": "Cảnh báo bảo mật"
+    }
   },
   "session": {
     "timeoutTitle": "Hết hạn phiên đăng nhập",
@@ -20,5 +46,34 @@
   "clipboard": {
     "copySuccessTitle": "Sao chép thành công",
     "copySuccessDesc": "Nội dung hành trình đã được sao chép vào khay nhớ tạm."
+  },
+  "types": {
+    "MEMBER_INVITED": "Lời mời thành viên mới",
+    "MEMBER_JOINED": "Thành viên tham gia",
+    "MEMBER_LEFT": "Thành viên rời đi",
+    "MEMBER_REMOVED": "Thành viên bị xóa",
+    "MEMBER_SUSPENDED": "Thành viên bị đình chỉ",
+    "MEMBER_ACTIVATED": "Thành viên được kích hoạt",
+    "ROLE_ASSIGNED": "Chỉ định vai trò",
+    "ROLE_UPDATED": "Cập nhật vai trò",
+    "PROJECT_CREATED": "Dự án mới được tạo",
+    "REPOSITORY_CONNECTED": "Kho mã nguồn được kết nối",
+    "REPOSITORY_ANALYZED": "Phân tích kho mã hoàn thành",
+    "VERIFICATION_COMPLETED": "Xác minh hoàn tất",
+    "VERIFICATION_FAILED": "Xác minh thất bại",
+    "PASSWORD_CHANGED": "Cảnh báo bảo mật: Mật khẩu thay đổi",
+    "IP_VERIFIED": "Cảnh báo bảo mật: IP mới được xác minh"
+  },
+  "messages": {
+    "MEMBER_JOINED_single": "{{actor}} đã tham gia tổ chức.",
+    "MEMBER_JOINED_multiple": "{{actor}} và {{count}} người khác đã tham gia.",
+    "MEMBER_LEFT_single": "{{actor}} đã rời tổ chức.",
+    "MEMBER_LEFT_multiple": "{{actor}} và {{count}} người khác đã rời đi.",
+    "MEMBER_INVITED": "{{actor}} đã mời thành viên mới.",
+    "ROLE_ASSIGNED": "Vai trò {{role}} đã được chỉ định cho {{actor}}.",
+    "VERIFICATION_COMPLETED": "Xác minh tổ chức đã hoàn thành thành công.",
+    "VERIFICATION_FAILED": "Xác minh tổ chức đã thất bại.",
+    "PASSWORD_CHANGED": "Mật khẩu của bạn vừa mới được thay đổi. Nếu không phải bạn thực hiện, vui lòng bảo mật tài khoản ngay lập tức.",
+    "IP_VERIFIED": "Một địa chỉ IP mới đã được xác minh thành công cho tài khoản của bạn."
   }
 }

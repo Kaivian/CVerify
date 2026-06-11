@@ -37,6 +37,9 @@ using CVerify.API.Modules.Shared.Security.Authorization;
 using CVerify.API.Modules.Shared.System.BackgroundWorkers;
 using CVerify.API.Modules.SourceCode.Services;
 using CVerify.API.Modules.SourceCode.BackgroundWorkers;
+using CVerify.API.Modules.Shared.Domain.Services;
+using CVerify.API.Modules.Shared.Domain.Resolvers;
+using CVerify.API.Modules.Shared.Hubs;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -380,6 +383,13 @@ builder.Services.AddScoped<ILevel2RecoveryService, Level2RecoveryService>();
 builder.Services.AddScoped<IPasswordPolicyService, PasswordPolicyService>();
 builder.Services.AddScoped<IOtpPolicyService, OtpPolicyService>();
 
+// Register Notification Platform Services
+builder.Services.AddScoped<IActivityEventPublisher, ActivityEventPublisher>();
+builder.Services.AddScoped<INotificationRecipientResolver, NotificationRecipientResolver>();
+builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
+builder.Services.AddScoped<INotificationChannel, InAppNotificationChannel>();
+builder.Services.AddSingleton<INotificationDispatcher, RedisNotificationDispatcher>();
+
 // Register Profile Settings Services
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IEducationService, EducationService>();
@@ -427,6 +437,9 @@ builder.Services.AddHostedService<OtpCleanupBackgroundWorker>();
 builder.Services.AddHostedService<BackgroundRepositorySyncProcessor>();
 builder.Services.AddHostedService<AnalysisQueueRecoverySweeper>();
 builder.Services.AddHostedService<BackgroundRepositoryAnalysisProcessor>();
+
+builder.Services.AddHostedService<RedisNotificationSubscriberWorker>();
+builder.Services.AddHostedService<ActivityEventProjectionWorker>();
 
 
 // Configure JWT Authentication
@@ -543,5 +556,6 @@ app.UseAuthorization();
 app.MapHealthChecks("/health");
 app.MapControllers();
 app.MapHub<CVerify.API.Modules.Admin.Hubs.AdminHub>("/hubs/admin");
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

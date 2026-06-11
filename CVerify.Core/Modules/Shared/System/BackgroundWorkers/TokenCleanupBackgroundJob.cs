@@ -180,6 +180,55 @@ public class TokenCleanupBackgroundJob : BackgroundService
             }
         } while (deleted == 100);
 
+        // 5a. Archive (soft-delete) read notifications older than 30 days
+        var notificationArchiveLimit = now.AddDays(-30);
+        do
+        {
+            if (stoppingToken.IsCancellationRequested) break;
+
+            var batch = await context.InAppNotifications
+                .Where(n => n.IsRead && n.ReadAt != null && n.ReadAt < notificationArchiveLimit && n.DeletedAt == null)
+                .OrderBy(n => n.Id)
+                .Take(100)
+                .ToListAsync(stoppingToken)
+                .ConfigureAwait(false);
+
+            deleted = batch.Count;
+            if (deleted > 0)
+            {
+                foreach (var n in batch)
+                {
+                    n.DeletedAt = now;
+                }
+                await context.SaveChangesAsync(stoppingToken).ConfigureAwait(false);
+                _logger.LogInformation("Archived (soft-deleted) {Count} read notifications older than 30 days.", deleted);
+                await Task.Delay(50, stoppingToken).ConfigureAwait(false);
+            }
+        } while (deleted == 100);
+
+        // 5b. Permanently purge soft-deleted notifications older than 14 days
+        var notificationPurgeLimit = now.AddDays(-14);
+        do
+        {
+            if (stoppingToken.IsCancellationRequested) break;
+
+            var batch = await context.InAppNotifications
+                .Where(n => n.DeletedAt != null && n.DeletedAt < notificationPurgeLimit)
+                .OrderBy(n => n.Id)
+                .Take(100)
+                .ToListAsync(stoppingToken)
+                .ConfigureAwait(false);
+
+            deleted = batch.Count;
+            if (deleted > 0)
+            {
+                context.InAppNotifications.RemoveRange(batch);
+                await context.SaveChangesAsync(stoppingToken).ConfigureAwait(false);
+                _logger.LogInformation("Permanently purged {Count} soft-deleted notifications older than 14 days.", deleted);
+                await Task.Delay(50, stoppingToken).ConfigureAwait(false);
+            }
+        } while (deleted == 100);
+
         // 6. Purge expired soft-deleted user accounts past the 14-day grace period
         await PurgeExpiredSoftDeletedUsersAsync(stoppingToken).ConfigureAwait(false);
     }

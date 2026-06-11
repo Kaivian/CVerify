@@ -52,12 +52,6 @@ public record AuditLogListItemDto(
     DateTimeOffset CreatedAt
 );
 
-public record PaginatedResultDto<T>(
-    IEnumerable<T> Items,
-    int TotalCount,
-    int Page,
-    int PageSize
-);
 
 public record AdminMemberListItemDto(
     Guid Id,

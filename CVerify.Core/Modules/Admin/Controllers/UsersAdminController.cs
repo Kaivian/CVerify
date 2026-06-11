@@ -13,6 +13,7 @@ using CVerify.API.Modules.Admin.Services;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security.Authorization.Attributes;
 using CVerify.API.Modules.Shared.Exceptions;
+using CVerify.API.Modules.Shared.System.DTOs;
 
 namespace CVerify.API.Modules.Admin.Controllers;
 
