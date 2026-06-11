@@ -3,7 +3,7 @@
 import { useEffect, type FC } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../hooks/use-auth';
-import { isValidInternalPath } from '../../../lib/utils/auth-utils';
+import { isValidInternalPath, isProtectedRoute } from '../../../lib/utils/auth-utils';
 
 export const AuthOrchestrator: FC = () => {
   const { isAuthenticated, bootstrapState, user } = useAuth();
@@ -14,7 +14,7 @@ export const AuthOrchestrator: FC = () => {
     // Auth orchestration only triggers once bootstrapping state is resolved
     if (bootstrapState !== 'READY') return;
 
-    const isProtectedRoute = ['/admin', '/business', '/user', '/chat', '/jobs', '/cv', '/settings'].some((p) => pathname.startsWith(p));
+    const isProtected = isProtectedRoute(pathname);
     const isAuthRoute = ['/login', '/register', '/forgot-password', '/reset-password'].some((p) => pathname === p);
     
     // Parse callback URL safely on the client
@@ -27,7 +27,7 @@ export const AuthOrchestrator: FC = () => {
 
     if (!isAuthenticated) {
       // 1. Unauthenticated users accessing protected dashboard pages
-      if (isProtectedRoute) {
+      if (isProtected) {
         const fullRedirectPath = `/login?callbackUrl=${encodeURIComponent(pathname + (typeof window !== 'undefined' ? window.location.search : ''))}`;
         console.log(`[Auth Orchestrator] Unauthenticated user accessing private route: ${pathname}. Redirecting to: ${fullRedirectPath}`);
         router.replace(fullRedirectPath);

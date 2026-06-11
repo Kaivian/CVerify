@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ROUTES } from './lib/constants/auth.constants';
+import { isProtectedRoute } from './lib/utils/auth-utils';
 
 const SUPPORTED_LANGS = ['vi', 'en'];
 const DEFAULT_LANG = 'vi';
@@ -43,22 +44,8 @@ export async function proxy(request: NextRequest) {
   // Extract tokens from cookies, aligned with C# snake_case cookie naming
   const accessToken = request.cookies.get('access_token')?.value;
 
-  // Define route classifications
-  let isDashboardRoute = ['/admin', '/business', '/user', '/chat'].some(p => pathname.startsWith(p));
-
-  const segments = pathname.split('/').filter(Boolean);
-  if (segments[0] === 'workspace') {
-    if (segments.length <= 2) {
-      // /workspace or /workspace/{organizationSlug} are public
-      isDashboardRoute = false;
-    } else {
-      const subPath = segments[2];
-      const publicSubPaths = ['about', 'jobs', 'posts', 'people'];
-      if (!publicSubPaths.includes(subPath)) {
-        isDashboardRoute = true;
-      }
-    }
-  }
+  // Define route classifications using shared logic
+  const isDashboardRoute = isProtectedRoute(pathname);
 
   // Development environment gated edge logging to prevent production data leakage
   if (isDev) {
