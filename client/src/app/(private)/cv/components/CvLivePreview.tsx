@@ -1,8 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { CVPreview } from "./CVPreview";
 import { type CvDraftState } from "./types";
-import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
-import { type SourceCodeRepository } from "@/types/source-code-provider.types";
 
 interface CvLivePreviewProps {
   drafts: CvDraftState;
@@ -25,9 +23,7 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
 
     const updateLayout = () => {
       const parentWidth = container.clientWidth - 16; // subtracting padding (8px left/right)
-      const parentHeight = container.clientHeight - 16; // subtracting padding (8px top/bottom)
       const targetWidth = 794; // Standard A4 width in pixels at 96 DPI
-      const targetHeight = 1123; // Standard A4 height in pixels at 96 DPI
 
       // Calculate scale to fit the width of the container, allowing vertical scrolling
       const scaleX = parentWidth > 0 ? parentWidth / targetWidth : 1;
@@ -36,9 +32,13 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
       const clampedScale = Math.max(0.2, Math.min(1.0, scaleX));
       setScale(clampedScale);
 
-      // Measure raw unscaled height of the preview content
-      const height = preview.scrollHeight || preview.offsetHeight || 1123;
-      setContentHeight(height);
+      // Measure the inner print area (unclipped in-flow container) instead of the absolute box
+      const printArea = preview.querySelector(".cv-print-area") as HTMLElement | null;
+      const targetHeight = printArea
+        ? (printArea.scrollHeight || printArea.offsetHeight || 1123)
+        : (preview.scrollHeight || preview.offsetHeight || 1123);
+
+      setContentHeight(targetHeight);
     };
 
     updateLayout();
@@ -51,8 +51,19 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
     observer.observe(container);
     observer.observe(preview);
 
+    // Observe DOM mutations (like pagination updates) to reliably re-measure height
+    const mutationObserver = new MutationObserver(() => {
+      updateLayout();
+    });
+    mutationObserver.observe(preview, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
     return () => {
       observer.disconnect();
+      mutationObserver.disconnect();
     };
   }, [drafts]);
 
@@ -67,10 +78,11 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
   return (
     <div
       ref={containerRef}
-      className="flex-1 w-full rounded-xl overflow-y-auto overflow-x-hidden flex flex-col items-center justify-start relative"
+      className="flex-1 w-full rounded-xl overflow-y-auto overflow-x-hidden flex flex-col items-center justify-start relative cv-preview-container"
       style={{ minHeight: "400px" }}
     >
       <div
+        className="cv-preview-wrapper"
         style={{
           width: `${794 * scale}px`,
           height: `${contentHeight * scale}px`,
@@ -82,11 +94,11 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
       >
         <div
           ref={previewRef}
+          className="cv-preview-scaler"
           style={{
             transform: `scale(${scale})`,
             transformOrigin: "top left",
             width: "794px",
-            minHeight: `${contentHeight}px`,
             position: "absolute",
             left: 0,
             top: 0,

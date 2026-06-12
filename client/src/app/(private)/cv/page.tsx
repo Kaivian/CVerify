@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Typography,
@@ -253,6 +254,8 @@ export default function CvManagementCenter() {
   const [isA4PreviewOpen, setIsA4PreviewOpen] = useState(false);
   const [useSampleData, setUseSampleData] = useState(false);
 
+
+
   // Fetch verified repositories
   const [repositories, setRepositories] = useState<SourceCodeRepository[]>([]);
 
@@ -299,36 +302,48 @@ export default function CvManagementCenter() {
     await fetchDetails(id);
   };
 
-  // Dynamic scale for the A4 preview modal to fit smaller screens
-  const previewFrameRef = useRef<HTMLDivElement>(null);
-  const previewContentRef = useRef<HTMLDivElement>(null);
+  // Callback states for ResizeObserver to track modal elements safely after mounting
+  const [modalFrameEl, setModalFrameEl] = useState<HTMLDivElement | null>(null);
+  const [modalContentEl, setModalContentEl] = useState<HTMLDivElement | null>(null);
   const [previewScale, setPreviewScale] = useState(1);
   const [previewContentHeight, setPreviewContentHeight] = useState(1123);
 
   useEffect(() => {
-    if (!isA4PreviewOpen) return;
-
-    const frame = previewFrameRef.current;
-    const content = previewContentRef.current;
-    if (!frame) return;
+    if (!isA4PreviewOpen || !modalFrameEl || !modalContentEl) return;
 
     const A4_WIDTH_PX = 794;
     const FRAME_PADDING_PX = 64; // p-8 = 32px each side
 
     const updateLayout = () => {
-      const available = frame.clientWidth - FRAME_PADDING_PX;
+      const available = modalFrameEl.clientWidth - FRAME_PADDING_PX;
       setPreviewScale(Math.min(1, available / A4_WIDTH_PX));
-      if (content) {
-        setPreviewContentHeight(content.scrollHeight || content.offsetHeight || 1123);
-      }
+
+      const printArea = modalContentEl.querySelector(".cv-print-area") as HTMLElement | null;
+      const targetHeight = printArea
+        ? (printArea.scrollHeight || printArea.offsetHeight || 1123)
+        : (modalContentEl.scrollHeight || modalContentEl.offsetHeight || 1123);
+
+      setPreviewContentHeight(targetHeight);
     };
 
     updateLayout();
     const observer = new ResizeObserver(updateLayout);
-    observer.observe(frame);
-    if (content) observer.observe(content);
-    return () => observer.disconnect();
-  }, [isA4PreviewOpen]);
+    observer.observe(modalFrameEl);
+    observer.observe(modalContentEl);
+
+    // Observe DOM mutations (like pagination updates) to reliably re-measure height
+    const mutationObserver = new MutationObserver(updateLayout);
+    mutationObserver.observe(modalContentEl, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [isA4PreviewOpen, modalFrameEl, modalContentEl]);
 
   useEffect(() => {
     let active = true;
@@ -371,6 +386,8 @@ export default function CvManagementCenter() {
       parentMain.classList.remove("lg:overflow-hidden");
     };
   }, [viewState]);
+
+
 
   // Hydrate states when server data fetches successfully
   useEffect(() => {
@@ -2327,18 +2344,43 @@ export default function CvManagementCenter() {
             </div>
 
             {/* A4 Printable content frame */}
-            <div className="flex-1 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start cv-preview-content-frame">
-              <div className="shadow-md border border-border rounded-xs overflow-hidden cv-preview-box">
-                <CVPreview
-                  basic={activeProfile}
-                  summary={{ bio: activeProfile.bio }}
-                  skills={{ targetSkills: activeCareer.targetSkills }}
-                  experience={activeExp}
-                  education={activeEdu}
-                  achievements={activeAch}
-                  preferences={activePreferences}
-                  projects={activeProjects}
-                />
+            <div
+              ref={setModalFrameEl}
+              className="flex-1 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start cv-preview-content-frame"
+            >
+              <div
+                style={{
+                  width: `${794 * previewScale}px`,
+                  height: `${previewContentHeight * previewScale}px`,
+                  position: "relative",
+                  display: "flex",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  ref={setModalContentEl}
+                  style={{
+                    transform: `scale(${previewScale})`,
+                    transformOrigin: "top left",
+                    width: "794px",
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                  }}
+                  className="shadow-md border border-border rounded-xs overflow-hidden cv-preview-box"
+                >
+                  <CVPreview
+                    basic={activeProfile}
+                    summary={{ bio: activeProfile.bio }}
+                    skills={{ targetSkills: activeCareer.targetSkills }}
+                    experience={activeExp}
+                    education={activeEdu}
+                    achievements={activeAch}
+                    preferences={activePreferences}
+                    projects={activeProjects}
+                  />
+                </div>
               </div>
             </div>
           </Card>
@@ -2353,6 +2395,22 @@ export default function CvManagementCenter() {
           onProceedAnyway={handleForceTriggerAssessment}
           isProceeding={latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'}
         />
+      )}
+
+      {typeof document !== "undefined" && createPortal(
+        <div className="cv-print-portal">
+          <CVPreview
+            basic={activeProfile}
+            summary={{ bio: activeProfile.bio }}
+            skills={{ targetSkills: activeCareer.targetSkills }}
+            experience={activeExp}
+            education={activeEdu}
+            achievements={activeAch}
+            preferences={activePreferences}
+            projects={activeProjects}
+          />
+        </div>,
+        document.body
       )}
 
     </div>
