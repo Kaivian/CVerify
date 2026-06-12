@@ -255,38 +255,40 @@ export const EducationForm: React.FC<EducationFormProps> = ({
               </div>
             ) : (
               draft.map((item) => (
-                <Card key={item.id} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface flex flex-row justify-between items-center gap-4">
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <span className="font-bold text-foreground text-xs truncate">
-                      {item.schoolName}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      {item.degree || item.label} {item.major ? `- ${item.major}` : ""} ({item.startDate} to {item.isCurrentlyStudying ? "Present" : item.endDate})
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl border border-border/30 h-8 w-8"
-                      onPress={() => handleEdit(item)}
-                      type="button"
-                      aria-label={`Edit education at ${item.schoolName}`}
-                    >
-                      <Edit2 className="size-3.5" />
-                    </Button>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl border border-border/30 h-8 w-8 text-danger"
-                      onPress={() => handleRemove(item.id)}
-                      type="button"
-                      aria-label={`Remove education at ${item.schoolName}`}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                <Card key={item.id} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface text-left">
+                  <div className="flex flex-row justify-between items-center gap-4 w-full">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="font-bold text-foreground text-xs truncate">
+                        {item.schoolName}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium">
+                        {item.degree || item.label} {item.major ? `- ${item.major}` : ""} ({item.startDate} to {item.isCurrentlyStudying ? "Present" : item.endDate})
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-xl border border-border/30 h-8 w-8"
+                        onPress={() => handleEdit(item)}
+                        type="button"
+                        aria-label={`Edit education at ${item.schoolName}`}
+                      >
+                        <Edit2 className="size-3.5" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-xl border border-border/30 h-8 w-8 text-danger"
+                        onPress={() => handleRemove(item.id)}
+                        type="button"
+                        aria-label={`Remove education at ${item.schoolName}`}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               ))

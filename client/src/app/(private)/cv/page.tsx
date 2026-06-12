@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Typography,
@@ -245,6 +245,37 @@ export default function CvManagementCenter() {
       active = false;
     };
   }, []);
+
+  // Dynamic scale for the A4 preview modal to fit smaller screens
+  const previewFrameRef = useRef<HTMLDivElement>(null);
+  const previewContentRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
+  const [previewContentHeight, setPreviewContentHeight] = useState(1123);
+
+  useEffect(() => {
+    if (!isA4PreviewOpen) return;
+
+    const frame = previewFrameRef.current;
+    const content = previewContentRef.current;
+    if (!frame) return;
+
+    const A4_WIDTH_PX = 794;
+    const FRAME_PADDING_PX = 64; // p-8 = 32px each side
+
+    const updateLayout = () => {
+      const available = frame.clientWidth - FRAME_PADDING_PX;
+      setPreviewScale(Math.min(1, available / A4_WIDTH_PX));
+      if (content) {
+        setPreviewContentHeight(content.scrollHeight || content.offsetHeight || 1123);
+      }
+    };
+
+    updateLayout();
+    const observer = new ResizeObserver(updateLayout);
+    observer.observe(frame);
+    if (content) observer.observe(content);
+    return () => observer.disconnect();
+  }, [isA4PreviewOpen]);
 
   // Manage parent dashboard layout overflow on desktop
   useEffect(() => {
@@ -797,12 +828,16 @@ export default function CvManagementCenter() {
   };
 
   const activeProfile = useSampleData ? SAMPLE_DATA.profile : {
-    fullName: drafts["basic-info"].fullName || "Untitled",
-    headline: drafts["basic-info"].headline || "Headline not set",
+    // Pass raw values so the modal/print preview matches the live preview exactly.
+    // CVPreview handles empty states itself (defaults name to "Untitled", hides an
+    // empty headline) — injecting placeholder text here caused preview/print drift.
+    fullName: drafts["basic-info"].fullName || "",
+    headline: drafts["basic-info"].headline || "",
     bio: drafts["career-summary"].bio || "",
     location: drafts["basic-info"].location || "",
     publicEmail: drafts["basic-info"].publicEmail || "",
     phoneNumber: drafts["basic-info"].phoneNumber || "",
+    birthDate: drafts["basic-info"].birthDate || "",
     socialLinks: drafts["basic-info"].socialLinks || [],
   };
 
@@ -935,25 +970,27 @@ export default function CvManagementCenter() {
               <Card
                 key={section.id}
                 rounded="xl"
-                className="p-4 border border-border/40 hover:border-accent/40 bg-surface flex items-start gap-3.5 cursor-pointer text-left select-none relative group"
+                className="p-4 border border-border/40 hover:border-accent/40 bg-surface cursor-pointer text-left select-none relative group"
                 onClick={() => {
                   setActiveTab(section.id);
                   setViewState("editor");
                 }}
               >
-                <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors">
-                  <Icon className="size-5" />
+                <div className="flex items-start gap-3.5 w-full">
+                  <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors shrink-0">
+                    <Icon className="size-5" />
+                  </div>
+                  <div className="flex flex-col gap-0.5 min-w-0 pr-4">
+                    <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                      {section.label}
+                      {hasDraftChanges && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
+                      )}
+                    </span>
+                    <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
+                  </div>
+                  <ChevronRight className="size-4 text-muted absolute right-3 top-1/2 -translate-y-1/2 group-hover:text-accent transition-colors" />
                 </div>
-                <div className="flex flex-col gap-0.5 min-w-0 pr-4">
-                  <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
-                    {section.label}
-                    {hasDraftChanges && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
-                    )}
-                  </span>
-                  <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
-                </div>
-                <ChevronRight className="size-4 text-muted absolute right-3 top-1/2 -translate-y-1/2 group-hover:text-accent transition-colors" />
               </Card>
             );
           })}
@@ -1178,7 +1215,7 @@ export default function CvManagementCenter() {
       {/* Dialog standard A4 Preview overlay */}
       {isA4PreviewOpen && (
         <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 cv-preview-overlay">
-          <Card rounded="xl" className="w-full max-w-[850px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left cv-preview-card">
+          <Card rounded="xl" className="w-full max-w-[850px] h-[90vh] border border-border flex flex-col overflow-hidden text-left cv-preview-card">
             {/* Header controls */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 select-none bg-surface/80 backdrop-blur-md">
               <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
@@ -1218,18 +1255,39 @@ export default function CvManagementCenter() {
             </div>
 
             {/* A4 Printable content frame */}
-            <div className="flex-1 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start cv-preview-content-frame">
-              <div className="shadow-md border border-border rounded-xs overflow-hidden cv-preview-box">
-                <CVPreview
-                  basic={activeProfile}
-                  summary={{ bio: activeProfile.bio }}
-                  skills={{ targetSkills: activeCareer.targetSkills }}
-                  experience={activeExp}
-                  education={activeEdu}
-                  achievements={activeAch}
-                  preferences={activePreferences}
-                  projects={activeProjects}
-                />
+            <div ref={previewFrameRef} className="flex-1 min-h-0 overflow-y-auto p-8 bg-surface-secondary/50 cv-preview-content-frame">
+              <div
+                className="mx-auto cv-preview-scale-wrapper"
+                style={{
+                  width: `${794 * previewScale}px`,
+                  height: `${previewContentHeight * previewScale}px`,
+                  position: "relative",
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  ref={previewContentRef}
+                  className="shadow-md border border-border rounded-xs overflow-hidden cv-preview-box"
+                  style={{
+                    transform: `scale(${previewScale})`,
+                    transformOrigin: "top left",
+                    width: "794px",
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                  }}
+                >
+                  <CVPreview
+                    basic={activeProfile}
+                    summary={{ bio: activeProfile.bio }}
+                    skills={{ targetSkills: activeCareer.targetSkills }}
+                    experience={activeExp}
+                    education={activeEdu}
+                    achievements={activeAch}
+                    preferences={activePreferences}
+                    projects={activeProjects}
+                  />
+                </div>
               </div>
             </div>
           </Card>
