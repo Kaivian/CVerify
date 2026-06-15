@@ -16,7 +16,6 @@ import {
   type AcceptAiSuggestionsRequest,
   type CandidateReadinessDto,
   type CandidateAssessmentResponse,
-  type CandidateAssessmentArtifactDto,
   type CandidateAssessmentDetailResponse,
   type ProjectEntryRequest,
   type ProjectEntryResponse,
