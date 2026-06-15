@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Input, Button, TextArea, Spinner } from "@heroui/react";
+import { Input, Button, TextArea, Spinner, DatePicker, DateField, Calendar } from "@heroui/react";
+import { parseDate } from "@internationalized/date";
 import { Card } from "@/components/ui/card";
 import { PlusCircle, Trash2, Edit2, X } from "lucide-react";
 import { type AchievementsDraftItem } from "./types";
@@ -24,6 +25,16 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
 }) => {
   const [editingItem, setEditingItem] = useState<AchievementsDraftItem | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const issueDateString = editingItem?.issueDate ? editingItem.issueDate.split("T")[0] : "";
+  let issueDateValue = null;
+  if (issueDateString) {
+    try {
+      issueDateValue = parseDate(issueDateString);
+    } catch (e) {
+      console.error("Failed to parse issueDate:", e);
+    }
+  }
 
   const handleEdit = (item: AchievementsDraftItem) => {
     setEditingItem({ ...item });
@@ -152,12 +163,52 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
 
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">Issue Date *</label>
-              <input
-                type="date"
-                className="flex h-10 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
-                value={editingItem.issueDate ? editingItem.issueDate.split("T")[0] : ""}
-                onChange={(e) => setEditingItem({ ...editingItem, issueDate: e.target.value })}
-              />
+              <DatePicker
+                value={issueDateValue}
+                onChange={(val) => {
+                  if (editingItem) {
+                    setEditingItem({ ...editingItem, issueDate: val ? val.toString() : "" });
+                  }
+                }}
+                className="flex flex-col gap-1 w-full"
+                aria-label="Issue Date"
+              >
+                <DateField.Group fullWidth>
+                  <DateField.Input>
+                    {(segment) => <DateField.Segment segment={segment} />}
+                  </DateField.Input>
+                  <DateField.Suffix>
+                    <DatePicker.Trigger>
+                      <DatePicker.TriggerIndicator />
+                    </DatePicker.Trigger>
+                  </DateField.Suffix>
+                </DateField.Group>
+                <DatePicker.Popover>
+                  <Calendar aria-label="Issue Date">
+                    <Calendar.Header>
+                      <Calendar.YearPickerTrigger>
+                        <Calendar.YearPickerTriggerHeading />
+                        <Calendar.YearPickerTriggerIndicator />
+                      </Calendar.YearPickerTrigger>
+                      <Calendar.NavButton slot="previous" />
+                      <Calendar.NavButton slot="next" />
+                    </Calendar.Header>
+                    <Calendar.Grid>
+                      <Calendar.GridHeader>
+                        {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                      </Calendar.GridHeader>
+                      <Calendar.GridBody>
+                        {(date) => <Calendar.Cell date={date} />}
+                      </Calendar.GridBody>
+                    </Calendar.Grid>
+                    <Calendar.YearPickerGrid>
+                      <Calendar.YearPickerGridBody>
+                        {({ year }) => <Calendar.YearPickerCell year={year} />}
+                      </Calendar.YearPickerGridBody>
+                    </Calendar.YearPickerGrid>
+                  </Calendar>
+                </DatePicker.Popover>
+              </DatePicker>
             </div>
 
             <div className="flex flex-col gap-1.5 md:col-span-2">

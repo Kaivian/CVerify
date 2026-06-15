@@ -8,7 +8,8 @@ import { rolesService } from "../services/roles.service";
 import { type MemberDetails, type OrganizationInvitation, type PreAssignedRole } from "../types/workspace.types";
 import { type BusinessRoleDetailsDto, type AssignScopedRoleDto } from "../types/roles.types";
 import { Card } from "@/components/ui/card";
-import { Table, Typography, Chip, Button, Spinner, Dropdown, Avatar, toast } from "@heroui/react";
+import { Table, Typography, Chip, Button, Spinner, Dropdown, Avatar, toast, DatePicker, DateField, Calendar } from "@heroui/react";
+import { parseDate } from "@internationalized/date";
 import {
   Users,
   Search,
@@ -88,6 +89,26 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
   const [logEndDate, setLogEndDate] = useState("");
   const [logSortBy, setLogSortBy] = useState("CreatedAt");
   const [logSortOrder, setLogSortOrder] = useState("desc");
+
+  const logStartDateString = logStartDate || "";
+  let logStartDateValue = null;
+  if (logStartDateString) {
+    try {
+      logStartDateValue = parseDate(logStartDateString);
+    } catch (e) {
+      console.error("Failed to parse logStartDate:", e);
+    }
+  }
+
+  const logEndDateString = logEndDate || "";
+  let logEndDateValue = null;
+  if (logEndDateString) {
+    try {
+      logEndDateValue = parseDate(logEndDateString);
+    } catch (e) {
+      console.error("Failed to parse logEndDate:", e);
+    }
+  }
 
   // Available Roles & Workspaces for Dropdowns
   const [availableRoles, setAvailableRoles] = useState<BusinessRoleDetailsDto[]>([]);
@@ -1183,27 +1204,99 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                   </div>
                   <div className="flex flex-col gap-1 text-left">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-muted">Start Date</label>
-                    <input
-                      type="date"
-                      value={logStartDate}
-                      onChange={(e) => {
-                        setLogStartDate(e.target.value);
+                    <DatePicker
+                      value={logStartDateValue}
+                      onChange={(val) => {
+                        setLogStartDate(val ? val.toString() : "");
                         setLogPage(1);
                       }}
-                      className="w-full px-3.5 py-2 rounded-xl border border-border bg-field-background text-xs focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all text-muted"
-                    />
+                      className="flex flex-col gap-1 w-full"
+                      aria-label="Start Date"
+                    >
+                      <DateField.Group fullWidth>
+                        <DateField.Input>
+                          {(segment) => <DateField.Segment segment={segment} />}
+                        </DateField.Input>
+                        <DateField.Suffix>
+                          <DatePicker.Trigger>
+                            <DatePicker.TriggerIndicator />
+                          </DatePicker.Trigger>
+                        </DateField.Suffix>
+                      </DateField.Group>
+                      <DatePicker.Popover>
+                        <Calendar aria-label="Start Date">
+                          <Calendar.Header>
+                            <Calendar.YearPickerTrigger>
+                              <Calendar.YearPickerTriggerHeading />
+                              <Calendar.YearPickerTriggerIndicator />
+                            </Calendar.YearPickerTrigger>
+                            <Calendar.NavButton slot="previous" />
+                            <Calendar.NavButton slot="next" />
+                          </Calendar.Header>
+                          <Calendar.Grid>
+                            <Calendar.GridHeader>
+                              {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                            </Calendar.GridHeader>
+                            <Calendar.GridBody>
+                              {(date) => <Calendar.Cell date={date} />}
+                            </Calendar.GridBody>
+                          </Calendar.Grid>
+                          <Calendar.YearPickerGrid>
+                            <Calendar.YearPickerGridBody>
+                              {({ year }) => <Calendar.YearPickerCell year={year} />}
+                            </Calendar.YearPickerGridBody>
+                          </Calendar.YearPickerGrid>
+                        </Calendar>
+                      </DatePicker.Popover>
+                    </DatePicker>
                   </div>
                   <div className="flex flex-col gap-1 text-left">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-muted">End Date</label>
-                    <input
-                      type="date"
-                      value={logEndDate}
-                      onChange={(e) => {
-                        setLogEndDate(e.target.value);
+                    <DatePicker
+                      value={logEndDateValue}
+                      onChange={(val) => {
+                        setLogEndDate(val ? val.toString() : "");
                         setLogPage(1);
                       }}
-                      className="w-full px-3.5 py-2 rounded-xl border border-border bg-field-background text-xs focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all text-muted"
-                    />
+                      className="flex flex-col gap-1 w-full"
+                      aria-label="End Date"
+                    >
+                      <DateField.Group fullWidth>
+                        <DateField.Input>
+                          {(segment) => <DateField.Segment segment={segment} />}
+                        </DateField.Input>
+                        <DateField.Suffix>
+                          <DatePicker.Trigger>
+                            <DatePicker.TriggerIndicator />
+                          </DatePicker.Trigger>
+                        </DateField.Suffix>
+                      </DateField.Group>
+                      <DatePicker.Popover>
+                        <Calendar aria-label="End Date">
+                          <Calendar.Header>
+                            <Calendar.YearPickerTrigger>
+                              <Calendar.YearPickerTriggerHeading />
+                              <Calendar.YearPickerTriggerIndicator />
+                            </Calendar.YearPickerTrigger>
+                            <Calendar.NavButton slot="previous" />
+                            <Calendar.NavButton slot="next" />
+                          </Calendar.Header>
+                          <Calendar.Grid>
+                            <Calendar.GridHeader>
+                              {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                            </Calendar.GridHeader>
+                            <Calendar.GridBody>
+                              {(date) => <Calendar.Cell date={date} />}
+                            </Calendar.GridBody>
+                          </Calendar.Grid>
+                          <Calendar.YearPickerGrid>
+                            <Calendar.YearPickerGridBody>
+                              {({ year }) => <Calendar.YearPickerCell year={year} />}
+                            </Calendar.YearPickerGridBody>
+                          </Calendar.YearPickerGrid>
+                        </Calendar>
+                      </DatePicker.Popover>
+                    </DatePicker>
                   </div>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Input, Button, TextArea, Checkbox, Spinner, Tooltip } from "@heroui/react";
+import { Input, Button, TextArea, Checkbox, Spinner, Tooltip, DatePicker, DateField, Calendar } from "@heroui/react";
+import { parseDate } from "@internationalized/date";
 import { Card } from "@/components/ui/card";
 import { PlusCircle, Trash2, Edit2, X, Info } from "lucide-react";
 import { type EducationDraftItem } from "./types";
@@ -24,6 +25,26 @@ export const EducationForm: React.FC<EducationFormProps> = ({
 }) => {
   const [editingItem, setEditingItem] = useState<EducationDraftItem | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const startDateString = editingItem?.startDate ? editingItem.startDate.split("T")[0] : "";
+  let startDateValue = null;
+  if (startDateString) {
+    try {
+      startDateValue = parseDate(startDateString);
+    } catch (e) {
+      console.error("Failed to parse startDate:", e);
+    }
+  }
+
+  const endDateString = editingItem?.endDate ? editingItem.endDate.split("T")[0] : "";
+  let endDateValue = null;
+  if (endDateString) {
+    try {
+      endDateValue = parseDate(endDateString);
+    } catch (e) {
+      console.error("Failed to parse endDate:", e);
+    }
+  }
 
   const handleEdit = (item: EducationDraftItem) => {
     setEditingItem({ ...item });
@@ -165,23 +186,103 @@ export const EducationForm: React.FC<EducationFormProps> = ({
 
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">Start Date *</label>
-              <input
-                type="date"
-                className="flex h-10 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
-                value={editingItem.startDate ? editingItem.startDate.split("T")[0] : ""}
-                onChange={(e) => setEditingItem({ ...editingItem, startDate: e.target.value })}
-              />
+              <DatePicker
+                value={startDateValue}
+                onChange={(val) => {
+                  if (editingItem) {
+                    setEditingItem({ ...editingItem, startDate: val ? val.toString() : "" });
+                  }
+                }}
+                className="flex flex-col gap-1 w-full"
+                aria-label="Start Date"
+              >
+                <DateField.Group fullWidth>
+                  <DateField.Input>
+                    {(segment) => <DateField.Segment segment={segment} />}
+                  </DateField.Input>
+                  <DateField.Suffix>
+                    <DatePicker.Trigger>
+                      <DatePicker.TriggerIndicator />
+                    </DatePicker.Trigger>
+                  </DateField.Suffix>
+                </DateField.Group>
+                <DatePicker.Popover>
+                  <Calendar aria-label="Start Date">
+                    <Calendar.Header>
+                      <Calendar.YearPickerTrigger>
+                        <Calendar.YearPickerTriggerHeading />
+                        <Calendar.YearPickerTriggerIndicator />
+                      </Calendar.YearPickerTrigger>
+                      <Calendar.NavButton slot="previous" />
+                      <Calendar.NavButton slot="next" />
+                    </Calendar.Header>
+                    <Calendar.Grid>
+                      <Calendar.GridHeader>
+                        {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                      </Calendar.GridHeader>
+                      <Calendar.GridBody>
+                        {(date) => <Calendar.Cell date={date} />}
+                      </Calendar.GridBody>
+                    </Calendar.Grid>
+                    <Calendar.YearPickerGrid>
+                      <Calendar.YearPickerGridBody>
+                        {({ year }) => <Calendar.YearPickerCell year={year} />}
+                      </Calendar.YearPickerGridBody>
+                    </Calendar.YearPickerGrid>
+                  </Calendar>
+                </DatePicker.Popover>
+              </DatePicker>
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">End Date</label>
-              <input
-                type="date"
-                className="flex h-10 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent disabled:bg-surface-secondary disabled:text-muted"
-                value={editingItem.endDate ? editingItem.endDate.split("T")[0] : ""}
-                disabled={editingItem.isCurrentlyStudying}
-                onChange={(e) => setEditingItem({ ...editingItem, endDate: e.target.value })}
-              />
+              <DatePicker
+                value={endDateValue}
+                onChange={(val) => {
+                  if (editingItem) {
+                    setEditingItem({ ...editingItem, endDate: val ? val.toString() : null });
+                  }
+                }}
+                isDisabled={editingItem.isCurrentlyStudying}
+                className="flex flex-col gap-1 w-full"
+                aria-label="End Date"
+              >
+                <DateField.Group fullWidth>
+                  <DateField.Input>
+                    {(segment) => <DateField.Segment segment={segment} />}
+                  </DateField.Input>
+                  <DateField.Suffix>
+                    <DatePicker.Trigger>
+                      <DatePicker.TriggerIndicator />
+                    </DatePicker.Trigger>
+                  </DateField.Suffix>
+                </DateField.Group>
+                <DatePicker.Popover>
+                  <Calendar aria-label="End Date">
+                    <Calendar.Header>
+                      <Calendar.YearPickerTrigger>
+                        <Calendar.YearPickerTriggerHeading />
+                        <Calendar.YearPickerTriggerIndicator />
+                      </Calendar.YearPickerTrigger>
+                      <Calendar.NavButton slot="previous" />
+                      <Calendar.NavButton slot="next" />
+                    </Calendar.Header>
+                    <Calendar.Grid>
+                      <Calendar.GridHeader>
+                        {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                      </Calendar.GridHeader>
+                      <Calendar.GridBody>
+                        {(date) => <Calendar.Cell date={date} />}
+                      </Calendar.GridBody>
+                    </Calendar.Grid>
+                    <Calendar.YearPickerGrid>
+                      <Calendar.YearPickerGridBody>
+                        {({ year }) => <Calendar.YearPickerCell year={year} />}
+                      </Calendar.YearPickerGridBody>
+                    </Calendar.YearPickerGrid>
+                  </Calendar>
+                </DatePicker.Popover>
+              </DatePicker>
             </div>
 
             <label className="flex items-center gap-2 py-4 select-none cursor-pointer">
