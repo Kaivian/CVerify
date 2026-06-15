@@ -1453,30 +1453,32 @@ export default function CvManagementCenter() {
                     key={section.id}
                     rounded="2xl"
                     glow={true}
-                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex flex-col justify-between cursor-pointer text-left select-none relative group h-[135px] transition-all hover:shadow-xs"
+                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex gap-4 cursor-pointer text-left select-none relative group h-[110px]"
                     onClick={() => {
                       setActiveTab(section.id);
                       setViewState("editor");
                     }}
                   >
-                    <div className="flex justify-between items-center w-full">
-                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-all">
-                        <Icon className="size-4.5" />
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {hasDraftChanges && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning animate-pulse" title="Unsaved changes">
-                            Draft
-                          </span>
-                        )}
-                        <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                      </div>
+                    <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5">
+                      <Icon className="size-4.5" />
                     </div>
-                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-auto">
-                      <span className="text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors">
-                        {section.label}
-                      </span>
-                      <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
+                    <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                            {section.label}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {hasDraftChanges && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
+                                Draft
+                              </span>
+                            )}
+                            <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
+                      </div>
                     </div>
                   </Card>
                 );
@@ -1506,30 +1508,32 @@ export default function CvManagementCenter() {
                     key={section.id}
                     rounded="2xl"
                     glow={true}
-                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex flex-col justify-between cursor-pointer text-left select-none relative group h-[135px] transition-all hover:shadow-xs"
+                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex gap-4 cursor-pointer text-left select-none relative group h-[110px]"
                     onClick={() => {
                       setActiveTab(section.id);
                       setViewState("editor");
                     }}
                   >
-                    <div className="flex justify-between items-center w-full">
-                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-all">
-                        <Icon className="size-4.5" />
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {hasDraftChanges && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning animate-pulse" title="Unsaved changes">
-                            Draft
-                          </span>
-                        )}
-                        <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                      </div>
+                    <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5">
+                      <Icon className="size-4.5" />
                     </div>
-                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-auto">
-                      <span className="text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors">
-                        {section.label}
-                      </span>
-                      <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
+                    <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                            {section.label}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {hasDraftChanges && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
+                                Draft
+                              </span>
+                            )}
+                            <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
+                      </div>
                     </div>
                   </Card>
                 );
@@ -1558,30 +1562,32 @@ export default function CvManagementCenter() {
                     key={section.id}
                     rounded="2xl"
                     glow={true}
-                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex flex-col justify-between cursor-pointer text-left select-none relative group h-[135px] transition-all hover:shadow-xs"
+                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex gap-4 cursor-pointer text-left select-none relative group h-[110px]"
                     onClick={() => {
                       setActiveTab(section.id);
                       setViewState("editor");
                     }}
                   >
-                    <div className="flex justify-between items-center w-full">
-                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-all">
-                        <Icon className="size-4.5" />
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {hasDraftChanges && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning animate-pulse" title="Unsaved changes">
-                            Draft
-                          </span>
-                        )}
-                        <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                      </div>
+                    <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5">
+                      <Icon className="size-4.5" />
                     </div>
-                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-auto">
-                      <span className="text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors">
-                        {section.label}
-                      </span>
-                      <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
+                    <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 w-full">
+                          <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                            {section.label}
+                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {hasDraftChanges && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
+                                Draft
+                              </span>
+                            )}
+                            <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
+                      </div>
                     </div>
                   </Card>
                 );
