@@ -344,13 +344,15 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                   aria-label="Currently working here"
                   className="cursor-pointer"
                 >
-                  <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
-                    <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
-                      <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </Checkbox.Indicator>
-                  </Checkbox.Control>
+                  <Checkbox.Content>
+                    <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                      <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </Checkbox.Indicator>
+                    </Checkbox.Control>
+                  </Checkbox.Content>
                 </Checkbox>
                 <span className="text-xs font-semibold text-foreground">
                   Currently working here
@@ -369,13 +371,15 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                   aria-label="Leadership / Management Role"
                   className="cursor-pointer"
                 >
-                  <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
-                    <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
-                      <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </Checkbox.Indicator>
-                  </Checkbox.Control>
+                  <Checkbox.Content>
+                    <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                      <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </Checkbox.Indicator>
+                    </Checkbox.Control>
+                  </Checkbox.Content>
                 </Checkbox>
                 <span className="text-xs font-semibold text-foreground">
                   Leadership / Management Role
@@ -453,7 +457,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                     <Tooltip.Trigger>
                       <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                     </Tooltip.Trigger>
-                    <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                    <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                       Key metrics, achievements, or notable results in this role, e.g. 'Optimized database query response time by 30%'
                     </Tooltip.Content>
                   </Tooltip>

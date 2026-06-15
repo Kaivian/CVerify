@@ -351,7 +351,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                   This will form your public profile URL: cverify.com/username
                 </Tooltip.Content>
               </Tooltip>
@@ -387,7 +387,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
                   <Tooltip.Trigger>
                     <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                   </Tooltip.Trigger>
-                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                     A short, catchy phrase summarizing your expertise, e.g. "Senior Fullstack Engineer"
                   </Tooltip.Content>
                 </Tooltip>
@@ -643,9 +643,9 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             <label className="text-[11px] font-bold text-foreground">Pronouns</label>
             <Select
               placeholder="Select pronouns"
-              selectedKey={draft.pronouns || "prefer_not"}
-              onSelectionChange={(key) => {
-                onChange({ pronouns: key as string });
+              value={draft.pronouns || "prefer_not"}
+              onChange={(value) => {
+                onChange({ pronouns: value as string });
               }}
               aria-label="Pronouns"
             >
