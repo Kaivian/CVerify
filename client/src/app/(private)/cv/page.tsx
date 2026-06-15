@@ -1663,7 +1663,7 @@ export default function CvManagementCenter() {
                     <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
                     <div className="flex flex-col gap-1">
                       <span className="font-bold text-foreground">Required Fields Missing</span>
-                      <span className="text-[10px] text-danger-foreground bg-danger-soft px-2.5 py-1 rounded-lg font-semibold leading-relaxed">
+                      <span className="text-[10px] text-danger bg-danger-soft px-2.5 py-1 rounded-lg font-semibold leading-relaxed">
                         Missing: {readiness.missingFields.join(", ")}
                       </span>
                     </div>

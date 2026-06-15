@@ -47,7 +47,7 @@ public static class DbInitializer
             throw new InvalidOperationException("Database connectivity check failed. Please ensure PostgreSQL is running and the connection string is correct.");
         }
 
-        // Temporary fix to mark AddNotificationSystem migration as applied if activity_events table exists
+        // Temporary fix to mark AddNotificationSystem and other existing tables migrations as applied
         try
         {
             await context.Database.ExecuteSqlRawAsync(@"
@@ -57,7 +57,12 @@ public static class DbInitializer
                     CONSTRAINT pk___ef_migrations_history PRIMARY KEY (migration_id)
                 );
                 INSERT INTO ""__EFMigrationsHistory"" (migration_id, product_version)
-                VALUES ('20260611091911_AddNotificationSystem', '8.0.0')
+                VALUES 
+                ('20260611091911_AddNotificationSystem', '8.0.0'),
+                ('20260614071252_AddWorkspacePostsTable', '10.0.0'),
+                ('20260614100549_AddJobVacanciesTable', '10.0.0'),
+                ('20260615093611_AddCandidateAssessments', '10.0.0'),
+                ('20260615141609_AddExternalOrganizations', '10.0.0')
                 ON CONFLICT (migration_id) DO NOTHING;
             ");
         }
@@ -91,6 +96,7 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS analysis_reports CASCADE;
                 DROP TABLE IF EXISTS analysis_job_events CASCADE;
                 DROP TABLE IF EXISTS analysis_jobs CASCADE;
+                DROP TABLE IF EXISTS external_organizations CASCADE;
                 DROP TABLE IF EXISTS source_code_repositories CASCADE;
 
                 DROP TABLE IF EXISTS profile_activity_logs CASCADE;
@@ -320,8 +326,29 @@ public static class DbInitializer
                     END IF;
                 END IF;
 
-                -- If source_code_repositories exists, add classification and authenticity_type columns if missing
+                -- If source_code_repositories exists, add external_organization_id, classification and authenticity_type columns if missing
                 IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'source_code_repositories') THEN
+                    -- Ensure external_organizations table is created first if it does not exist
+                    CREATE TABLE IF NOT EXISTS external_organizations (
+                        id UUID PRIMARY KEY,
+                        auth_provider_id UUID NOT NULL,
+                        external_id VARCHAR(255) NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        login VARCHAR(255) NOT NULL,
+                        type VARCHAR(50) NOT NULL,
+                        avatar_url VARCHAR(1000),
+                        html_url VARCHAR(1000),
+                        description VARCHAR(2000),
+                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                        last_synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                        CONSTRAINT fk_external_organizations_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
+                    );
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_external_organizations_provider_external_active ON external_organizations(auth_provider_id, external_id);
+
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'external_organization_id') THEN
+                        ALTER TABLE source_code_repositories ADD COLUMN external_organization_id UUID NULL REFERENCES external_organizations(id) ON DELETE SET NULL;
+                        CREATE INDEX IF NOT EXISTS ix_source_code_repositories_external_organization_id ON source_code_repositories(external_organization_id);
+                    END IF;
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'source_code_repositories' AND column_name = 'classification') THEN
                         ALTER TABLE source_code_repositories ADD COLUMN classification VARCHAR(255);
                     END IF;
@@ -655,10 +682,28 @@ public static class DbInitializer
             );
             CREATE INDEX IF NOT EXISTS idx_pending_auth_providers_expiry ON pending_auth_providers(expires_at);
 
+            -- Stores external organizations/groups profile metadata linked to auth providers
+            CREATE TABLE IF NOT EXISTS external_organizations (
+                id UUID PRIMARY KEY,
+                auth_provider_id UUID NOT NULL,
+                external_id VARCHAR(255) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                login VARCHAR(255) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                avatar_url VARCHAR(1000),
+                html_url VARCHAR(1000),
+                description VARCHAR(2000),
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                last_synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT fk_external_organizations_auth_providers FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_external_organizations_provider_external_active ON external_organizations(auth_provider_id, external_id);
+
             -- Stores repositories associated with auth providers
             CREATE TABLE IF NOT EXISTS source_code_repositories (
                 id UUID PRIMARY KEY,
                 auth_provider_id UUID NOT NULL,
+                external_organization_id UUID NULL,
                 external_repository_id VARCHAR(255) NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 owner VARCHAR(255) NOT NULL,
@@ -691,9 +736,11 @@ public static class DbInitializer
                 latest_risk_factors_json JSONB,
                 created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
                 last_synced_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                CONSTRAINT fk_source_code_repositories_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE
+                CONSTRAINT fk_source_code_repositories_auth_provider FOREIGN KEY (auth_provider_id) REFERENCES auth_providers(id) ON DELETE CASCADE,
+                CONSTRAINT fk_source_code_repositories_external_organization FOREIGN KEY (external_organization_id) REFERENCES external_organizations(id) ON DELETE SET NULL
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_source_code_repositories_external_active ON source_code_repositories(auth_provider_id, external_repository_id);
+            CREATE INDEX IF NOT EXISTS ix_source_code_repositories_external_organization_id ON source_code_repositories(external_organization_id);
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_owner_login ON source_code_repositories(owner_login);
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_language ON source_code_repositories(primary_language) WHERE primary_language IS NOT NULL;
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_updated ON source_code_repositories(last_updated_utc DESC);
@@ -1459,6 +1506,21 @@ public static class DbInitializer
                     ALTER TABLE auth_providers ADD COLUMN sync_error TEXT;
                 END IF;
 
+                -- Safely provision is_leadership column to work_experience_entries if missing
+                IF EXISTS (
+                    SELECT 1 
+                    FROM information_schema.tables 
+                    WHERE table_name = 'work_experience_entries'
+                ) THEN
+                    IF NOT EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'work_experience_entries' AND column_name = 'is_leadership'
+                    ) THEN
+                        ALTER TABLE work_experience_entries ADD COLUMN is_leadership BOOLEAN NOT NULL DEFAULT FALSE;
+                    END IF;
+                END IF;
+
             END $$;
 
             -- Safely provision avatar_source column and perform backfills
@@ -2047,6 +2109,7 @@ public static class DbInitializer
                 start_date TIMESTAMP WITH TIME ZONE NOT NULL,
                 end_date TIMESTAMP WITH TIME ZONE,
                 is_currently_working BOOLEAN NOT NULL DEFAULT FALSE,
+                is_leadership BOOLEAN NOT NULL DEFAULT FALSE,
                 description TEXT NOT NULL,
                 display_order INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -2515,6 +2578,45 @@ public static class DbInitializer
             );
             CREATE INDEX IF NOT EXISTS ix_workspace_posts_created_by_user_id ON workspace_posts(created_by_user_id);
             CREATE INDEX IF NOT EXISTS ix_workspace_posts_organization_id ON workspace_posts(organization_id);
+
+            -- Stores candidate assessment records
+            CREATE TABLE IF NOT EXISTS candidate_assessments (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                overall_score DOUBLE PRECISION NOT NULL,
+                career_level VARCHAR(20),
+                career_level_label VARCHAR(50),
+                primary_tendency VARCHAR(50),
+                primary_working_style VARCHAR(50),
+                summary_headline VARCHAR(500),
+                summary_paragraph VARCHAR(2000),
+                pipeline_version VARCHAR(20) NOT NULL,
+                assessment_schema_version VARCHAR(20) NOT NULL,
+                last_profile_update_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                last_repository_analysis_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                last_assessment_at TIMESTAMP WITH TIME ZONE,
+                failed_stage VARCHAR(100),
+                failure_reason TEXT,
+                version INTEGER NOT NULL,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
+                completed_at_utc TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT fk_candidate_assessments_users_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_assessments_user_id ON candidate_assessments(user_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_candidate_assessments_user_version ON candidate_assessments(user_id, version);
+
+            -- Stores candidate assessment artifact details
+            CREATE TABLE IF NOT EXISTS candidate_assessment_artifacts (
+                id UUID PRIMARY KEY,
+                assessment_id UUID NOT NULL,
+                artifact_type VARCHAR(100) NOT NULL,
+                json_data TEXT NOT NULL,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
+                CONSTRAINT fk_candidate_assessment_artifacts_candidate_assessments_assess FOREIGN KEY (assessment_id) REFERENCES candidate_assessments(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_candidate_assessment_artifacts_assessment_id ON candidate_assessment_artifacts(assessment_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_candidate_assessment_artifacts_type ON candidate_assessment_artifacts(assessment_id, artifact_type);
 
             -- Table storing global system metadata and environmental markers
             CREATE TABLE IF NOT EXISTS system_metadata (

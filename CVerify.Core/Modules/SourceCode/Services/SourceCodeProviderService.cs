@@ -15,6 +15,7 @@ using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.SourceCode.DTOs;
 using CVerify.API.Modules.SourceCode.Entities;
 using CVerify.API.Modules.Shared.System.DTOs;
+using CVerify.API.Modules.SourceCode.Clients;
 
 namespace CVerify.API.Modules.SourceCode.Services;
 
@@ -27,6 +28,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<SourceCodeProviderService> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IEnumerable<ISourceCodeClient> _clients;
 
     public SourceCodeProviderService(
         ApplicationDbContext context,
@@ -35,7 +37,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         EnvConfiguration envConfig,
         IHttpClientFactory httpClientFactory,
         ILogger<SourceCodeProviderService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IEnumerable<ISourceCodeClient> clients)
     {
         _context = context;
         _cacheService = cacheService;
@@ -44,6 +47,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         _httpClientFactory = httpClientFactory;
         _logger = logger;
         _timeProvider = timeProvider;
+        _clients = clients;
     }
 
     public async Task<IEnumerable<SourceCodeProviderDto>> GetProvidersAsync(Guid userId)
@@ -94,6 +98,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         string? language, 
         string? sort, 
         string? category, 
+        string? ownerType,
+        Guid? organizationId,
         int page, 
         int pageSize)
     {
@@ -183,6 +189,26 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             query = query.Where(r => r.Classification != null && EF.Functions.ILike(r.Classification, category));
         }
 
+        if (!string.IsNullOrWhiteSpace(ownerType) && !string.Equals(ownerType, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(ownerType, "personal", StringComparison.OrdinalIgnoreCase) || 
+                string.Equals(ownerType, "user", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => EF.Functions.ILike(r.OwnerType, "user"));
+            }
+            else if (string.Equals(ownerType, "organization", StringComparison.OrdinalIgnoreCase) || 
+                     string.Equals(ownerType, "org", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => EF.Functions.ILike(r.OwnerType, "organization") || 
+                                         EF.Functions.ILike(r.OwnerType, "group"));
+            }
+        }
+
+        if (organizationId.HasValue)
+        {
+            query = query.Where(r => r.ExternalOrganizationId == organizationId.Value);
+        }
+
         // Apply Sorting:
         // Priority 1: Completed
         // Priority 2: Pending
@@ -207,6 +233,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             .Select(r => new RepositoryDto(
                 r.Id,
                 r.AuthProviderId,
+                r.ExternalOrganizationId,
                 r.ExternalRepositoryId,
                 r.Name,
                 r.Owner,
@@ -243,6 +270,25 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             .ToListAsync();
 
         return new PaginatedResultDto<RepositoryDto>(items, totalCount, page, pageSize);
+    }
+
+    public async Task<IEnumerable<ExternalOrganizationResponseDto>> GetOrganizationsAsync(Guid userId)
+    {
+        return await _context.ExternalOrganizations
+            .Where(eo => eo.AuthProvider.UserId == userId && eo.AuthProvider.DeletedAt == null && eo.IsActive)
+            .Select(eo => new ExternalOrganizationResponseDto(
+                eo.Id,
+                eo.AuthProviderId,
+                eo.ExternalId,
+                eo.Name,
+                eo.Login,
+                eo.Type,
+                eo.AvatarUrl,
+                eo.HtmlUrl,
+                eo.Description,
+                eo.IsActive
+            ))
+            .ToListAsync();
     }
 
     public async Task<Guid> EnqueueSyncJobAsync(Guid userId, Guid? providerId)
@@ -419,90 +465,41 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             throw new InvalidOperationException("OAuth refresh token is missing. Re-authorization is required.");
         }
 
-        var decryptedRefreshToken = EncryptionHelper.Decrypt(provider.EncryptedRefreshToken, _envConfig.Security.TokenEncryptionKey);
-        var httpClient = _httpClientFactory.CreateClient();
-        
-        string tokenEndpoint;
-        var requestParams = new Dictionary<string, string>
-        {
-            { "refresh_token", decryptedRefreshToken },
-            { "grant_type", "refresh_token" }
-        };
-
-        if (string.Equals(provider.ProviderName, "github", StringComparison.OrdinalIgnoreCase))
-        {
-            tokenEndpoint = "https://github.com/login/oauth/access_token";
-            requestParams.Add("client_id", _envConfig.Auth.GithubClientId ?? "");
-            requestParams.Add("client_secret", _envConfig.Auth.GithubClientSecret ?? "");
-        }
-        else if (string.Equals(provider.ProviderName, "gitlab", StringComparison.OrdinalIgnoreCase))
-        {
-            tokenEndpoint = "https://gitlab.com/oauth/token";
-            requestParams.Add("client_id", _envConfig.Auth.GitlabClientId ?? "");
-            requestParams.Add("client_secret", _envConfig.Auth.GitlabClientSecret ?? "");
-        }
-        else
+        var client = _clients.FirstOrDefault(c => string.Equals(c.ProviderName, provider.ProviderName, StringComparison.OrdinalIgnoreCase));
+        if (client == null)
         {
             throw new NotSupportedException($"Token refresh is not supported for provider '{provider.ProviderName}'.");
         }
 
-        var requestMessage = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint)
-        {
-            Content = new FormUrlEncodedContent(requestParams)
-        };
-        requestMessage.Headers.Accept.ParseAdd("application/json");
+        var decryptedRefreshToken = EncryptionHelper.Decrypt(provider.EncryptedRefreshToken, _envConfig.Security.TokenEncryptionKey);
 
-        var response = await httpClient.SendAsync(requestMessage, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        TokenRefreshResult refreshResult;
+        try
         {
-            var errContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogError("Token refresh failed for provider {ProviderName}. HTTP status: {StatusCode}, Error: {Error}", 
-                provider.ProviderName, response.StatusCode, errContent);
+            refreshResult = await client.RefreshTokenAsync(decryptedRefreshToken, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Token refresh failed for provider {ProviderName}.", provider.ProviderName);
             
             provider.RefreshFailureCount++;
             provider.SyncStatus = "Failed";
-            provider.SyncError = $"Token refresh failed: {response.StatusCode}. Please re-connect account.";
+            provider.SyncError = $"Token refresh failed: {ex.Message}. Please re-connect account.";
             await _context.SaveChangesAsync(cancellationToken);
-
-            throw new HttpRequestException($"Token refresh returned status {response.StatusCode}: {errContent}");
+            throw;
         }
 
-        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-        using var doc = JsonDocument.Parse(responseJson);
-        var root = doc.RootElement;
-
-        if (!root.TryGetProperty("access_token", out var accessTokenProp))
-        {
-            throw new InvalidOperationException("Response did not contain an access_token.");
-        }
-
-        var newAccessToken = accessTokenProp.GetString() ?? "";
-        string? newRefreshToken = root.TryGetProperty("refresh_token", out var refreshProp) ? refreshProp.GetString() : null;
-        int? expiresIn = null;
-
-        if (root.TryGetProperty("expires_in", out var expiresProp))
-        {
-            if (expiresProp.ValueKind == JsonValueKind.Number)
-            {
-                expiresIn = expiresProp.GetInt32();
-            }
-            else if (expiresProp.ValueKind == JsonValueKind.String && int.TryParse(expiresProp.GetString(), out var parsedExpires))
-            {
-                expiresIn = parsedExpires;
-            }
-        }
-
-        var encryptedAccess = EncryptionHelper.Encrypt(newAccessToken, _envConfig.Security.TokenEncryptionKey);
+        var encryptedAccess = EncryptionHelper.Encrypt(refreshResult.AccessToken, _envConfig.Security.TokenEncryptionKey);
         provider.EncryptedAccessToken = encryptedAccess;
 
-        if (!string.IsNullOrEmpty(newRefreshToken))
+        if (!string.IsNullOrEmpty(refreshResult.RefreshToken))
         {
-            provider.EncryptedRefreshToken = EncryptionHelper.Encrypt(newRefreshToken, _envConfig.Security.TokenEncryptionKey);
+            provider.EncryptedRefreshToken = EncryptionHelper.Encrypt(refreshResult.RefreshToken, _envConfig.Security.TokenEncryptionKey);
         }
 
-        if (expiresIn.HasValue)
+        if (refreshResult.ExpiresInSeconds.HasValue)
         {
-            provider.ExpiresAt = _timeProvider.GetUtcNow().AddSeconds(expiresIn.Value);
+            provider.ExpiresAt = _timeProvider.GetUtcNow().AddSeconds(refreshResult.ExpiresInSeconds.Value);
         }
         else
         {
@@ -515,256 +512,135 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        return newAccessToken;
+        return refreshResult.AccessToken;
     }
 
     private async Task SyncProviderRepositoriesAsync(AuthProvider provider, CancellationToken cancellationToken)
     {
         var decryptedToken = await GetOrRefreshAccessTokenAsync(provider, cancellationToken);
-        var httpClient = _httpClientFactory.CreateClient();
         
-        var fetchedRepos = new List<SourceCodeRepository>();
-        bool tokenRefreshed = false;
-
-        if (string.Equals(provider.ProviderName, "github", StringComparison.OrdinalIgnoreCase))
+        var client = _clients.FirstOrDefault(c => string.Equals(c.ProviderName, provider.ProviderName, StringComparison.OrdinalIgnoreCase));
+        if (client == null)
         {
-            int page = 1;
-            bool hasMore = true;
-
-            while (hasMore)
-            {
-                var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/user/repos?per_page=100&page={page}");
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", decryptedToken);
-                request.Headers.UserAgent.ParseAdd("CVerify-Core");
-
-                var response = await httpClient.SendAsync(request, cancellationToken);
-                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && !tokenRefreshed)
-                {
-                    _logger.LogWarning("GitHub API returned Unauthorized. Attempting reactive token refresh.");
-                    try
-                    {
-                        decryptedToken = await RefreshTokenInternalAsync(provider, cancellationToken);
-                        tokenRefreshed = true;
-                        continue;
-                    }
-                    catch (Exception refreshEx)
-                    {
-                        _logger.LogError(refreshEx, "Reactive token refresh failed for GitHub provider.");
-                    }
-                }
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                    throw new HttpRequestException($"GitHub API returned status {response.StatusCode}: {errContent}");
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-                using var doc = JsonDocument.Parse(responseJson);
-
-                if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-                {
-                    hasMore = false;
-                    break;
-                }
-
-                foreach (var repoElement in doc.RootElement.EnumerateArray())
-                {
-                    var extId = repoElement.GetProperty("id").GetInt64().ToString();
-                    var name = repoElement.GetProperty("name").GetString() ?? "";
-                    var ownerObj = repoElement.GetProperty("owner");
-                    var ownerLogin = ownerObj.GetProperty("login").GetString() ?? "";
-                    var ownerType = ownerObj.GetProperty("type").GetString() ?? "User";
-                    var description = repoElement.TryGetProperty("description", out var descProp) ? descProp.GetString() : null;
-                    var htmlUrl = repoElement.TryGetProperty("html_url", out var urlProp) ? urlProp.GetString() : null;
-                    var defaultBranch = repoElement.TryGetProperty("default_branch", out var branchProp) ? branchProp.GetString() : "main";
-                    var isPrivate = repoElement.GetProperty("private").GetBoolean();
-                    var language = repoElement.TryGetProperty("language", out var langProp) ? langProp.GetString() : null;
-                    var stars = repoElement.GetProperty("stargazers_count").GetInt32();
-                    var forks = repoElement.GetProperty("forks_count").GetInt32();
-                    var openIssues = repoElement.TryGetProperty("open_issues_count", out var issuesProp) ? issuesProp.GetInt32() : 0;
-                    var watchers = repoElement.TryGetProperty("watchers_count", out var watchersProp) ? watchersProp.GetInt32() : 0;
-                    var archived = repoElement.TryGetProperty("archived", out var archivedProp) && archivedProp.GetBoolean();
-
-                    DateTimeOffset lastUpdated = _timeProvider.GetUtcNow();
-                    if (repoElement.TryGetProperty("updated_at", out var updatedProp) && DateTimeOffset.TryParse(updatedProp.GetString(), out var parsedUpdated))
-                    {
-                        lastUpdated = parsedUpdated;
-                    }
-
-                    DateTimeOffset? lastCommit = null;
-                    if (repoElement.TryGetProperty("pushed_at", out var pushedProp) && DateTimeOffset.TryParse(pushedProp.GetString(), out var parsedPushed))
-                    {
-                        lastCommit = parsedPushed;
-                    }
-
-                    DateTimeOffset createdAt = _timeProvider.GetUtcNow();
-                    if (repoElement.TryGetProperty("created_at", out var createdProp) && DateTimeOffset.TryParse(createdProp.GetString(), out var parsedCreated))
-                    {
-                        createdAt = parsedCreated;
-                    }
-
-                    fetchedRepos.Add(new SourceCodeRepository
-                    {
-                        AuthProviderId = provider.Id,
-                        ExternalRepositoryId = extId,
-                        Name = name,
-                        Owner = ownerLogin,
-                        Description = description,
-                        HtmlUrl = htmlUrl,
-                        DefaultBranch = defaultBranch,
-                        OwnerLogin = ownerLogin,
-                        OwnerType = ownerType,
-                        IsPrivate = isPrivate,
-                        PrimaryLanguage = language,
-                        StarsCount = stars,
-                        ForksCount = forks,
-                        OpenIssuesCount = openIssues,
-                        WatchersCount = watchers,
-                        LastCommitAt = lastCommit,
-                        LastUpdatedUtc = lastUpdated,
-                        CreatedAtUtc = createdAt,
-                        IsAccessible = true,
-                        ArchivedExternally = archived
-                    });
-                }
-
-                if (doc.RootElement.GetArrayLength() < 100)
-                {
-                    hasMore = false;
-                }
-                else
-                {
-                    page++;
-                }
-            }
+            throw new NotSupportedException($"Sync is not supported for provider '{provider.ProviderName}'.");
         }
-        else if (string.Equals(provider.ProviderName, "gitlab", StringComparison.OrdinalIgnoreCase))
+
+        SyncResult syncResult;
+        try
         {
-            int page = 1;
-            bool hasMore = true;
-
-            while (hasMore)
+            syncResult = await client.SyncRepositoriesAsync(decryptedToken, cancellationToken);
+        }
+        catch (Exception ex) when (ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("401"))
+        {
+            _logger.LogWarning("API returned Unauthorized. Attempting reactive token refresh.");
+            try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, $"https://gitlab.com/api/v4/projects?membership=true&per_page=100&page={page}");
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", decryptedToken);
-
-                var response = await httpClient.SendAsync(request, cancellationToken);
-                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && !tokenRefreshed)
-                {
-                    _logger.LogWarning("GitLab API returned Unauthorized. Attempting reactive token refresh.");
-                    try
-                    {
-                        decryptedToken = await RefreshTokenInternalAsync(provider, cancellationToken);
-                        tokenRefreshed = true;
-                        continue;
-                    }
-                    catch (Exception refreshEx)
-                    {
-                        _logger.LogError(refreshEx, "Reactive token refresh failed for GitLab provider.");
-                    }
-                }
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                    throw new HttpRequestException($"GitLab API returned status {response.StatusCode}: {errContent}");
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-                using var doc = JsonDocument.Parse(responseJson);
-
-                if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-                {
-                    hasMore = false;
-                    break;
-                }
-
-                foreach (var projectElement in doc.RootElement.EnumerateArray())
-                {
-                    var extId = projectElement.GetProperty("id").GetInt64().ToString();
-                    var name = projectElement.GetProperty("name").GetString() ?? "";
-                    
-                    var namespaceObj = projectElement.GetProperty("namespace");
-                    var ownerLogin = namespaceObj.GetProperty("path").GetString() ?? "";
-                    var ownerType = namespaceObj.TryGetProperty("kind", out var kindProp) ? kindProp.GetString() ?? "user" : "user";
-                    var owner = namespaceObj.GetProperty("name").GetString() ?? ownerLogin;
-                    
-                    var description = projectElement.TryGetProperty("description", out var descProp) ? descProp.GetString() : null;
-                    var htmlUrl = projectElement.TryGetProperty("web_url", out var urlProp) ? urlProp.GetString() : null;
-                    var defaultBranch = projectElement.TryGetProperty("default_branch", out var branchProp) ? branchProp.GetString() : "main";
-                    
-                    var visibility = projectElement.TryGetProperty("visibility", out var visProp) ? visProp.GetString() : "private";
-                    var isPrivate = visibility == "private" || visibility == "internal";
-
-                    var stars = projectElement.TryGetProperty("star_count", out var starsProp) ? starsProp.GetInt32() : 0;
-                    var forks = projectElement.TryGetProperty("forks_count", out var forksProp) ? forksProp.GetInt32() : 0;
-                    var openIssues = projectElement.TryGetProperty("open_issues_count", out var issuesProp) ? issuesProp.GetInt32() : 0;
-                    var watchers = stars;
-                    var archived = projectElement.TryGetProperty("archived", out var archivedProp) && archivedProp.GetBoolean();
-
-                    DateTimeOffset lastUpdated = _timeProvider.GetUtcNow();
-                    if (projectElement.TryGetProperty("last_activity_at", out var updatedProp) && DateTimeOffset.TryParse(updatedProp.GetString(), out var parsedUpdated))
-                    {
-                        lastUpdated = parsedUpdated;
-                    }
-
-                    DateTimeOffset createdAt = _timeProvider.GetUtcNow();
-                    if (projectElement.TryGetProperty("created_at", out var createdProp) && DateTimeOffset.TryParse(createdProp.GetString(), out var parsedCreated))
-                    {
-                        createdAt = parsedCreated;
-                    }
-
-                    fetchedRepos.Add(new SourceCodeRepository
-                    {
-                        AuthProviderId = provider.Id,
-                        ExternalRepositoryId = extId,
-                        Name = name,
-                        Owner = owner,
-                        Description = description,
-                        HtmlUrl = htmlUrl,
-                        DefaultBranch = defaultBranch,
-                        OwnerLogin = ownerLogin,
-                        OwnerType = ownerType,
-                        IsPrivate = isPrivate,
-                        PrimaryLanguage = null, // Set to null for GitLab to prevent N+1 queries
-                        StarsCount = stars,
-                        ForksCount = forks,
-                        OpenIssuesCount = openIssues,
-                        WatchersCount = watchers,
-                        LastCommitAt = null,
-                        LastUpdatedUtc = lastUpdated,
-                        CreatedAtUtc = createdAt,
-                        IsAccessible = true,
-                        ArchivedExternally = archived
-                    });
-                }
-
-                if (doc.RootElement.GetArrayLength() < 100)
-                {
-                    hasMore = false;
-                }
-                else
-                {
-                    page++;
-                }
+                decryptedToken = await RefreshTokenInternalAsync(provider, cancellationToken);
+                syncResult = await client.SyncRepositoriesAsync(decryptedToken, cancellationToken);
+            }
+            catch (Exception refreshEx)
+            {
+                _logger.LogError(refreshEx, "Reactive token refresh failed for provider {ProviderName}.", provider.ProviderName);
+                throw;
             }
         }
 
-        // Save fetched repositories to PostgreSQL database
-        var externalIds = fetchedRepos.Select(r => r.ExternalRepositoryId).ToList();
-        
+        if (!string.IsNullOrEmpty(syncResult.SyncError))
+        {
+            throw new InvalidOperationException($"Provider synchronization failed: {syncResult.SyncError}");
+        }
+
+        // 1. Process Organizations
+        var existingOrgs = await _context.ExternalOrganizations
+            .Where(eo => eo.AuthProviderId == provider.Id)
+            .ToListAsync(cancellationToken);
+
+        var existingOrgsMap = existingOrgs.ToDictionary(eo => eo.ExternalId);
+        var activeOrgsList = new List<ExternalOrganization>();
+
+        foreach (var orgDto in syncResult.Organizations)
+        {
+            if (existingOrgsMap.TryGetValue(orgDto.ExternalId, out var existingOrg))
+            {
+                existingOrg.Name = orgDto.Name;
+                existingOrg.Login = orgDto.Login;
+                existingOrg.AvatarUrl = orgDto.AvatarUrl;
+                existingOrg.HtmlUrl = orgDto.HtmlUrl;
+                existingOrg.Description = orgDto.Description;
+                existingOrg.IsActive = true;
+                existingOrg.LastSyncedAt = _timeProvider.GetUtcNow();
+                activeOrgsList.Add(existingOrg);
+            }
+            else
+            {
+                var newOrg = new ExternalOrganization
+                {
+                    Id = Guid.CreateVersion7(),
+                    AuthProviderId = provider.Id,
+                    ExternalId = orgDto.ExternalId,
+                    Name = orgDto.Name,
+                    Login = orgDto.Login,
+                    Type = provider.ProviderName.ToLowerInvariant(),
+                    AvatarUrl = orgDto.AvatarUrl,
+                    HtmlUrl = orgDto.HtmlUrl,
+                    Description = orgDto.Description,
+                    IsActive = true,
+                    LastSyncedAt = _timeProvider.GetUtcNow()
+                };
+                _context.ExternalOrganizations.Add(newOrg);
+                activeOrgsList.Add(newOrg);
+            }
+        }
+
+        // Soft delete/deactivate organizations not returned
+        var activeOrgsExtIds = new HashSet<string>(syncResult.Organizations.Select(o => o.ExternalId));
+        foreach (var org in existingOrgs)
+        {
+            if (!activeOrgsExtIds.Contains(org.ExternalId))
+            {
+                org.IsActive = false;
+                org.LastSyncedAt = _timeProvider.GetUtcNow();
+            }
+        }
+
+        // Save organizations so that we have their IDs to link to repositories
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Map organizations by Login for fast lookup when linking repositories
+        var orgsByLogin = activeOrgsList.ToDictionary(o => o.Login, StringComparer.OrdinalIgnoreCase);
+
+        // 2. Process Repositories
         var existingRepos = await _context.SourceCodeRepositories
             .Where(r => r.AuthProviderId == provider.Id)
             .ToListAsync(cancellationToken);
 
-        var existingMap = existingRepos.ToDictionary(r => r.ExternalRepositoryId);
+        var existingReposMap = existingRepos.ToDictionary(r => r.ExternalRepositoryId);
+        var externalIds = new List<string>();
 
-        foreach (var fetched in fetchedRepos)
+        // Deduplicate fetched repositories by ExternalRepositoryId to avoid unique key constraint violations (e.g. repo returned in both user repos and org repos)
+        var uniqueFetchedRepos = syncResult.Repositories
+            .GroupBy(r => r.ExternalRepositoryId)
+            .Select(g => g.First())
+            .ToList();
+
+        foreach (var fetched in uniqueFetchedRepos)
         {
-            if (existingMap.TryGetValue(fetched.ExternalRepositoryId, out var existing))
+            externalIds.Add(fetched.ExternalRepositoryId);
+
+            // Resolve organization linkage if owner type is organization/group
+            Guid? orgId = null;
+            if (fetched.OwnerType != null && 
+                (string.Equals(fetched.OwnerType, "organization", StringComparison.OrdinalIgnoreCase) || 
+                 string.Equals(fetched.OwnerType, "group", StringComparison.OrdinalIgnoreCase)))
             {
-                // Update immutable provider metadata fields in-place
+                if (orgsByLogin.TryGetValue(fetched.OwnerLogin ?? "", out var org))
+                {
+                    orgId = org.Id;
+                }
+            }
+
+            if (existingReposMap.TryGetValue(fetched.ExternalRepositoryId, out var existing))
+            {
                 existing.Name = fetched.Name;
                 existing.Owner = fetched.Owner;
                 existing.Description = fetched.Description;
@@ -780,16 +656,17 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 existing.LastCommitAt = fetched.LastCommitAt;
                 existing.LastUpdatedUtc = fetched.LastUpdatedUtc;
                 existing.ArchivedExternally = fetched.ArchivedExternally;
+                existing.ExternalOrganizationId = orgId;
                 
-                // Track accessibility and sync times
                 existing.IsAccessible = true;
                 existing.LastSeenAt = _timeProvider.GetUtcNow();
                 existing.LastSyncedAt = _timeProvider.GetUtcNow();
             }
             else
             {
-                // Insert new repository record
                 fetched.Id = Guid.CreateVersion7();
+                fetched.AuthProviderId = provider.Id;
+                fetched.ExternalOrganizationId = orgId;
                 fetched.IsAccessible = true;
                 fetched.IsEnabled = true;
                 fetched.IsVerified = false;
@@ -800,8 +677,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             }
         }
 
-        // Handle soft deletion strategy:
-        // Repositories previously synced for this connection that are no longer returned are marked IsAccessible = false
+        // Soft delete repositories not returned in this sync run
         var fetchedExtIds = new HashSet<string>(externalIds);
         foreach (var existing in existingRepos)
         {
@@ -811,6 +687,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 existing.LastSyncedAt = _timeProvider.GetUtcNow();
             }
         }
+
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IEnumerable<string>> GetDistinctCategoriesAsync(Guid userId)

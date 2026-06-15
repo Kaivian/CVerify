@@ -1871,7 +1871,7 @@ public class AuthService : IAuthService
         if (canonicalName == "github")
         {
             var clientId = _envConfig.Auth.GithubClientId;
-            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org&state={combinedState}&prompt=consent";
+            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org%20read:user%20user:email&state={combinedState}&prompt=consent";
         }
         else if (canonicalName == "gitlab")
         {

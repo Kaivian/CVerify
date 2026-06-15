@@ -39,6 +39,7 @@ using CVerify.API.Modules.Shared.System.BackgroundWorkers;
 using CVerify.API.Modules.SourceCode.Services;
 using CVerify.API.Modules.SourceCode.BackgroundWorkers;
 using CVerify.API.Modules.Shared.Domain.Services;
+using CVerify.API.Modules.SourceCode.Clients;
 using CVerify.API.Modules.Shared.Domain.Resolvers;
 using CVerify.API.Modules.Shared.Hubs;
 
@@ -411,6 +412,8 @@ builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, JobVacancyModuleSeeder>
 builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, WorkspacePostModuleSeeder>();
 
 // Register Source Code Provider Services
+builder.Services.AddScoped<ISourceCodeClient, GitHubSourceCodeClient>();
+builder.Services.AddScoped<ISourceCodeClient, GitLabSourceCodeClient>();
 builder.Services.AddScoped<ISourceCodeProviderService, SourceCodeProviderService>();
 builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueue>();
 builder.Services.AddScoped<IRepositoryAnalysisService, RepositoryAnalysisService>();

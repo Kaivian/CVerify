@@ -30,8 +30,11 @@ public interface ISourceCodeProviderService
         string? language, 
         string? sort, 
         string? category, 
+        string? ownerType,
+        Guid? organizationId,
         int page, 
         int pageSize);
+    Task<IEnumerable<ExternalOrganizationResponseDto>> GetOrganizationsAsync(Guid userId);
     Task<IEnumerable<string>> GetDistinctCategoriesAsync(Guid userId);
     Task<Guid> EnqueueSyncJobAsync(Guid userId, Guid? providerId);
     Task<RepositorySyncJobStatus?> GetSyncStatusAsync(Guid userId, Guid jobId);

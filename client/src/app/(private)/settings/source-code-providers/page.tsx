@@ -40,7 +40,9 @@ import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
 import type {
   SourceCodeProvider,
   SourceCodeRepository,
+  ExternalOrganization,
 } from "@/types/source-code-provider.types";
+import { API_URL } from "@/services/axios-client";
 import { useDebounce } from "@/hooks/use-debounce";
 import { AnalysisStatusBadge } from "../components/repository-analysis/AnalysisStatusBadge";
 import { DetailedAnalysisModal } from "../components/repository-analysis/DetailedAnalysisModal";
@@ -70,6 +72,7 @@ export default function SourceCodeProvidersPage() {
   // Data State
   const [providers, setProviders] = useState<SourceCodeProvider[]>([]);
   const [repositories, setRepositories] = useState<SourceCodeRepository[]>([]);
+  const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [loadingRepositories, setLoadingRepositories] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -83,6 +86,8 @@ export default function SourceCodeProvidersPage() {
   const [sortBy, setSortBy] = useState("updated");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [categories, setCategories] = useState<string[]>([]);
+  const [ownerTypeFilter, setOwnerTypeFilter] = useState("all");
+  const [orgFilter, setOrgFilter] = useState("all");
 
   // Pagination / Infinite Scroll State
   const [page, setPage] = useState(1);
@@ -130,6 +135,15 @@ export default function SourceCodeProvidersPage() {
     }
   }, []);
 
+  const loadOrganizations = useCallback(async () => {
+    try {
+      const data = await sourceCodeProviderApi.fetchOrganizations();
+      setOrganizations(data);
+    } catch (err) {
+      console.error("Failed to load organizations:", err);
+    }
+  }, []);
+
   // Fetch repositories with pagination / infinite scroll appending support
   const fetchRepos = useCallback(async (pageNum: number, isInitial: boolean) => {
     if (isInitial) {
@@ -146,6 +160,8 @@ export default function SourceCodeProvidersPage() {
         language: languageFilter === "all" ? undefined : languageFilter,
         sort: sortBy,
         category: categoryFilter === "all" ? undefined : categoryFilter,
+        ownerType: ownerTypeFilter === "all" ? undefined : ownerTypeFilter,
+        organizationId: orgFilter === "all" ? undefined : orgFilter,
         page: pageNum,
         pageSize,
       };
@@ -169,13 +185,14 @@ export default function SourceCodeProvidersPage() {
       setLoadingRepositories(false);
       setLoadingMore(false);
     }
-  }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, categoryFilter, pageSize]);
+  }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, categoryFilter, ownerTypeFilter, orgFilter, pageSize]);
 
   // Compatibility alias for manual sync or reload operations
   const loadRepositories = useCallback(() => {
     loadCategories();
+    loadOrganizations();
     return fetchRepos(1, true);
-  }, [fetchRepos, loadCategories]);
+  }, [fetchRepos, loadCategories, loadOrganizations]);
 
   const handleAnalyzeRepository = async (repoId: string, _repoName: string, _repoOwner: string) => {
     toast.info("Repository analysis started...");
@@ -220,9 +237,10 @@ export default function SourceCodeProvidersPage() {
     const timer = setTimeout(() => {
       loadProviders();
       loadCategories();
+      loadOrganizations();
     }, 0);
     return () => clearTimeout(timer);
-  }, [loadProviders, loadCategories]);
+  }, [loadProviders, loadCategories, loadOrganizations]);
 
   // Trigger initial fetch when filters change (always resets to page 1)
   useEffect(() => {
@@ -231,7 +249,7 @@ export default function SourceCodeProvidersPage() {
       fetchRepos(1, true);
     }, 0);
     return () => clearTimeout(timer);
-  }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, categoryFilter, fetchRepos]);
+  }, [selectedProviderId, debouncedSearchQuery, visibilityFilter, languageFilter, sortBy, categoryFilter, ownerTypeFilter, orgFilter, fetchRepos]);
 
   // Infinite Scroll page fetching action
   const hasMore = repositories.length < totalCount;
@@ -347,6 +365,10 @@ export default function SourceCodeProvidersPage() {
       console.error(err);
       toast.danger("Could not initiate global sync. Cooldown may be active.");
     }
+  };
+
+  const handleReconnect = (providerName: string) => {
+    window.location.assign(`${API_URL}/auth/connect/${providerName.toLowerCase()}`);
   };
 
   // Check if a specific provider is currently syncing
@@ -1054,12 +1076,22 @@ export default function SourceCodeProvidersPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center shrink-0">
+                    <div className="flex items-center shrink-0 gap-2">
+                      {prov.scopeValidationStatus !== "Valid" && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleReconnect(prov.providerName)}
+                          className="bg-warning-soft text-warning rounded-xl h-8 text-xs font-semibold"
+                        >
+                          Reconnect
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant={syncing ? "ghost" : "outline"}
                         onClick={() => handleSyncProvider(prov.id, prov.providerName)}
-                        isDisabled={syncing}
+                        isDisabled={syncing || prov.scopeValidationStatus === "ReconnectRequired"}
                         className="rounded-xl h-8 text-xs font-semibold border-border/40"
                       >
                         {syncing ? (
@@ -1083,79 +1115,216 @@ export default function SourceCodeProvidersPage() {
                           : "Never"}
                       </strong>
                     </span>
-                    {prov.syncStatus === "Failed" && prov.syncError && (
-                      <Chip size="sm" color="danger" variant="soft" className="h-4 px-1 font-bold text-[8.5px] uppercase">
-                        Failed
-                      </Chip>
-                    )}
+                    <div className="flex gap-1.5 items-center">
+                      {prov.scopeValidationStatus === "Degraded" && (
+                        <Chip size="sm" color="warning" variant="soft" className="h-4.5 px-1.5 font-bold text-[8.5px] uppercase rounded-md">
+                          Degraded Access
+                        </Chip>
+                      )}
+                      {prov.scopeValidationStatus === "ReconnectRequired" && (
+                        <Chip size="sm" color="danger" variant="soft" className="h-4.5 px-1.5 font-bold text-[8.5px] uppercase rounded-md">
+                          Reconnect Required
+                        </Chip>
+                      )}
+                      {prov.syncStatus === "Failed" && prov.syncError && (
+                        <Chip size="sm" color="danger" variant="soft" className="h-4.5 px-1.5 font-bold text-[8.5px] uppercase rounded-md">
+                          Sync Failed
+                        </Chip>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
 
+          {/* Missing Organizations Instruction Banner */}
+          <div className="flex gap-3 p-4 bg-surface-secondary border border-border/40 rounded-2xl items-start text-left mt-2">
+            <Info className="size-5 text-accent shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-1">
+              <Typography className="font-semibold text-xs text-foreground">
+                Missing Organization Repositories?
+              </Typography>
+              <Typography type="body-xs" className="text-muted leading-relaxed">
+                If repositories from your GitHub organization do not appear after syncing, your organization may have restricted access. To resolve this, go to your{" "}
+                <Link
+                  href="https://github.com/settings/applications"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent underline font-semibold"
+                >
+                  GitHub Application Settings
+                </Link>{" "}
+                and grant or request access for <strong>CVerify</strong> next to your organization name. For GitLab, subgroups are imported automatically.
+              </Typography>
+            </div>
+          </div>
+
           <Separator variant="tertiary" />
 
           {/* Search, Sort and Filters toolbar */}
           <div className="flex flex-col gap-3 border bg-surface rounded-2xl p-4 ">
-            <div className="flex flex-wrap gap-3 items-end">
-              {/* Left Column (2/5 width): Search input */}
-              <div className="flex flex-col gap-1 flex-1 text-left">
-                <Label htmlFor="search-repo" className="text-xs text-muted">
-                  Search
-                </Label>
-                <InputGroup className="w-full border border-border shadow-none">
-                  <InputGroup.Prefix>
-                    <Search className="size-3.5 text-muted shrink-0 mr-1" />
-                  </InputGroup.Prefix>
-                  <InputGroup.Input
-                    id="search-repo"
-                    type="text"
-                    placeholder="Search repository..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="text-[11px]"
-                  />
-                </InputGroup>
+            {/* Search Input (full width) */}
+            <div className="flex flex-col gap-1 text-left w-full">
+              <Label htmlFor="search-repo" className="text-xs text-muted">
+                Search
+              </Label>
+              <InputGroup className="w-full border border-border shadow-none">
+                <InputGroup.Prefix>
+                  <Search className="size-3.5 text-muted shrink-0 mr-1" />
+                </InputGroup.Prefix>
+                <InputGroup.Input
+                  id="search-repo"
+                  type="text"
+                  placeholder="Search repository..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="text-[11px]"
+                />
+              </InputGroup>
+            </div>
+
+            {/* Filters Row (all aligned inline on the same row) */}
+            <div className="flex flex-wrap gap-3 items-end w-full">
+              {/* Account selector */}
+              <div className="flex flex-col gap-1 text-left">
+                <Label className="text-xs text-muted">Account</Label>
+                <Select
+                  value={selectedProviderId}
+                  onChange={(val) => {
+                    setSelectedProviderId(val as string);
+                    setPage(1);
+                  }}
+                  className="w-auto min-w-38"
+                  variant="secondary"
+                  aria-label="Account"
+                >
+                  <Select.Trigger className="bg-surface border border-border text-xs items-end">
+                    <Select.Value className="text-xs" />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded-xl z-50">
+                    <ListBox
+                      aria-label="Account Options"
+                    >
+                      <ListBox.Item
+                        id="all"
+                        textValue="All Accounts"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>All Accounts</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      {providers.map((p) => {
+                        const label = `${p.providerName === "github" ? "GitHub" : "GitLab"} - @${p.providerUsername}`;
+                        return (
+                          <ListBox.Item
+                            key={p.id}
+                            id={p.id}
+                            textValue={label}
+                            className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                          >
+                            <span>{label}</span>
+                            <ListBox.ItemIndicator className="size-3 text-accent" />
+                          </ListBox.Item>
+                        );
+                      })}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
               </div>
 
-              {/* Right Column (3/5 width): Filters */}
-              <div className="flex flex-wrap gap-3 items-end">
-                {/* Account selector */}
+              {/* Owner Type filter */}
+              <div className="flex flex-col gap-1 text-left">
+                <Label className="text-xs text-muted">Owner Type</Label>
+                <Select
+                  value={ownerTypeFilter}
+                  onChange={(val) => {
+                    setOwnerTypeFilter(val as string);
+                    if (val !== "organization") {
+                      setOrgFilter("all");
+                    }
+                    setPage(1);
+                  }}
+                  className="w-auto min-w-29"
+                  variant="secondary"
+                  aria-label="Owner Type"
+                >
+                  <Select.Trigger className="bg-surface border border-border items-end">
+                    <Select.Value className="text-xs" />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded-xl z-50">
+                    <ListBox
+                      aria-label="Owner Type Options"
+                      className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+                    >
+                      <ListBox.Item
+                        id="all"
+                        textValue="All"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>All</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      <ListBox.Item
+                        id="personal"
+                        textValue="Personal"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>Personal</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      <ListBox.Item
+                        id="organization"
+                        textValue="Organization"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>Organization</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
+
+              {/* Organization filter */}
+              {ownerTypeFilter === "organization" && (
                 <div className="flex flex-col gap-1 text-left">
-                  <Label className="text-xs text-muted">Account</Label>
+                  <Label className="text-xs text-muted">Organization</Label>
                   <Select
-                    value={selectedProviderId}
+                    value={orgFilter}
                     onChange={(val) => {
-                      setSelectedProviderId(val as string);
+                      setOrgFilter(val as string);
                       setPage(1);
                     }}
-                    className="w-full min-w-40"
+                    className="w-auto min-w-32"
                     variant="secondary"
-                    aria-label="Account"
+                    aria-label="Organization"
                   >
-                    <Select.Trigger className="bg-surface border border-border text-xs items-end">
+                    <Select.Trigger className="bg-surface border border-border items-end">
                       <Select.Value className="text-xs" />
                       <Select.Indicator />
                     </Select.Trigger>
                     <Select.Popover className="rounded-xl z-50">
                       <ListBox
-                        aria-label="Account Options"
+                        aria-label="Organization Options"
+                        className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
                       >
                         <ListBox.Item
                           id="all"
-                          textValue="All Accounts"
+                          textValue="All Organizations"
                           className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
                         >
-                          <span>All Accounts</span>
+                          <span>All Organizations</span>
                           <ListBox.ItemIndicator className="size-3 text-accent" />
                         </ListBox.Item>
-                        {providers.map((p) => {
-                          const label = `${p.providerName === "github" ? "GitHub" : "GitLab"} - @${p.providerUsername}`;
+                        {organizations.map((org) => {
+                          const label = `${org.name || org.login} (${org.type === "github" ? "GitHub" : "GitLab"})`;
                           return (
                             <ListBox.Item
-                              key={p.id}
-                              id={p.id}
+                              key={org.id}
+                              id={org.id}
                               textValue={label}
                               className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
                             >
@@ -1168,208 +1337,208 @@ export default function SourceCodeProvidersPage() {
                     </Select.Popover>
                   </Select>
                 </div>
+              )}
 
-                {/* Language filter */}
-                <div className="flex flex-col gap-1 text-left">
-                  <Label className="text-xs text-muted">Language</Label>
-                  <Select
-                    value={languageFilter}
-                    onChange={(val) => {
-                      setLanguageFilter(val as string);
-                      setPage(1);
-                    }}
-                    className="w-auto min-w-35"
-                    variant="secondary"
-                    aria-label="Language"
-                  >
-                    <Select.Trigger className="bg-surface border border-border items-end">
-                      <Select.Value className="text-xs" />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover className="rounded-xl z-50">
-                      <ListBox
-                        aria-label="Language Options"
-                        className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+              {/* Language filter */}
+              <div className="flex flex-col gap-1 text-left">
+                <Label className="text-xs text-muted">Language</Label>
+                <Select
+                  value={languageFilter}
+                  onChange={(val) => {
+                    setLanguageFilter(val as string);
+                    setPage(1);
+                  }}
+                  className="w-auto min-w-34"
+                  variant="secondary"
+                  aria-label="Language"
+                >
+                  <Select.Trigger className="bg-surface border border-border items-end">
+                    <Select.Value className="text-xs" />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded-xl z-50">
+                    <ListBox
+                      aria-label="Language Options"
+                      className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+                    >
+                      <ListBox.Item
+                        id="all"
+                        textValue="All Languages"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
                       >
+                        <span>All Languages</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      {POPULAR_LANGUAGES.map((lang) => (
                         <ListBox.Item
-                          id="all"
-                          textValue="All Languages"
+                          key={lang}
+                          id={lang}
+                          textValue={lang}
                           className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
                         >
-                          <span>All Languages</span>
+                          <span>{lang}</span>
                           <ListBox.ItemIndicator className="size-3 text-accent" />
                         </ListBox.Item>
-                        {POPULAR_LANGUAGES.map((lang) => (
-                          <ListBox.Item
-                            key={lang}
-                            id={lang}
-                            textValue={lang}
-                            className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                          >
-                            <span>{lang}</span>
-                            <ListBox.ItemIndicator className="size-3 text-accent" />
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
 
-                {/* Category filter */}
-                <div className="flex flex-col gap-1 text-left">
-                  <Label className="text-xs text-muted">Category</Label>
-                  <Select
-                    value={categoryFilter}
-                    onChange={(val) => {
-                      setCategoryFilter(val as string);
-                      setPage(1);
-                    }}
-                    className="w-auto min-w-37"
-                    variant="secondary"
-                    aria-label="Category"
-                  >
-                    <Select.Trigger className="bg-surface border border-border items-end">
-                      <Select.Value className="text-xs" />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover className="rounded-xl z-50">
-                      <ListBox
-                        aria-label="Category Options"
-                        className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+              {/* Category filter */}
+              <div className="flex flex-col gap-1 text-left">
+                <Label className="text-xs text-muted">Category</Label>
+                <Select
+                  value={categoryFilter}
+                  onChange={(val) => {
+                    setCategoryFilter(val as string);
+                    setPage(1);
+                  }}
+                  className="w-auto min-w-31"
+                  variant="secondary"
+                  aria-label="Category"
+                >
+                  <Select.Trigger className="bg-surface border border-border items-end">
+                    <Select.Value className="text-xs" />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded-xl z-50">
+                    <ListBox
+                      aria-label="Category Options"
+                      className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+                    >
+                      <ListBox.Item
+                        id="all"
+                        textValue="All Categories"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
                       >
+                        <span>All Categories</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      {categories.map((cat) => (
                         <ListBox.Item
-                          id="all"
-                          textValue="All Categories"
+                          key={cat}
+                          id={cat}
+                          textValue={cat}
                           className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
                         >
-                          <span>All Categories</span>
+                          <span>{cat}</span>
                           <ListBox.ItemIndicator className="size-3 text-accent" />
                         </ListBox.Item>
-                        {categories.map((cat) => (
-                          <ListBox.Item
-                            key={cat}
-                            id={cat}
-                            textValue={cat}
-                            className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                          >
-                            <span>{cat}</span>
-                            <ListBox.ItemIndicator className="size-3 text-accent" />
-                          </ListBox.Item>
-                        ))}
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
 
-                {/* Visibility Filter */}
-                <div className="flex flex-col gap-1 text-left">
-                  <Label className="text-xs text-muted">Visibility</Label>
-                  <Select
-                    value={visibilityFilter}
-                    onChange={(val) => {
-                      setVisibilityFilter(val as string);
-                      setPage(1);
-                    }}
-                    className="w-auto min-w-32"
-                    variant="secondary"
-                    aria-label="Visibility"
-                  >
-                    <Select.Trigger className="bg-surface border border-border items-end">
-                      <Select.Value className="text-xs" />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover className="rounded-xl z-50">
-                      <ListBox
-                        aria-label="Visibility Options"
-                        className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+              {/* Visibility Filter */}
+              <div className="flex flex-col gap-1 text-left">
+                <Label className="text-xs text-muted">Visibility</Label>
+                <Select
+                  value={visibilityFilter}
+                  onChange={(val) => {
+                    setVisibilityFilter(val as string);
+                    setPage(1);
+                  }}
+                  className="w-auto min-w-30"
+                  variant="secondary"
+                  aria-label="Visibility"
+                >
+                  <Select.Trigger className="bg-surface border border-border items-end">
+                    <Select.Value className="text-xs" />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded-xl z-50">
+                    <ListBox
+                      aria-label="Visibility Options"
+                      className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+                    >
+                      <ListBox.Item
+                        id="all"
+                        textValue="All Visibilities"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
                       >
-                        <ListBox.Item
-                          id="all"
-                          textValue="All Visibilities"
-                          className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                        >
-                          <span>All Visibilities</span>
-                          <ListBox.ItemIndicator className="size-3 text-accent" />
-                        </ListBox.Item>
-                        <ListBox.Item
-                          id="public"
-                          textValue="Public"
-                          className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                        >
-                          <span>Public</span>
-                          <ListBox.ItemIndicator className="size-3 text-accent" />
-                        </ListBox.Item>
-                        <ListBox.Item
-                          id="private"
-                          textValue="Private"
-                          className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                        >
-                          <span>Private</span>
-                          <ListBox.ItemIndicator className="size-3 text-accent" />
-                        </ListBox.Item>
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
+                        <span>All Visibilities</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      <ListBox.Item
+                        id="public"
+                        textValue="Public"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>Public</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      <ListBox.Item
+                        id="private"
+                        textValue="Private"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>Private</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              </div>
 
-                {/* Sorting Filter */}
-                <div className="flex flex-col gap-1 text-left">
-                  <Label className="text-xs text-muted">Sort By</Label>
-                  <Select
-                    value={sortBy}
-                    onChange={(val) => {
-                      setSortBy(val as string);
-                      setPage(1);
-                    }}
-                    className="w-auto min-w-38"
-                    variant="secondary"
-                    aria-label="Sort By"
-                  >
-                    <Select.Trigger className="bg-surface border border-border items-end">
-                      <Select.Value className="text-xs" />
-                      <Select.Indicator />
-                    </Select.Trigger>
-                    <Select.Popover className="rounded-xl z-50">
-                      <ListBox
-                        aria-label="Sort Options"
-                        className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+              {/* Sorting Filter */}
+              <div className="flex flex-col gap-1 text-left">
+                <Label className="text-xs text-muted">Sort By</Label>
+                <Select
+                  value={sortBy}
+                  onChange={(val) => {
+                    setSortBy(val as string);
+                    setPage(1);
+                  }}
+                  className="w-auto min-w-37"
+                  variant="secondary"
+                  aria-label="Sort By"
+                >
+                  <Select.Trigger className="bg-surface border border-border items-end">
+                    <Select.Value className="text-xs" />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover className="rounded-xl z-50">
+                    <ListBox
+                      aria-label="Sort Options"
+                      className="p-1 max-h-60 overflow-y-auto outline-hidden focus:outline-hidden"
+                    >
+                      <ListBox.Item
+                        id="updated"
+                        textValue="Recently Updated"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
                       >
-                        <ListBox.Item
-                          id="updated"
-                          textValue="Recently Updated"
-                          className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                        >
-                          <span>Recently Updated</span>
-                          <ListBox.ItemIndicator className="size-3 text-accent" />
-                        </ListBox.Item>
-                        <ListBox.Item
-                          id="stars"
-                          textValue="Most Stars"
-                          className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                        >
-                          <span>Most Stars</span>
-                          <ListBox.ItemIndicator className="size-3 text-accent" />
-                        </ListBox.Item>
-                        <ListBox.Item
-                          id="name_asc"
-                          textValue="Name (A-Z)"
-                          className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                        >
-                          <span>Name (A-Z)</span>
-                          <ListBox.ItemIndicator className="size-3 text-accent" />
-                        </ListBox.Item>
-                        <ListBox.Item
-                          id="name_desc"
-                          textValue="Name (Z-A)"
-                          className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
-                        >
-                          <span>Name (Z-A)</span>
-                          <ListBox.ItemIndicator className="size-3 text-accent" />
-                        </ListBox.Item>
-                      </ListBox>
-                    </Select.Popover>
-                  </Select>
-                </div>
+                        <span>Recently Updated</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      <ListBox.Item
+                        id="stars"
+                        textValue="Most Stars"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>Most Stars</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      <ListBox.Item
+                        id="name_asc"
+                        textValue="Name (A-Z)"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>Name (A-Z)</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                      <ListBox.Item
+                        id="name_desc"
+                        textValue="Name (Z-A)"
+                        className="flex items-center justify-between px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-secondary rounded-lg cursor-pointer transition-colors outline-hidden focus:bg-surface-secondary"
+                      >
+                        <span>Name (Z-A)</span>
+                        <ListBox.ItemIndicator className="size-3 text-accent" />
+                      </ListBox.Item>
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
               </div>
             </div>
           </div>
