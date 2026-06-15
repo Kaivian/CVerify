@@ -10,6 +10,7 @@ export interface BasicInfoDraft {
   fullName: string;
   username: string;
   headline: string;
+  bio: string;
   publicEmail: string;
   phoneNumber: string;
   location: string;
@@ -18,10 +19,6 @@ export interface BasicInfoDraft {
   company: string;
   birthDate: string;
   socialLinks: string[];
-}
-
-export interface CareerSummaryDraft {
-  bio: string;
 }
 
 export interface SkillsDraft {
@@ -100,7 +97,6 @@ export interface PreferencesDraft {
 
 export interface CvDraftState {
   "basic-info": BasicInfoDraft;
-  "career-summary": CareerSummaryDraft;
   "skills": { targetSkills: string[] };
   "projects": ProjectsDraft;
   "experience": ExperienceDraftItem[];

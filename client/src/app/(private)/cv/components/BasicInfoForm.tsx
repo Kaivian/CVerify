@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
-import { Input, Button, Select, ListBox, Spinner, toast } from "@heroui/react";
-import { PlusCircle, Trash2, Camera } from "lucide-react";
+import { Input, Button, Select, ListBox, Spinner, toast, TextArea, Tooltip } from "@heroui/react";
+import { PlusCircle, Trash2, Camera, Info } from "lucide-react";
 import { type BasicInfoDraft } from "./types";
 import { profileApi } from "@/services/profile.service";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
@@ -182,30 +182,82 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             onChange={(e) => onChange({ fullName: e.target.value })}
             placeholder="John Doe"
             aria-label="Full Name"
+            maxLength={100}
           />
-          {errors.fullName && <span className="text-[10px] text-danger">{errors.fullName}</span>}
+          <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+            {errors.fullName ? (
+              <span className="text-danger">{errors.fullName}</span>
+            ) : (
+              <span />
+            )}
+            <span>{(draft.fullName || "").length}/100 characters</span>
+          </div>
         </div>
 
         {/* Username */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-bold text-foreground">Username *</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[11px] font-bold text-foreground">Username *</label>
+            <Tooltip delay={0}>
+              <Tooltip.Trigger>
+                <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+              </Tooltip.Trigger>
+              <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                This will form your public profile URL: cverify.com/username
+              </Tooltip.Content>
+            </Tooltip>
+          </div>
           <Input
             value={draft.username}
             onChange={(e) => onChange({ username: e.target.value })}
             placeholder="johndoe"
             aria-label="Username"
+            maxLength={30}
           />
+          <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+            <span>{(draft.username || "").length}/30 characters</span>
+          </div>
         </div>
 
         {/* Headline */}
         <div className="flex flex-col gap-1.5 md:col-span-2">
-          <label className="text-[11px] font-bold text-foreground">Professional Headline</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[11px] font-bold text-foreground">Professional Headline</label>
+            <Tooltip delay={0}>
+              <Tooltip.Trigger>
+                <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+              </Tooltip.Trigger>
+              <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                A short, catchy phrase summarizing your expertise, e.g. "Senior Fullstack Engineer"
+              </Tooltip.Content>
+            </Tooltip>
+          </div>
           <Input
             value={draft.headline}
             onChange={(e) => onChange({ headline: e.target.value })}
             placeholder="Senior Fullstack Engineer"
             aria-label="Professional Headline"
+            maxLength={150}
           />
+          <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+            <span>{(draft.headline || "").length}/150 characters</span>
+          </div>
+        </div>
+
+        {/* Bio Summary */}
+        <div className="flex flex-col gap-1.5 md:col-span-2">
+          <label className="text-[11px] font-bold text-foreground">Professional Bio / Profile Summary</label>
+          <TextArea
+            value={draft.bio}
+            onChange={(e) => onChange({ bio: e.target.value })}
+            placeholder="Write a brief professional bio detailing your background, key expertise, and engineering projects..."
+            rows={4}
+            aria-label="Professional Bio"
+            maxLength={1000}
+          />
+          <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+            <span>{(draft.bio || "").length}/1000 characters</span>
+          </div>
         </div>
 
         {/* Public Email */}
@@ -216,8 +268,16 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             onChange={(e) => onChange({ publicEmail: e.target.value })}
             placeholder="email@example.com"
             aria-label="Public Email"
+            maxLength={100}
           />
-          {errors.publicEmail && <span className="text-[10px] text-danger">{errors.publicEmail}</span>}
+          <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+            {errors.publicEmail ? (
+              <span className="text-danger">{errors.publicEmail}</span>
+            ) : (
+              <span />
+            )}
+            <span>{(draft.publicEmail || "").length}/100 characters</span>
+          </div>
         </div>
 
         {/* Phone Number */}
@@ -228,8 +288,16 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             onChange={(e) => onChange({ phoneNumber: e.target.value })}
             placeholder="0987654321"
             aria-label="Phone Number"
+            maxLength={20}
           />
-          {errors.phoneNumber && <span className="text-[10px] text-danger">{errors.phoneNumber}</span>}
+          <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+            {errors.phoneNumber ? (
+              <span className="text-danger">{errors.phoneNumber}</span>
+            ) : (
+              <span />
+            )}
+            <span>{(draft.phoneNumber || "").length}/20 characters</span>
+          </div>
         </div>
 
         {/* Location */}
@@ -240,7 +308,11 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             onChange={(e) => onChange({ location: e.target.value })}
             placeholder="Hanoi, Vietnam"
             aria-label="Location"
+            maxLength={100}
           />
+          <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+            <span>{(draft.location || "").length}/100 characters</span>
+          </div>
         </div>
 
         {/* Date of Birth */}
@@ -262,7 +334,11 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             onChange={(e) => onChange({ company: e.target.value })}
             placeholder="CVerify AI Technology"
             aria-label="Current Company"
+            maxLength={100}
           />
+          <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+            <span>{(draft.company || "").length}/100 characters</span>
+          </div>
         </div>
 
         {/* Pronouns */}
@@ -283,7 +359,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
             <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
               <ListBox aria-label="Pronoun options">
                 {pronounsOptions.map((opt) => (
-                  <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
+                  <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                     {opt.label}
                   </ListBox.Item>
                 ))}
@@ -301,7 +377,11 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
               onChange={(e) => onChange({ customPronouns: e.target.value })}
               placeholder="Custom pronouns"
               aria-label="Custom Pronouns"
+              maxLength={50}
             />
+            <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+              <span>{(draft.customPronouns || "").length}/50 characters</span>
+            </div>
           </div>
         )}
       </div>
@@ -331,8 +411,16 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
                   onChange={(e) => handleSocialLinkChange(e.target.value, index)}
                   placeholder="github.com/username"
                   aria-label={`Social link ${index + 1}`}
+                  maxLength={250}
                 />
-                {errors[`link-${index}`] && <span className="text-[10px] text-danger">{errors[`link-${index}`]}</span>}
+                <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                  {errors[`link-${index}`] ? (
+                    <span className="text-danger">{errors[`link-${index}`]}</span>
+                  ) : (
+                    <span />
+                  )}
+                  <span>{(link || "").length}/250 characters</span>
+                </div>
               </div>
               <Button
                 isIconOnly

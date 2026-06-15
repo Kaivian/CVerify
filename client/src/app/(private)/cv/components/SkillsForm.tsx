@@ -58,15 +58,21 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({
           <label className="text-[11px] font-bold text-foreground">
             Target Skills
           </label>
-          <div className="flex gap-2">
-            <Input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Press Enter to add skill"
-              className="flex-1"
-              aria-label="New skill input"
-            />
+          <div className="flex gap-2 items-start">
+            <div className="flex-1 flex flex-col gap-0.5">
+              <Input
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Press Enter to add skill"
+                className="flex-1"
+                aria-label="New skill input"
+                maxLength={30}
+              />
+              <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+                <span>{(inputValue || "").length}/30 characters</span>
+              </div>
+            </div>
             <Button
               size="sm"
               variant="secondary"

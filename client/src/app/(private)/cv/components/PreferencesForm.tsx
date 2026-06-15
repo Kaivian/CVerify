@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Input, Button, Checkbox, Select, ListBox, Switch, Chip, Spinner, TextArea } from "@heroui/react";
-import { PlusCircle, X } from "lucide-react";
+import { Input, Button, Checkbox, Select, ListBox, Switch, Chip, Spinner, TextArea, Tooltip } from "@heroui/react";
+import { PlusCircle, X, Info } from "lucide-react";
 import { type PreferencesDraft } from "./types";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
 
@@ -118,7 +118,17 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
       <div className="flex-1 overflow-y-auto px-1.5 flex flex-col gap-4 pb-4">
         <div className="flex items-center justify-between gap-6 border-b border-border/20 pb-4 select-none">
           <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-sm text-foreground">Available for Hire</span>
+            <div className="flex items-center gap-1">
+              <span className="font-bold text-sm text-foreground">Available for Hire</span>
+              <Tooltip delay={0}>
+                <Tooltip.Trigger>
+                  <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                </Tooltip.Trigger>
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                  Toggle whether your public CV displays an 'Open to Work' badge
+                </Tooltip.Content>
+              </Tooltip>
+            </div>
             <span className="text-[10px] text-muted-foreground">Toggle availability visibility.</span>
           </div>
           <Switch
@@ -126,13 +136,28 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             onChange={(isSelected: boolean) => onChange({ availableForHire: isSelected })}
             aria-label="Available for hire toggle"
             className="cursor-pointer"
-          />
+          >
+            {() => (
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            )}
+          </Switch>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Job Search Status */}
           <div className="flex flex-col gap-1.5">
-            <label className="font-bold text-foreground">Search Status</label>
+            <div className="flex items-center gap-1">
+              <label className="font-bold text-foreground">Search Status</label>
+              <Tooltip delay={0}>
+                <Tooltip.Trigger>
+                  <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                </Tooltip.Trigger>
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                  Your current job search status (active, browsing, or closed)
+                </Tooltip.Content>
+              </Tooltip>
+            </div>
             <Select
               placeholder="Select search status"
               selectedKey={draft.openToWorkStatus || "casual"}
@@ -148,7 +173,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
                 <ListBox aria-label="Search status options">
                   {WORK_STATUS_OPTIONS.map((opt) => (
-                    <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
+                    <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                       {opt.label}
                     </ListBox.Item>
                   ))}
@@ -159,7 +184,17 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
 
           {/* Remote Preference */}
           <div className="flex flex-col gap-1.5">
-            <label className="font-bold text-foreground">Work Arrangement</label>
+            <div className="flex items-center gap-1">
+              <label className="font-bold text-foreground">Work Arrangement</label>
+              <Tooltip delay={0}>
+                <Tooltip.Trigger>
+                  <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                </Tooltip.Trigger>
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                  Preferred work model: Remote, Hybrid, Onsite, or any arrangements
+                </Tooltip.Content>
+              </Tooltip>
+            </div>
             <Select
               placeholder="Select arrangement"
               selectedKey={draft.remotePreference || "any"}
@@ -175,7 +210,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
                 <ListBox aria-label="Work arrangement options">
                   {REMOTE_OPTIONS.map((opt) => (
-                    <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
+                    <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                       {opt.label}
                     </ListBox.Item>
                   ))}
@@ -241,7 +276,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
                   <ListBox aria-label="Expected salary currency options">
                     {CURRENCY_OPTIONS.map((opt) => (
-                      <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
+                      <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                         {opt.label}
                       </ListBox.Item>
                     ))}
@@ -267,7 +302,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
                   <ListBox aria-label="Expected salary type options">
                     {SALARY_TYPE_OPTIONS.map((opt) => (
-                      <ListBox.Item key={opt.value} id={opt.value} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
+                      <ListBox.Item key={opt.value} id={opt.value} textValue={opt.label} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
                         {opt.label}
                       </ListBox.Item>
                     ))}
@@ -276,42 +311,76 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
               </Select>
             </div>
 
-            <div className="flex items-center gap-2 select-none">
+            <label className="flex items-center gap-2 select-none cursor-pointer">
               <Checkbox
                 isSelected={draft.expectedSalaryNegotiable}
                 onChange={(isSelected: boolean) => onChange({ expectedSalaryNegotiable: isSelected })}
                 aria-label="Negotiable salary"
-              />
+                className="cursor-pointer"
+              >
+                <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                  <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </Checkbox.Indicator>
+                </Checkbox.Control>
+              </Checkbox>
               <span className="font-semibold text-foreground">Negotiable</span>
-            </div>
+            </label>
 
-            <div className="flex items-center gap-2 select-none">
+            <label className="flex items-center gap-2 select-none cursor-pointer">
               <Checkbox
                 isSelected={draft.isExpectedSalaryVisible}
                 onChange={(isSelected: boolean) => onChange({ isExpectedSalaryVisible: isSelected })}
                 aria-label="Show salary publicly"
-              />
-              <span className="font-semibold text-foreground">Show salary publicly</span>
-            </div>
+                className="cursor-pointer"
+              >
+                <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                  <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </Checkbox.Indicator>
+                </Checkbox.Control>
+              </Checkbox>
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-foreground">Show salary publicly</span>
+                <Tooltip delay={0}>
+                  <Tooltip.Trigger>
+                    <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                  </Tooltip.Trigger>
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                    Toggle whether recruiters can see your expected salary range on your public developer card
+                  </Tooltip.Content>
+                </Tooltip>
+              </div>
+            </label>
           </div>
         </div>
 
         {/* Target Roles */}
         <div className="flex flex-col gap-3 border-t border-border/20 pt-4">
           <span className="font-bold text-xs text-foreground">Target Roles</span>
-          <div className="flex gap-2">
-            <Input
-              value={newPosition}
-              onChange={(e) => setNewPosition(e.target.value)}
-              placeholder="Enter target role"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddPosition();
-                }
-              }}
-              aria-label="New target role input"
-            />
+          <div className="flex gap-2 items-start">
+            <div className="flex-1 flex flex-col gap-0.5">
+              <Input
+                value={newPosition}
+                onChange={(e) => setNewPosition(e.target.value)}
+                placeholder="Enter target role"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddPosition();
+                  }
+                }}
+                aria-label="New target role input"
+                maxLength={50}
+              />
+              <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+                <span>{(newPosition || "").length}/50 characters</span>
+              </div>
+            </div>
             <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={handleAddPosition} type="button" aria-label="Add target role">
               <PlusCircle className="size-4" />
             </Button>
@@ -339,19 +408,25 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
         {/* Target Locations */}
         <div className="flex flex-col gap-3 border-t border-border/20 pt-4">
           <span className="font-bold text-xs text-foreground">Desired Locations</span>
-          <div className="flex gap-2">
-            <Input
-              value={newLocation}
-              onChange={(e) => setNewLocation(e.target.value)}
-              placeholder="Enter preferred location"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleAddLocation();
-                }
-              }}
-              aria-label="New preferred location input"
-            />
+          <div className="flex gap-2 items-start">
+            <div className="flex-1 flex flex-col gap-0.5">
+              <Input
+                value={newLocation}
+                onChange={(e) => setNewLocation(e.target.value)}
+                placeholder="Enter preferred location"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddLocation();
+                  }
+                }}
+                aria-label="New preferred location input"
+                maxLength={50}
+              />
+              <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+                <span>{(newLocation || "").length}/50 characters</span>
+              </div>
+            </div>
             <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={handleAddLocation} type="button" aria-label="Add preferred location">
               <PlusCircle className="size-4" />
             </Button>
@@ -383,10 +458,23 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             {EMPLOYMENT_OPTIONS.map((opt) => {
               const isSelected = draft.employmentPreferences.includes(opt.value);
               return (
-                <div key={opt.value} className="flex items-center gap-2">
-                  <Checkbox isSelected={isSelected} onChange={() => toggleEmployment(opt.value)} aria-label={opt.label} />
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer select-none">
+                  <Checkbox
+                    isSelected={isSelected}
+                    onChange={() => toggleEmployment(opt.value)}
+                    aria-label={opt.label}
+                    className="cursor-pointer"
+                  >
+                    <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                      <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </Checkbox.Indicator>
+                    </Checkbox.Control>
+                  </Checkbox>
                   <span className="font-semibold text-foreground">{opt.label}</span>
-                </div>
+                </label>
               );
             })}
           </div>
@@ -403,7 +491,13 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             onChange={(isSelected: boolean) => onChange({ openToRelocation: isSelected })}
             aria-label="Open to relocation toggle"
             className="cursor-pointer"
-          />
+          >
+            {() => (
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+            )}
+          </Switch>
         </div>
 
         {/* Preference Notes */}
@@ -415,7 +509,11 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             placeholder="e.g. Prefer collaborative engineering teams, hybrid model..."
             rows={3}
             aria-label="Additional Work Preference Notes"
+            maxLength={500}
           />
+          <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+            <span>{(draft.workPreferenceNotes || "").length}/500 characters</span>
+          </div>
         </div>
 
       </div>

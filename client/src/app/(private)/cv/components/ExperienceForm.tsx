@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { Input, Button, TextArea, Checkbox, Spinner, Chip } from "@heroui/react";
+import { Input, Button, TextArea, Checkbox, Spinner, Chip, Tooltip } from "@heroui/react";
 import { Card } from "@/components/ui/card";
-import { PlusCircle, Trash2, Edit2, X, Plus } from "lucide-react";
+import { PlusCircle, Trash2, Edit2, X, Plus, Info } from "lucide-react";
 import { type ExperienceDraftItem } from "./types";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
 
@@ -164,8 +164,16 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, company: e.target.value })}
                 placeholder="Google"
                 aria-label="Company name"
+                maxLength={100}
               />
-              {errors.company && <span className="text-[10px] text-danger">{errors.company}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.company ? (
+                  <span className="text-danger">{errors.company}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.company || "").length}/100 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -175,8 +183,16 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, jobTitle: e.target.value })}
                 placeholder="Software Engineer"
                 aria-label="Role or Position"
+                maxLength={100}
               />
-              {errors.jobTitle && <span className="text-[10px] text-danger">{errors.jobTitle}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.jobTitle ? (
+                  <span className="text-danger">{errors.jobTitle}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.jobTitle || "").length}/100 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -186,7 +202,11 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, location: e.target.value })}
                 placeholder="Hanoi, Vietnam"
                 aria-label="Job location"
+                maxLength={100}
               />
+              <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+                <span>{(editingItem.location || "").length}/100 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -210,7 +230,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
               />
             </div>
 
-            <div className="flex items-center gap-2 py-4 select-none">
+            <label className="flex items-center gap-2 py-4 select-none cursor-pointer">
               <Checkbox
                 isSelected={editingItem.isCurrentlyWorking}
                 onChange={(isSelected: boolean) =>
@@ -221,13 +241,22 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                   })
                 }
                 aria-label="Currently working here"
-              />
+                className="cursor-pointer"
+              >
+                <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                  <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </Checkbox.Indicator>
+                </Checkbox.Control>
+              </Checkbox>
               <span className="text-xs font-semibold text-foreground">
                 Currently working here
               </span>
-            </div>
+            </label>
 
-            <div className="flex items-center gap-2 py-4 select-none">
+            <label className="flex items-center gap-2 py-4 select-none cursor-pointer">
               <Checkbox
                 isSelected={editingItem.isLeadership}
                 onChange={(isSelected: boolean) =>
@@ -237,11 +266,20 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                   })
                 }
                 aria-label="Leadership / Management Role"
-              />
+                className="cursor-pointer"
+              >
+                <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                  <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </Checkbox.Indicator>
+                </Checkbox.Control>
+              </Checkbox>
               <span className="text-xs font-semibold text-foreground">
                 Leadership / Management Role
               </span>
-            </div>
+            </label>
           </div>
 
           <div className="flex flex-col gap-1.5 text-xs">
@@ -252,25 +290,35 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
               placeholder="Detail your responsibilities and achievements..."
               rows={4}
               aria-label="Job description"
+              maxLength={2000}
             />
+            <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+              <span>{(editingItem.description || "").length}/2000 characters</span>
+            </div>
           </div>
 
           {/* Tech stack section */}
           <div className="flex flex-col gap-2 border-t border-border/20 pt-3">
             <label className="font-bold text-xs text-foreground">Technologies Used</label>
-            <div className="flex gap-2">
-              <Input
-                value={newTech}
-                onChange={(e) => setNewTech(e.target.value)}
-                placeholder="Add technology..."
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTechnology();
-                  }
-                }}
-                aria-label="Technology name"
-              />
+            <div className="flex gap-2 items-start">
+              <div className="flex-1 flex flex-col gap-0.5">
+                <Input
+                  value={newTech}
+                  onChange={(e) => setNewTech(e.target.value)}
+                  placeholder="Add technology..."
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addTechnology();
+                    }
+                  }}
+                  aria-label="Technology name"
+                  maxLength={30}
+                />
+                <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+                  <span>{(newTech || "").length}/30 characters</span>
+                </div>
+              </div>
               <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={addTechnology} type="button" aria-label="Add technology">
                 <Plus className="size-4" />
               </Button>
@@ -298,7 +346,17 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
           {/* Achievements section */}
           <div className="flex flex-col gap-3 border-t border-border/20 pt-3">
             <div className="flex justify-between items-center">
-              <span className="font-bold text-xs text-foreground">Achievements</span>
+              <div className="flex items-center gap-1">
+                <span className="font-bold text-xs text-foreground">Achievements</span>
+                <Tooltip delay={0}>
+                  <Tooltip.Trigger>
+                    <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                  </Tooltip.Trigger>
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                    Key metrics, achievements, or notable results in this role, e.g. 'Optimized database query response time by 30%'
+                  </Tooltip.Content>
+                </Tooltip>
+              </div>
               <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-7 text-[10px] font-bold" onPress={addAchievement} type="button">
                 <PlusCircle className="size-3.5" />
                 Add Achievement
@@ -325,7 +383,11 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                       onChange={(e) => updateAchievement(idx, "title", e.target.value)}
                       placeholder="e.g. Optimize Database Query"
                       aria-label={`Achievement title ${idx + 1}`}
+                      maxLength={150}
                     />
+                    <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+                      <span>{(ach.title || "").length}/150 characters</span>
+                    </div>
                   </div>
                   <div className="flex flex-col gap-1 text-xs">
                     <label className="font-bold">Description</label>
@@ -335,7 +397,11 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                       placeholder="e.g. Tối ưu hóa truy vấn giúp giảm tải CPU 25%"
                       rows={2}
                       aria-label={`Achievement description ${idx + 1}`}
+                      maxLength={500}
                     />
+                    <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+                      <span>{(ach.description || "").length}/500 characters</span>
+                    </div>
                   </div>
                 </div>
               ))}

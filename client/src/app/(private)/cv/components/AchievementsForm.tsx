@@ -119,8 +119,16 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
                 placeholder="AWS Certified Solutions Architect"
                 aria-label="Certificate or Achievement name"
+                maxLength={150}
               />
-              {errors.title && <span className="text-[10px] text-danger">{errors.title}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.title ? (
+                  <span className="text-danger">{errors.title}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.title || "").length}/150 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -130,8 +138,16 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, issuer: e.target.value })}
                 placeholder="Amazon Web Services (AWS)"
                 aria-label="Issuer"
+                maxLength={100}
               />
-              {errors.issuer && <span className="text-[10px] text-danger">{errors.issuer}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.issuer ? (
+                  <span className="text-danger">{errors.issuer}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.issuer || "").length}/100 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -151,8 +167,16 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, credentialUrl: e.target.value })}
                 placeholder="https://aws.amazon.com/verify/..."
                 aria-label="Credential URL"
+                maxLength={250}
               />
-              {errors.credentialUrl && <span className="text-[10px] text-danger">{errors.credentialUrl}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.credentialUrl ? (
+                  <span className="text-danger">{errors.credentialUrl}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.credentialUrl || "").length}/250 characters</span>
+              </div>
             </div>
           </div>
 
@@ -164,7 +188,11 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
               placeholder="Provide a brief description of the achievement..."
               rows={3}
               aria-label="Achievement description"
+              maxLength={500}
             />
+            <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+              <span>{(editingItem.description || "").length}/500 characters</span>
+            </div>
           </div>
 
           <Button size="sm" className="bg-accent text-accent-foreground font-bold rounded-xl border-none mt-2 h-9" onPress={handleSaveItem}>
