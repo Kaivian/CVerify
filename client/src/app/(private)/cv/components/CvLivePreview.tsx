@@ -14,31 +14,6 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
   const previewRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [contentHeight, setContentHeight] = useState(1123);
-  const [repositories, setRepositories] = useState<SourceCodeRepository[]>([]);
-
-  // Fetch user's verified repositories to display as projects
-  useEffect(() => {
-    let active = true;
-    const fetchRepos = async () => {
-      try {
-        const result = await sourceCodeProviderApi.fetchRepositories({
-          page: 1,
-          pageSize: 100,
-        });
-        if (active) {
-          // Filter to only display repositories that are verified or analyzed successfully
-          const verifiedRepos = result.items.filter(r => r.isVerified || r.latestAnalysisStatus === "Completed");
-          setRepositories(verifiedRepos);
-        }
-      } catch (err) {
-        console.error("Failed to load repositories for live preview:", err);
-      }
-    };
-    fetchRepos();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   // Handle dynamic visual scaling to fit parent container width and height compensation
   useEffect(() => {
@@ -79,7 +54,7 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
     return () => {
       observer.disconnect();
     };
-  }, [drafts, repositories]);
+  }, [drafts]);
 
   const basic = drafts["basic-info"];
   const summary = { bio: drafts["basic-info"].bio };
@@ -125,7 +100,7 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
             education={education}
             achievements={achievements}
             preferences={preferences}
-            projects={repositories}
+            projects={drafts["projects"]}
           />
         </div>
       </div>

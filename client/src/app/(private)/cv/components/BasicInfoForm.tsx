@@ -1,9 +1,10 @@
 import React, { useRef, useState } from "react";
-import { Input, Button, Select, ListBox, Spinner, toast, TextArea, Tooltip } from "@heroui/react";
-import { PlusCircle, Trash2, Camera, Info } from "lucide-react";
+import { Input, Button, Select, ListBox, Spinner, toast, TextArea, Tooltip, Dropdown } from "@heroui/react";
+import { PlusCircle, Trash2, Camera, Info, Sparkles } from "lucide-react";
 import { type BasicInfoDraft } from "./types";
 import { profileApi } from "@/services/profile.service";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
+import { type CandidateAssessmentResponse } from "@/types/profile.types";
 
 interface BasicInfoFormProps {
   draft: BasicInfoDraft;
@@ -14,6 +15,7 @@ interface BasicInfoFormProps {
   isSaving: boolean;
   isDirty: boolean;
   avatarUrl?: string | null;
+  latestAssessment?: CandidateAssessmentResponse | null;
 }
 
 export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
@@ -25,6 +27,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
   isSaving,
   isDirty,
   avatarUrl,
+  latestAssessment,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -232,14 +235,77 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
               </Tooltip.Content>
             </Tooltip>
           </div>
-          <Input
-            value={draft.headline}
-            onChange={(e) => onChange({ headline: e.target.value })}
-            placeholder="Senior Fullstack Engineer"
-            aria-label="Professional Headline"
-            maxLength={150}
-          />
-          <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+          <div className="flex gap-2 items-center">
+            <Input
+              value={draft.headline}
+              onChange={(e) => onChange({ headline: e.target.value })}
+              placeholder="Senior Fullstack Engineer"
+              aria-label="Professional Headline"
+              maxLength={150}
+              className="flex-1"
+            />
+            {latestAssessment && (latestAssessment.summaryHeadline || (latestAssessment.careerLevelLabel && latestAssessment.primaryTendency)) && (
+              <Dropdown>
+                <Dropdown.Trigger>
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    className="rounded-xl border border-border/30 h-10 shrink-0 font-bold text-xs flex items-center gap-1.5"
+                    type="button"
+                  >
+                    <Sparkles className="size-3.5 text-primary animate-pulse" />
+                    <span>AI Suggestions</span>
+                  </Button>
+                </Dropdown.Trigger>
+                <Dropdown.Popover
+                  placement="bottom end"
+                  className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[240px] outline-hidden z-50 font-outfit"
+                >
+                  <Dropdown.Menu aria-label="AI Suggested Headline Options">
+                    {latestAssessment.summaryHeadline && (
+                      <Dropdown.Item
+                        key="summaryHeadline"
+                        onClick={() => onChange({ headline: latestAssessment.summaryHeadline ?? "" })}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex flex-col text-left">
+                          <span className="font-bold text-foreground">{latestAssessment.summaryHeadline}</span>
+                          <span className="text-[9px] text-muted-foreground mt-0.5">Primary AI Recommendation</span>
+                        </div>
+                      </Dropdown.Item>
+                    )}
+                    {latestAssessment.careerLevelLabel && latestAssessment.primaryTendency && (() => {
+                      const altHeadline = `${latestAssessment.careerLevelLabel} ${latestAssessment.primaryTendency} Engineer`;
+                      if (altHeadline.toLowerCase() === latestAssessment.summaryHeadline?.toLowerCase()) {
+                        return null;
+                      }
+                      return (
+                        <Dropdown.Item
+                          key="altHeadline"
+                          onClick={() => onChange({ headline: altHeadline })}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                        >
+                          <div className="flex flex-col text-left">
+                            <span className="font-bold text-foreground">{altHeadline}</span>
+                            <span className="text-[9px] text-muted-foreground mt-0.5">Role-based Recommendation</span>
+                          </div>
+                        </Dropdown.Item>
+                      );
+                    })()}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
+              </Dropdown>
+            )}
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+            {latestAssessment && (latestAssessment.summaryHeadline || (latestAssessment.careerLevelLabel && latestAssessment.primaryTendency)) ? (
+              <span className="text-primary/80 flex items-center gap-1 font-medium">
+                <Sparkles className="size-3 text-primary animate-pulse" />
+                Select career orientation from AI suggestions dropdown
+              </span>
+            ) : (
+              <span />
+            )}
             <span>{(draft.headline || "").length}/150 characters</span>
           </div>
         </div>

@@ -885,8 +885,6 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     freshJob.ErrorMessage = ex.Message;
 
                     await SaveEventAsync(jobId, "Failed", freshJob.Progress, ex.Message);
-                    await _context.SaveChangesAsync(CancellationToken.None);
-
                     await PublishProgressEventAsync(jobId, "Failed", "Failed", freshJob.Progress, ex.Message);
                 }
                 else if (string.IsNullOrEmpty(freshJob.ErrorMessage))
@@ -894,8 +892,10 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     freshJob.ErrorMessage = ex.Message;
                     freshJob.CompletedAt = _timeProvider.GetUtcNow();
                     freshJob.LastUpdatedUtc = _timeProvider.GetUtcNow();
-                    await _context.SaveChangesAsync(CancellationToken.None);
                 }
+
+                // Always save changes to persist repo and job status updates
+                await _context.SaveChangesAsync(CancellationToken.None);
             }
         }
     }
@@ -1471,6 +1471,10 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         {
             return ("SERVICE_UNAVAILABLE", true);
         }
+        if (ex is System.Net.Sockets.SocketException || msg.Contains("CONNECTION") || msg.Contains("REFUSED") || msg.Contains("UNREACHABLE") || msg.Contains("COULD NOT BE MADE"))
+        {
+            return ("CONNECTION_FAILURE", false);
+        }
         if (msg.Contains("PARSE") || msg.Contains("PARSING") || msg.Contains("JSON") || msg.Contains("SERIALIZATION"))
         {
             return ("PARSING_ERROR", false);
@@ -1479,8 +1483,12 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         {
             return ("INVALID_REQUEST", false);
         }
-        if (ex is HttpRequestException)
+        if (ex is HttpRequestException httpEx)
         {
+            if (httpEx.StatusCode == null)
+            {
+                return ("CONNECTION_FAILURE", false);
+            }
             return ("SERVICE_UNAVAILABLE", true);
         }
 

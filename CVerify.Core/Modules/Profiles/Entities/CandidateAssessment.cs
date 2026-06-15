@@ -50,6 +50,14 @@ public class CandidateAssessment
     [MaxLength(20)]
     public string AssessmentSchemaVersion { get; set; } = "1.0.0";
 
+    public Guid? CvId { get; set; }
+
+    [MaxLength(50)]
+    public string? PromptVersion { get; set; }
+
+    [MaxLength(100)]
+    public string? ModelVersion { get; set; }
+
     [Required]
     public DateTimeOffset LastProfileUpdateAt { get; set; }
 

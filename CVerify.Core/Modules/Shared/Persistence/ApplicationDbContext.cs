@@ -163,6 +163,12 @@ public class ApplicationDbContext : DbContext
     public DbSet<WorkExperienceLink> WorkExperienceLinks => Set<WorkExperienceLink>();
     public DbSet<CandidateAssessment> CandidateAssessments => Set<CandidateAssessment>();
     public DbSet<CandidateAssessmentArtifact> CandidateAssessmentArtifacts => Set<CandidateAssessmentArtifact>();
+    public DbSet<RepositoryAssessment> RepositoryAssessments => Set<RepositoryAssessment>();
+
+    public DbSet<ProjectEntry> ProjectEntries => Set<ProjectEntry>();
+    public DbSet<ProjectRepositoryLink> ProjectRepositoryLinks => Set<ProjectRepositoryLink>();
+    public DbSet<ProjectTechnology> ProjectTechnologies => Set<ProjectTechnology>();
+    public DbSet<ProjectContribution> ProjectContributions => Set<ProjectContribution>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -189,6 +195,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<WorkExperienceLink>().Property(wl => wl.Id).ValueGeneratedNever();
         modelBuilder.Entity<CandidateAssessment>().Property(ca => ca.Id).ValueGeneratedNever();
         modelBuilder.Entity<CandidateAssessmentArtifact>().Property(caa => caa.Id).ValueGeneratedNever();
+        modelBuilder.Entity<RepositoryAssessment>().Property(ra => ra.Id).ValueGeneratedNever();
         modelBuilder.Entity<ResetPasswordToken>().Property(rt => rt.Id).ValueGeneratedNever();
         modelBuilder.Entity<OutboxMessage>().Property(om => om.Id).ValueGeneratedNever();
         modelBuilder.Entity<AuditLog>().Property(al => al.Id).ValueGeneratedNever();
@@ -1121,6 +1128,14 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(caa => new { caa.AssessmentId, caa.ArtifactType }).IsUnique().HasDatabaseName("ux_candidate_assessment_artifacts_type");
         });
 
+        modelBuilder.Entity<RepositoryAssessment>(entity =>
+        {
+            entity.ToTable("repository_assessments");
+            entity.HasIndex(ra => ra.RepositoryId).HasDatabaseName("idx_repository_assessments_repo_id");
+            entity.HasIndex(ra => ra.AnalysisJobId).HasDatabaseName("idx_repository_assessments_job_id");
+            entity.HasIndex(ra => new { ra.RepositoryId, ra.CommitSha }).HasDatabaseName("ux_repository_assessments_repo_sha");
+        });
+
 
         // ProfileAttachment configurations
         modelBuilder.Entity<ProfileAttachment>(entity =>
@@ -1313,6 +1328,77 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(np => new { np.UserId, np.NotificationType, np.Channel })
                   .IsUnique()
                   .HasDatabaseName("idx_user_notification_prefs");
+        });
+
+        // ProjectEntry configurations
+        modelBuilder.Entity<ProjectEntry>(entity =>
+        {
+            entity.ToTable("project_entries");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Id).ValueGeneratedNever();
+            entity.HasQueryFilter(p => p.DeletedAt == null);
+
+            entity.HasOne(p => p.User)
+                  .WithMany()
+                  .HasForeignKey(p => p.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(p => p.UserId)
+                  .HasDatabaseName("idx_project_entries_user_id");
+        });
+
+        // ProjectRepositoryLink configurations
+        modelBuilder.Entity<ProjectRepositoryLink>(entity =>
+        {
+            entity.ToTable("project_repository_links");
+            entity.HasKey(prl => prl.Id);
+            entity.Property(prl => prl.Id).ValueGeneratedNever();
+
+            entity.HasOne(prl => prl.ProjectEntry)
+                  .WithMany(p => p.RepositoryLinks)
+                  .HasForeignKey(prl => prl.ProjectEntryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(prl => prl.SourceCodeRepository)
+                  .WithMany()
+                  .HasForeignKey(prl => prl.SourceCodeRepositoryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(prl => new { prl.ProjectEntryId, prl.SourceCodeRepositoryId })
+                  .IsUnique()
+                  .HasDatabaseName("idx_project_repo_links_unique");
+        });
+
+        // ProjectTechnology configurations
+        modelBuilder.Entity<ProjectTechnology>(entity =>
+        {
+            entity.ToTable("project_technologies");
+            entity.HasKey(pt => pt.Id);
+            entity.Property(pt => pt.Id).ValueGeneratedNever();
+
+            entity.HasOne(pt => pt.ProjectEntry)
+                  .WithMany(p => p.Technologies)
+                  .HasForeignKey(pt => pt.ProjectEntryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(pt => pt.ProjectEntryId)
+                  .HasDatabaseName("idx_project_technologies_project_id");
+        });
+
+        // ProjectContribution configurations
+        modelBuilder.Entity<ProjectContribution>(entity =>
+        {
+            entity.ToTable("project_contributions");
+            entity.HasKey(pc => pc.Id);
+            entity.Property(pc => pc.Id).ValueGeneratedNever();
+
+            entity.HasOne(pc => pc.ProjectEntry)
+                  .WithMany(p => p.Contributions)
+                  .HasForeignKey(pc => pc.ProjectEntryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(pc => pc.ProjectEntryId)
+                  .HasDatabaseName("idx_project_contributions_project_id");
         });
     }
 

@@ -37,6 +37,7 @@ import { useCareerPreferences } from "@/hooks/use-career-preferences";
 import { useEducation } from "@/hooks/use-education";
 import { useWorkExperience } from "@/hooks/use-work-experience";
 import { useAchievements } from "@/hooks/use-achievements";
+import { useProjects } from "@/hooks/use-projects";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useCandidateAssessment } from "@/hooks/use-candidate-assessment";
 import { isDeepEqual } from "@/components/ui/unsaved-changes-bar";
@@ -46,6 +47,7 @@ import {
   type CvSectionId,
   type BasicInfoDraft,
   type SkillsDraft,
+  type ProjectDraftItem,
   type ExperienceDraftItem,
   type EducationDraftItem,
   type AchievementsDraftItem,
@@ -176,7 +178,7 @@ const INITIAL_DRAFT_STATE: CvDraftState = {
   "skills": {
     targetSkills: [],
   },
-  "projects": {},
+  "projects": [],
   "experience": [],
   "education": [],
   "achievements": [],
@@ -222,6 +224,7 @@ export default function CvManagementCenter() {
   const { education, isLoading: isEduLoading, addEducation, updateEducation, deleteEducation, reorderEducation, refreshEducation } = useEducation();
   const { workExperiences, isLoading: isWorkLoading, addWorkExperience, updateWorkExperience, deleteWorkExperience, reorderWorkExperiences, refreshWorkExperiences } = useWorkExperience();
   const { achievements, isLoading: isAchLoading, addAchievement, updateAchievement, deleteAchievement, reorderAchievements, refreshAchievements } = useAchievements();
+  const { projects, isLoading: isProjLoading, addProject, updateProject, deleteProject, reorderProjects, refreshProjects } = useProjects();
 
   // Baseline and local drafts state
   const [baselines, setBaselines] = useState<CvDraftState>(INITIAL_DRAFT_STATE);
@@ -308,7 +311,7 @@ export default function CvManagementCenter() {
         });
         if (active) {
           const verifiedRepos = result.items.filter(
-            (r) => r.isVerified || r.latestAnalysisStatus === "Completed"
+            (r) => r.isEnabled
           );
           setRepositories(verifiedRepos);
         }
@@ -493,11 +496,38 @@ export default function CvManagementCenter() {
     }
   }, [achievements]);
 
+  useEffect(() => {
+    if (projects) {
+      const projMapped: ProjectDraftItem[] = projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        role: p.role || "",
+        description: p.description || "",
+        startDate: p.startDate ? p.startDate.split("T")[0] : "",
+        endDate: p.endDate ? p.endDate.split("T")[0] : null,
+        isCurrentlyWorking: p.isCurrentlyWorking,
+        verificationLevel: p.verificationLevel,
+        verificationStatus: p.verificationStatus,
+        verifiedAt: p.verifiedAt,
+        verificationMetadataJson: p.verificationMetadataJson,
+        repositoryLinks: p.repositoryLinks || [],
+        technologies: p.technologies || [],
+        contributions: p.contributions || [],
+      }));
+
+      const timer = setTimeout(() => {
+        setBaselines((prev) => ({ ...prev, "projects": projMapped }));
+        setDrafts((prev) => ({ ...prev, "projects": projMapped }));
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [projects]);
+
   // Compute dirty states per section
   const dirtyFlags = {
     "basic-info": !isDeepEqual(drafts["basic-info"], baselines["basic-info"]),
     "skills": !isDeepEqual(drafts["skills"], baselines["skills"]),
-    "projects": false,
+    "projects": !isDeepEqual(drafts["projects"], baselines["projects"]),
     "experience": !isDeepEqual(drafts["experience"], baselines["experience"]),
     "education": !isDeepEqual(drafts["education"], baselines["education"]),
     "achievements": !isDeepEqual(drafts["achievements"], baselines["achievements"]),
@@ -562,7 +592,7 @@ export default function CvManagementCenter() {
     }
   };
 
-  const isLoading = isProfileLoading || isCareerLoading || isEduLoading || isWorkLoading || isAchLoading;
+  const isLoading = isProfileLoading || isCareerLoading || isEduLoading || isWorkLoading || isAchLoading || isProjLoading;
 
   if (isLoading) {
     return (
@@ -823,6 +853,46 @@ export default function CvManagementCenter() {
 
         toast.success("Changes saved successfully!");
         await refreshAchievements();
+      } else if (activeTab === "projects") {
+        const formItems = drafts["projects"];
+        const baselineItems = baselines["projects"];
+        const finalIds: string[] = [];
+
+        const formIds = formItems.map((item) => item.id);
+        const toDelete = baselineItems.filter((item) => !formIds.includes(item.id));
+        for (const item of toDelete) {
+          await deleteProject(item.id);
+        }
+
+        for (const item of formItems) {
+          const payload = {
+            name: item.name,
+            role: item.role || null,
+            description: item.description,
+            startDate: item.startDate ? new Date(item.startDate).toISOString() : null,
+            endDate: item.endDate ? new Date(item.endDate).toISOString() : null,
+            isCurrentlyWorking: item.isCurrentlyWorking,
+            verificationLevel: item.verificationLevel,
+            linkedRepositoryIds: item.repositoryLinks.map((r) => r.sourceCodeRepositoryId),
+            technologies: item.technologies,
+            contributions: item.contributions,
+          };
+
+          if (item.id.startsWith("temp-")) {
+            const response = await addProject(payload);
+            finalIds.push(response.id);
+          } else {
+            const response = await updateProject(item.id, payload);
+            finalIds.push(response.id);
+          }
+        }
+
+        if (finalIds.length > 0) {
+          await reorderProjects(finalIds);
+        }
+
+        toast.success("Changes saved successfully!");
+        await refreshProjects();
       }
     } catch (err) {
       console.error(err);
@@ -831,6 +901,7 @@ export default function CvManagementCenter() {
       if (activeTab === "experience") await refreshWorkExperiences();
       if (activeTab === "education") await refreshEducation();
       if (activeTab === "achievements") await refreshAchievements();
+      if (activeTab === "projects") await refreshProjects();
       if (activeTab === "basic-info") await refreshProfile();
       if (activeTab === "skills" || activeTab === "preferences") await refreshCareer();
     } finally {
@@ -862,7 +933,7 @@ export default function CvManagementCenter() {
   };
 
   const activePreferences = useSampleData ? INITIAL_DRAFT_STATE["preferences"] : drafts["preferences"];
-  const activeProjects = useSampleData ? SAMPLE_DATA.projects : repositories;
+  const activeProjects = useSampleData ? SAMPLE_DATA.projects : drafts["projects"];
 
   const renderAssessmentDashboard = () => {
     if (isLoadingDetails || !assessmentDetails) {
@@ -1928,6 +1999,7 @@ export default function CvManagementCenter() {
                         isSaving={isSaving}
                         isDirty={dirtyFlags["basic-info"]}
                         avatarUrl={user?.avatarUrl}
+                        latestAssessment={latestAssessment}
                       />
                     )}
 
@@ -1941,7 +2013,17 @@ export default function CvManagementCenter() {
                         isDirty={dirtyFlags["skills"]}
                       />
                     )}
-                    {activeTab === "projects" && <ProjectsForm />}
+                    {activeTab === "projects" && (
+                      <ProjectsForm
+                        draft={drafts["projects"]}
+                        onChange={(updated) => setDrafts((prev) => ({ ...prev, "projects": updated }))}
+                        onSave={handleSaveActiveSection}
+                        onReset={handleResetActiveSection}
+                        isSaving={isSaving}
+                        isDirty={dirtyFlags["projects"]}
+                        repositories={repositories}
+                      />
+                    )}
                     {activeTab === "experience" && (
                       <ExperienceForm
                         draft={drafts["experience"]}

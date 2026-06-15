@@ -249,6 +249,7 @@ export interface PublicProfileResponse {
   careerPreference?: PublicCareerPreference | null;
   trustScore?: number | null;
   repositories?: PublicRepository[] | null;
+  projects?: PublicProject[] | null;
 }
 
 export interface WorkExperienceAchievement {
@@ -339,5 +340,84 @@ export interface CandidateAssessmentArtifactDto {
 export interface CandidateAssessmentDetailResponse {
   assessment: CandidateAssessmentResponse;
   artifacts: CandidateAssessmentArtifactDto[];
+}
+
+export enum ProjectVerificationLevel {
+  AiAnalyzed = 1,
+  RepositoryLinked = 2,
+  Independent = 3,
+}
+
+export enum ProjectVerificationStatus {
+  Verified = 1,
+  Outdated = 2,
+  Disconnected = 3,
+  Unverified = 4,
+}
+
+export interface ProjectRepositoryLinkResponse {
+  id: string;
+  sourceCodeRepositoryId: string;
+  name: string;
+  owner: string;
+  htmlUrl: string | null;
+}
+
+export interface ProjectEntryRequest {
+  name: string;
+  role: string | null;
+  description: string;
+  startDate: string | null;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  verificationLevel: ProjectVerificationLevel;
+  linkedRepositoryIds: string[] | null;
+  technologies: string[] | null;
+  contributions: string[] | null;
+}
+
+export interface ProjectEntryResponse {
+  id: string;
+  userId: string;
+  name: string;
+  role: string | null;
+  description: string;
+  startDate: string | null;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  verificationLevel: ProjectVerificationLevel;
+  verificationStatus: ProjectVerificationStatus;
+  verifiedAt: string | null;
+  verificationMetadataJson: string | null;
+  displayOrder: number;
+  repositoryLinks: ProjectRepositoryLinkResponse[];
+  technologies: string[];
+  contributions: string[];
+}
+
+export interface PublicProjectRepositoryLink {
+  id: string;
+  sourceCodeRepositoryId: string;
+  name: string;
+  owner: string;
+  htmlUrl: string | null;
+}
+
+export interface PublicProject {
+  id: string;
+  name: string;
+  role: string | null;
+  description: string;
+  startDate: string | null;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  verificationLevel: ProjectVerificationLevel;
+  verificationStatus: ProjectVerificationStatus;
+  verifiedAt: string | null;
+  verificationMetadataJson: string | null;
+  displayOrder: number;
+  repositoryLinks: PublicProjectRepositoryLink[];
+  technologies: string[];
+  contributions: string[];
 }
 

@@ -312,8 +312,65 @@ class CandidatePromptFactory:
             f"- Must cite specific technical evidence, not generic statements\n"
             f"- Must mention level, tendency, and top 2-3 skills\n\n"
             f"Return JSON:\n"
-            f'{{"recruiterHeadline": "Senior Backend Engineer with 3+ years of Python/FastAPI expertise", '
-            f'"fullSummary": "paragraph 400-700 chars", '
-            f'"keyStrengths": ["Distributed system design", "API architecture", "PostgreSQL optimization"], '
-            f'"watchPoints": ["Limited frontend exposure", "No mobile development evidence"]}}'
+            f'  "recruiterHeadline": "Senior Backend Engineer with 3+ years of Python/FastAPI expertise", \n'
+            f'  "fullSummary": "paragraph 400-700 chars", \n'
+            f'  "keyStrengths": ["Distributed system design", "API architecture", "PostgreSQL optimization"], \n'
+            f'  "watchPoints": ["Limited frontend exposure", "No mobile development evidence"]\n'
+            f'}}'
+        )
+
+    # ── Repository Assessment ────────────────────────────────────────────────
+
+    def get_repository_assessment_prompt(self, inputs: Dict[str, Any]) -> str:
+        repo_report = inputs.get("repoIntelligenceReport", {})
+        skill_graph = inputs.get("skillEvidenceGraph", {})
+        commit_timeline = inputs.get("commitTimelineData", {})
+        commit_intent = inputs.get("commitIntentData", {})
+        
+        # Calculate default values
+        ownership = repo_report.get("ownership", {}) if isinstance(repo_report, dict) else {}
+        ownership_score = ownership.get("ownership_score", 0.0) if isinstance(ownership, dict) else 0.0
+        
+        fraud = repo_report.get("fraud_signals", {}) if isinstance(repo_report, dict) else {}
+        clone_classification = fraud.get("clone_classification") or repo_report.get("clone_classification", "clean") if isinstance(repo_report, dict) else "clean"
+        
+        tech_stack = repo_report.get("techStack", {}) if isinstance(repo_report, dict) else {}
+        primary_languages = tech_stack.get("languages", {}) if isinstance(tech_stack, dict) else {}
+        detected_frameworks = tech_stack.get("frameworks", []) if isinstance(tech_stack, dict) else []
+        
+        return (
+            f"Perform an L2 Repository Assessment for the following repository. "
+            f"Your output must be a single, valid, normalized JSON object representing the Repository Capability Profile.\n\n"
+            f"RAW REPOSITORY INTELLIGENCE REPORT:\n{json.dumps(repo_report, indent=2)}\n\n"
+            f"SKILL EVIDENCE GRAPH:\n{json.dumps(skill_graph, indent=2)}\n\n"
+            f"COMMIT TIMELINE DATA:\n{json.dumps(commit_timeline, indent=2)}\n\n"
+            f"COMMIT INTENT DATA:\n{json.dumps(commit_intent, indent=2)}\n\n"
+            f"CONTEXT AND DEFAULT METRICS:\n"
+            f"- Default Ownership Score: {ownership_score}\n"
+            f"- Default Clone Risk: {clone_classification}\n"
+            f"- Primary Languages: {json.dumps(primary_languages)}\n"
+            f"- Detected Frameworks: {json.dumps(detected_frameworks)}\n\n"
+            f"CRITICAL REQUIREMENTS:\n"
+            f"1. Evaluate and compute 'ownershipScore' (0.0 to 1.0) and 'complexityScore' (0.0 to 100.0) based on code quality and patterns.\n"
+            f"2. Evaluate 'qualityScore' (0.0 to 100.0) reflecting architecture cleanliness, test coverage, and documentation.\n"
+            f"3. Classify clone risk into 'cloneRiskClassification' (clean, low_risk, medium_risk, high_risk).\n"
+            f"4. Identify 'verifiedPatterns' (e.g. CQRS, Repository Pattern) and 'keyStrengths'/'identifiedGaps'.\n"
+            f"5. Return a clean JSON structure only. Do not truncate the JSON or include markdown formatting blocks.\n\n"
+            f"EXPECTED JSON SCHEMA:\n"
+            f"{{\n"
+            f"  \"repositoryId\": \"string\",\n"
+            f"  \"repositoryName\": \"string\",\n"
+            f"  \"verifiedCommitSha\": \"string\",\n"
+            f"  \"ownershipScore\": 0.85,\n"
+            f"  \"complexityScore\": 76.5,\n"
+            f"  \"qualityScore\": 82.0,\n"
+            f"  \"cloneRiskClassification\": \"clean\",\n"
+            f"  \"primaryLanguages\": {{\n"
+            f"    \"C#\": 85.0\n"
+            f"  }},\n"
+            f"  \"detectedFrameworks\": [\"ASP.NET Core\"],\n"
+            f"  \"verifiedPatterns\": [\"CQRS\"],\n"
+            f"  \"keyStrengths\": [\"string\"],\n"
+            f"  \"identifiedGaps\": [\"string\"]\n"
+            f"}}\n"
         )

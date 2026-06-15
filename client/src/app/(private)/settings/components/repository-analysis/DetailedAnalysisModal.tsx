@@ -254,7 +254,7 @@ const TrustGraphView: React.FC<TrustGraphViewProps> = ({ trustGraph, localAnalys
 
       return {
         ...edge,
-        type: "smoothstep",
+        type: "default",
         className,
         style: {}, // Avoid style overrides to maintain Tailwind class specificity
         markerEnd: {
@@ -490,18 +490,45 @@ const TrustGraphView: React.FC<TrustGraphViewProps> = ({ trustGraph, localAnalys
   return (
     <div className="flex flex-col gap-4 w-full text-left font-sans">
       <style>{`
-        .normal-edge {
+        .normal-edge .react-flow__edge-path {
           stroke: var(--separator) !important;
           stroke-width: 1.5px !important;
         }
-        .highlighted-edge {
+        .highlighted-edge .react-flow__edge-path {
           stroke: var(--accent) !important;
           stroke-width: 2.5px !important;
         }
-        .dimmed-edge {
+        .dimmed-edge .react-flow__edge-path {
           stroke: var(--border) !important;
           stroke-width: 1px !important;
           opacity: 0.25 !important;
+        }
+        .react-flow__edge-text {
+          fill: var(--muted) !important;
+          stroke: none !important;
+          font-size: 8px !important;
+          font-weight: 700 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.05em !important;
+        }
+        .react-flow__edge-textbg {
+          fill: var(--surface) !important;
+          stroke: var(--border) !important;
+          stroke-width: 1px !important;
+          rx: 6px !important;
+          ry: 6px !important;
+        }
+        .react-flow__edge-textwrapper {
+          transition: opacity 0.2s ease-in-out;
+        }
+        .normal-edge .react-flow__edge-textwrapper {
+          opacity: 0.35;
+        }
+        .dimmed-edge .react-flow__edge-textwrapper {
+          opacity: 0;
+        }
+        .highlighted-edge .react-flow__edge-textwrapper {
+          opacity: 1;
         }
         .react-flow__background {
           opacity: 0.4;

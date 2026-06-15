@@ -100,6 +100,21 @@ public class CandidateAssessmentController : ControllerBase
         return Ok(details);
     }
 
+    [HttpGet("v1/candidate-assessments/public/{username}")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(CandidateAssessmentDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPublicAssessment(string username, CancellationToken cancellationToken)
+    {
+        var details = await _assessmentService.GetLatestPublicAssessmentAsync(username, cancellationToken);
+        if (details == null)
+        {
+            return NoContent();
+        }
+        return Ok(details);
+    }
+
     [HttpGet("v1/candidate-assessments/progress/{userId}")]
     [Produces("text/event-stream")]
     [ProducesResponseType(StatusCodes.Status200OK)]
