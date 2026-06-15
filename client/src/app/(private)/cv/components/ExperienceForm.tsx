@@ -46,6 +46,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
       technologies: [],
       achievements: [],
       links: [],
+      isLeadership: false,
     };
     setEditingItem(newItem);
     setErrors({});
@@ -223,6 +224,22 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
               />
               <span className="text-xs font-semibold text-foreground">
                 Currently working here
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 py-4 select-none">
+              <Checkbox
+                isSelected={editingItem.isLeadership}
+                onChange={(isSelected: boolean) =>
+                  setEditingItem({
+                    ...editingItem,
+                    isLeadership: isSelected,
+                  })
+                }
+                aria-label="Leadership / Management Role"
+              />
+              <span className="text-xs font-semibold text-foreground">
+                Leadership / Management Role
               </span>
             </div>
           </div>

@@ -17,6 +17,7 @@ using CVerify.API.Modules.Auth.Services;
 using CVerify.API.Modules.Auth.Services.OtpPolicies;
 using CVerify.API.Modules.Auth.Services.PasswordPolicies;
 using CVerify.API.Modules.Profiles.Services;
+using CVerify.API.Modules.Profiles.BackgroundWorkers;
 using CVerify.API.Modules.Recovery.BackgroundWorkers;
 using CVerify.API.Modules.Recovery.Services;
 using CVerify.API.Modules.Shared.Configuration;
@@ -402,6 +403,8 @@ builder.Services.AddScoped<ICareerReadinessEngine, CareerReadinessEngine>();
 builder.Services.AddScoped<ICareerService, CareerService>();
 builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();
+builder.Services.AddScoped<ICandidateAssessmentService, CandidateAssessmentService>();
+builder.Services.AddSingleton<ICandidateAssessmentQueue, BackgroundCandidateAssessmentQueue>();
 
 // Register Public Workspace Seeder Plugins
 builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, JobVacancyModuleSeeder>();
@@ -412,6 +415,7 @@ builder.Services.AddScoped<ISourceCodeProviderService, SourceCodeProviderService
 builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueue>();
 builder.Services.AddScoped<IRepositoryAnalysisService, RepositoryAnalysisService>();
 builder.Services.AddSingleton<IRepositoryAnalysisQueue, BackgroundRepositoryAnalysisQueue>();
+builder.Services.AddScoped<ICandidateRepositoryProvider, CandidateRepositoryProvider>();
 builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Storage.IArtifactStorageProvider, CVerify.API.Pipelines.Shared.Storage.ArtifactStorageProvider>();
 builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Artifacts.IArtifactRegistry, CVerify.API.Pipelines.Shared.Artifacts.ArtifactRegistry>();
 builder.Services.AddScoped<CVerify.API.Pipelines.RepositoryIntelligence.Readers.IRepositoryArtifactReader, CVerify.API.Pipelines.RepositoryIntelligence.Readers.RepositoryArtifactReader>();
@@ -445,6 +449,7 @@ builder.Services.AddHostedService<OtpCleanupBackgroundWorker>();
 builder.Services.AddHostedService<BackgroundRepositorySyncProcessor>();
 builder.Services.AddHostedService<AnalysisQueueRecoverySweeper>();
 builder.Services.AddHostedService<BackgroundRepositoryAnalysisProcessor>();
+builder.Services.AddHostedService<BackgroundCandidateAssessmentProcessor>();
 
 builder.Services.AddHostedService<RedisNotificationSubscriberWorker>();
 builder.Services.AddHostedService<ActivityEventProjectionWorker>();

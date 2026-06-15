@@ -23,6 +23,12 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  CheckCircle2,
+  XCircle,
+  TrendingUp,
+  Target,
+  ShieldAlert,
+  X,
 } from "lucide-react";
 
 import { useProfile } from "@/hooks/use-profile";
@@ -31,6 +37,7 @@ import { useEducation } from "@/hooks/use-education";
 import { useWorkExperience } from "@/hooks/use-work-experience";
 import { useAchievements } from "@/hooks/use-achievements";
 import { useAuth } from "@/features/auth/hooks/use-auth";
+import { useCandidateAssessment } from "@/hooks/use-candidate-assessment";
 import { isDeepEqual } from "@/components/ui/unsaved-changes-bar";
 
 import {
@@ -142,7 +149,24 @@ const SAMPLE_DATA = {
   },
 };
 
-type ViewState = "overview" | "editor";
+type ViewState = "overview" | "editor" | "assessment";
+
+const ASSESSMENT_STAGES = [
+  { id: 'L2-001', label: 'Skill Taxonomy Mapper' },
+  { id: 'L2-002', label: 'Skill Proficiency Estimator' },
+  { id: 'L2-003', label: 'Strength/Weakness Analyzer' },
+  { id: 'L2-004', label: 'Career Level Mapper' },
+  { id: 'L2-005', label: 'Career Level Calibrator' },
+  { id: 'L2-006', label: 'Career Level Evidence Gate' },
+  { id: 'L2-007', label: 'Engineering Maturity Assessor' },
+  { id: 'L2-008', label: 'Problem Solving Analyzer' },
+  { id: 'L2-009', label: 'Technical Tendency Classifier' },
+  { id: 'L2-010', label: 'Working Style Classifier' },
+  { id: 'L2-011', label: 'Experience Confidence Multiplier' },
+  { id: 'L2-012', label: 'Multi-Role Recommendation Engine' },
+  { id: 'L2-013', label: 'Candidate Summary Generator' },
+  { id: 'L2-014', label: 'Candidate Profile Composer' },
+];
 
 // Initial draft states to prevent undefined errors before hydration
 const INITIAL_DRAFT_STATE: CvDraftState = {
@@ -197,6 +221,44 @@ const INITIAL_DRAFT_STATE: CvDraftState = {
 export default function CvManagementCenter() {
   const router = useRouter();
   const { user } = useAuth();
+
+  // Candidate Assessment Hook & States
+  const {
+    readiness,
+    latestAssessment,
+    assessmentDetails,
+    history,
+    isLoadingReadiness,
+    isLoadingLatest,
+    isLoadingDetails,
+    isLoadingHistory,
+    isTriggering,
+    error: assessmentError,
+    streamStatus,
+    streamProgress,
+    streamStep,
+    streamMessage,
+    triggerAssessment,
+    fetchDetails,
+    disconnectProgressStream,
+  } = useCandidateAssessment();
+
+  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+  const [activeDetailTab, setActiveDetailTab] = useState<string>("summary");
+
+  const handleTriggerAssessment = async () => {
+    try {
+      setIsProgressModalOpen(true);
+      await triggerAssessment();
+    } catch (err: any) {
+      toast.danger(err.message || "Failed to run candidate assessment.");
+    }
+  };
+
+  const handleViewAssessmentDetails = async (id: string) => {
+    setViewState("assessment");
+    await fetchDetails(id);
+  };
 
   // Page Views State
   const [viewState, setViewState] = useState<ViewState>("overview");
@@ -395,6 +457,7 @@ export default function CvManagementCenter() {
         technologies: we.technologies || [],
         achievements: we.achievements || [],
         links: we.links || [],
+        isLeadership: we.isLeadership,
       }));
 
       const timer = setTimeout(() => {
@@ -711,6 +774,7 @@ export default function CvManagementCenter() {
             achievements: item.achievements,
             technologies: item.technologies,
             links: item.links,
+            isLeadership: item.isLeadership,
           };
 
           if (item.id.startsWith("temp-")) {
@@ -852,6 +916,472 @@ export default function CvManagementCenter() {
   const activePreferences = useSampleData ? INITIAL_DRAFT_STATE["preferences"] : drafts["preferences"];
   const activeProjects = useSampleData ? SAMPLE_DATA.projects : repositories;
 
+  const renderProgressModal = () => {
+    if (!isProgressModalOpen) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+        <Card rounded="xl" className="w-full max-w-[500px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left p-6">
+          <div className="flex items-center justify-between border-b border-border/20 pb-3 shrink-0">
+            <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
+              <Sparkles className="size-4 text-accent animate-pulse" />
+              AI Profile Evaluation
+            </span>
+            {streamStatus !== 'connecting' && streamStatus !== 'streaming' && (
+              <Button
+                isIconOnly
+                size="sm"
+                variant="secondary"
+                className="rounded-xl border border-border/30 h-8 w-8"
+                onPress={() => {
+                  setIsProgressModalOpen(false);
+                  disconnectProgressStream();
+                }}
+                aria-label="Close modal"
+              >
+                <X className="size-4" />
+              </Button>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0">
+            <div className="flex flex-col gap-1 text-center py-2 shrink-0">
+              <span className="text-sm font-extrabold text-foreground">
+                {streamStatus === 'connecting'
+                  ? 'Connecting to Evaluation Stream...'
+                  : streamStatus === 'streaming'
+                    ? 'Analyzing Codebase & Calibrating Profile...'
+                    : streamStatus === 'completed'
+                      ? 'Evaluation Completed!'
+                      : streamStatus === 'failed'
+                        ? 'Evaluation Failed'
+                        : 'Idle'}
+              </span>
+              <span className="text-xs text-muted-foreground line-clamp-2 min-h-[32px]">
+                {streamMessage || 'Starting background evaluation...'}
+              </span>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-surface-secondary/50 rounded-full h-3 overflow-hidden shrink-0">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${streamStatus === 'failed' ? 'bg-danger' : streamStatus === 'completed' ? 'bg-success' : 'bg-accent'
+                  }`}
+                style={{ width: `${streamProgress}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground shrink-0 font-bold">
+              <span>ACTIVE STAGE: {streamStep || 'FETCH_ARTIFACTS'}</span>
+              <span>{Math.round(streamProgress)}%</span>
+            </div>
+
+            {/* Visual Timeline of Stages */}
+            <div className="flex flex-col gap-2 border-t border-border/10 pt-3 overflow-y-auto">
+              <span className="text-[10px] text-muted uppercase font-bold tracking-wider select-none mb-1">
+                Evaluation Timeline
+              </span>
+              <div className="flex flex-col gap-2.5 pl-1.5">
+                {[
+                  { id: 'FetchLine1', label: 'Fetch verified repository analysis artifacts' },
+                  { id: 'ConsolidateLine1', label: 'Consolidate multi-repository metrics' },
+                  ...ASSESSMENT_STAGES
+                ].map((stage) => {
+                  let status: 'pending' | 'running' | 'completed' | 'failed' = 'pending';
+
+                  if (streamStatus === 'completed') {
+                    status = 'completed';
+                  } else if (streamStatus === 'failed') {
+                    const steps = ['FetchLine1', 'ConsolidateLine1', ...ASSESSMENT_STAGES.map(s => s.id)];
+                    const activeIndex = steps.indexOf(streamStep);
+                    const stageIndex = steps.indexOf(stage.id);
+                    if (stage.id === streamStep) {
+                      status = 'failed';
+                    } else if (stageIndex < activeIndex && activeIndex !== -1) {
+                      status = 'completed';
+                    } else {
+                      status = 'pending';
+                    }
+                  } else {
+                    const steps = ['FetchLine1', 'ConsolidateLine1', ...ASSESSMENT_STAGES.map(s => s.id)];
+                    const activeIndex = steps.indexOf(streamStep);
+                    const stageIndex = steps.indexOf(stage.id);
+                    if (stage.id === streamStep) {
+                      status = 'running';
+                    } else if (stageIndex < activeIndex && activeIndex !== -1) {
+                      status = 'completed';
+                    } else {
+                      status = 'pending';
+                    }
+                  }
+
+                  return (
+                    <div key={stage.id} className="flex items-center gap-3 text-xs">
+                      <div className="shrink-0 flex items-center justify-center">
+                        {status === 'completed' ? (
+                          <CheckCircle2 className="size-4 text-success" />
+                        ) : status === 'failed' ? (
+                          <XCircle className="size-4 text-danger" />
+                        ) : status === 'running' ? (
+                          <Spinner size="sm" color="accent" className="size-4" />
+                        ) : (
+                          <div className="size-3.5 rounded-full border border-border bg-surface-secondary/40" />
+                        )}
+                      </div>
+                      <span className={[
+                        "truncate font-medium",
+                        status === 'running' ? 'text-accent font-bold' :
+                          status === 'completed' ? 'text-foreground/80' : 'text-muted-foreground'
+                      ].join(" ")}>
+                        {stage.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border/20 pt-4 flex gap-2 justify-end shrink-0">
+            {streamStatus === 'completed' && (
+              <Button
+                size="sm"
+                className="bg-accent text-accent-foreground font-bold rounded-xl border-none"
+                onPress={() => {
+                  setIsProgressModalOpen(false);
+                  if (latestAssessment) {
+                    handleViewAssessmentDetails(latestAssessment.id);
+                  }
+                }}
+              >
+                Open Dashboard
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="rounded-xl font-bold border-border/30"
+              isDisabled={streamStatus === 'connecting' || streamStatus === 'streaming'}
+              onPress={() => {
+                setIsProgressModalOpen(false);
+                disconnectProgressStream();
+              }}
+            >
+              Close
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
+  const renderAssessmentDashboard = () => {
+    if (isLoadingDetails || !assessmentDetails) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Spinner size="lg" color="accent" />
+        </div>
+      );
+    }
+
+    const { assessment, artifacts } = assessmentDetails;
+    const profileArtifact = artifacts.find(a => a.artifactType === 'CandidateProfile');
+    const profileData = profileArtifact ? JSON.parse(profileArtifact.jsonData) : null;
+    const activeData = profileData || assessment;
+
+    return (
+      <div className="flex flex-col gap-6 text-left w-full h-full relative pb-10">
+        {/* Dashboard Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-border/40 select-none">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-xl font-bold text-xs select-none border-border/40 flex items-center gap-1.5"
+            onPress={() => setViewState("overview")}
+          >
+            <ArrowLeft className="size-3.5" />
+            <span>Back to Overview</span>
+          </Button>
+          <Typography.Heading level={4} className="font-bold text-accent">
+            AI Profile Assessment Dashboard
+          </Typography.Heading>
+        </div>
+
+        {/* Top Header Card - Score and Overview */}
+        <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col md:flex-row gap-6 items-center">
+          {/* Circular Score Gauge */}
+          <div className="relative size-32 flex items-center justify-center shrink-0">
+            <svg className="size-full -rotate-90" viewBox="0 0 36 36">
+              <path
+                className="text-border/20"
+                strokeWidth="3"
+                stroke="currentColor"
+                fill="none"
+                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+              <path
+                className="text-accent transition-all duration-500 ease-out"
+                strokeDasharray={`${activeData.candidateScore || activeData.overallScore || 0}, 100`}
+                strokeWidth="3.2"
+                strokeLinecap="round"
+                stroke="currentColor"
+                fill="none"
+                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              />
+            </svg>
+            <div className="absolute flex flex-col items-center">
+              <span className="text-2xl font-black text-foreground">
+                {Math.round(activeData.candidateScore || activeData.overallScore || 0)}
+              </span>
+              <span className="text-[10px] text-muted uppercase font-bold tracking-wider">Score</span>
+            </div>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="flex-1 flex flex-col gap-3 text-center md:text-left">
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                <h3 className="text-lg font-black text-foreground">
+                  {profile?.fullName || "Candidate Evaluation"}
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-soft text-accent">
+                  {activeData.careerLevelLabel || activeData.careerLevel || "Middle"}
+                </span>
+                {activeData.displayConfidence && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-default-soft text-muted">
+                    Confidence: {Math.round(activeData.displayConfidence * 100)}%
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground italic max-w-2xl">
+                "{activeData.recruiterHeadline || activeData.summaryHeadline || "Verified Software Engineer Profile"}"
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 border-t border-border/10 pt-3 text-xs">
+              <div className="flex flex-col">
+                <span className="text-muted text-[10px] uppercase font-bold">Primary Tendency</span>
+                <span className="font-extrabold text-foreground">{activeData.primaryTendency || "Fullstack Engineer"}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-muted text-[10px] uppercase font-bold">Working Style</span>
+                <span className="font-extrabold text-foreground">{activeData.primaryWorkingStyle || "Collaborative"}</span>
+              </div>
+              <div className="flex flex-col col-span-2 sm:col-span-1">
+                <span className="text-muted text-[10px] uppercase font-bold">Evaluation Framework</span>
+                <span className="font-extrabold text-foreground">Pipeline v{assessment.pipelineVersion}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Tabs Navigation */}
+        <div className="flex border-b border-border/20 gap-2 overflow-x-auto select-none">
+          {[
+            { id: "summary", label: "Overview Summary", icon: FileText },
+            { id: "skills", label: "Calibrated Skills", icon: Award },
+            { id: "breakdown", label: "Score Breakdown", icon: TrendingUp },
+            { id: "roles", label: "Recommended Roles", icon: Target },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeDetailTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveDetailTab(tab.id)}
+                className={[
+                  "flex items-center gap-2 px-4 py-2.5 border-b-2 text-xs font-bold transition-all cursor-pointer whitespace-nowrap bg-transparent outline-none",
+                  isActive ? "border-accent text-accent font-black" : "border-transparent text-muted-foreground hover:text-foreground"
+                ].join(" ")}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab Contents */}
+        <div className="w-full">
+          {activeDetailTab === "summary" && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Recruiter Summary narrative */}
+              <Card rounded="xl" className="md:col-span-2 p-6 border border-border/40 bg-surface flex flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                  <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">AI Evaluation Narrative</h4>
+                  <p className="text-xs text-muted">A synthesized, recruiter-ready profile summary backed by source code artifacts.</p>
+                </div>
+                <div className="w-full h-px bg-border/10" />
+                <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                  {activeData.fullSummary || activeData.summaryParagraph || "No assessment narrative generated."}
+                </p>
+              </Card>
+
+              {/* Strengths & Watchpoints checklist */}
+              <div className="flex flex-col gap-6">
+                {/* Key Strengths */}
+                <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-3">
+                  <h4 className="font-extrabold text-sm uppercase tracking-wide text-success flex items-center gap-2">
+                    <CheckCircle2 className="size-4 shrink-0" />
+                    Key Strengths
+                  </h4>
+                  <div className="w-full h-px bg-border/10" />
+                  <ul className="flex flex-col gap-2 pl-4 list-disc text-xs text-muted-foreground text-left">
+                    {activeData.keyStrengths && activeData.keyStrengths.length > 0 ? (
+                      activeData.keyStrengths.map((str: string, index: number) => (
+                        <li key={index} className="leading-relaxed">
+                          {str}
+                        </li>
+                      ))
+                    ) : (
+                      <li>Strong codebase contribution patterns detected.</li>
+                    )}
+                  </ul>
+                </Card>
+
+                {/* Watch Points */}
+                <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-3">
+                  <h4 className="font-extrabold text-sm uppercase tracking-wide text-warning flex items-center gap-2">
+                    <ShieldAlert className="size-4 shrink-0" />
+                    Watch Points
+                  </h4>
+                  <div className="w-full h-px bg-border/10" />
+                  <ul className="flex flex-col gap-2 pl-4 list-disc text-xs text-muted-foreground text-left">
+                    {activeData.watchPoints && activeData.watchPoints.length > 0 ? (
+                      activeData.watchPoints.map((wp: string, index: number) => (
+                        <li key={index} className="leading-relaxed">
+                          {wp}
+                        </li>
+                      ))
+                    ) : (
+                      <li>No major adversarial risks or gaps identified.</li>
+                    )}
+                  </ul>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {activeDetailTab === "skills" && (
+            <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">Calibrated Technical Skill Stack</h4>
+                <p className="text-xs text-muted">Skills derived from the commit evidence graph mapping and target CV skills.</p>
+              </div>
+              <div className="w-full h-px bg-border/10" />
+
+              <div className="flex flex-col gap-4">
+                {activeData.skillProficiencies && activeData.skillProficiencies.length > 0 ? (
+                  activeData.skillProficiencies.map((item: any, index: number) => (
+                    <div key={index} className="flex flex-col gap-2 p-4 border border-border/30 rounded-xl bg-surface-secondary/10 text-xs">
+                      <div className="flex justify-between items-center flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-foreground text-sm">{item.skillName}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-soft text-accent uppercase">
+                            {item.proficiencyLevel}
+                          </span>
+                        </div>
+                        {item.evidenceCount !== undefined && (
+                          <span className="text-[10px] text-muted font-bold">
+                            Evidence commits: {item.evidenceCount}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground leading-relaxed">
+                        {item.reasoning}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground text-xs">
+                    No individual skill mappings available in this assessment.
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {activeDetailTab === "breakdown" && (
+            <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">Overall Score Calibrated Breakdown</h4>
+                <p className="text-xs text-muted">Weights and sub-scores according to the Line 2 Candidate score framework.</p>
+              </div>
+              <div className="w-full h-px bg-border/10" />
+
+              <div className="flex flex-col gap-5">
+                {activeData.scoreBreakdown ? (
+                  Object.entries(activeData.scoreBreakdown).map(([key, value]: [string, any]) => {
+                    const labelMap: Record<string, string> = {
+                      skillDepth: "Skill Depth & Scope",
+                      ownership: "Repository Ownership Ratio",
+                      architecture: "System Architecture Evidence",
+                      problemSolving: "Problem Solving Complexity",
+                      impact: "Engineering Business Impact",
+                    };
+                    const percent = value.score;
+                    const weight = Math.round(value.weight * 100);
+
+                    return (
+                      <div key={key} className="flex flex-col gap-2 text-xs">
+                        <div className="flex justify-between font-bold text-foreground">
+                          <span>{labelMap[key] || key}</span>
+                          <span>{Math.round(percent)}/100 (Weight: {weight}%)</span>
+                        </div>
+                        <div className="w-full bg-surface-secondary/50 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className="bg-accent h-full rounded-full transition-all duration-300"
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground text-xs">
+                    No detailed score breakdown details available.
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {activeDetailTab === "roles" && (
+            <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">Target Role Recommendations</h4>
+                <p className="text-xs text-muted font-medium">Matched roles based on tech stack evidence, maturity levels, and preferences.</p>
+              </div>
+              <div className="w-full h-px bg-border/10" />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {activeData.suggestedRoles && activeData.suggestedRoles.length > 0 ? (
+                  activeData.suggestedRoles.map((item: any, index: number) => (
+                    <Card key={index} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface-secondary/10 flex flex-col gap-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-extrabold text-foreground text-xs">{item.role}</span>
+                        <span className="text-xs font-black text-accent">{Math.round(item.matchScore)}% Match</span>
+                      </div>
+                      <div className="w-full h-px bg-border/10" />
+                      <ul className="flex flex-col gap-1.5 pl-4 list-disc text-[10px] text-muted-foreground text-left">
+                        {item.reasons && item.reasons.map((r: string, rIdx: number) => (
+                          <li key={rIdx}>{r}</li>
+                        ))}
+                      </ul>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="col-span-2 py-8 text-center text-muted-foreground text-xs">
+                    No role recommendations found in this assessment.
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderOverview = () => (
     <div className="flex flex-col gap-6 text-left w-full">
       {/* Layer 1: Profile Completeness */}
@@ -895,6 +1425,111 @@ export default function CvManagementCenter() {
             </div>
           </div>
         )}
+      </Card>
+
+      {/* AI Candidate Assessment Card */}
+      <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4 relative overflow-hidden">
+        {latestAssessment?.status === 'Completed' && (
+          <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
+        )}
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-accent-soft text-accent shrink-0">
+              <Sparkles className="size-5" />
+            </div>
+            <div className="flex flex-col gap-0.5 text-left">
+              <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">AI Candidate Assessment</h4>
+              <p className="text-xs text-muted leading-relaxed">
+                Analyze your full technical profile and codebase quality across all verified repositories.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued' ? (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-warning-soft text-warning animate-pulse">
+                Running ({streamProgress}%)
+              </span>
+            ) : latestAssessment?.status === 'Completed' ? (
+              readiness?.requiresReassessment ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-warning-soft text-warning">
+                  Outdated (Requires Reassessment)
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-success-soft text-success">
+                  Up To Date
+                </span>
+              )
+            ) : latestAssessment?.status === 'Failed' ? (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-danger-soft text-danger">
+                Failed
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-default-soft text-muted-foreground">
+                Never Assessed
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-border/20 pt-3 text-xs">
+          {readiness && !readiness.isReady ? (
+            <div className="flex gap-2 items-start text-muted">
+              <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
+              <div className="flex flex-col gap-1">
+                <span>
+                  <strong>Assessment Locked:</strong> You need to complete your profile structure first.
+                </span>
+                <span className="text-[10px] text-danger-foreground bg-danger-soft px-2 py-1 rounded-md max-w-fit font-semibold">
+                  Missing required fields: {readiness.missingFields.join(", ")}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-muted">
+              <div className="flex flex-col gap-0.5">
+                <span>
+                  <strong>Assessment Ready:</strong> High-quality repository metrics and profile inputs detected.
+                </span>
+                {latestAssessment?.completedAtUtc && (
+                  <span className="text-[10px]">
+                    Last Assessed: {new Date(latestAssessment.completedAtUtc).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2 self-end shrink-0">
+                {latestAssessment?.status === 'Completed' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="rounded-xl font-bold text-xs select-none border-border/30 h-9"
+                    onPress={() => handleViewAssessmentDetails(latestAssessment.id)}
+                  >
+                    View Report
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  className={`rounded-xl font-bold text-xs select-none h-9 ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                      ? "bg-warning text-warning-foreground border-none"
+                      : "bg-accent text-accent-foreground border-none"
+                    }`}
+                  onPress={
+                    latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                      ? () => setIsProgressModalOpen(true)
+                      : handleTriggerAssessment
+                  }
+                >
+                  {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                    ? "View Progress"
+                    : latestAssessment?.status === 'Completed'
+                      ? "Re-Run Assessment"
+                      : "Run Assessment"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </Card>
 
       {/* Layer 2: Profile Preview options */}
@@ -1209,7 +1844,7 @@ export default function CvManagementCenter() {
 
       {/* Main Content Areas */}
       <main className={`w-full flex-1 cv-management-main ${viewState === "editor" ? "lg:overflow-hidden" : "overflow-y-auto"}`}>
-        {viewState === "overview" ? renderOverview() : renderEditor()}
+        {viewState === "overview" ? renderOverview() : viewState === "assessment" ? renderAssessmentDashboard() : renderEditor()}
       </main>
 
       {/* Dialog standard A4 Preview overlay */}
@@ -1293,6 +1928,7 @@ export default function CvManagementCenter() {
           </Card>
         </div>
       )}
+      {renderProgressModal()}
     </div>
   );
 }

@@ -1,11 +1,13 @@
 import json
 import logging
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from app.core.middleware.hmac_auth import verify_hmac_signature
 from app.pipelines.repository.orchestrators.github_analysis_orchestrator import GitHubAnalysisOrchestrator
+from app.pipelines.candidate.orchestrator import CandidateEvaluationOrchestrator, is_line2_task
+from app.pipelines.jd.orchestrator import JdMatchingOrchestrator, is_line3_task
 
 router = APIRouter()
 logger = logging.getLogger("analysis_router")
@@ -44,6 +46,12 @@ class AggregationRequest(BaseModel):
     partialResults: dict
     deleteWorkspace: bool = False
 
+
+class CandidateAssessmentRequest(BaseModel):
+    jobIds: List[str]
+    cvSkills: List[str]
+    workingExperience: List[dict]
+
 @router.post("/api/v1/analysis/orchestrate/stream")
 async def orchestrate_stream(
     request_data: AnalysisRequest,
@@ -68,6 +76,39 @@ async def orchestrate_stream(
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Error during repository analysis flow: {e}", extra=extra_log)
+            err_payload = {
+                "status": "Failed",
+                "step": "Failed",
+                "message": str(e)
+            }
+            yield f"data: {json.dumps(err_payload)}\n\n"
+
+    return StreamingResponse(sse_generator(), media_type="text/event-stream")
+
+
+@router.post("/api/v1/candidate/assess/stream")
+async def assess_candidate_stream(
+    request_data: CandidateAssessmentRequest,
+    correlation_id: str = Depends(verify_hmac_signature)
+):
+    extra_log = {"correlation_id": correlation_id}
+    logger.info(f"Initiated candidate assessment stream request for jobs: {request_data.jobIds}", extra=extra_log)
+
+    from app.pipelines.candidate.orchestrate_stream import CandidateAssessmentStreamOrchestrator
+    orchestrator = CandidateAssessmentStreamOrchestrator()
+
+    async def sse_generator():
+        try:
+            async for progress_event in orchestrator.orchestrate_async(
+                job_ids=request_data.jobIds,
+                cv_skills=request_data.cvSkills,
+                working_experience=request_data.workingExperience,
+                correlation_id=correlation_id
+            ):
+                yield f"data: {json.dumps(progress_event)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error(f"Error during candidate assessment flow: {e}", extra=extra_log)
             err_payload = {
                 "status": "Failed",
                 "step": "Failed",
@@ -124,21 +165,39 @@ async def execute_task(
                 "events": []
             }
             
-    # Fallback to legacy task execution
-    extra_log = {"correlation_id": correlation_id, "job_id": request_data.jobId, "task_type": request_data.taskType}
+    # Fallback to legacy task execution — route by pipeline prefix
+    task_type = request_data.taskType or ""
+    extra_log = {"correlation_id": correlation_id, "job_id": request_data.jobId, "task_type": task_type}
     logger.info(f"Received legacy execute task request", extra=extra_log)
-    
-    orchestrator = GitHubAnalysisOrchestrator()
-    result = await orchestrator.execute_task(
-        task_type=request_data.taskType or "",
-        job_id=request_data.jobId,
-        repository_id=request_data.repositoryId or "",
-        repo_owner=request_data.repoOwner or "",
-        repo_name=request_data.repoName or "",
-        encrypted_token=request_data.encryptedToken or "",
-        default_branch=request_data.defaultBranch or "main",
-        correlation_id=correlation_id
-    )
+
+    if is_line2_task(task_type):
+        orchestrator_l2 = CandidateEvaluationOrchestrator()
+        result = await orchestrator_l2.execute_task(
+            task_type=task_type,
+            job_id=request_data.jobId,
+            inputs=request_data.inputs or {},
+            correlation_id=correlation_id
+        )
+    elif is_line3_task(task_type):
+        orchestrator_l3 = JdMatchingOrchestrator()
+        result = await orchestrator_l3.execute_task(
+            task_type=task_type,
+            job_id=request_data.jobId,
+            inputs=request_data.inputs or {},
+            correlation_id=correlation_id
+        )
+    else:
+        orchestrator = GitHubAnalysisOrchestrator()
+        result = await orchestrator.execute_task(
+            task_type=task_type,
+            job_id=request_data.jobId,
+            repository_id=request_data.repositoryId or "",
+            repo_owner=request_data.repoOwner or "",
+            repo_name=request_data.repoName or "",
+            encrypted_token=request_data.encryptedToken or "",
+            default_branch=request_data.defaultBranch or "main",
+            correlation_id=correlation_id
+        )
     return result
 
 

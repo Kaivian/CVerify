@@ -126,6 +126,7 @@ public class ProfileService : IProfileService
         profile.RecruiterVisibility = request.RecruiterVisibility;
         profile.AiTalentDiscovery = request.AiTalentDiscovery;
         profile.UpdatedAt = DateTimeOffset.UtcNow;
+        profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
 
         var newSocialUrls = new List<string>();
         if (request.SocialLinks != null)
