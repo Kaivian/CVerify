@@ -56,20 +56,6 @@ interface WorkspaceState {
   createJobAction: (orgSlug: string, jobPayload: Partial<Job>) => Promise<Job | null>;
 }
 
-const DEFAULT_DETAILS = {
-  description: "Leading technology solutions provider specializing in developer screening, automated credential validation, and AI-driven skill mapping systems. Empowering modern hiring teams worldwide.",
-  website: "https://cverify.dev",
-  location: "Hanoi, Vietnam",
-  industry: "Information Technology & Services",
-  founded: "2022",
-  companySize: "201-500",
-  mission: "To establish a source of technical truth and enable seamless verification for developers and companies globally.",
-  vision: "A world where skill validation is instant, verifiable, and free of bias.",
-  coreValues: "Trust, integrity, developers first, continuous innovation, and open collaboration.",
-  followersCount: 7120,
-  isFollowing: false,
-};
-
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: {},
   loading: {},
@@ -113,7 +99,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
             workspaces: {
               ...state.workspaces,
               [slug]: {
-                ...DEFAULT_DETAILS,
                 ...details,
                 // Keep frontend-only updates during session if already modified
                 ...state.workspaces[slug],
@@ -135,11 +120,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     try {
       const details = await workspaceService.getWorkspaceDetails(slug);
       const augmented: WorkspaceDetails = {
-        ...DEFAULT_DETAILS,
         ...details,
-        // Map backend followerCount â†’ store followersCount
-        followersCount: details.followerCount ?? details.followersCount ?? DEFAULT_DETAILS.followersCount,
-        isFollowing: details.isFollowing ?? DEFAULT_DETAILS.isFollowing,
+        // Map backend followerCount -> store followersCount
+        followersCount: details.followerCount ?? details.followersCount ?? 0,
+        isFollowing: details.isFollowing ?? false,
       };
       set((state) => ({
         workspaces: { ...state.workspaces, [slug]: augmented },
@@ -164,7 +148,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         workspaces: {
           ...state.workspaces,
           [slug]: {
-            ...DEFAULT_DETAILS,
             ...state.workspaces[slug],
             ...updated,
           }

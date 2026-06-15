@@ -313,6 +313,10 @@ public class WorkspaceController : ControllerBase
         org.FacebookUrl = dto.FacebookUrl;
         org.TwitterUrl = dto.TwitterUrl;
         org.Website = dto.Website;
+        org.Mission = dto.Mission;
+        org.Vision = dto.Vision;
+        org.CoreValues = dto.CoreValues;
+        org.Founded = dto.Founded;
         org.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -488,6 +492,10 @@ public class WorkspaceController : ControllerBase
             org.TwitterUrl,
             org.Website,
             org.TaxCode,
+            org.Mission,
+            org.Vision,
+            org.CoreValues,
+            org.Founded,
             followerCount,
             isFollowing
         );
@@ -653,7 +661,7 @@ public class WorkspaceController : ControllerBase
         if (memberUserIds.Count > 0)
         {
             var profiles = await _context.Database.SqlQueryRaw<MemberProfileDataDto>(
-                "SELECT user_id as \"UserId\", headline as \"Headline\", username as \"Username\" FROM user_profiles WHERE user_id = ANY({0})",
+                "SELECT user_id, headline, username FROM user_profiles WHERE user_id = ANY({0})",
                 memberUserIds.ToArray()
             ).ToListAsync();
             
@@ -1101,45 +1109,6 @@ public class WorkspaceController : ControllerBase
 
         var postsList = await postsQuery.ToListAsync(cancellationToken);
 
-        if (postsList.Count == 0)
-        {
-            var mockUser = await _context.Users.FirstOrDefaultAsync(cancellationToken);
-            var mockUserId = mockUser?.Id ?? Guid.NewGuid();
-            var mockPosts = new List<WorkspacePost>
-            {
-                new WorkspacePost
-                {
-                    Id = Guid.CreateVersion7(),
-                    OrganizationId = org.Id,
-                    CreatedByUserId = mockUserId,
-                    Category = "Engineering",
-                    Content = "ChÃºng tÃ´i vÃ´ cÃ¹ng tá»± hÃ o thÃ´ng bÃ¡o ráº±ng quy trÃ¬nh Ä‘Ã¡nh giÃ¡ vÃ  xÃ¡c thá»±c láº­p trÃ¬nh viÃªn trÃªn CVerify Ä‘Ã£ chÃ­nh thá»©c tÃ­ch há»£p chá»¯ kÃ½ máº­t mÃ£ hÃ³a (cryptographic credential signatures)! Viá»‡c nÃ y giÃºp tá»± Ä‘á»™ng hÃ³a 100% quy trÃ¬nh kiá»ƒm thá»­ nÄƒng lá»±c thá»±c táº¿ tá»« kho lÆ°u trá»¯ mÃ£ nguá»“n cá»§a á»©ng viÃªn.\n\nÄáº·c biá»‡t, Ä‘áº¡i diá»‡n CVerify cÃ¹ng Ä‘á»‘i tÃ¡c Ä‘Ã£ kÃ½ káº¿t biÃªn báº£n ghi nhá»› há»£p tÃ¡c chiáº¿n lÆ°á»£c nháº±m xÃ¢y dá»±ng cá»™ng Ä‘á»“ng ká»¹ sÆ° cÃ´ng nghá»‡ cháº¥t lÆ°á»£ng cao, báº£o máº­t vÃ  Ä‘Ã¡ng tin cáº­y. DÆ°á»›i Ä‘Ã¢y lÃ  má»™t sá»‘ hÃ¬nh áº£nh sá»± kiá»‡n kÃ½ káº¿t vÃ  hoáº¡t Ä‘á»™ng triá»ƒn khai thá»±c táº¿ cá»§a Ä‘á»™i ngÅ© ká»¹ sÆ° táº¡i vÄƒn phÃ²ng ÄÃ  Náºµng.",
-                    Images = new List<string>
-                    {
-                        "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=800",
-                        "https://images.unsplash.com/photo-1531538606174-0f90ff5dce83?q=80&w=800"
-                    },
-                    Likes = 88,
-                    SharesCount = 14,
-                    CreatedAt = DateTimeOffset.UtcNow.AddHours(-1)
-                },
-                new WorkspacePost
-                {
-                    Id = Guid.CreateVersion7(),
-                    OrganizationId = org.Id,
-                    CreatedByUserId = mockUserId,
-                    Category = "Recruitment",
-                    Content = "WE ARE HIRING! GIA NHáº¬P Äá»˜I NGÅ¨ CÃ”NG NGHá»† Cá»¦A CHÃšNG TÃ”I.\n\nNháº±m má»Ÿ rá»™ng quy mÃ´ dá»± Ã¡n vÃ  Ä‘Ã¡p á»©ng nhu cáº§u tÄƒng trÆ°á»Ÿng trong giai Ä‘oáº¡n má»›i, chÃºng tÃ´i tÃ¬m kiáº¿m cÃ¡c Ä‘á»“ng nghiá»‡p tÃ i nÄƒng á»Ÿ cÃ¡c vá»‹ trÃ­:\n1. Senior Full-Stack Developer (.NET & React)\n2. Automated QA Engineer\n3. DevOps Engineer (Platform Team)\n\nChÃºng tÃ´i mang Ä‘áº¿n mÃ´i trÆ°á»ng lÃ m viá»‡c Hybrid linh hoáº¡t, cháº¿ Ä‘á»™ Ä‘Ã£i ngá»™ cáº¡nh tranh, há»— trá»£ thiáº¿t bá»‹ lÃ m viá»‡c hiá»‡n Ä‘áº¡i hÃ ng Ä‘áº§u cÃ¹ng cÆ¡ há»™i phÃ¡t triá»ƒn báº£n thÃ¢n vÆ°á»£t trá»™i. HÃ£y truy cáº­p ngay tab 'Jobs' Ä‘á»ƒ xem chi tiáº¿t mÃ´ táº£ cÃ´ng viá»‡c vÃ  á»©ng tuyá»ƒn trá»±c tiáº¿p báº±ng há»“ sÆ¡ Ä‘Ã£ xÃ¡c thá»±c nhÃ©!",
-                    Images = new List<string> { "https://images.unsplash.com/photo-1521737711867-e3b90473bd58?q=80&w=800" },
-                    Likes = 42,
-                    SharesCount = 5,
-                    CreatedAt = DateTimeOffset.UtcNow.AddDays(-2)
-                }
-            };
-            _context.WorkspacePosts.AddRange(mockPosts);
-            await _context.SaveChangesAsync(cancellationToken);
-            postsList = await postsQuery.ToListAsync(cancellationToken);
-        }
 
         var dtoList = new List<WorkspacePostDto>();
         foreach (var post in postsList)
@@ -1281,178 +1250,6 @@ public class WorkspaceController : ControllerBase
             .OrderByDescending(jv => jv.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        if (jobsList.Count == 0)
-        {
-            // Seed default mock jobs for this organization
-            var mockJobs = new List<JobVacancy>
-            {
-                new JobVacancy
-                {
-                    Id = Guid.CreateVersion7(),
-                    OrganizationId = org.Id,
-                    Title = "Senior Full-Stack Developer (.NET & React)",
-                    Department = "Engineering",
-                    WorkplaceType = "Hybrid",
-                    City = "HÃ  Ná»™i",
-                    Type = "Full-Time",
-                    Salary = "$ 2,000 - 4,500 USD",
-                    SalaryMinMax = "50 - 110 triá»‡u",
-                    Headcount = 3,
-                    Gender = "KhÃ´ng yÃªu cáº§u",
-                    Experience = "5+ nÄƒm kinh nghiá»‡m",
-                    Degree = "Äáº¡i há»c / Ká»¹ sÆ°",
-                    Category = "PhÃ¡t triá»ƒn pháº§n má»m, CÃ´ng nghá»‡ thÃ´ng tin",
-                    Description = new List<string>
-                    {
-                        "Thiáº¿t káº¿ vÃ  phÃ¡t triá»ƒn kiáº¿n trÃºc há»‡ thá»‘ng backend microservices báº±ng .NET Core 8 vÃ  cÆ¡ sá»Ÿ dá»¯ liá»‡u PostgreSQL.",
-                        "XÃ¢y dá»±ng giao diá»‡n á»©ng dá»¥ng web Single Page Application (SPA) hiá»‡u nÄƒng cao, mÆ°á»£t mÃ  báº±ng React, TypeScript vÃ  quáº£n lÃ½ tráº¡ng thÃ¡i qua Zustand/Redux.",
-                        "Tá»‘i Æ°u hÃ³a cÃ¡c truy váº¥n SQL nÃ¢ng cao vÃ  cáº¥u hÃ¬nh bá»™ nhá»› cache Redis phÃ¢n tÃ¡n.",
-                        "Viáº¿t mÃ£ nguá»“n kiá»ƒm thá»­ tá»± Ä‘á»™ng (Unit Test / Integration Test) Ä‘áº£m báº£o Ä‘á»™ á»•n Ä‘á»‹nh cao trÆ°á»›c khi bÃ n giao há»‡ thá»‘ng.",
-                        "Tham gia hÆ°á»›ng dáº«n ká»¹ thuáº­t, code review vÃ  há»— trá»£ cÃ¡c thÃ nh viÃªn junior trong Ä‘á»™i ngÅ©."
-                    },
-                    Requirements = new List<string>
-                    {
-                        "Tá»‘t nghiá»‡p Ä‘áº¡i há»c chuyÃªn ngÃ nh CÃ´ng nghá»‡ thÃ´ng tin, Khoa há»c mÃ¡y tÃ­nh hoáº·c tÆ°Æ¡ng Ä‘Æ°Æ¡ng.",
-                        "Tá»‘i thiá»ƒu 5 nÄƒm kinh nghiá»‡m thá»±c chiáº¿n phÃ¡t triá»ƒn á»©ng dá»¥ng web, cÃ³ kiáº¿n thá»©c sÃ¢u rá»™ng vá» láº­p trÃ¬nh hÆ°á»›ng Ä‘á»‘i tÆ°á»£ng OOP vÃ  cÃ¡c Design Pattern.",
-                        "ThÃ nh tháº¡o ngÃ´n ngá»¯ C#, ASP.NET Core, Entity Framework Core vÃ  láº­p trÃ¬nh báº¥t Ä‘á»“ng bá»™.",
-                        "Kinh nghiá»‡m lÃ m viá»‡c sÃ¢u sáº¯c vá»›i ReactJS, Hooks, state management vÃ  thÆ° viá»‡n CSS nhÆ° Tailwind/Vanilla CSS.",
-                        "Kinh nghiá»‡m thiáº¿t káº¿ API RESTful cháº¥t lÆ°á»£ng, hiá»ƒu biáº¿t tá»‘t vá» CI/CD vÃ  Git."
-                    },
-                    Benefits = new List<string>
-                    {
-                        "LÆ°Æ¡ng thÆ°á»Ÿng háº¥p dáº«n lÃªn tá»›i $4,500 USD cÃ¹ng thÃ¡ng lÆ°Æ¡ng thá»© 13 vÃ  thÆ°á»Ÿng hiá»‡u suáº¥t cuá»‘i nÄƒm.",
-                        "ÄÆ°á»£c cung cáº¥p Ä‘áº§y Ä‘á»§ trang thiáº¿t bá»‹ lÃ m viá»‡c hiá»‡n Ä‘áº¡i cao cáº¥p (MacBook Pro / Dell XPS vÃ  mÃ n hÃ¬nh phá»¥).",
-                        "GÃ³i báº£o hiá»ƒm chÄƒm sÃ³c sá»©c khá»e cao cáº¥p toÃ n diá»‡n cho báº£n thÃ¢n vÃ  gia Ä‘Ã¬nh.",
-                        "HÆ°á»Ÿng 15 ngÃ y phÃ©p cÃ³ lÆ°Æ¡ng trong nÄƒm vÃ  cháº¿ Ä‘á»™ nghá»‰ lá»… táº¿t theo luáº­t lao Ä‘á»™ng.",
-                        "Tham gia cÃ¡c chÆ°Æ¡ng trÃ¬nh Ä‘Ã o táº¡o ká»¹ nÄƒng chuyÃªn sÃ¢u vÃ  chá»©ng chá»‰ cÃ´ng nghá»‡ quá»‘c táº¿ miá»…n phÃ­."
-                    },
-                    Tags = new List<string> { "React", "TypeScript", ".NET Core", "C#", "Microservices" },
-                    Skills = new List<string> { "C#", ".NET Core", "React", "TypeScript", "PostgreSQL", "Zustand" },
-                    CoverUrl = "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=600",
-                    Images = new List<string>
-                    {
-                        "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=600",
-                        "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=600",
-                        "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=600"
-                    },
-                    IsActive = true,
-                    CreatedAt = DateTimeOffset.UtcNow.AddHours(-1),
-                    UpdatedAt = DateTimeOffset.UtcNow.AddHours(-1)
-                },
-                new JobVacancy
-                {
-                    Id = Guid.CreateVersion7(),
-                    OrganizationId = org.Id,
-                    Title = "Automated Verification QA Engineer",
-                    Department = "Quality Assurance",
-                    WorkplaceType = "Remote",
-                    City = "ÄÃ  Náºµng",
-                    Type = "Contract",
-                    Salary = "$ 1,200 - 2,500 USD",
-                    SalaryMinMax = "30 - 62 triá»‡u",
-                    Headcount = 2,
-                    Gender = "KhÃ´ng yÃªu cáº§u",
-                    Experience = "3+ nÄƒm kinh nghiá»‡m",
-                    Degree = "Äáº¡i há»c / Cao Ä‘áº³ng",
-                    Category = "Kiá»ƒm thá»­ pháº§n má»m, Quality Assurance",
-                    Description = new List<string>
-                    {
-                        "Thiáº¿t káº¿, xÃ¢y dá»±ng vÃ  duy trÃ¬ cÃ¡c ká»‹ch báº£n kiá»ƒm thá»­ tá»± Ä‘á»™ng (Automated Test Scripts) cho há»‡ thá»‘ng xÃ¡c thá»±c cryptographic cá»§a CVerify.",
-                        "Viáº¿t vÃ  tá»‘i Æ°u hÃ³a cÃ¡c bá»™ test suite kiá»ƒm tra hiá»‡u nÄƒng (Performance Test) vÃ  Ä‘á»™ tin cáº­y cá»§a chuá»—i dá»¯ liá»‡u bÄƒm.",
-                        "TÃ­ch há»£p cÃ¡c bÃ i kiá»ƒm thá»­ tá»± Ä‘á»™ng vÃ o há»‡ thá»‘ng CI/CD thÃ´ng qua GitHub Actions.",
-                        "Phá»‘i há»£p cháº·t cháº½ vá»›i Ä‘á»™i ngÅ© phÃ¡t triá»ƒn sáº£n pháº©m Ä‘á»ƒ tÃ¬m kiáº¿m, phÃ¢n tÃ­ch vÃ  theo dÃµi cÃ¡c lá»—i phÃ¡t sinh.",
-                        "Táº¡o cÃ¡c bÃ¡o cÃ¡o kiá»ƒm thá»­ chi tiáº¿t vÃ  Ä‘á» xuáº¥t cÃ¡c giáº£i phÃ¡p nÃ¢ng cao cháº¥t lÆ°á»£ng sáº£n pháº©m."
-                    },
-                    Requirements = new List<string>
-                    {
-                        "Tá»‘i thiá»ƒu 3 nÄƒm kinh nghiá»‡m lÃ m ká»¹ sÆ° kiá»ƒm thá»­ tá»± Ä‘á»™ng (Auto QA).",
-                        "ThÃ nh tháº¡o Ã­t nháº¥t má»™t trong cÃ¡c cÃ´ng cá»¥ viáº¿t test tá»± Ä‘á»™ng: Playwright, Cypress hoáº·c Selenium.",
-                        "CÃ³ kinh nghiá»‡m lÃ m viá»‡c vá»›i ngÃ´n ngá»¯ láº­p trÃ¬nh JavaScript/TypeScript hoáº·c Python.",
-                        "CÃ³ kiáº¿n thá»©c cÄƒn báº£n vá» máº­t mÃ£ há»c, mÃ£ bÄƒm (hashing), chá»¯ kÃ½ sá»‘ lÃ  má»™t lá»£i tháº¿ lá»›n.",
-                        "TÆ° duy phÃ¢n tÃ­ch lá»—i tá»‘t, cáº©n tháº­n, tá»‰ má»‰ vÃ  giao tiáº¿p hiá»‡u quáº£."
-                    },
-                    Benefits = new List<string>
-                    {
-                        "Má»©c lÆ°Æ¡ng thá»a thuáº­n cáº¡nh tranh cao tÆ°Æ¡ng xá»©ng theo nÄƒng lá»±c thá»±c táº¿.",
-                        "LÃ m viá»‡c tá»« xa (Remote) 100% giÃºp chá»§ Ä‘á»™ng cÃ¢n báº±ng thá»i gian vÃ  cuá»™c sá»‘ng.",
-                        "ÄÆ°á»£c cung cáº¥p gÃ³i ngÃ¢n sÃ¡ch há»— trá»£ nÃ¢ng cáº¥p thiáº¿t bá»‹ cÃ¡ nhÃ¢n hÃ ng nÄƒm.",
-                        "Tham gia hoáº¡t Ä‘á»™ng teambuilding thÆ°á»ng niÃªn cÃ¹ng cÃ´ng ty táº¡i cÃ¡c resort Ä‘áº³ng cáº¥p.",
-                        "ÄÆ°á»£c tÃ i trá»£ chi phÃ­ thi cÃ¡c chá»©ng chá»‰ quá»‘c táº¿ chuyÃªn ngÃ nh kiá»ƒm thá»­ (ISTQB...)."
-                    },
-                    Tags = new List<string> { "Automation", "Playwright", "Cypress", "QA", "CI/CD" },
-                    Skills = new List<string> { "Playwright", "Cypress", "QA Testing", "TypeScript", "CI/CD" },
-                    CoverUrl = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600",
-                    Images = new List<string>
-                    {
-                        "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600",
-                        "https://images.unsplash.com/photo-1531403009284-440f080d1e12?q=80&w=600"
-                    },
-                    IsActive = true,
-                    CreatedAt = DateTimeOffset.UtcNow.AddDays(-2),
-                    UpdatedAt = DateTimeOffset.UtcNow.AddDays(-2)
-                },
-                new JobVacancy
-                {
-                    Id = Guid.CreateVersion7(),
-                    OrganizationId = org.Id,
-                    Title = "Lead UI/UX Product Designer",
-                    Department = "Design",
-                    WorkplaceType = "On-site",
-                    City = "HÃ  Ná»™i",
-                    Type = "Full-Time",
-                    Salary = "$ 1,500 - 3,200 USD",
-                    SalaryMinMax = "38 - 80 triá»‡u",
-                    Headcount = 1,
-                    Gender = "KhÃ´ng yÃªu cáº§u",
-                    Experience = "4+ nÄƒm kinh nghiá»‡m",
-                    Degree = "Äáº¡i há»c / Cao Ä‘áº³ng Má»¹ thuáº­t",
-                    Category = "Thiáº¿t káº¿ Ä‘á»“ há»a, UI/UX Design",
-                    Description = new List<string>
-                    {
-                        "Chá»‹u trÃ¡ch nhiá»‡m thiáº¿t káº¿ giao diá»‡n (UI) vÃ  xÃ¢y dá»±ng tráº£i nghiá»‡m ngÆ°á»i dÃ¹ng (UX) cho cÃ¡c há»‡ thá»‘ng pháº§n má»m cá»§a CVerify.",
-                        "XÃ¢y dá»±ng wireframe, prototype vÃ  sÆ¡ Ä‘á»“ luá»“ng tráº£i nghiá»‡m ngÆ°á»i dÃ¹ng (user flow) dá»±a trÃªn hoáº¡t Ä‘á»™ng nghiÃªn cá»©u hÃ nh vi khÃ¡ch hÃ ng.",
-                        "Tá»• chá»©c, thiáº¿t láº­p vÃ  má»Ÿ rá»™ng há»‡ thá»‘ng thiáº¿t káº¿ (Design System) cá»§a cÃ´ng ty trÃªn Figma Ä‘áº£m báº£o tÃ­nh nháº¥t quÃ¡n cao.",
-                        "Há»£p tÃ¡c cháº·t cháº½ cÃ¹ng Product Manager vÃ  Tech Lead Ä‘á»ƒ tháº©m Ä‘á»‹nh thiáº¿t káº¿ trÆ°á»›c khi chuyá»ƒn giao láº­p trÃ¬nh.",
-                        "Thá»±c hiá»‡n Ä‘o lÆ°á»ng, phÃ¢n tÃ­ch hÃ nh vi vÃ  pháº£n há»“i tá»« ngÆ°á»i dÃ¹ng thá»±c táº¿ Ä‘á»ƒ liÃªn tá»¥c cáº£i tiáº¿n sáº£n pháº©m."
-                    },
-                    Requirements = new List<string>
-                    {
-                        "Tá»‘i thiá»ƒu 4 nÄƒm kinh nghiá»‡m thiáº¿t káº¿ giao diá»‡n á»©ng dá»¥ng web dashboard, ná»n táº£ng SaaS phá»©c táº¡p.",
-                        "Ká»¹ nÄƒng sá»­ dá»¥ng Figma xuáº¥t sáº¯c (thÃ nh tháº¡o Auto-layout, Variables, Components, Prototyping nÃ¢ng cao).",
-                        "CÃ³ tÆ° duy logic tá»‘t vá» tráº£i nghiá»‡m ngÆ°á»i dÃ¹ng (UX), kháº£ nÄƒng phÃ¢n tÃ­ch vÃ  giáº£i quyáº¿t cÃ¡c bÃ i toÃ¡n thiáº¿t káº¿ khÃ³.",
-                        "CÃ³ portfolio cháº¥t lÆ°á»£ng cao trÃ¬nh bÃ y chi tiáº¿t tÆ° duy thiáº¿t káº¿ qua cÃ¡c dá»± Ã¡n thá»±c táº¿.",
-                        "Hiá»ƒu biáº¿t cÄƒn báº£n vá» HTML/CSS lÃ  lá»£i tháº¿ lá»›n giÃºp phá»‘i há»£p Äƒn Ã½ vá»›i Ä‘á»™i ngÅ© frontend."
-                    },
-                    Benefits = new List<string>
-                    {
-                        "Má»©c lÆ°Æ¡ng cáº¡nh tranh háº¥p dáº«n cÃ¹ng cÃ¡c phá»¥ cáº¥p Äƒn trÆ°a, Ä‘i láº¡i táº¡i vÄƒn phÃ²ng.",
-                        "MÃ´i trÆ°á»ng lÃ m viá»‡c nÄƒng Ä‘á»™ng, khÃ´ng gian vÄƒn phÃ²ng háº¡ng A hiá»‡n Ä‘áº¡i vÃ  rá»™ng rÃ£i.",
-                        "ThÆ°á»Ÿng hiá»‡u suáº¥t cÃ´ng viá»‡c Ä‘á»‹nh ká»³ vÃ  xÃ©t tÄƒng lÆ°Æ¡ng Ä‘á»‹nh ká»³ 2 láº§n/nÄƒm.",
-                        "ChÆ°Æ¡ng trÃ¬nh khÃ¡m sá»©c khá»e tá»•ng quÃ¡t Ä‘á»‹nh ká»³ hÃ ng nÄƒm táº¡i há»‡ thá»‘ng bá»‡nh viá»‡n quá»‘c táº¿.",
-                        "Há»— trá»£ 100% chi phÃ­ tham gia cÃ¡c khÃ³a há»c chuyÃªn sÃ¢u nÃ¢ng cao chuyÃªn mÃ´n tá»± chá»n."
-                    },
-                    Tags = new List<string> { "Figma", "UI/UX", "Product Design", "Design System", "Wireframing" },
-                    Skills = new List<string> { "Figma", "UI/UX", "Product Design", "Design System", "Wireframing" },
-                    CoverUrl = "https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?q=80&w=600",
-                    Images = new List<string>
-                    {
-                        "https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?q=80&w=600",
-                        "https://images.unsplash.com/photo-1586717791821-3f44a563fa4c?q=80&w=600"
-                    },
-                    IsActive = true,
-                    CreatedAt = DateTimeOffset.UtcNow.AddDays(-5),
-                    UpdatedAt = DateTimeOffset.UtcNow.AddDays(-5)
-                }
-            };
-
-            _context.JobVacancies.AddRange(mockJobs);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            jobsList = await _context.JobVacancies
-                .Where(jv => jv.OrganizationId == org.Id && jv.IsActive)
-                .OrderByDescending(jv => jv.CreatedAt)
-                .ToListAsync(cancellationToken);
-        }
 
         var dtoList = new List<JobVacancyDto>();
         foreach (var job in jobsList)

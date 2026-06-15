@@ -401,6 +401,9 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
             <Switch
               isSelected={value}
               onChange={(checked) => {
+                if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+                  document.activeElement.blur();
+                }
                 onChange(checked);
                 // Clear the end date in the form if currently studying
                 const currentPeriod = control._formValues.education?.[index]?.period;

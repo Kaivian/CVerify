@@ -79,6 +79,10 @@ public class Organization
     public string? FacebookUrl { get; set; }
     public string? TwitterUrl { get; set; }
     public string? Website { get; set; }
+    public string? Mission { get; set; }
+    public string? Vision { get; set; }
+    public string? CoreValues { get; set; }
+    public string? Founded { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

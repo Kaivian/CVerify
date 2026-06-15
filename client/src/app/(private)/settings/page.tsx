@@ -32,6 +32,19 @@ interface TabItem {
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("profile");
   const [isFormDirty, setIsFormDirty] = useState(false);
+  const [visitedTabs, setVisitedTabs] = useState<Record<TabId, boolean>>({
+    profile: true,
+    "personal-info": false,
+    career: false,
+    account: false,
+  });
+
+  useEffect(() => {
+    setVisitedTabs((prev) => ({
+      ...prev,
+      [activeTab]: true,
+    }));
+  }, [activeTab]);
 
   // Tab switching confirm dialog state
   const [pendingTab, setPendingTab] = useState<TabId | null>(null);
@@ -88,12 +101,18 @@ export default function SettingsPage() {
       setPendingTab(tabId);
       setIsConfirmModalOpen(true);
     } else {
+      if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
       setActiveTab(tabId);
     }
   };
 
   const confirmTabSwitch = () => {
     if (pendingTab) {
+      if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
       setIsFormDirty(false); // Reset dirty flag before switching
       setActiveTab(pendingTab);
       setPendingTab(null);
@@ -203,7 +222,7 @@ export default function SettingsPage() {
         </Tabs.ListContainer>
         <main className="w-full flex-1 min-h-0 overflow-y-auto flex flex-col">
           <Tabs.Panel id="profile" className="p-0">
-            {activeTab === "profile" && (
+            {visitedTabs["profile"] && (
               <ProfileTab
                 onDirtyChange={setIsFormDirty}
                 onSaveSuccess={triggerSaveNotification}
@@ -211,7 +230,7 @@ export default function SettingsPage() {
             )}
           </Tabs.Panel>
           <Tabs.Panel id="personal-info" className="p-0">
-            {activeTab === "personal-info" && (
+            {visitedTabs["personal-info"] && (
               <PersonalInfoTab
                 onDirtyChange={setIsFormDirty}
                 onSaveSuccess={triggerSaveNotification}
@@ -219,7 +238,7 @@ export default function SettingsPage() {
             )}
           </Tabs.Panel>
           <Tabs.Panel id="career" className="p-0">
-            {activeTab === "career" && (
+            {visitedTabs["career"] && (
               <CareerTab
                 onDirtyChange={setIsFormDirty}
                 onSaveSuccess={triggerSaveNotification}
@@ -227,7 +246,7 @@ export default function SettingsPage() {
             )}
           </Tabs.Panel>
           <Tabs.Panel id="account" className="p-0">
-            {activeTab === "account" && (
+            {visitedTabs["account"] && (
               <AccountTab
                 onDirtyChange={setIsFormDirty}
                 onSaveSuccess={triggerSaveNotification}

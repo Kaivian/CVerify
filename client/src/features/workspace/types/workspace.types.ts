@@ -126,34 +126,8 @@ export interface PaginatedInvitations {
   totalItems: number;
   page: number;
   pageSize: number;
-}export const TAG_TRANSLATIONS: Record<string, string> = {
-  "Web Development": "PhÃ¡t triá»ƒn Web",
-  "Mobile Development": "PhÃ¡t triá»ƒn Di Ä‘á»™ng",
-  "Embedded Systems": "Há»‡ thá»‘ng nhÃºng",
-  "Cloud Computing": "Äiá»‡n toÃ¡n Ä‘Ã¡m mÃ¢y",
-  "Artificial Intelligence": "TrÃ­ tuá»‡ nhÃ¢n táº¡o (AI)",
-  "Machine Learning": "Há»c mÃ¡y",
-  "Data Science": "Khoa há»c dá»¯ liá»‡u",
-  "Computer Vision": "Thá»‹ giÃ¡c mÃ¡y tÃ­nh",
-  "Semiconductor": "BÃ¡n dáº«n",
-  "IC Design": "Thiáº¿t káº¿ vi máº¡ch",
-  "IoT (Internet of Things)": "Internet váº¡n váº­t (IoT)",
-  "Microelectronics": "Vi Ä‘iá»‡n tá»­",
-  "Healthcare": "ChÄƒm sÃ³c sá»©c khá»e",
-  "Remote Work": "LÃ m viá»‡c tá»« xa",
-  "Flexible Hours": "Giá» lÃ m viá»‡c linh hoáº¡t",
-  "Training": "ÄÃ o táº¡o & PhÃ¡t triá»ƒn",
-  "Free Lunch": "Ä‚n trÆ°a miá»…n phÃ­",
-  "Gym Membership": "Há»— trá»£ phÃ²ng gym",
-  "Stock Options": "Cá»• phiáº¿u thÆ°á»Ÿng",
-  "Performance Bonus": "ThÆ°á»Ÿng hiá»‡u suáº¥t",
-  "Laptop Provided": "Cung cáº¥p laptop",
-  "Team Building": "Du lá»‹ch & Team Building",
-  "Paid Time Off": "Nghá»‰ phÃ©p cÃ³ lÆ°Æ¡ng",
-};
-
-export const getTagLabel = (tag: string): string => {
-  return TAG_TRANSLATIONS[tag] || tag;
+}export const getTagLabel = (tag: string): string => {
+  return tag;
 };
 
 export interface Post {

@@ -15,7 +15,7 @@ namespace CVerify.API.Modules.Shared.Persistence;
 /// </summary>
 public static class SuperAdminSeeder
 {
-    public static async Task SeedAsync(ApplicationDbContext context, SuperAdminSettings settings)
+    public static async Task SeedAsync(ApplicationDbContext context, SuperAdminSettings settings, SeedingPolicy policy)
     {
         if (context == null)
         {
@@ -25,6 +25,16 @@ public static class SuperAdminSeeder
         if (settings == null)
         {
             throw new ArgumentNullException(nameof(settings));
+        }
+
+        if (policy == null)
+        {
+            throw new ArgumentNullException(nameof(policy));
+        }
+
+        if (!policy.SeedInfrastructure)
+        {
+            return;
         }
 
         const string sql = @"

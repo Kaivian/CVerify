@@ -95,8 +95,8 @@ export default function WorkspaceMembersTab() {
               key={cat}
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border cursor-pointer whitespace-nowrap ${selectedCategory === cat
-                  ? "bg-accent border-accent text-background"
-                  : "bg-card border-border text-muted hover:text-foreground"
+                ? "bg-accent border-accent text-background"
+                : "bg-card border-border text-muted hover:text-foreground"
                 }`}
             >
               {cat}
@@ -126,7 +126,7 @@ export default function WorkspaceMembersTab() {
                 {/* Cover strip */}
                 <div className="w-full h-16 bg-linear-to-r from-accent/30 to-indigo-500/20 shrink-0" />
 
-                {/* Avatar - overlaps cover strip via negative margin */}
+                {/* Avatar â€” overlaps cover strip via negative margin */}
                 <div className="w-20 h-20 rounded-full border-2 border-surface bg-card flex items-center justify-center text-accent font-semibold text-base select-none -mt-10 overflow-hidden shadow-sm shrink-0">
                   {member.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

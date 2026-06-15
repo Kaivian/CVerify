@@ -18,7 +18,6 @@ import {
   Heart,
   Check,
   X,
-  Plus,
   Upload,
   Building
 } from "lucide-react";
@@ -29,20 +28,6 @@ interface Comment {
   authorAvatar?: string;
   content: string;
   date: string;
-}
-
-interface Post {
-  id: string;
-  category: "Announcement" | "Engineering" | "Recruitment";
-  content: string;
-  images: string[];
-  likes: number;
-  sharesCount: number;
-  createdAt: string;
-  authorName?: string;
-  authorAvatar?: string;
-  authorRole?: string;
-  comments: Comment[];
 }
 
 export default function WorkspacePostsTab() {
@@ -84,14 +69,14 @@ export default function WorkspacePostsTab() {
                 initialComments = [
                   {
                     id: "c-1",
-                    authorName: "Nguyen Hoang Ngoc Anh",
-                    content: "The signing ceremony was grand! Congratulations to CVerify and our partners.",
+                    authorName: "Emily Nguyen",
+                    content: "The signing event is so grand! Congratulations to CVerify and partners.",
                     date: "2h ago"
                   },
                   {
                     id: "c-2",
-                    authorName: "Le Minh",
-                    content: "Great progress, keep up the outstanding work team! The new feature is very practical.",
+                    authorName: "John Doe",
+                    content: "Great progress, keep up the outstanding work team! The new features are very practical.",
                     date: "1h ago"
                   }
                 ];
@@ -99,8 +84,8 @@ export default function WorkspacePostsTab() {
                 initialComments = [
                   {
                     id: "c-4",
-                    authorName: "Tran Quoc Bao",
-                    content: "Are we accepting undergraduate Web Interns (.NET/React)?",
+                    authorName: "Alex Mercer",
+                    content: "Are we accepting undergraduate Web Interns (.NET/React) right now?",
                     date: "2d ago"
                   }
                 ];
@@ -178,7 +163,7 @@ export default function WorkspacePostsTab() {
       }
     } catch (error) {
       console.error(error);
-      toast.danger("An error occurred while uploading images or posting the announcement!");
+      toast.danger("An error occurred while uploading images or posting announcement!");
     } finally {
       setIsSubmitting(false);
     }
@@ -206,7 +191,7 @@ export default function WorkspacePostsTab() {
     if (typeof window !== "undefined") {
       const shareUrl = `${window.location.origin}/workspace/${organizationSlug}/posts?post=${postId}`;
       navigator.clipboard.writeText(shareUrl);
-      toast.success("Post link copied to clipboard!");
+      toast.success("Copied post link to clipboard!");
     }
   };
 
@@ -225,7 +210,7 @@ export default function WorkspacePostsTab() {
 
     const newComment: Comment = {
       id: `c-new-${Date.now()}`,
-      authorName: user?.fullName || "Guest",
+      authorName: user?.fullName || "Guest Visitor",
       authorAvatar: user?.avatarUrl,
       content,
       date: "Just now"
@@ -337,14 +322,13 @@ export default function WorkspacePostsTab() {
     );
   };
 
-  const orgName = workspaceDetails.organizationName || "Partner Organization";
+  const orgName = workspaceDetails.organizationName || "Partner Enterprise";
   const orgLogo = workspaceDetails.logoUrl;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      {/* Main Feed Column */}
+      {/* -- Main Feed Column -- */}
       <div className="lg:col-span-2 space-y-6">
-        {/* "What's on your mind?" announcement widget */}
         {/* "What's on your mind?" announcement widget */}
         {hasPermission("organization:posts:write") && (
           <Card className="p-4 bg-surface border border-border rounded-xl flex items-center gap-3 w-full">
@@ -387,15 +371,15 @@ export default function WorkspacePostsTab() {
 
         {errorPosts && !loadingPosts && (
           <Card className="p-6 bg-surface border border-border rounded-xl flex flex-col items-center justify-center text-muted select-none text-center">
-            <span className="text-xs font-medium italic text-danger">Failed to load announcements. Please try again later.</span>
+            <span className="text-xs font-medium italic text-danger">An error occurred while loading announcements. Please try again later.</span>
           </Card>
         )}
 
         {!loadingPosts && !errorPosts && posts.length === 0 && (
           <Card className="p-8 bg-surface border border-border rounded-xl flex flex-col items-center justify-center text-muted select-none text-center">
             <Building className="size-8 text-accent/40 mb-2" />
-            <span className="text-xs font-semibold text-foreground">No posts or announcements available</span>
-            <span className="text-[10px] text-muted-foreground mt-0.5">The organization has not posted any announcements on this feed yet.</span>
+            <span className="text-xs font-semibold text-foreground">No posts or announcements found</span>
+            <span className="text-[10px] text-muted-foreground mt-0.5">The organization has not published any announcements on this feed.</span>
           </Card>
         )}
 
@@ -415,7 +399,7 @@ export default function WorkspacePostsTab() {
 
           return (
             <Card key={post.id} className="p-4 bg-surface border border-border rounded-xl space-y-4">
-              {/* Post Header */}
+              {/* -- Facebook Post Header -- */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   {/* Organization Avatar */}
@@ -452,7 +436,7 @@ export default function WorkspacePostsTab() {
                     {/* Subtitle with date & Globe icon */}
                     <div className="flex items-center gap-1 text-[11px] text-muted font-normal select-none mt-0.5">
                       <span>{formatDate(post.createdAt, { dateStyle: "medium", timeStyle: "short" })}</span>
-                      <span>Â·</span>
+                      <span>·</span>
                       <span title="Public"><Globe className="size-3" /></span>
                     </div>
                   </div>
@@ -472,7 +456,7 @@ export default function WorkspacePostsTab() {
                 </div>
               </div>
 
-              {/* Post Content */}
+              {/* -- Facebook Post Content -- */}
               <div className="space-y-3 font-normal text-xs leading-relaxed">
                 <Typography type="body-xs" className="text-foreground whitespace-pre-line text-xs font-normal">
                   {displayText}
@@ -482,7 +466,7 @@ export default function WorkspacePostsTab() {
                       className="text-accent font-semibold hover:underline text-xs ml-1 focus:outline-hidden cursor-pointer"
                     >
                       See more
-                  </button>
+                    </button>
                   )}
                 </Typography>
 
@@ -490,7 +474,7 @@ export default function WorkspacePostsTab() {
                 <PostImageGrid images={post.images} />
               </div>
 
-              {/* Interactions Counter */}
+              {/* -- Facebook Interactions Counter -- */}
               <div className="flex items-center justify-between text-[11px] text-muted select-none pb-1 font-normal">
                 <div className="flex items-center gap-1.5">
                   <span className="flex items-center">
@@ -508,21 +492,20 @@ export default function WorkspacePostsTab() {
 
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <span>{commentsList.length} comments</span>
-                  <span>•</span>
+                  <span>·</span>
                   <span>{post.sharesCount} shares</span>
                 </div>
               </div>
 
               <div className="border-b border-border/50" />
 
-              {/* Post Actions */}
+              {/* -- Facebook Actions -- */}
               <div className="flex items-center gap-1 text-xs select-none">
                 {/* Like Button */}
                 <button
                   onClick={() => handleLike(post.id)}
-                  className={`flex items-center justify-center gap-2 flex-1 py-1.5 rounded-lg hover:bg-card/45 transition-colors cursor-pointer font-semibold ${
-                    isLiked ? "text-blue-500" : "text-muted hover:text-foreground"
-                  }`}
+                  className={`flex items-center justify-center gap-2 flex-1 py-1.5 rounded-lg hover:bg-card/45 transition-colors cursor-pointer font-semibold ${isLiked ? "text-blue-500" : "text-muted hover:text-foreground"
+                    }`}
                 >
                   <ThumbsUp className={`size-4 ${isLiked ? "fill-blue-500 text-blue-500" : ""}`} />
                   <span>Like</span>
@@ -549,7 +532,7 @@ export default function WorkspacePostsTab() {
 
               <div className="border-b border-border/50" />
 
-              {/* Comments Section */}
+              {/* -- Facebook Comments Section -- */}
               <div className="space-y-3 pt-1">
                 {/* Toggle to see more comments */}
                 {hasManyComments && !showingAll && (
@@ -557,7 +540,7 @@ export default function WorkspacePostsTab() {
                     onClick={() => setShowAllComments({ ...showAllComments, [post.id]: true })}
                     className="text-[11px] text-muted-foreground hover:text-accent font-semibold hover:underline block text-left pt-0.5 select-none cursor-pointer"
                   >
-                    See {commentsList.length - 3} more comments
+                    See more {commentsList.length - 3} comments
                   </button>
                 )}
 
@@ -625,7 +608,7 @@ export default function WorkspacePostsTab() {
                       onChange={(e) => handleCommentInputChange(post.id, e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
-                           handleSubmitComment(post.id);
+                          handleSubmitComment(post.id);
                         }
                       }}
                       className="w-full bg-card/40 border border-border rounded-full pl-4 pr-10 py-1.5 text-xs focus:outline-hidden focus:border-accent text-foreground font-outfit font-normal"
@@ -645,7 +628,7 @@ export default function WorkspacePostsTab() {
         })}
       </div>
 
-      {/* Side Widget Column */}
+      {/* -- Side Widget Column -- */}
       <div className="space-y-6">
         {/* Corporate Stats */}
         <Card className="p-5 bg-surface border border-border rounded-xl space-y-4">
@@ -837,7 +820,7 @@ export default function WorkspacePostsTab() {
         </Card>
       </div>
 
-      {/* Scoped Form Drawer Modal Dialog for Announcement/Post Creation */}
+      {/* -- Scoped Form Drawer Modal Dialog for Announcement/Post Creation -- */}
       {showCreatePostModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-surface border border-border w-full max-w-xl rounded-xl shadow-2xl overflow-hidden font-outfit select-none flex flex-col max-h-[90vh]">
@@ -860,7 +843,7 @@ export default function WorkspacePostsTab() {
                 <textarea
                   required
                   rows={5}
-                  placeholder="Enter announcement content or company updates..."
+                  placeholder="Enter announcement content or company update..."
                   value={newPostContent}
                   onChange={(e) => setNewPostContent(e.target.value)}
                   className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent resize-none font-outfit"
@@ -873,7 +856,7 @@ export default function WorkspacePostsTab() {
                   <label className="text-[10px] text-muted uppercase font-semibold">Category</label>
                   <select
                     value={newPostCategory}
-                    onChange={(e) => setNewPostCategory(e.target.value as any)}
+                    onChange={(e) => setNewPostCategory(e.target.value as "Announcement" | "Engineering" | "Recruitment")}
                     className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent cursor-pointer"
                   >
                     <option value="Announcement">Announcement</option>
@@ -882,9 +865,9 @@ export default function WorkspacePostsTab() {
                   </select>
                 </div>
 
-                {/* Author Display (Read Only or Prefilled) */}
+                {/* Author Display */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">Posted By</label>
+                  <label className="text-[10px] text-muted uppercase font-semibold">Author</label>
                   <input
                     type="text"
                     disabled
@@ -899,7 +882,7 @@ export default function WorkspacePostsTab() {
                 <label className="text-[10px] text-muted uppercase font-semibold">
                   Attachments
                 </label>
-                
+
                 {/* Drag and drop zone */}
                 <div
                   onDragOver={(e) => {
@@ -917,7 +900,7 @@ export default function WorkspacePostsTab() {
                 >
                   <Upload className="size-5 text-muted-foreground mb-1" />
                   <span className="text-[11px] font-semibold text-foreground">
-                    Drag & drop images here or click to select
+                    Drag and drop images here or click to select
                   </span>
                   <span className="text-[9px] text-muted-foreground mt-0.5">
                     Supports JPEG, PNG, WebP, GIF (max 10MB)

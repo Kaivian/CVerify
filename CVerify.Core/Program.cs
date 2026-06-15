@@ -403,6 +403,10 @@ builder.Services.AddScoped<ICareerService, CareerService>();
 builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();
 
+// Register Public Workspace Seeder Plugins
+builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, JobVacancyModuleSeeder>();
+builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, WorkspacePostModuleSeeder>();
+
 // Register Source Code Provider Services
 builder.Services.AddScoped<ISourceCodeProviderService, SourceCodeProviderService>();
 builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueue>();
@@ -526,13 +530,17 @@ using (var scope = app.Services.CreateScope())
         }
 
         logger.LogInformation("Initializing database schema and checking synchronization...");
-        await DbInitializer.InitializeAsync(context, usernameService, envConfig);
+        await DbInitializer.InitializeAsync(context, services, usernameService, envConfig, app.Environment);
         logger.LogInformation("Database schema initialized and synchronized successfully.");
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred while initializing the database schema.");
+        if (ex.Message.Contains("Fatal") || ex is InvalidOperationException)
+        {
+            throw;
+        }
     }
 }
 
