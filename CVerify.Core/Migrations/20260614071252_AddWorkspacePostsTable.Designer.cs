@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260614071252_AddWorkspacePostsTable")]
+    partial class AddWorkspacePostsTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2305,143 +2308,6 @@ namespace CVerify.API.Migrations
                         .HasFilter("deleted_at IS NULL");
 
                     b.ToTable("in_app_notifications", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.PrimitiveCollection<List<string>>("Benefits")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("benefits");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("category");
-
-                    b.Property<string>("City")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("city");
-
-                    b.Property<string>("CoverUrl")
-                        .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)")
-                        .HasColumnName("cover_url");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Degree")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("degree");
-
-                    b.Property<string>("Department")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("department");
-
-                    b.PrimitiveCollection<List<string>>("Description")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("description");
-
-                    b.Property<string>("Experience")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("experience");
-
-                    b.Property<string>("Gender")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("gender");
-
-                    b.Property<int>("Headcount")
-                        .HasColumnType("integer")
-                        .HasColumnName("headcount");
-
-                    b.PrimitiveCollection<List<string>>("Images")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("images");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_active");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("organization_id");
-
-                    b.PrimitiveCollection<List<string>>("Requirements")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("requirements");
-
-                    b.Property<string>("Salary")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("salary");
-
-                    b.Property<string>("SalaryMinMax")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("salary_min_max");
-
-                    b.PrimitiveCollection<List<string>>("Skills")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("skills");
-
-                    b.PrimitiveCollection<List<string>>("Tags")
-                        .IsRequired()
-                        .HasColumnType("text[]")
-                        .HasColumnName("tags");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("title");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("type");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("WorkplaceType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("workplace_type");
-
-                    b.HasKey("Id")
-                        .HasName("pk_job_vacancies");
-
-                    b.HasIndex("OrganizationId")
-                        .HasDatabaseName("ix_job_vacancies_organization_id");
-
-                    b.ToTable("job_vacancies", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.NotificationPreference", b =>
@@ -4826,18 +4692,6 @@ namespace CVerify.API.Migrations
                     b.Navigation("ActivityEvent");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_job_vacancies_organizations_organization_id");
-
-                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.NotificationPreference", b =>

@@ -106,6 +106,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrganizationAuthority> OrganizationAuthorities => Set<OrganizationAuthority>();
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+    public DbSet<OrganizationFollower> OrganizationFollowers => Set<OrganizationFollower>();
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
     public DbSet<VerificationLink> VerificationLinks => Set<VerificationLink>();
     public DbSet<OrganizationVerification> OrganizationVerifications => Set<OrganizationVerification>();
@@ -124,6 +125,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<OrganizationInvitation> OrganizationInvitations => Set<OrganizationInvitation>();
     public DbSet<OrganizationInvitationRole> OrganizationInvitationRoles => Set<OrganizationInvitationRole>();
     public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
+    public DbSet<WorkspacePost> WorkspacePosts => Set<WorkspacePost>();
+    public DbSet<JobVacancy> JobVacancies => Set<JobVacancy>();
 
     public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
     public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
@@ -188,6 +191,17 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Message>().Property(m => m.Id).ValueGeneratedNever();
         modelBuilder.Entity<AuthProvider>().Property(ap => ap.Id).ValueGeneratedNever();
         modelBuilder.Entity<Organization>().Property(o => o.Id).ValueGeneratedNever();
+
+        // OrganizationFollower â€” composite PK, no auto-generated key
+        modelBuilder.Entity<OrganizationFollower>(entity =>
+        {
+            entity.HasKey(of => new { of.UserId, of.OrganizationId });
+            entity.HasOne(of => of.Organization)
+                  .WithMany()
+                  .HasForeignKey(of => of.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<OrganizationAuthority>().Property(oa => oa.Id).ValueGeneratedNever();
         modelBuilder.Entity<OrganizationMembership>().Property(om => om.Id).ValueGeneratedNever();
         modelBuilder.Entity<OtpVerification>().Property(ov => ov.Id).ValueGeneratedNever();
@@ -196,6 +210,8 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Workspace>().Property(w => w.Id).ValueGeneratedNever();
         modelBuilder.Entity<WorkspaceMember>().Property(wm => wm.Id).ValueGeneratedNever();
         modelBuilder.Entity<RoleAssignment>().Property(ra => ra.Id).ValueGeneratedNever();
+        modelBuilder.Entity<WorkspacePost>().Property(wp => wp.Id).ValueGeneratedNever();
+        modelBuilder.Entity<JobVacancy>().Property(jv => jv.Id).ValueGeneratedNever();
         modelBuilder.Entity<AdminMember>().Property(am => am.Id).ValueGeneratedNever();
         modelBuilder.Entity<AdminInvitation>().Property(ai => ai.Id).ValueGeneratedNever();
         modelBuilder.Entity<AdminInvitationRole>().Property(air => air.Id).ValueGeneratedNever();

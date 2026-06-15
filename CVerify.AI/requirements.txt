@@ -9,3 +9,7 @@ redis>=5.0.3
 json-repair>=0.28.0
 # Certificate / document extraction (PDF, DOCX, images → Markdown for token efficiency)
 markitdown[all]>=0.1.0
+# Static code complexity analysis (Cyclomatic + Cognitive Complexity, multi-language AST)
+lizard>=1.17.10
+# Near-duplicate code detection via MinHash LSH (L1-013 SimHash clone detection)
+datasketch>=1.6.4
