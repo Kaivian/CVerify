@@ -101,6 +101,7 @@ export default function WorkspacePostsTab() {
   }, [postsFromStore]);
 
   const [likedPosts, setLikedPosts] = useState<string[]>([]);
+  const [sharedPosts, setSharedPosts] = useState<string[]>([]);
   const [expandedPosts, setExpandedPosts] = useState<string[]>([]);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [showAllComments, setShowAllComments] = useState<Record<string, boolean>>({});
@@ -192,6 +193,7 @@ export default function WorkspacePostsTab() {
       const shareUrl = `${window.location.origin}/workspace/${organizationSlug}/posts?post=${postId}`;
       navigator.clipboard.writeText(shareUrl);
       toast.success("Copied post link to clipboard!");
+      setSharedPosts((prev) => (prev.includes(postId) ? prev : [...prev, postId]));
     }
   };
 
@@ -332,7 +334,7 @@ export default function WorkspacePostsTab() {
         {/* "What's on your mind?" announcement widget */}
         {hasPermission("organization:posts:write") && (
           <Card className="p-4 bg-surface border border-border rounded-xl flex items-center gap-3 w-full">
-            <div className="w-10 h-10 rounded-full bg-accent/10 border border-border flex items-center justify-center text-accent font-semibold text-sm shrink-0 flex-shrink-0 select-none overflow-hidden">
+            <div className="w-10 h-10 rounded-full bg-accent/10 border border-border flex items-center justify-center text-accent font-semibold text-sm shrink-0 select-none overflow-hidden">
               {orgLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={orgLogo} alt={`${orgName} Logo`} className="w-full h-full object-cover" />
@@ -403,7 +405,7 @@ export default function WorkspacePostsTab() {
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   {/* Organization Avatar */}
-                  <div className="w-10 h-10 rounded-full bg-accent/10 border border-border flex items-center justify-center text-accent font-semibold text-sm select-none overflow-hidden shrink-0 flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-accent/10 border border-border flex items-center justify-center text-accent font-semibold text-sm select-none overflow-hidden shrink-0">
                     {orgLogo ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={orgLogo} alt={`${orgName} Logo`} className="w-full h-full object-cover" />
@@ -486,14 +488,14 @@ export default function WorkspacePostsTab() {
                     </span>
                   </span>
                   <span className="font-normal text-muted-foreground">
-                    {post.likes}
+                    {post.likes + (isLiked ? 1 : 0)}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <span>{commentsList.length} comments</span>
                   <span>·</span>
-                  <span>{post.sharesCount} shares</span>
+                  <span>{post.sharesCount + (sharedPosts.includes(post.id) ? 1 : 0)} shares</span>
                 </div>
               </div>
 
@@ -565,7 +567,7 @@ export default function WorkspacePostsTab() {
                             <span className="font-semibold text-foreground block text-[11px] leading-tight">
                               {comment.authorName}
                             </span>
-                            <p className="text-foreground font-normal leading-normal whitespace-pre-line break-words text-[11px] mt-0.5">
+                            <p className="text-foreground font-normal leading-normal whitespace-pre-line wrap-break-word text-[11px] mt-0.5">
                               {comment.content}
                             </p>
                           </div>

@@ -1262,6 +1262,21 @@ public static class DbInitializer
                     END IF;
                 END IF;
 
+                -- Safely provision last_profile_update_at column to user_profiles if missing
+                IF EXISTS (
+                    SELECT 1 
+                    FROM information_schema.tables 
+                    WHERE table_name = 'user_profiles'
+                ) THEN
+                    IF NOT EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_name = 'user_profiles' AND column_name = 'last_profile_update_at'
+                    ) THEN
+                        ALTER TABLE user_profiles ADD COLUMN last_profile_update_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();
+                    END IF;
+                END IF;
+
                 -- Safely provision version column to user_profiles if missing
                 IF EXISTS (
                     SELECT 1 
@@ -1745,6 +1760,7 @@ public static class DbInitializer
                 recruiter_visibility BOOLEAN NOT NULL DEFAULT TRUE,
                 ai_talent_discovery VARCHAR(20) NOT NULL DEFAULT 'disabled',
                 social_links VARCHAR(255)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+                last_profile_update_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 version INTEGER NOT NULL DEFAULT 1,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
