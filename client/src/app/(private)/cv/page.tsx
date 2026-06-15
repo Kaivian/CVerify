@@ -946,9 +946,22 @@ export default function CvManagementCenter() {
         toast.success("Changes saved successfully!");
         await refreshProjects();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.danger("Some changes failed to save. Re-syncing with server...");
+      const serverMessage = err?.response?.data?.message;
+      const validationErrors = err?.response?.data?.errors;
+      let displayError = serverMessage || "Some changes failed to save. Re-syncing with server...";
+
+      if (validationErrors && typeof validationErrors === "object") {
+        const errorList = Object.entries(validationErrors)
+          .map(([field, msgs]: any) => `${field}: ${msgs.join(", ")}`)
+          .join(" | ");
+        if (errorList) {
+          displayError = `${displayError} (${errorList})`;
+        }
+      }
+
+      toast.danger(displayError);
       // Resynchronize client list with store upon partial failure
       if (activeTab === "experience") await refreshWorkExperiences();
       if (activeTab === "education") await refreshEducation();

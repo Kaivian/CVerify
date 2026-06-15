@@ -86,6 +86,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
     if (!item.jobTitle.trim()) newErrors.jobTitle = "This field is required";
     if (!item.company.trim()) newErrors.company = "This field is required";
     if (!item.startDate) newErrors.startDate = "This field is required";
+    if (!item.description.trim()) newErrors.description = "This field is required";
 
     if (item.startDate && item.endDate && !item.isCurrentlyWorking) {
       if (new Date(item.startDate) > new Date(item.endDate)) {
@@ -388,7 +389,7 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
             </div>
 
             <div className="flex flex-col gap-1.5 text-xs">
-              <label className="font-bold text-foreground">Description</label>
+              <label className="font-bold text-foreground">Description *</label>
               <TextArea
                 value={editingItem.description}
                 onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
@@ -397,7 +398,12 @@ export const ExperienceForm: React.FC<ExperienceFormProps> = ({
                 aria-label="Job description"
                 maxLength={2000}
               />
-              <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.description ? (
+                  <span className="text-danger">{errors.description}</span>
+                ) : (
+                  <span />
+                )}
                 <span>{(editingItem.description || "").length}/2000 characters</span>
               </div>
             </div>

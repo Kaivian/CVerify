@@ -487,6 +487,7 @@ export function useCvPagination(
             title: ach.title,
             dateRange: formatMonthYear(ach.issueDate),
             subtitle: `Issued by: ${ach.issuer}`,
+            credentialUrl: ach.credentialUrl || null,
           })
         );
 
@@ -503,16 +504,6 @@ export function useCvPagination(
               })
             );
           });
-        }
-
-        if (ach.credentialUrl) {
-          items.push(
-            createBlock(`ach-link-${ach.id}`, "bullet-point", {
-              text: formatSocialLink(ach.credentialUrl),
-              url: ach.credentialUrl,
-              isLink: true,
-            })
-          );
         }
       });
     }
