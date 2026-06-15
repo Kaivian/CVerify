@@ -308,42 +308,37 @@ export default function CvManagementCenter() {
   const [previewScale, setPreviewScale] = useState(1);
   const [previewContentHeight, setPreviewContentHeight] = useState(1123);
 
+  // Track container width to calculate scale
   useEffect(() => {
-    if (!isA4PreviewOpen || !modalFrameEl || !modalContentEl) return;
+    if (!isA4PreviewOpen || !modalFrameEl) return;
 
     const A4_WIDTH_PX = 794;
     const FRAME_PADDING_PX = 64; // p-8 = 32px each side
 
-    const updateLayout = () => {
+    const updateScale = () => {
       const available = modalFrameEl.clientWidth - FRAME_PADDING_PX;
       setPreviewScale(Math.min(1, available / A4_WIDTH_PX));
-
-      const printArea = modalContentEl.querySelector(".cv-print-area") as HTMLElement | null;
-      const targetHeight = printArea
-        ? (printArea.scrollHeight || printArea.offsetHeight || 1123)
-        : (modalContentEl.scrollHeight || modalContentEl.offsetHeight || 1123);
-
-      setPreviewContentHeight(targetHeight);
     };
 
-    updateLayout();
-    const observer = new ResizeObserver(updateLayout);
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
     observer.observe(modalFrameEl);
-    observer.observe(modalContentEl);
 
-    // Observe DOM mutations (like pagination updates) to reliably re-measure height
-    const mutationObserver = new MutationObserver(updateLayout);
-    mutationObserver.observe(modalContentEl, {
-      childList: true,
-      subtree: true,
-      characterData: true,
+    return () => observer.disconnect();
+  }, [isA4PreviewOpen, modalFrameEl]);
+
+  // Track content element height via ResizeObserver (fires reliably after pagination completes)
+  useEffect(() => {
+    if (!modalContentEl) return;
+
+    const observer = new ResizeObserver(() => {
+      const height = modalContentEl.offsetHeight;
+      if (height > 0) setPreviewContentHeight(height);
     });
 
-    return () => {
-      observer.disconnect();
-      mutationObserver.disconnect();
-    };
-  }, [isA4PreviewOpen, modalFrameEl, modalContentEl]);
+    observer.observe(modalContentEl);
+    return () => observer.disconnect();
+  }, [modalContentEl]);
 
   useEffect(() => {
     let active = true;
@@ -2346,15 +2341,13 @@ export default function CvManagementCenter() {
             {/* A4 Printable content frame */}
             <div
               ref={setModalFrameEl}
-              className="flex-1 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start cv-preview-content-frame"
+              className="flex-1 min-h-0 overflow-y-auto p-8 bg-surface-secondary/50 flex justify-center items-start cv-preview-content-frame"
             >
               <div
                 style={{
                   width: `${794 * previewScale}px`,
                   height: `${previewContentHeight * previewScale}px`,
                   position: "relative",
-                  display: "flex",
-                  justifyContent: "center",
                   flexShrink: 0,
                 }}
               >
