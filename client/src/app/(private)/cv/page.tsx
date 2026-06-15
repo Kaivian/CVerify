@@ -1385,9 +1385,12 @@ export default function CvManagementCenter() {
         <div className="lg:col-span-8 flex flex-col gap-6">
           {/* Identity & Summary Group */}
           <div className="flex flex-col gap-3">
-            <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent/80 border-b border-border/30 pb-1.5 mb-1">
-              Identity & Summary
-            </Typography>
+            <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+              <span className="w-1.5 h-3.5 bg-accent rounded-full" />
+              <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                Identity & Summary
+              </Typography>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
                 { id: "basic-info" as const, label: "Basic Information", desc: getSectionDetails("basic-info"), icon: User },
@@ -1401,25 +1404,27 @@ export default function CvManagementCenter() {
                     key={section.id}
                     rounded="2xl"
                     glow={true}
-                    className="p-4 border border-border/50 hover:border-accent/40 bg-surface flex flex-col items-start justify-between cursor-pointer text-left select-none relative group h-[135px]"
+                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex flex-col justify-between cursor-pointer text-left select-none relative group h-[135px] transition-all hover:shadow-xs"
                     onClick={() => {
                       setActiveTab(section.id);
                       setViewState("editor");
                     }}
                   >
                     <div className="flex justify-between items-center w-full">
-                      <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors">
-                        <Icon className="size-5" />
+                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-all">
+                        <Icon className="size-4.5" />
                       </div>
                       <div className="flex items-center gap-1.5">
                         {hasDraftChanges && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning animate-pulse" title="Unsaved changes">
+                            Draft
+                          </span>
                         )}
-                        <span className={`w-2.5 h-2.5 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                        <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
                       </div>
                     </div>
-                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-3">
-                      <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-auto">
+                      <span className="text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors">
                         {section.label}
                       </span>
                       <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
@@ -1432,9 +1437,12 @@ export default function CvManagementCenter() {
 
           {/* Credentials & Background Group */}
           <div className="flex flex-col gap-3">
-            <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent/80 border-b border-border/30 pb-1.5 mb-1">
-              Credentials & Background
-            </Typography>
+            <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+              <span className="w-1.5 h-3.5 bg-accent rounded-full" />
+              <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                Credentials & Background
+              </Typography>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { id: "experience" as const, label: "Work Experience", desc: getSectionDetails("experience"), icon: Briefcase },
@@ -1449,25 +1457,27 @@ export default function CvManagementCenter() {
                     key={section.id}
                     rounded="2xl"
                     glow={true}
-                    className="p-4 border border-border/50 hover:border-accent/40 bg-surface flex flex-col items-start justify-between cursor-pointer text-left select-none relative group h-[135px]"
+                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex flex-col justify-between cursor-pointer text-left select-none relative group h-[135px] transition-all hover:shadow-xs"
                     onClick={() => {
                       setActiveTab(section.id);
                       setViewState("editor");
                     }}
                   >
                     <div className="flex justify-between items-center w-full">
-                      <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors">
-                        <Icon className="size-5" />
+                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-all">
+                        <Icon className="size-4.5" />
                       </div>
                       <div className="flex items-center gap-1.5">
                         {hasDraftChanges && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning animate-pulse" title="Unsaved changes">
+                            Draft
+                          </span>
                         )}
-                        <span className={`w-2.5 h-2.5 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                        <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
                       </div>
                     </div>
-                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-3">
-                      <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-auto">
+                      <span className="text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors">
                         {section.label}
                       </span>
                       <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
@@ -1480,9 +1490,12 @@ export default function CvManagementCenter() {
 
           {/* Integrations & Preferences Group */}
           <div className="flex flex-col gap-3">
-            <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent/80 border-b border-border/30 pb-1.5 mb-1">
-              Integrations & Preferences
-            </Typography>
+            <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+              <span className="w-1.5 h-3.5 bg-accent rounded-full" />
+              <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                Integrations & Preferences
+              </Typography>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
                 { id: "projects" as const, label: "Linked Projects", desc: getSectionDetails("projects"), icon: FolderCode },
@@ -1496,25 +1509,27 @@ export default function CvManagementCenter() {
                     key={section.id}
                     rounded="2xl"
                     glow={true}
-                    className="p-4 border border-border/50 hover:border-accent/40 bg-surface flex flex-col items-start justify-between cursor-pointer text-left select-none relative group h-[135px]"
+                    className="p-5 border border-border/40 hover:border-accent/40 bg-surface flex flex-col justify-between cursor-pointer text-left select-none relative group h-[135px] transition-all hover:shadow-xs"
                     onClick={() => {
                       setActiveTab(section.id);
                       setViewState("editor");
                     }}
                   >
                     <div className="flex justify-between items-center w-full">
-                      <div className="p-2 rounded-xl bg-surface-secondary/40 text-accent group-hover:bg-accent/10 transition-colors">
-                        <Icon className="size-5" />
+                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-all">
+                        <Icon className="size-4.5" />
                       </div>
                       <div className="flex items-center gap-1.5">
                         {hasDraftChanges && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" title="Unsaved changes" />
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning animate-pulse" title="Unsaved changes">
+                            Draft
+                          </span>
                         )}
-                        <span className={`w-2.5 h-2.5 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
+                        <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
                       </div>
                     </div>
-                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-3">
-                      <span className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-4 mt-auto">
+                      <span className="text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors">
                         {section.label}
                       </span>
                       <span className="text-[10px] text-muted leading-tight line-clamp-2">{String(section.desc)}</span>
@@ -1529,129 +1544,131 @@ export default function CvManagementCenter() {
         {/* Right Column: Profile Completeness and Previews (4 cols) */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           {/* Profile Completeness card */}
-          <Card rounded="2xl" glow={true} className="p-6 border border-border/50 bg-surface flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3 w-full border-b border-border/20 pb-3">
-              <div className="flex flex-col gap-0.5">
-                <Typography type="body-sm" className="font-bold text-foreground">
-                  Completeness
-                </Typography>
-                <Typography type="body-xs" className="text-muted leading-snug">
-                  Finish these items to get discovered.
+          <Card rounded="2xl" glow={true} className="p-6 border border-border/40 bg-surface flex flex-col gap-5 relative overflow-hidden">
+            <div className="flex items-center justify-between gap-3 w-full border-b border-border/20 pb-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs uppercase font-extrabold tracking-widest text-muted-foreground">Completeness</span>
+                <Typography type="body-sm" className="font-extrabold text-foreground leading-none">
+                  Profile Optimization
                 </Typography>
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0 font-outfit">
-                <span className="text-lg font-extrabold text-foreground">{completenessPercent}%</span>
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide bg-${status.color}-soft text-${status.color}`}>
+              <div className="flex flex-col items-end gap-1.5 shrink-0 font-outfit">
+                <span className="text-3xl font-black text-foreground tracking-tight">{completenessPercent}%</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide bg-${status.color}-soft text-${status.color}`}>
                   {String(status.label)}
                 </span>
               </div>
             </div>
 
-            <div className="w-full bg-surface-secondary rounded-full h-2.5 overflow-hidden">
-              <div
-                className="bg-accent h-full rounded-full transition-all duration-300"
-                style={{ width: `${completenessPercent}%` }}
-              />
+            <div className="flex flex-col gap-1.5 w-full">
+              <div className="w-full bg-surface-secondary rounded-full h-3 overflow-hidden p-0.5 border border-border/20">
+                <div
+                  className="bg-accent h-full rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${completenessPercent}%` }}
+                />
+              </div>
             </div>
 
             {suggestedActions.length > 0 ? (
-              <div className="flex flex-col gap-2 pt-1">
-                <span className="text-[9px] text-muted uppercase font-extrabold tracking-wider">
-                  Suggested Actions
+              <div className="flex flex-col gap-3 pt-2">
+                <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
+                  Action Checklist
                 </span>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2.5">
                   {suggestedActions.map((action) => (
-                    <div key={action.id} className="flex gap-2 items-start text-[11px] text-muted-foreground leading-normal">
-                      <AlertCircle className="size-3.5 text-warning shrink-0 mt-0.5" />
+                    <div key={action.id} className="flex gap-2.5 items-start text-[11px] text-muted-foreground leading-normal bg-surface-secondary/40 p-2.5 rounded-xl border border-border/10">
+                      <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
                       <span>{String(action.text)}</span>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="flex gap-2 items-center text-xs text-success bg-success-soft/20 p-2.5 rounded-xl mt-1">
-                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              <div className="flex gap-3 items-center text-xs text-success bg-success-soft/20 p-3 rounded-xl mt-1 border border-success/10">
+                <CheckCircle2 className="size-5 text-success shrink-0" />
                 <span className="font-bold">Your profile is fully optimized!</span>
               </div>
             )}
           </Card>
 
           {/* AI Candidate Assessment Card */}
-          <Card rounded="2xl" glow={true} className="p-6 border border-border/50 bg-surface flex flex-col gap-4 relative overflow-hidden">
+          <Card rounded="2xl" glow={true} className="p-6 border border-accent/25 bg-surface flex flex-col gap-5 relative overflow-hidden">
             {latestAssessment?.status === 'Completed' && (
               <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
             )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-accent-soft text-accent shrink-0">
-                  <Sparkles className="size-5" />
-                </div>
-                <div className="flex flex-col gap-0.5 text-left">
-                  <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">AI Candidate Assessment</h4>
-                  <p className="text-xs text-muted leading-relaxed">
-                    Analyze your full technical profile and codebase quality across all verified repositories.
-                  </p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-accent-soft text-accent shrink-0">
+                <Sparkles className="size-5.5 animate-pulse" />
               </div>
-              <div className="flex items-center gap-2 self-start sm:self-center">
+              <div className="flex flex-col text-left">
+                <Typography type="body-sm" className="font-extrabold text-foreground">
+                  AI Candidate Assessment
+                </Typography>
+                <span className="text-[10px] text-muted mt-0.5">
+                  Verified Codebase Quality & Tech Stack Calibrations
+                </span>
+              </div>
+            </div>
+
+            <div className="w-full h-px bg-border/20" />
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Analyze your full technical profile, system complexity, and contribution ratios across all verified repositories.
+            </p>
+
+            <div className="flex flex-col gap-3.5 bg-surface-secondary/40 p-4 rounded-2xl border border-border/10">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-foreground">Status:</span>
                 {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued' ? (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-warning-soft text-warning animate-pulse">
+                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning-soft text-warning animate-pulse">
                     Running ({streamProgress}%)
                   </span>
                 ) : latestAssessment?.status === 'Completed' ? (
                   readiness?.requiresReassessment ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-warning-soft text-warning">
-                      Outdated (Requires Reassessment)
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning-soft text-warning">
+                      Outdated
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-success-soft text-success">
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-success-soft text-success">
                       Up To Date
                     </span>
                   )
                 ) : latestAssessment?.status === 'Failed' ? (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-danger-soft text-danger">
+                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-danger-soft text-danger">
                     Failed
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-default-soft text-muted-foreground">
+                  <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-default-soft text-muted-foreground">
                     Never Assessed
                   </span>
                 )}
               </div>
-            </div>
 
-            <div className="flex flex-col gap-2 border-t border-border/20 pt-3 text-xs">
               {readiness && !readiness.isReady ? (
-                <div className="flex gap-2 items-start text-muted">
+                <div className="flex gap-2.5 items-start text-muted text-xs">
                   <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
                   <div className="flex flex-col gap-1">
-                    <span>
-                      <strong>Assessment Locked:</strong> You need to complete your profile structure first.
-                    </span>
-                    <span className="text-[10px] text-danger-foreground bg-danger-soft px-2 py-1 rounded-md max-w-fit font-semibold">
-                      Missing required fields: {readiness.missingFields.join(", ")}
+                    <span className="font-bold text-foreground">Required Fields Missing</span>
+                    <span className="text-[10px] text-danger-foreground bg-danger-soft px-2.5 py-1 rounded-lg font-semibold leading-relaxed">
+                      Missing: {readiness.missingFields.join(", ")}
                     </span>
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-muted">
-                  <div className="flex flex-col gap-0.5">
-                    <span>
-                      <strong>Assessment Ready:</strong> High-quality repository metrics and profile inputs detected.
-                    </span>
-                    {latestAssessment?.completedAtUtc && (
-                      <span className="text-[10px]">
-                        Last Assessed: {new Date(latestAssessment.completedAtUtc).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2 self-end shrink-0">
+                <div className="flex flex-col gap-3">
+                  {latestAssessment?.completedAtUtc && (
+                    <div className="flex justify-between text-[10px] text-muted">
+                      <span>Last Assessed</span>
+                      <span>{new Date(latestAssessment.completedAtUtc).toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2 w-full mt-1">
                     {latestAssessment?.status === 'Completed' && (
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="rounded-xl font-bold text-xs select-none border-border/30 h-9"
+                        className="rounded-xl font-bold text-xs select-none border-border/30 h-10 flex-1"
                         onPress={() => handleViewAssessmentDetails(latestAssessment.id)}
                       >
                         View Report
@@ -1659,9 +1676,9 @@ export default function CvManagementCenter() {
                     )}
                     <Button
                       size="sm"
-                      className={`rounded-xl font-bold text-xs select-none h-9 ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                          ? "bg-warning text-warning-foreground border-none"
-                          : "bg-accent text-accent-foreground border-none"
+                      className={`rounded-xl font-bold text-xs select-none h-10 flex-1 border-none ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                          ? "bg-warning text-warning-foreground"
+                          : "bg-accent text-accent-foreground"
                         }`}
                       onPress={
                         latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
@@ -1670,9 +1687,9 @@ export default function CvManagementCenter() {
                       }
                     >
                       {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                        ? "View Progress"
+                        ? "Progress"
                         : latestAssessment?.status === 'Completed'
-                          ? "Re-Run Assessment"
+                          ? "Re-Run"
                           : "Run Assessment"}
                     </Button>
                   </div>
@@ -1682,30 +1699,30 @@ export default function CvManagementCenter() {
           </Card>
 
           {/* Export & Previews unified card */}
-          <Card rounded="2xl" glow={true} className="p-6 border border-border/50 bg-surface flex flex-col gap-4">
-            <div className="flex flex-col gap-1 border-b border-border/20 pb-3">
-              <Typography type="body-sm" className="font-bold text-foreground">
+          <Card rounded="2xl" glow={true} className="p-6 border border-border/40 bg-surface flex flex-col gap-5">
+            <div className="flex flex-col gap-1 border-b border-border/20 pb-3 text-left">
+              <Typography type="body-sm" className="font-extrabold text-foreground">
                 Export & Sharing
               </Typography>
-              <Typography type="body-xs" className="text-muted">
+              <span className="text-[10px] text-muted">
                 Publish or view your profile formats.
-              </Typography>
+              </span>
             </div>
 
             <div className="flex flex-col gap-3">
               {/* Option 1: Standard A4 CV */}
-              <div className="flex flex-col gap-2 p-3.5 rounded-xl border border-border/30 bg-surface-secondary/20">
+              <div className="flex flex-col gap-2.5 p-4 rounded-2xl border border-border/30 bg-surface-secondary/20 hover:border-accent/30 transition-all group/item">
                 <div className="flex items-center gap-2 text-accent">
                   <FileText className="size-4 shrink-0" />
                   <span className="text-xs font-bold text-foreground">Standard A4 CV</span>
                 </div>
-                <p className="text-[10px] text-muted leading-normal">
+                <p className="text-[10px] text-muted-foreground leading-normal text-left">
                   Traditional A4 layout ready for download or printing.
                 </p>
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="rounded-xl font-bold text-xs select-none w-full border-border/30 py-1 bg-surface-secondary hover:bg-surface-tertiary transition-colors"
+                  className="rounded-xl font-bold text-xs select-none w-full border-border/30 py-1.5 bg-surface-secondary hover:bg-surface-tertiary transition-colors"
                   onPress={() => setIsA4PreviewOpen(true)}
                 >
                   Open A4 Preview
@@ -1713,17 +1730,17 @@ export default function CvManagementCenter() {
               </div>
 
               {/* Option 2: CVerify Digital Profile */}
-              <div className="flex flex-col gap-2 p-3.5 rounded-xl border border-border/30 bg-surface-secondary/20">
+              <div className="flex flex-col gap-2.5 p-4 rounded-2xl border border-border/30 bg-surface-secondary/20 hover:border-emerald-500/30 transition-all group/item">
                 <div className="flex items-center gap-2 text-emerald-500">
                   <Sparkles className="size-4 shrink-0" />
                   <span className="text-xs font-bold text-foreground">Digital Profile</span>
                 </div>
-                <p className="text-[10px] text-muted leading-normal">
+                <p className="text-[10px] text-muted-foreground leading-normal text-left">
                   Online portfolio containing your AI verification badges.
                 </p>
                 <Button
                   size="sm"
-                  className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none py-1 hover:opacity-90 transition-opacity"
+                  className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none py-1.5 hover:opacity-90 transition-opacity"
                   onPress={() => {
                     if (profile?.username) {
                       router.push(`/${profile.username.toLowerCase()}`);
@@ -1968,14 +1985,19 @@ export default function CvManagementCenter() {
   return (
     <div className="flex flex-col w-full h-full text-left relative overflow-hidden" style={{ "--cv-editor-offset": "185px" } as React.CSSProperties}>
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-1 select-none cv-management-header">
-        <div className="flex flex-col text-left">
-          <Typography.Heading level={2} className="font-extrabold">
-            CV Management
-          </Typography.Heading>
-          <Typography type="body-sm" className="text-muted mt-1 max-w-xl">
-            Manage and update your professional CV profile. All changes sync with your Account Settings.
-          </Typography>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2 select-none cv-management-header">
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-2xl bg-accent/10 text-accent">
+            <FileText className="size-6" />
+          </div>
+          <div className="flex flex-col text-left">
+            <Typography.Heading level={2} className="font-extrabold text-foreground tracking-tight">
+              CV Management
+            </Typography.Heading>
+            <Typography type="body-xs" className="text-muted mt-0.5 max-w-xl">
+              Manage and update your professional CV profile. All changes sync with your Account Settings.
+            </Typography>
+          </div>
         </div>
       </div>
 
