@@ -84,14 +84,14 @@ export default function WorkspacePostsTab() {
                 initialComments = [
                   {
                     id: "c-1",
-                    authorName: "Nguyá»…n HoÃ ng Ngá»c Ãnh",
-                    content: "Sá»± kiá»‡n kÃ½ káº¿t hoÃ nh trÃ¡ng quÃ¡ áº¡! ChÃºc má»«ng CVerify vÃ  Ä‘á»‘i tÃ¡c.",
+                    authorName: "Nguyen Hoang Ngoc Anh",
+                    content: "The signing ceremony was grand! Congratulations to CVerify and our partners.",
                     date: "2h ago"
                   },
                   {
                     id: "c-2",
-                    authorName: "LÃª Minh",
-                    content: "Great progress, keep up the outstanding work team! TÃ­nh nÄƒng má»›i ráº¥t thá»±c táº¿.",
+                    authorName: "Le Minh",
+                    content: "Great progress, keep up the outstanding work team! The new feature is very practical.",
                     date: "1h ago"
                   }
                 ];
@@ -99,8 +99,8 @@ export default function WorkspacePostsTab() {
                 initialComments = [
                   {
                     id: "c-4",
-                    authorName: "Tráº§n Quá»‘c Báº£o",
-                    content: "BÃªn mÃ¬nh cÃ³ nháº­n Intern Web (.NET/React) chÆ°a tá»‘t nghiá»‡p khÃ´ng chá»‹ Æ¡i?",
+                    authorName: "Tran Quoc Bao",
+                    content: "Are we accepting undergraduate Web Interns (.NET/React)?",
                     date: "2d ago"
                   }
                 ];
@@ -149,7 +149,7 @@ export default function WorkspacePostsTab() {
   const handleCreatePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostContent.trim()) {
-      toast.danger("Vui lÃ²ng nháº­p ná»™i dung thÃ´ng bÃ¡o!");
+      toast.danger("Please enter the announcement content!");
       return;
     }
 
@@ -167,18 +167,18 @@ export default function WorkspacePostsTab() {
       });
 
       if (createdPost) {
-        toast.success("ÄÄƒng thÃ´ng bÃ¡o thÃ nh cÃ´ng!");
+        toast.success("Announcement posted successfully!");
         // Reset fields
         setNewPostContent("");
         setSelectedFiles([]);
         setNewPostCategory("Announcement");
         setShowCreatePostModal(false);
       } else {
-        toast.danger("ÄÄƒng thÃ´ng bÃ¡o tháº¥t báº¡i!");
+        toast.danger("Failed to post announcement!");
       }
     } catch (error) {
       console.error(error);
-      toast.danger("ÄÃ£ xáº£y ra lá»—i khi táº£i áº£nh lÃªn hoáº·c Ä‘Äƒng thÃ´ng bÃ¡o!");
+      toast.danger("An error occurred while uploading images or posting the announcement!");
     } finally {
       setIsSubmitting(false);
     }
@@ -206,7 +206,7 @@ export default function WorkspacePostsTab() {
     if (typeof window !== "undefined") {
       const shareUrl = `${window.location.origin}/workspace/${organizationSlug}/posts?post=${postId}`;
       navigator.clipboard.writeText(shareUrl);
-      toast.success("ÄÃ£ sao chÃ©p liÃªn káº¿t bÃ i viáº¿t vÃ o bá»™ nhá»› táº¡m!");
+      toast.success("Post link copied to clipboard!");
     }
   };
 
@@ -225,7 +225,7 @@ export default function WorkspacePostsTab() {
 
     const newComment: Comment = {
       id: `c-new-${Date.now()}`,
-      authorName: user?.fullName || "KhÃ¡ch ghÃ© thÄƒm",
+      authorName: user?.fullName || "Guest",
       authorAvatar: user?.avatarUrl,
       content,
       date: "Just now"
@@ -337,12 +337,12 @@ export default function WorkspacePostsTab() {
     );
   };
 
-  const orgName = workspaceDetails.organizationName || "Doanh nghiá»‡p Ä‘á»‘i tÃ¡c";
+  const orgName = workspaceDetails.organizationName || "Partner Organization";
   const orgLogo = workspaceDetails.logoUrl;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      {/* â”€â”€ Main Feed Column â”€â”€ */}
+      {/* Main Feed Column */}
       <div className="lg:col-span-2 space-y-6">
         {/* "What's on your mind?" announcement widget */}
         {/* "What's on your mind?" announcement widget */}
@@ -387,15 +387,15 @@ export default function WorkspacePostsTab() {
 
         {errorPosts && !loadingPosts && (
           <Card className="p-6 bg-surface border border-border rounded-xl flex flex-col items-center justify-center text-muted select-none text-center">
-            <span className="text-xs font-medium italic text-danger">ÄÃ£ xáº£y ra lá»—i khi táº£i danh sÃ¡ch thÃ´ng bÃ¡o. Vui lÃ²ng thá»­ láº¡i sau.</span>
+            <span className="text-xs font-medium italic text-danger">Failed to load announcements. Please try again later.</span>
           </Card>
         )}
 
         {!loadingPosts && !errorPosts && posts.length === 0 && (
           <Card className="p-8 bg-surface border border-border rounded-xl flex flex-col items-center justify-center text-muted select-none text-center">
             <Building className="size-8 text-accent/40 mb-2" />
-            <span className="text-xs font-semibold text-foreground">KhÃ´ng cÃ³ bÃ i viáº¿t hoáº·c thÃ´ng bÃ¡o nÃ o</span>
-            <span className="text-[10px] text-muted-foreground mt-0.5">Doanh nghiá»‡p chÆ°a Ä‘Äƒng táº£i thÃ´ng bÃ¡o nÃ o trÃªn báº£ng tin nÃ y.</span>
+            <span className="text-xs font-semibold text-foreground">No posts or announcements available</span>
+            <span className="text-[10px] text-muted-foreground mt-0.5">The organization has not posted any announcements on this feed yet.</span>
           </Card>
         )}
 
@@ -415,7 +415,7 @@ export default function WorkspacePostsTab() {
 
           return (
             <Card key={post.id} className="p-4 bg-surface border border-border rounded-xl space-y-4">
-              {/* â”€â”€ Facebook Post Header â”€â”€ */}
+              {/* Post Header */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   {/* Organization Avatar */}
@@ -472,7 +472,7 @@ export default function WorkspacePostsTab() {
                 </div>
               </div>
 
-              {/* â”€â”€ Facebook Post Content â”€â”€ */}
+              {/* Post Content */}
               <div className="space-y-3 font-normal text-xs leading-relaxed">
                 <Typography type="body-xs" className="text-foreground whitespace-pre-line text-xs font-normal">
                   {displayText}
@@ -481,7 +481,7 @@ export default function WorkspacePostsTab() {
                       onClick={() => setExpandedPosts([...expandedPosts, post.id])}
                       className="text-accent font-semibold hover:underline text-xs ml-1 focus:outline-hidden cursor-pointer"
                     >
-                      Xem thÃªm
+                      See more
                   </button>
                   )}
                 </Typography>
@@ -490,7 +490,7 @@ export default function WorkspacePostsTab() {
                 <PostImageGrid images={post.images} />
               </div>
 
-              {/* â”€â”€ Facebook Interactions Counter â”€â”€ */}
+              {/* Interactions Counter */}
               <div className="flex items-center justify-between text-[11px] text-muted select-none pb-1 font-normal">
                 <div className="flex items-center gap-1.5">
                   <span className="flex items-center">
@@ -507,17 +507,17 @@ export default function WorkspacePostsTab() {
                 </div>
 
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>{commentsList.length} bÃ¬nh luáº­n</span>
-                  <span>â€¢</span>
-                  <span>{post.sharesCount} lÆ°á»£t chia sáº»</span>
+                  <span>{commentsList.length} comments</span>
+                  <span>•</span>
+                  <span>{post.sharesCount} shares</span>
                 </div>
               </div>
 
               <div className="border-b border-border/50" />
 
-              {/* â”€â”€ Facebook Actions â”€â”€ */}
+              {/* Post Actions */}
               <div className="flex items-center gap-1 text-xs select-none">
-                {/* ThÃ­ch Button */}
+                {/* Like Button */}
                 <button
                   onClick={() => handleLike(post.id)}
                   className={`flex items-center justify-center gap-2 flex-1 py-1.5 rounded-lg hover:bg-card/45 transition-colors cursor-pointer font-semibold ${
@@ -525,31 +525,31 @@ export default function WorkspacePostsTab() {
                   }`}
                 >
                   <ThumbsUp className={`size-4 ${isLiked ? "fill-blue-500 text-blue-500" : ""}`} />
-                  <span>ThÃ­ch</span>
+                  <span>Like</span>
                 </button>
 
-                {/* BÃ¬nh luáº­n Button */}
+                {/* Comment Button */}
                 <button
                   onClick={() => handleFocusCommentInput(post.id)}
                   className="flex items-center justify-center gap-2 flex-1 py-1.5 rounded-lg hover:bg-card/45 transition-colors cursor-pointer font-semibold text-muted hover:text-foreground"
                 >
                   <MessageSquare className="size-4" />
-                  <span>BÃ¬nh luáº­n</span>
+                  <span>Comment</span>
                 </button>
 
-                {/* Chia sáº» Button */}
+                {/* Share Button */}
                 <button
                   onClick={() => handleSharePost(post.id)}
                   className="flex items-center justify-center gap-2 flex-1 py-1.5 rounded-lg hover:bg-card/45 transition-colors cursor-pointer font-semibold text-muted hover:text-foreground"
                 >
                   <Share2 className="size-4" />
-                  <span>Chia sáº»</span>
+                  <span>Share</span>
                 </button>
               </div>
 
               <div className="border-b border-border/50" />
 
-              {/* â”€â”€ Facebook Comments Section â”€â”€ */}
+              {/* Comments Section */}
               <div className="space-y-3 pt-1">
                 {/* Toggle to see more comments */}
                 {hasManyComments && !showingAll && (
@@ -557,7 +557,7 @@ export default function WorkspacePostsTab() {
                     onClick={() => setShowAllComments({ ...showAllComments, [post.id]: true })}
                     className="text-[11px] text-muted-foreground hover:text-accent font-semibold hover:underline block text-left pt-0.5 select-none cursor-pointer"
                   >
-                    Xem thÃªm {commentsList.length - 3} bÃ¬nh luáº­n
+                    See {commentsList.length - 3} more comments
                   </button>
                 )}
 
@@ -589,10 +589,10 @@ export default function WorkspacePostsTab() {
 
                           {/* Comment Actions */}
                           <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-semibold px-2 select-none">
-                            <button className="hover:text-foreground cursor-pointer">ThÃ­ch</button>
-                            <span>Â·</span>
-                            <button className="hover:text-foreground cursor-pointer">Pháº£n há»“i</button>
-                            <span>Â·</span>
+                            <button className="hover:text-foreground cursor-pointer">Like</button>
+                            <span>·</span>
+                            <button className="hover:text-foreground cursor-pointer">Reply</button>
+                            <span>·</span>
                             <span>{comment.date}</span>
                           </div>
                         </div>
@@ -620,12 +620,12 @@ export default function WorkspacePostsTab() {
                         commentInputRefs.current[post.id] = el;
                       }}
                       type="text"
-                      placeholder={user ? `BÃ¬nh luáº­n dÆ°á»›i tÃªn ${user.fullName}...` : "Viáº¿t bÃ¬nh luáº­n cÃ´ng khai..."}
+                      placeholder={user ? `Comment as ${user.fullName}...` : "Write a public comment..."}
                       value={commentInputs[post.id] || ""}
                       onChange={(e) => handleCommentInputChange(post.id, e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
-                          handleSubmitComment(post.id);
+                           handleSubmitComment(post.id);
                         }
                       }}
                       className="w-full bg-card/40 border border-border rounded-full pl-4 pr-10 py-1.5 text-xs focus:outline-hidden focus:border-accent text-foreground font-outfit font-normal"
@@ -645,7 +645,7 @@ export default function WorkspacePostsTab() {
         })}
       </div>
 
-      {/* â”€â”€ Side Widget Column â”€â”€ */}
+      {/* Side Widget Column */}
       <div className="space-y-6">
         {/* Corporate Stats */}
         <Card className="p-5 bg-surface border border-border rounded-xl space-y-4">
@@ -665,8 +665,7 @@ export default function WorkspacePostsTab() {
               <div>
                 <span className="text-[9px] text-muted-foreground uppercase block">Company Size</span>
                 <span className="font-medium text-foreground text-xs">
-                  {workspaceDetails.companySize.toLowerCase().includes("employee") ||
-                    workspaceDetails.companySize.toLowerCase().includes("nhÃ¢n viÃªn")
+                  {workspaceDetails.companySize.toLowerCase().includes("employee")
                     ? workspaceDetails.companySize
                     : `${workspaceDetails.companySize} employees`}
                 </span>
@@ -698,8 +697,7 @@ export default function WorkspacePostsTab() {
               <span className="text-[9px] text-muted-foreground uppercase block">Headquarters</span>
               <span className="font-medium text-foreground text-xs">
                 {workspaceDetails.city
-                  ? workspaceDetails.city.toLowerCase().includes("vietnam") ||
-                    workspaceDetails.city.toLowerCase().includes("viá»‡t nam")
+                  ? workspaceDetails.city.toLowerCase().includes("vietnam")
                     ? workspaceDetails.city
                     : `${workspaceDetails.city}, Vietnam`
                   : workspaceDetails.location || "Not specified"}
@@ -828,18 +826,18 @@ export default function WorkspacePostsTab() {
           </Typography>
           <div className="pt-1 select-none font-normal text-xs text-muted-foreground space-y-1.5">
             <div className="flex items-center gap-1.5">
-              <span>â€¢</span>
+              <span>•</span>
               Legal Authority Verified
             </div>
             <div className="flex items-center gap-1.5">
-              <span>â€¢</span>
+              <span>•</span>
               Representative Signature Matches
             </div>
           </div>
         </Card>
       </div>
 
-      {/* â”€â”€ Scoped Form Drawer Modal Dialog for Announcement/Post Creation â”€â”€ */}
+      {/* Scoped Form Drawer Modal Dialog for Announcement/Post Creation */}
       {showCreatePostModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-surface border border-border w-full max-w-xl rounded-xl shadow-2xl overflow-hidden font-outfit select-none flex flex-col max-h-[90vh]">
@@ -858,11 +856,11 @@ export default function WorkspacePostsTab() {
             <form onSubmit={handleCreatePostSubmit} className="p-6 overflow-y-auto space-y-4 text-xs font-normal">
               {/* Content Textarea */}
               <div className="space-y-1">
-                <label className="text-[10px] text-muted uppercase font-semibold">Ná»™i dung thÃ´ng bÃ¡o *</label>
+                <label className="text-[10px] text-muted uppercase font-semibold">Announcement Content *</label>
                 <textarea
                   required
                   rows={5}
-                  placeholder="Nháº­p ná»™i dung thÃ´ng bÃ¡o hoáº·c cáº­p nháº­t cÃ´ng ty..."
+                  placeholder="Enter announcement content or company updates..."
                   value={newPostContent}
                   onChange={(e) => setNewPostContent(e.target.value)}
                   className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-hidden focus:border-accent resize-none font-outfit"
@@ -872,7 +870,7 @@ export default function WorkspacePostsTab() {
               <div className="grid grid-cols-2 gap-4">
                 {/* Category Selection */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">PhÃ¢n loáº¡i / Category</label>
+                  <label className="text-[10px] text-muted uppercase font-semibold">Category</label>
                   <select
                     value={newPostCategory}
                     onChange={(e) => setNewPostCategory(e.target.value as any)}
@@ -886,7 +884,7 @@ export default function WorkspacePostsTab() {
 
                 {/* Author Display (Read Only or Prefilled) */}
                 <div className="space-y-1">
-                  <label className="text-[10px] text-muted uppercase font-semibold">NgÆ°á»i Ä‘Äƒng</label>
+                  <label className="text-[10px] text-muted uppercase font-semibold">Posted By</label>
                   <input
                     type="text"
                     disabled
@@ -899,7 +897,7 @@ export default function WorkspacePostsTab() {
               {/* Attachment Images */}
               <div className="space-y-2">
                 <label className="text-[10px] text-muted uppercase font-semibold">
-                  HÃ¬nh áº£nh Ä‘Ã­nh kÃ¨m
+                  Attachments
                 </label>
                 
                 {/* Drag and drop zone */}
@@ -919,10 +917,10 @@ export default function WorkspacePostsTab() {
                 >
                   <Upload className="size-5 text-muted-foreground mb-1" />
                   <span className="text-[11px] font-semibold text-foreground">
-                    KÃ©o vÃ  tháº£ hÃ¬nh áº£nh vÃ o Ä‘Ã¢y hoáº·c nháº¥p Ä‘á»ƒ chá»n
+                    Drag & drop images here or click to select
                   </span>
                   <span className="text-[9px] text-muted-foreground mt-0.5">
-                    Há»— trá»£ Ä‘á»‹nh dáº¡ng JPEG, PNG, WebP, GIF (tá»‘i Ä‘a 10MB)
+                    Supports JPEG, PNG, WebP, GIF (max 10MB)
                   </span>
                   <input
                     ref={fileInputRef}
@@ -977,7 +975,7 @@ export default function WorkspacePostsTab() {
                   onClick={() => setShowCreatePostModal(false)}
                   className="px-4 py-2 rounded-lg border border-border text-muted hover:text-foreground font-semibold hover:bg-card/50 transition-colors cursor-pointer text-xs disabled:opacity-55 disabled:cursor-not-allowed"
                 >
-                  Há»§y
+                  Cancel
                 </button>
                 <button
                   type="submit"
