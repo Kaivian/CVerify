@@ -60,43 +60,64 @@ class RepoIntelligenceClient:
         Fetch a single artifact by its internal key name.
 
         Returns the parsed JSON dict, or None if the request fails or the
-        artifact does not exist yet.
+        artifact does not exist yet.  Retries on transient network errors.
         """
+        import asyncio
+
         backend_key = _ARTIFACT_KEY_MAP.get(artifact_key, artifact_key)
         url = f"{self._base_url}/api/v1/ai-jobs/{job_id}/artifacts/{backend_key}"
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                response = await client.get(url)
-                if response.status_code == 404:
+
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                    response = await client.get(url)
+                    if response.status_code == 404:
+                        logger.warning(
+                            "Artifact '%s' not found for job %s (404)",
+                            artifact_key, job_id
+                        )
+                        return None
+                    response.raise_for_status()
+                    payload = response.json()
+                    # Core may wrap the artifact in an envelope; unwrap if so
+                    if isinstance(payload, dict) and "data" in payload:
+                        return payload["data"]
+                    return payload
+            except httpx.TimeoutException:
+                logger.error(
+                    "Timeout fetching artifact '%s' for job %s from %s",
+                    artifact_key, job_id, url
+                )
+                return None
+            except httpx.HTTPStatusError as exc:
+                logger.error(
+                    "HTTP %s fetching artifact '%s' for job %s: %s",
+                    exc.response.status_code, artifact_key, job_id, exc
+                )
+                return None
+            except OSError as exc:
+                # Transient DNS/network errors (e.g. [Errno 11001] getaddrinfo failed)
+                if attempt < max_retries:
+                    delay = 0.5 * (attempt + 1)
                     logger.warning(
-                        "Artifact '%s' not found for job %s (404)",
-                        artifact_key, job_id
+                        "Transient network error fetching artifact '%s' for job %s (attempt %d/%d): %s. Retrying in %.1fs...",
+                        artifact_key, job_id, attempt + 1, max_retries + 1, exc, delay
                     )
-                    return None
-                response.raise_for_status()
-                payload = response.json()
-                # Core may wrap the artifact in an envelope; unwrap if so
-                if isinstance(payload, dict) and "data" in payload:
-                    return payload["data"]
-                return payload
-        except httpx.TimeoutException:
-            logger.error(
-                "Timeout fetching artifact '%s' for job %s from %s",
-                artifact_key, job_id, url
-            )
-            return None
-        except httpx.HTTPStatusError as exc:
-            logger.error(
-                "HTTP %s fetching artifact '%s' for job %s: %s",
-                exc.response.status_code, artifact_key, job_id, exc
-            )
-            return None
-        except Exception as exc:
-            logger.error(
-                "Unexpected error fetching artifact '%s' for job %s: %s",
-                artifact_key, job_id, exc
-            )
-            return None
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error(
+                    "Network error fetching artifact '%s' for job %s after %d attempts: %s",
+                    artifact_key, job_id, max_retries + 1, exc
+                )
+                return None
+            except Exception as exc:
+                logger.error(
+                    "Unexpected error fetching artifact '%s' for job %s: %s",
+                    artifact_key, job_id, exc
+                )
+                return None
+        return None
 
     async def fetch_line1_artifacts(self, job_id: str) -> dict[str, Any | None]:
         """
