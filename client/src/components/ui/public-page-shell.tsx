@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/hooks/use-auth";
-import { PlatformShell } from "@/components/layouts/platform-shell";
+import { CandidateShell } from "@/components/layouts/candidate-shell";
 import { PublicNavigationHeader } from "@/components/ui/public-navigation-header";
 import { cn } from "@/lib/utils";
 
@@ -41,11 +41,11 @@ export function PublicPageShell({
 
   if (showAuthenticated) {
     return (
-      <PlatformShell>
+      <CandidateShell>
         <div className={cn("w-full h-full", authenticatedClassName)}>
           {children}
         </div>
-      </PlatformShell>
+      </CandidateShell>
     );
   }
 

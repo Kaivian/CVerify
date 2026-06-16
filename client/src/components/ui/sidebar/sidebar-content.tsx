@@ -11,6 +11,7 @@ import {
 import { useSidebarMode } from "../../../providers/sidebar-mode-provider";
 import { useActiveWorkspace } from "../../../features/workspace/hooks/use-active-workspace";
 import { filterNavigationNodes } from "../../../lib/navigation-utils";
+import { isModuleEnabled } from "../../../lib/utils/feature-flags";
 import SidebarLink from "./sidebar-link";
 import SidebarGroup from "./sidebar-group";
 import SidebarSection from "./sidebar-section";
@@ -175,6 +176,14 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
           if (node.requiredPermissions) {
             const passes = node.requiredPermissions.some((p) => hasPermission(p));
             if (!passes) {
+              return null;
+            }
+          }
+
+          // 2.5 Feature flag check
+          if (node.featureFlag) {
+            const userPerms = user?.permissions || [];
+            if (!isModuleEnabled({ featureFlag: node.featureFlag }, userPerms)) {
               return null;
             }
           }

@@ -13,6 +13,7 @@ export interface BaseNavigationNode {
   requiredWorkspacePermissions?: string[];
   requiredWorkspaceRoles?: string[];
   tooltip?: string;
+  featureFlag?: string;
 }
 
 export interface NavigationLinkItem extends BaseNavigationNode {

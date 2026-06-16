@@ -22,12 +22,14 @@ import {
   Palette,
   Globe,
   Headset,
+  Building2,
+  Shield,
 } from "lucide-react";
 import { setCookie } from "../../services/axios-client";
 import { useThemeStore } from "../../stores/use-theme-store";
 
 export function AuthAvatar() {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const router = useRouter();
   const { theme, setTheme } = useThemeStore();
 
@@ -93,6 +95,15 @@ export function AuthAvatar() {
         break;
       case "theme-ocean":
         setTheme("ocean");
+        break;
+      case "switch-candidate":
+        router.push("/user");
+        break;
+      case "switch-admin":
+        router.push("/admin");
+        break;
+      case "switch-company":
+        router.push("/business");
         break;
       case "logout":
         await logout(true);
@@ -365,6 +376,75 @@ export function AuthAvatar() {
               </div>
             </Dropdown.Item>
           </Dropdown.Section>
+          {(() => {
+            const hasCandidatePortal = hasPermission("portal:candidate:view");
+            const hasAdminPortal = hasPermission("portal:admin:view") || user.role === "ADMIN";
+            const hasCompanyPortal = hasPermission("portal:company:view") || user.role === "BUSINESS" || user.role === "ADMIN";
+
+            const accessiblePortalsCount = [hasCandidatePortal, hasAdminPortal, hasCompanyPortal].filter(Boolean).length;
+            const showPortalSwitcher = accessiblePortalsCount > 1;
+
+            if (!showPortalSwitcher) return null;
+
+            return (
+              <>
+                <Separator variant="tertiary" className="my-2" />
+                <Dropdown.Section className="gap-1">
+                  <Dropdown.Item
+                    id="switch-portal-header"
+                    textValue="Switch Portal"
+                    className="opacity-50 pointer-events-none select-none h-6"
+                  >
+                    <span className="text-[10px] font-bold text-muted uppercase tracking-wider">
+                      Switch Portal
+                    </span>
+                  </Dropdown.Item>
+                  {hasCandidatePortal && (
+                    <Dropdown.Item
+                      id="switch-candidate"
+                      textValue="Candidate Portal"
+                      className="rounded-lg"
+                    >
+                      <div className="flex items-center gap-2.5 w-full">
+                        <User className="size-4 shrink-0 text-muted" />
+                        <Label className="cursor-pointer font-semibold text-foreground">
+                          Candidate Portal
+                        </Label>
+                      </div>
+                    </Dropdown.Item>
+                  )}
+                  {hasAdminPortal && (
+                    <Dropdown.Item
+                      id="switch-admin"
+                      textValue="Admin Portal"
+                      className="rounded-lg"
+                    >
+                      <div className="flex items-center gap-2.5 w-full">
+                        <Shield className="size-4 shrink-0 text-muted" />
+                        <Label className="cursor-pointer font-semibold text-foreground">
+                          Admin Portal
+                        </Label>
+                      </div>
+                    </Dropdown.Item>
+                  )}
+                  {hasCompanyPortal && (
+                    <Dropdown.Item
+                      id="switch-company"
+                      textValue="Company Portal"
+                      className="rounded-lg"
+                    >
+                      <div className="flex items-center gap-2.5 w-full">
+                        <Building2 className="size-4 shrink-0 text-muted" />
+                        <Label className="cursor-pointer font-semibold text-foreground">
+                          Company Portal
+                        </Label>
+                      </div>
+                    </Dropdown.Item>
+                  )}
+                </Dropdown.Section>
+              </>
+            );
+          })()}
           <Separator variant="tertiary" className="my-2" />
           <Dropdown.Section className="gap-1">
             <Dropdown.Item

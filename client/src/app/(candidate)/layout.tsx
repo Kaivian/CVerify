@@ -2,16 +2,16 @@
 
 import React from "react";
 import { AuthGuard } from "../../features/auth/guards/auth-guard";
-import { PlatformShell } from "../../components/layouts/platform-shell";
+import { CandidateShell } from "../../components/layouts/candidate-shell";
 
-export default function DashboardLayout({
+export default function CandidateDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
     <AuthGuard>
-      <PlatformShell>{children}</PlatformShell>
+      <CandidateShell>{children}</CandidateShell>
     </AuthGuard>
   );
 }
