@@ -320,9 +320,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
             var selectedCvJobs = cvJobs.Take(5).ToList();
 
-            if (selectedCvJobs.Count == 0)
+            var projectCount = await _context.ProjectEntries.CountAsync(p => p.UserId == assessment.UserId && p.DeletedAt == null, cancellationToken);
+            var experienceCount = await _context.WorkExperiences.CountAsync(we => we.UserId == assessment.UserId && we.DeletedAt == null, cancellationToken);
+
+            if (selectedCvJobs.Count == 0 && projectCount == 0 && experienceCount == 0)
             {
-                throw new BusinessRuleException("NO_ATTACHED_REPOS", "No verified repositories are attached to your CV. Please link at least one analyzed repository to a CV project.");
+                throw new BusinessRuleException("NO_PORTFOLIO_CONTENT", "Please add at least one project or work experience to your profile before running the assessment.");
             }
 
             // 1. Process CV-Attached Repositories

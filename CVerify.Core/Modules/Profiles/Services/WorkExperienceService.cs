@@ -15,10 +15,12 @@ namespace CVerify.API.Modules.Profiles.Services;
 public class WorkExperienceService : IWorkExperienceService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICvRepositoryIndexer _cvRepositoryIndexer;
 
-    public WorkExperienceService(ApplicationDbContext context)
+    public WorkExperienceService(ApplicationDbContext context, ICvRepositoryIndexer cvRepositoryIndexer)
     {
         _context = context;
+        _cvRepositoryIndexer = cvRepositoryIndexer;
     }
 
     public async Task<List<WorkExperienceResponse>> GetWorkExperiencesAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -102,6 +104,15 @@ public class WorkExperienceService : IWorkExperienceService
 
         await _context.SaveChangesAsync(cancellationToken);
 
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail the work experience operation if indexing throws
+        }
+
         return MapToResponse(entry);
     }
 
@@ -178,6 +189,15 @@ public class WorkExperienceService : IWorkExperienceService
 
         await _context.SaveChangesAsync(cancellationToken);
 
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail the work experience operation if indexing throws
+        }
+
         return MapToResponse(entry);
     }
 
@@ -202,6 +222,15 @@ public class WorkExperienceService : IWorkExperienceService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail the work experience operation if indexing throws
+        }
     }
 
     public async Task ReorderWorkExperiencesAsync(Guid userId, List<Guid> orderedIds, CancellationToken cancellationToken = default)
@@ -238,6 +267,15 @@ public class WorkExperienceService : IWorkExperienceService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail the work experience operation if indexing throws
+        }
     }
 
     private static void ValidateDateConstraints(WorkExperienceRequest request)

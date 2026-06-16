@@ -139,38 +139,36 @@ public class GitHubSourceCodeClient : ISourceCodeClient
         return new ExternalUserProfile(id, username, displayName, email, avatarUrl, profileUrl);
     }
 
-    public async Task<SyncResult> SyncRepositoriesAsync(string accessToken, List<string> referencedRepoPaths, CancellationToken cancellationToken)
+    public async Task<SyncResult> SyncRepositoriesAsync(string accessToken, int page, int pageSize, CancellationToken cancellationToken)
     {
         var httpClient = _httpClientFactory.CreateClient();
         var orgsList = new List<ExternalOrganizationDto>();
         var reposList = new List<SourceCodeRepository>();
 
-        if (referencedRepoPaths == null || referencedRepoPaths.Count == 0)
-        {
-            return new SyncResult(orgsList, reposList, null);
-        }
-
         try
         {
-            foreach (var repoPath in referencedRepoPaths)
+            await CheckRateLimitAsync(httpClient, accessToken, cancellationToken);
+
+            var reposRequest = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/user/repos?per_page={pageSize}&page={page}");
+            reposRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            reposRequest.Headers.UserAgent.ParseAdd("CVerify-Core");
+
+            var reposResponse = await httpClient.SendAsync(reposRequest, cancellationToken);
+            if (!reposResponse.IsSuccessStatusCode)
             {
-                await CheckRateLimitAsync(httpClient, accessToken, cancellationToken);
+                var errContent = await reposResponse.Content.ReadAsStringAsync(cancellationToken);
+                throw new HttpRequestException($"GitHub API fetch repositories page {page} returned status {reposResponse.StatusCode}: {errContent}");
+            }
 
-                var repoRequest = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{repoPath}");
-                repoRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-                repoRequest.Headers.UserAgent.ParseAdd("CVerify-Core");
+            var reposJson = await reposResponse.Content.ReadAsStringAsync(cancellationToken);
+            using var doc = JsonDocument.Parse(reposJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return new SyncResult(orgsList, reposList, null);
+            }
 
-                var repoResponse = await httpClient.SendAsync(repoRequest, cancellationToken);
-                if (!repoResponse.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("GitHub fetch for repo {RepoPath} failed with status {StatusCode}", repoPath, repoResponse.StatusCode);
-                    continue;
-                }
-
-                var repoResponseJson = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
-                using var doc = JsonDocument.Parse(repoResponseJson);
-                var repoElement = doc.RootElement;
-
+            foreach (var repoElement in doc.RootElement.EnumerateArray())
+            {
                 var parsedRepo = ParseGitHubRepository(repoElement);
                 reposList.Add(parsedRepo);
 
@@ -196,7 +194,7 @@ public class GitHubSourceCodeClient : ISourceCodeClient
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error occurred during GitHub targeted synchronization.");
+            _logger.LogError(ex, "Error occurred during GitHub synchronization.");
             return new SyncResult(orgsList, reposList, ex.Message);
         }
     }

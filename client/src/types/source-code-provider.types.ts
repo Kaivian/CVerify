@@ -71,6 +71,10 @@ export interface RepositorySyncJobStatus {
   status: 'Pending' | 'Syncing' | 'Completed' | 'Failed';
   progress: number;
   error: string | null;
+  maxPages: number;
+  pageSize: number;
+  totalSyncedCount: number;
+  isPartial: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,6 +88,7 @@ export interface RepositoryFilterParams {
   category?: string;
   ownerType?: string;
   organizationId?: string;
+  mode?: 'all' | 'cv_linked';
   page?: number;
   pageSize?: number;
 }

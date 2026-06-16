@@ -976,6 +976,11 @@ export default function CvManagementCenter() {
     const profileData = profileArtifact ? JSON.parse(profileArtifact.jsonData) : null;
     const activeData = profileData || assessment;
 
+    const cvLinkedRepoIds = new Set(
+      projects.flatMap(p => p.repositoryLinks?.map(l => l.sourceCodeRepositoryId) || [])
+    );
+    const cvLinkedRepos = repositories.filter(r => cvLinkedRepoIds.has(r.id));
+
     const scrollToSection = (id: string) => {
       const el = document.getElementById(id);
       if (el) {
@@ -1171,7 +1176,7 @@ export default function CvManagementCenter() {
             </div>
             <div className="flex flex-col gap-1 min-w-0">
               <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Scope Scanned</span>
-              <span className="text-xs font-extrabold text-foreground truncate">{repositories.length} Repositories</span>
+              <span className="text-xs font-extrabold text-foreground truncate">{cvLinkedRepos.length} Repositories</span>
             </div>
           </div>
           <div className="p-5 border border-border/40 rounded-2xl bg-surface flex flex-col justify-between h-28 shadow-xs hover:border-border transition-colors">
@@ -1351,9 +1356,9 @@ export default function CvManagementCenter() {
           </div>
           <div className="w-full h-px bg-border/10" />
 
-          {repositories.length > 0 ? (
+          {cvLinkedRepos.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {repositories.map((repo) => (
+              {cvLinkedRepos.map((repo) => (
                 <div key={repo.id} className="p-4 border border-border/40 rounded-xl bg-surface-secondary/20 flex flex-col gap-3 hover:border-border transition-colors">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">

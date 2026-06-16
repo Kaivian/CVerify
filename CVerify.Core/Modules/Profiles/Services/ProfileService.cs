@@ -30,6 +30,7 @@ public class ProfileService : IProfileService
     private readonly TimeProvider _timeProvider;
     private readonly IAppLogger _logger;
     private readonly IProjectService _projectService;
+    private readonly ICvRepositoryIndexer _cvRepositoryIndexer;
 
     public ProfileService(
         ApplicationDbContext context,
@@ -38,7 +39,8 @@ public class ProfileService : IProfileService
         IUsernameService usernameService,
         TimeProvider timeProvider,
         IAppLogger logger,
-        IProjectService projectService)
+        IProjectService projectService,
+        ICvRepositoryIndexer cvRepositoryIndexer)
     {
         _context = context;
         _cacheService = cacheService;
@@ -47,6 +49,7 @@ public class ProfileService : IProfileService
         _timeProvider = timeProvider;
         _logger = logger;
         _projectService = projectService;
+        _cvRepositoryIndexer = cvRepositoryIndexer;
     }
 
     public async Task<ProfileResponse> GetProfileByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -166,6 +169,15 @@ public class ProfileService : IProfileService
         catch (DbUpdateConcurrencyException ex)
         {
             throw new ProfileException(ProfileErrorCodes.ProfileConcurrencyConflict, "A concurrency conflict occurred. Please try again.", ex);
+        }
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.Log(LogLevel.Warning, "Profile", $"Failed to index CV repositories during profile update for user {userId}.", ex);
         }
 
         return MapToResponse(profile, newSocialUrls);

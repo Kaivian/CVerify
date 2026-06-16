@@ -177,6 +177,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<ProjectEntry> ProjectEntries => Set<ProjectEntry>();
     public DbSet<ProjectRepositoryLink> ProjectRepositoryLinks => Set<ProjectRepositoryLink>();
+    public DbSet<CvRepositoryMapping> CvRepositoryMappings => Set<CvRepositoryMapping>();
     public DbSet<ProjectTechnology> ProjectTechnologies => Set<ProjectTechnology>();
     public DbSet<ProjectContribution> ProjectContributions => Set<ProjectContribution>();
 
@@ -587,6 +588,20 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(r => r.ExternalOrganizationId)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // CvRepositoryMapping configurations
+        modelBuilder.Entity<CvRepositoryMapping>(entity =>
+        {
+            entity.ToTable("cv_repository_mappings");
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.Id).ValueGeneratedNever();
+            entity.HasOne(m => m.SourceCodeRepository)
+                  .WithMany()
+                  .HasForeignKey(m => m.SourceCodeRepositoryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(m => m.UserId).HasDatabaseName("idx_cv_repository_mappings_user_id");
+            entity.HasIndex(m => m.SourceCodeRepositoryId).HasDatabaseName("idx_cv_repository_mappings_repo_id");
         });
 
         // AnalysisJob configurations
