@@ -67,15 +67,17 @@ export interface ExperienceDraftItem {
 export interface EducationDraftItem {
   id: string; // temp-id or DB uuid
   label: string;
-  schoolName: string;
-  degree: string;
-  major: string;
+  school: string;
+  degree?: string | null;
+  major?: string | null;
+  description?: string | null;
+  isCurrentlyStudying: boolean;
+  period?: {
+    start: any;
+    end: any;
+  } | null;
   gpa: number | null;
   gpaScale: number | null;
-  description: string;
-  startDate: string;
-  endDate: string | null;
-  isCurrentlyStudying: boolean;
 }
 
 export interface AchievementsDraftItem {

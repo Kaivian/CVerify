@@ -363,7 +363,7 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               Select a repository with completed AI assessment. A verified portfolio entry with AI-generated summary, tech stack, and key contributions will be created for the selected repository.
             </p>
- 
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 select-none">
               {repositories.filter(r => r.latestAnalysisStatus === "Completed").length === 0 ? (
                 <div className="col-span-2 py-8 text-center border-2 border-dashed border-border/40 rounded-xl flex flex-col items-center justify-center gap-3">
@@ -434,7 +434,7 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                   })
               )}
             </div>
- 
+
             <div className="flex gap-2 justify-end mt-4">
               <Button
                 size="sm"
@@ -594,7 +594,7 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                   <span>{(editingItem.name || "").length}/100 characters</span>
                 </div>
               </div>
- 
+
               <div className="flex flex-col gap-1.5">
                 <label className="font-bold text-foreground">Role / Position</label>
                 <Input
@@ -811,7 +811,7 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                     <Tooltip.Trigger>
                       <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                     </Tooltip.Trigger>
-                    <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                    <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
                       Explain key tasks or improvements you built (e.g., 'Implemented real-time synchronization between frontend and database').
                     </Tooltip.Content>
                   </Tooltip>
@@ -843,7 +843,7 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                   </Button>
                 </div>
               )}
- 
+
               <div className="flex flex-col gap-2 mt-1">
                 {editingItem.contributions.map((cont, idx) => (
                   <div key={idx} className="flex items-start justify-between gap-3 p-2 border border-border/30 rounded-lg bg-surface text-xs">

@@ -214,6 +214,45 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
     name: `education.${index}.isCurrentlyStudying`,
   });
 
+  const isUniversity =
+    (labelValue || "").toLowerCase().includes("university") ||
+    (labelValue || "").toLowerCase().includes("đại học") ||
+    (labelValue || "").toLowerCase().includes("dai hoc");
+
+  const [newDesc, setNewDesc] = React.useState("");
+
+  const descriptionValue = useWatch({
+    control,
+    name: `education.${index}.description`,
+  });
+
+  const lines = descriptionValue
+    ? descriptionValue.split("\n").filter((line: string) => line.trim() !== "")
+    : [];
+
+  const handleAddDesc = () => {
+    const trimmed = newDesc.trim();
+    if (!trimmed) return;
+    const updatedLines = [...lines, trimmed];
+    setValue(`education.${index}.description`, updatedLines.join("\n"), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setNewDesc("");
+  };
+
+  const handleRemoveDesc = (idxToRemove: number) => {
+    const updatedLines = lines.filter((_, idx) => idx !== idxToRemove);
+    setValue(
+      `education.${index}.description`,
+      updatedLines.length > 0 ? updatedLines.join("\n") : null,
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      }
+    );
+  };
+
   return (
     <div className="relative border border-border/60 bg-surface-secondary/10 hover:bg-surface-secondary/20 rounded-2xl p-5 sm:p-6 flex flex-col gap-5 text-left transition-all duration-300 hover:border-border">
       {/* Grid Inputs */}
@@ -238,6 +277,26 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
             <FieldError className="text-danger text-xs mt-1 block">
               {errors.education[index]?.school?.message}
             </FieldError>
+          )}
+          {isUniversity && (
+            <div className="mt-2 animate-fade-in flex flex-col gap-1">
+              <Label htmlFor={`major-${index}`} className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                Major
+              </Label>
+              <Controller
+                control={control}
+                name={`education.${index}.major`}
+                render={({ field: { value, onChange } }) => (
+                  <Input
+                    id={`major-${index}`}
+                    aria-label="Major"
+                    placeholder="e.g. Computer Science"
+                    value={value || ""}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </div>
           )}
         </div>
 
@@ -382,6 +441,65 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
             </Button>
           </div>
         )}
+      </div>
+
+      {/* Description List Editor */}
+      <div className="border-t border-border/40 pt-4 flex flex-col gap-2">
+        <Label className="font-bold text-foreground text-xs uppercase tracking-wider">
+          Description
+        </Label>
+        <div className="flex gap-2 items-start">
+          <div className="flex-1 flex flex-col gap-0.5">
+            <Input
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              placeholder="Add description..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddDesc();
+                }
+              }}
+              aria-label="Description line"
+              maxLength={300}
+            />
+            <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+              <span>{(newDesc || "").length}/300 characters</span>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-xl border border-border/30 h-10 w-10 min-w-10 flex items-center justify-center"
+            onPress={handleAddDesc}
+            type="button"
+            aria-label="Add description line"
+          >
+            <Plus className="size-4" />
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-2 mt-1">
+          {lines.map((line: string, idx: number) => (
+            <div
+              key={idx}
+              className="flex items-start justify-between gap-3 p-2 border border-border/30 rounded-lg bg-surface text-xs"
+            >
+              <span className="leading-relaxed text-muted-foreground">{line}</span>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="secondary"
+                className="rounded-xl border border-border/30 h-6 w-6 text-danger shrink-0"
+                onPress={() => handleRemoveDesc(idx)}
+                type="button"
+                aria-label="Remove description line"
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Toggles Row */}

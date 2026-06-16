@@ -250,6 +250,11 @@ export interface PublicProfileResponse {
   trustScore?: number | null;
   repositories?: PublicRepository[] | null;
   projects?: PublicProject[] | null;
+  experiences?: WorkExperienceResponse[] | null;
+  educations?: EducationEntryResponse[] | null;
+  achievements?: AcademicAchievementResponse[] | null;
+  hasCompletedAssessment: boolean;
+  lastAssessmentDate: string | null;
 }
 
 export interface WorkExperienceAchievement {

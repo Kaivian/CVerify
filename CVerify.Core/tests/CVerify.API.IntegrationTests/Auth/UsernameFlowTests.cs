@@ -155,4 +155,82 @@ public class UsernameFlowTests : BaseIntegrationTest
         var privateResponse = await Client.GetAsync($"/api/v1/users/profile/public/{username}");
         privateResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task PublicProfileApi_ShouldGateScoreAndBadges_WhenNoCompletedAssessment()
+    {
+        await SeedDefaultRolesAsync();
+
+        var userId = Guid.CreateVersion7();
+        var username = "scoreuser" + Guid.NewGuid().ToString("N").Substring(0, 8);
+
+        // 1. Seed user and profile
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var role = await db.Roles.FirstAsync(r => r.Name == "USER");
+            var user = new User
+            {
+                Id = userId,
+                Email = $"{username}@example.com",
+                FullName = "Score User",
+                Username = username,
+                Status = UserStatus.ACTIVE,
+                Roles = new[] { role }
+            };
+            db.Users.Add(user);
+
+            var profile = new UserProfile
+            {
+                UserId = userId,
+                Username = username,
+                ProfileVisibility = "public",
+                Headline = "Software Architect",
+                Bio = "Self evaluation.",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            db.UserProfiles.Add(profile);
+            await db.SaveChangesAsync();
+        }
+
+        // 2. Query public profile endpoint anonymously when NO completed assessment exists
+        var publicResponse1 = await Client.GetAsync($"/api/v1/users/profile/public/{username}");
+        publicResponse1.StatusCode.Should().Be(HttpStatusCode.OK);
+        var publicProfile1 = await publicResponse1.Content.ReadFromJsonAsync<PublicProfileResponse>();
+        publicProfile1.Should().NotBeNull();
+        publicProfile1!.HasCompletedAssessment.Should().BeFalse();
+        publicProfile1.LastAssessmentDate.Should().BeNull();
+        publicProfile1.TrustScore.Should().BeNull();
+
+        // 3. Seed a completed CandidateAssessment
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var assessment = new CandidateAssessment
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                Status = "Completed",
+                OverallScore = 85.0,
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
+                CompletedAtUtc = DateTimeOffset.UtcNow,
+                LastProfileUpdateAt = DateTimeOffset.UtcNow,
+                LastRepositoryAnalysisAt = DateTimeOffset.UtcNow,
+                PipelineVersion = "2.1.0",
+                AssessmentSchemaVersion = "1.1.0"
+            };
+            db.CandidateAssessments.Add(assessment);
+            await db.SaveChangesAsync();
+        }
+
+        // 4. Query again - should return assessment info and overall score as TrustScore
+        var publicResponse2 = await Client.GetAsync($"/api/v1/users/profile/public/{username}");
+        publicResponse2.StatusCode.Should().Be(HttpStatusCode.OK);
+        var publicProfile2 = await publicResponse2.Content.ReadFromJsonAsync<PublicProfileResponse>();
+        publicProfile2.Should().NotBeNull();
+        publicProfile2!.HasCompletedAssessment.Should().BeTrue();
+        publicProfile2.LastAssessmentDate.Should().NotBeNull();
+        publicProfile2.TrustScore.Should().Be(85.0);
+    }
 }

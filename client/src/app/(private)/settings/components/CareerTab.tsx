@@ -810,6 +810,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
                       value={value || []}
                       onChange={onChange}
                       error={errors.desiredJobPositions?.message}
+                      allowCustom={false}
                     />
                   )}
                 />
@@ -1264,6 +1265,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
                       value={value || []}
                       onChange={onChange}
                       error={errors.companyStagePreferences?.message}
+                      allowCustom={false}
                     />
                   )}
                 />
@@ -1282,6 +1284,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
                       value={value || []}
                       onChange={onChange}
                       error={errors.preferredIndustries?.message}
+                      allowCustom={false}
                     />
                   )}
                 />

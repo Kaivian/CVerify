@@ -74,5 +74,10 @@ public record PublicProfileResponse(
     PublicCareerPreferenceDto? CareerPreference,
     double? TrustScore = null,
     List<PublicRepositoryDto>? Repositories = null,
-    List<PublicProjectDto>? Projects = null
+    List<PublicProjectDto>? Projects = null,
+    List<WorkExperienceResponse>? Experiences = null,
+    List<EducationEntryResponse>? Educations = null,
+    List<AcademicAchievementResponse>? Achievements = null,
+    bool HasCompletedAssessment = false,
+    DateTimeOffset? LastAssessmentDate = null
 );

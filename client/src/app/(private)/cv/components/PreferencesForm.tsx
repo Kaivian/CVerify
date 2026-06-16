@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Input, Button, Checkbox, Select, ListBox, Switch, Chip, Spinner, TextArea, Tooltip } from "@heroui/react";
+import { Input, Button, Checkbox, Select, ListBox, Switch, Chip, TextArea, Tooltip } from "@heroui/react";
 import { PlusCircle, X, Info } from "lucide-react";
 import { type PreferencesDraft } from "./types";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
@@ -22,8 +22,43 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
   isDirty,
 }) => {
   const [newLocation, setNewLocation] = useState("");
-  const [newPosition, setNewPosition] = useState("");
   const [salaryError, setSalaryError] = useState<string | null>(null);
+
+  const isVnd = draft.expectedSalaryCurrency === "VND";
+  const placeholderMin = isVnd ? "e.g. 35.000.000" : "e.g. 1500";
+  const placeholderMax = isVnd ? "e.g. 70.000.000" : "e.g. 3000";
+
+  const formatSalaryString = (val: number | null, currency: string): string => {
+    if (val === null || val === undefined || isNaN(val)) return "";
+    if (currency === "VND") {
+      return new Intl.NumberFormat("vi-VN").format(val);
+    }
+    return new Intl.NumberFormat("en-US").format(val);
+  };
+
+  const handleSalaryChange = (
+    key: "expectedSalaryMin" | "expectedSalaryMax",
+    rawValue: string
+  ) => {
+    const cleanValue = rawValue.replace(/\D/g, "");
+    const num = cleanValue ? parseInt(cleanValue, 10) : null;
+    onChange({ [key]: num });
+  };
+
+  const ROLES_OPTIONS = [
+    "Frontend Engineer",
+    "Backend Engineer",
+    "Fullstack Engineer",
+    "DevOps Engineer",
+    "Data Engineer",
+    "AI/ML Engineer",
+    "Mobile Engineer",
+    "QA Engineer",
+    "Security Engineer",
+    "System Architect",
+    "Tech Lead",
+    "Engineering Manager",
+  ];
 
   const WORK_STATUS_OPTIONS = [
     { value: "active", label: "Active Job Search" },
@@ -91,15 +126,6 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
     onChange({ preferredLocations: draft.preferredLocations.filter((l) => l !== loc) });
   };
 
-  const handleAddPosition = () => {
-    const trimmed = newPosition.trim();
-    if (!trimmed) return;
-    if (!draft.desiredJobPositions.includes(trimmed)) {
-      onChange({ desiredJobPositions: [...draft.desiredJobPositions, trimmed] });
-    }
-    setNewPosition("");
-  };
-
   const handleRemovePosition = (pos: string) => {
     onChange({ desiredJobPositions: draft.desiredJobPositions.filter((p) => p !== pos) });
   };
@@ -124,7 +150,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
                   Toggle whether your public CV displays an 'Open to Work' badge
                 </Tooltip.Content>
               </Tooltip>
@@ -153,7 +179,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
                   Your current job search status (active, browsing, or closed)
                 </Tooltip.Content>
               </Tooltip>
@@ -190,7 +216,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
                   Preferred work model: Remote, Hybrid, Onsite, or any arrangements
                 </Tooltip.Content>
               </Tooltip>
@@ -222,19 +248,14 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
 
         {/* Salary preferences */}
         <div className="flex flex-col gap-3 border-t border-border/20 pt-4">
-          <span className="font-bold text-xs text-foreground">Expected Salary</span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">Expected Salary Min</label>
               <Input
-                type="number"
-                value={draft.expectedSalaryMin !== null ? String(draft.expectedSalaryMin) : ""}
-                onChange={(e) =>
-                  onChange({
-                    expectedSalaryMin: e.target.value ? parseFloat(e.target.value) : null,
-                  })
-                }
-                placeholder="e.g. 1500"
+                type="text"
+                value={formatSalaryString(draft.expectedSalaryMin, draft.expectedSalaryCurrency || "USD")}
+                onChange={(e) => handleSalaryChange("expectedSalaryMin", e.target.value)}
+                placeholder={placeholderMin}
                 disabled={draft.expectedSalaryNegotiable}
                 aria-label="Expected salary min"
               />
@@ -243,14 +264,10 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">Expected Salary Max</label>
               <Input
-                type="number"
-                value={draft.expectedSalaryMax !== null ? String(draft.expectedSalaryMax) : ""}
-                onChange={(e) =>
-                  onChange({
-                    expectedSalaryMax: e.target.value ? parseFloat(e.target.value) : null,
-                  })
-                }
-                placeholder="e.g. 3000"
+                type="text"
+                value={formatSalaryString(draft.expectedSalaryMax, draft.expectedSalaryCurrency || "USD")}
+                onChange={(e) => handleSalaryChange("expectedSalaryMax", e.target.value)}
+                placeholder={placeholderMax}
                 disabled={draft.expectedSalaryNegotiable}
                 aria-label="Expected salary max"
               />
@@ -326,7 +343,17 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   </Checkbox.Indicator>
                 </Checkbox.Control>
               </Checkbox>
-              <span className="font-semibold text-foreground">Negotiable</span>
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-foreground">Negotiable</span>
+                <Tooltip delay={0}>
+                  <Tooltip.Trigger>
+                    <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                  </Tooltip.Trigger>
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
+                    Specify if your salary requirements are open to negotiation
+                  </Tooltip.Content>
+                </Tooltip>
+              </div>
             </label>
 
             <label className="flex items-center gap-2 select-none cursor-pointer">
@@ -350,7 +377,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   <Tooltip.Trigger>
                     <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                   </Tooltip.Trigger>
-                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground">
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
                     Toggle whether recruiters can see your expected salary range on your public developer card
                   </Tooltip.Content>
                 </Tooltip>
@@ -363,27 +390,32 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
         <div className="flex flex-col gap-3 border-t border-border/20 pt-4">
           <span className="font-bold text-xs text-foreground">Target Roles</span>
           <div className="flex gap-2 items-start">
-            <div className="flex-1 flex flex-col gap-0.5">
-              <Input
-                value={newPosition}
-                onChange={(e) => setNewPosition(e.target.value)}
-                placeholder="Enter target role"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddPosition();
-                  }
-                }}
-                aria-label="New target role input"
-                maxLength={50}
-              />
-              <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
-                <span>{(newPosition || "").length}/50 characters</span>
-              </div>
-            </div>
-            <Button size="sm" variant="secondary" className="rounded-xl border border-border/30 h-10 min-w-10" onPress={handleAddPosition} type="button" aria-label="Add target role">
-              <PlusCircle className="size-4" />
-            </Button>
+            <Select
+              className="w-full"
+              placeholder="Select target role"
+              selectedKey={null}
+              onSelectionChange={(key) => {
+                if (key && !draft.desiredJobPositions.includes(key as string)) {
+                  onChange({ desiredJobPositions: [...draft.desiredJobPositions, key as string] });
+                }
+              }}
+              isDisabled={draft.desiredJobPositions.length >= ROLES_OPTIONS.length}
+              aria-label="Select target role"
+            >
+              <Select.Trigger className="rounded-xl border border-border bg-surface text-xs h-10 px-3">
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
+                <ListBox aria-label="Target role options">
+                  {ROLES_OPTIONS.filter(role => !draft.desiredJobPositions.includes(role)).map((role) => (
+                    <ListBox.Item key={role} id={role} textValue={role} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
+                      {role}
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
+            </Select>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {draft.desiredJobPositions.map((pos) => (
