@@ -87,12 +87,13 @@ const getNotificationDescription = (type: string, actor: string, count: number):
 export function SignalRProvider({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
+  const userId = user?.id;
   const addNotification = useNotificationStore((s) => s.addNotification);
   const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
   const connectionRef = useRef<HubConnection | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    if (!isAuthenticated || !userId) {
       if (connectionRef.current) {
         console.log('[SignalR] Disconnecting due to logout.');
         connectionRef.current.stop();
@@ -125,7 +126,11 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
       .build();
 
     connection.onclose((error) => {
-      console.warn('[SignalR] Connection closed:', error?.message || error);
+      if (error) {
+        console.warn('[SignalR] Connection closed due to error:', error.message || error);
+      } else {
+        console.log('[SignalR] Connection closed gracefully.');
+      }
     });
 
     connection.onreconnecting((error) => {
@@ -265,7 +270,7 @@ export function SignalRProvider({ children }: { children: React.ReactNode }) {
         }
       }
     };
-  }, [isAuthenticated, user, addNotification, fetchNotifications]);
+  }, [isAuthenticated, userId, addNotification, fetchNotifications]);
 
   return (
     <SignalRContext.Provider value={null}>
