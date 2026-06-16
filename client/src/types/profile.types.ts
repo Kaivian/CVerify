@@ -350,6 +350,12 @@ export interface CandidateAssessmentDetailResponse {
   artifacts: CandidateAssessmentArtifactDto[];
 }
 
+export interface AssessmentStageDto {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export enum ProjectVerificationLevel {
   AiAnalyzed = 1,
   RepositoryLinked = 2,

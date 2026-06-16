@@ -19,6 +19,7 @@ import {
   type CandidateAssessmentDetailResponse,
   type ProjectEntryRequest,
   type ProjectEntryResponse,
+  type AssessmentStageDto,
 } from '../types/profile.types';
 
 export const profileApi = {
@@ -200,6 +201,11 @@ export const profileApi = {
   // Candidate Assessments
   fetchCandidateReadiness: async (): Promise<CandidateReadinessDto> => {
     const response = await axiosClient.get<CandidateReadinessDto>('/v1/candidate-assessments/readiness');
+    return response.data;
+  },
+
+  fetchAssessmentStages: async (): Promise<AssessmentStageDto[]> => {
+    const response = await axiosClient.get<AssessmentStageDto[]>('/v1/candidate-assessments/stages');
     return response.data;
   },
 

@@ -31,6 +31,10 @@ class PdfTextExtractor(ITextExtractor):
         if not file_content:
             return ""
 
+        if not file_content.startswith(b"%PDF-"):
+            logger.warning("PDF extraction failed: Invalid PDF signature")
+            return ""
+
         try:
             from markitdown import MarkItDown  # type: ignore[import]
         except ImportError:

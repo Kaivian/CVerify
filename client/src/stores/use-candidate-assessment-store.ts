@@ -4,6 +4,7 @@ import {
   type CandidateReadinessDto,
   type CandidateAssessmentResponse,
   type CandidateAssessmentDetailResponse,
+  type AssessmentStageDto,
 } from '@/types/profile.types';
 
 export type StreamStatus = 'idle' | 'connecting' | 'streaming' | 'completed' | 'failed';
@@ -15,6 +16,7 @@ interface CandidateAssessmentState {
   history: CandidateAssessmentResponse[];
   loading: Record<string, boolean>;
   error: string | null;
+  stages: AssessmentStageDto[];
 
   // Real-time SSE progress state
   streamStatus: StreamStatus;
@@ -26,6 +28,7 @@ interface CandidateAssessmentState {
   fetchLatest: () => Promise<void>;
   fetchDetails: (id: string) => Promise<void>;
   fetchHistory: () => Promise<void>;
+  fetchStages: () => Promise<void>;
   triggerAssessment: () => Promise<CandidateAssessmentResponse>;
   connectProgressStream: (userId: string) => void;
   disconnectProgressStream: () => void;
@@ -34,6 +37,25 @@ interface CandidateAssessmentState {
 
 let activeEventSource: EventSource | null = null;
 
+const FALLBACK_STAGES: AssessmentStageDto[] = [
+  { id: 'FetchLine1', name: 'Retrieve Repository Artifacts', description: 'Fetches verified static analysis, provenance, and git telemetry artifacts for the candidate\'s active repositories.' },
+  { id: 'ConsolidateLine1', name: 'Consolidate Repository Signals', description: 'Merges multidimensional capability signals, code quality scores, and commit telemetry across all repositories.' },
+  { id: 'L2-001', name: 'Skill Taxonomy Mapping', description: 'Normalizes raw project-level skills against the global CVerify technical skill taxonomy.' },
+  { id: 'L2-002', name: 'Skill Proficiency Estimation', description: 'Estimates the depth, scope, and capability bands for each extracted skill using commit frequency and syntax patterns.' },
+  { id: 'L2-003', name: 'Capabilities & Gaps Diagnostics', description: 'Pinpoints key architectural strengths and potential engineering development areas from the codebase history.' },
+  { id: 'L2-004', name: 'Career Level Assessment', description: 'Maps codebase scope, ownership ratio, and engineering complexity to career-level thresholds.' },
+  { id: 'L2-005', name: 'Career Level Calibration', description: 'Calibrates career level alignment across multiple repositories using weighted developer experience metrics.' },
+  { id: 'L2-006', name: 'Career Level Evaluation Gate', description: 'Applies validation constraints and overrides to finalize candidate level classifications.' },
+  { id: 'L2-007', name: 'Engineering Maturity Evaluation', description: 'Evaluates project hygiene, logging practices, test coverage, and structural organization.' },
+  { id: 'L2-008', name: 'Problem Solving Complexity Analyzer', description: 'Analyzes diagnostic intent, recovery patterns, and bug-fix cycles in git commit messages.' },
+  { id: 'L2-009', name: 'Technical Tendency Classification', description: 'Classifies developer affinity towards backend, frontend, devops, or fullstack development.' },
+  { id: 'L2-010', name: 'Working Style Classification', description: 'Infers collaboration density, velocity consistency, and code review compliance from git metadata.' },
+  { id: 'L2-011', name: 'Experience Confidence Calibration', description: 'Adjusts assessment confidence scores based on codebase age, volume, and contributor density.' },
+  { id: 'L2-012', name: 'Role Recommendation Engine', description: 'Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect).' },
+  { id: 'L2-013', name: 'Executive Summary Generation', description: 'Generates a comprehensive recruiter-friendly assessment narrative and executive summary.' },
+  { id: 'L2-014', name: 'AI Profile Composition', description: 'Assembles and serializes the final verified candidate profile and calibrated score index.' }
+];
+
 export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set, get) => ({
   readiness: null,
   latestAssessment: null,
@@ -41,6 +63,7 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
   history: [],
   loading: {},
   error: null,
+  stages: FALLBACK_STAGES,
 
   streamStatus: 'idle',
   streamProgress: 0,
@@ -103,6 +126,17 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
       set({ error: err.response?.data?.message || 'Failed to load assessment history.' });
     } finally {
       set((state) => ({ loading: { ...state.loading, history: false } }));
+    }
+  },
+
+  fetchStages: async () => {
+    try {
+      const stages = await profileApi.fetchAssessmentStages();
+      if (stages && stages.length > 0) {
+        set({ stages });
+      }
+    } catch (err) {
+      console.warn('Failed to fetch assessment stages from backend, using fallbacks:', err);
     }
   },
 

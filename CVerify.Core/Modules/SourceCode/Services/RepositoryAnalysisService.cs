@@ -16,6 +16,8 @@ using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.SourceCode.DTOs;
 using CVerify.API.Modules.SourceCode.Entities;
+using CVerify.API.Pipelines.Shared.Storage;
+using CVerify.API.Modules.Profiles.Entities;
 
 namespace CVerify.API.Modules.SourceCode.Services;
 
@@ -29,6 +31,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     private readonly EnvConfiguration _envConfig;
     private readonly ILogger<RepositoryAnalysisService> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IArtifactStorageProvider _storageProvider;
 
     public RepositoryAnalysisService(
         ApplicationDbContext context,
@@ -38,7 +41,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         IHmacSignatureService hmacService,
         EnvConfiguration envConfig,
         ILogger<RepositoryAnalysisService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IArtifactStorageProvider storageProvider)
     {
         _context = context;
         _queue = queue;
@@ -48,6 +52,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         _envConfig = envConfig;
         _logger = logger;
         _timeProvider = timeProvider;
+        _storageProvider = storageProvider;
     }
 
     public async Task<Guid> EnqueueAnalysisJobAsync(Guid userId, Guid repositoryId)
@@ -571,6 +576,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                             });
                         }
 
+                        // Upload to IArtifactStorageProvider and register entry
+                        await SaveAndRegisterArtifactAsync(jobId, task.TaskType, resultData, linkedCts.Token);
+
                         // Update task status
                         task.Status = "Completed";
                         task.Progress = 100.0;
@@ -754,6 +762,12 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             };
 
             _context.AnalysisReports.Add(report);
+
+            // Upload report to IArtifactStorageProvider and register entry
+            await SaveAndRegisterArtifactAsync(jobId, "RepoIntelligenceReport", finalReportJson, linkedCts.Token);
+
+            // Project aggregated outputs to PostgreSQL relational tables
+            await ProjectIntelligenceDataAsync(jobId, job.CommitSha ?? "unknown", finalReportJson, repo, results, linkedCts.Token);
 
             // Mark repository as verified and extract metadata based on schema version
             using var reportDoc = JsonDocument.Parse(finalReportJson);
@@ -1584,5 +1598,428 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         public string? EventType { get; set; }
         public string Message { get; set; } = null!;
         public string? Metadata { get; set; }
+    }
+
+    private async Task SaveAndRegisterArtifactAsync(Guid jobId, string taskType, string resultData, CancellationToken cancellationToken)
+    {
+        var artifactIds = taskType switch
+        {
+            "RepoStructure" => new[] { "L1-001", "L1-001-repo_structure" },
+            "CommitIntelligence" => new[] { "L1-002", "L1-002-commit_intelligence" },
+            "CommitDiff" => new[] { "L1-003", "L1-003-commit_diff" },
+            "SkillExtraction" => new[] { "L1-004", "L1-004-tech_stack" },
+            "FeatureExtraction" => new[] { "L1-005", "L1-005-feature_extraction" },
+            "ArchitectureAnalysis" => new[] { "L1-006", "L1-006-architecture_patterns" },
+            "CommitTimeline" => new[] { "L1-007", "L1-007-commit_timeline" },
+            "ArchitectureChange" => new[] { "L1-008", "L1-008-architecture_change" },
+            "CommitIntent" => new[] { "L1-009", "L1-009-commit_intent" },
+            "Complexity" => new[] { "L1-010", "L1-010-complexity" },
+            "CodeQuality" => new[] { "L1-011", "L1-011-code_quality" },
+            "GitBlame" => new[] { "L1-012", "L1-012-git_blame" },
+            "CloneDetection" => new[] { "L1-013", "L1-013-clone_detection" },
+            "AiGeneratedCode" => new[] { "L1-014", "L1-014-ai_generated_code" },
+            "Ownership" => new[] { "L1-015", "L1-015-ownership_score" },
+            "RepoIntelligenceReport" => new[] { "L1-016", "L1-016-repo_intelligence_report", "repo-intelligence-report" },
+            "SkillGraph" => new[] { "L1-017", "L1-017-skill_evidence_graph" },
+            "TrustScore" => new[] { "L1-018", "L1-018-trust_signals" },
+            _ => new[] { taskType }
+        };
+
+        // Compute a simple SHA256 checksum for the registry entry
+        var checksum = "";
+        try
+        {
+            checksum = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(resultData)));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to compute checksum for artifact {TaskType}", taskType);
+            checksum = Guid.NewGuid().ToString("N");
+        }
+
+        foreach (var artifactId in artifactIds)
+        {
+            var storagePath = $"jobs/{jobId}/artifacts/{artifactId}.json";
+
+            try
+            {
+                // 1. Save content to object storage
+                await _storageProvider.SaveArtifactTextAsync(storagePath, resultData, cancellationToken);
+
+                // 2. Register metadata entry
+                var existingEntry = await _context.ArtifactRegistryEntries
+                    .FirstOrDefaultAsync(x => x.JobId == jobId && x.ArtifactId == artifactId, cancellationToken);
+
+                if (existingEntry != null)
+                {
+                    existingEntry.Checksum = checksum;
+                    existingEntry.StoragePath = storagePath;
+                    existingEntry.CreatedAtUtc = _timeProvider.GetUtcNow();
+                }
+                else
+                {
+                    _context.ArtifactRegistryEntries.Add(new CVerify.API.Pipelines.Shared.Artifacts.Entities.ArtifactRegistryEntry
+                    {
+                        Id = Guid.CreateVersion7(),
+                        JobId = jobId,
+                        ArtifactId = artifactId,
+                        Name = artifactId,
+                        StoragePath = storagePath,
+                        Checksum = checksum,
+                        MetadataJson = "{}",
+                        CreatedAtUtc = _timeProvider.GetUtcNow()
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save or register artifact {ArtifactId} for job {JobId}", artifactId, jobId);
+            }
+        }
+    }
+
+    private async Task ProjectIntelligenceDataAsync(
+        Guid jobId,
+        string commitSha,
+        string finalReportJson,
+        SourceCodeRepository repo,
+        List<AnalysisTaskResult> results,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Projecting Line 1 repository intelligence data into Postgres for job {JobId}", jobId);
+
+        try
+        {
+            double trustScore = 0.0;
+            var languages = new Dictionary<string, double>();
+            var patterns = new List<string>();
+            double qualityScore = 0.0;
+            string cloneRiskClassification = "clean";
+
+            using (var reportDoc = JsonDocument.Parse(finalReportJson))
+            {
+                var root = reportDoc.RootElement;
+                if (root.TryGetProperty("trust_score", out var trustProp))
+                {
+                    if (trustProp.TryGetProperty("score", out var scoreProp)) trustScore = scoreProp.GetDouble();
+                }
+
+                if (root.TryGetProperty("ingestion", out var ingestionProp) && 
+                    ingestionProp.TryGetProperty("language_distribution", out var langProp))
+                {
+                    foreach (var prop in langProp.EnumerateObject())
+                    {
+                        languages[prop.Name] = prop.Value.GetDouble();
+                    }
+                }
+
+                if (root.TryGetProperty("architecture", out var archProp) && 
+                    archProp.TryGetProperty("patterns", out var patProp))
+                {
+                    foreach (var item in patProp.EnumerateArray())
+                    {
+                        if (item.GetString() is string pat && !string.IsNullOrEmpty(pat))
+                        {
+                            patterns.Add(pat);
+                        }
+                    }
+                }
+
+                if (root.TryGetProperty("code_quality", out var qProp) && 
+                    qProp.TryGetProperty("overall_score", out var oScoreProp))
+                {
+                    qualityScore = oScoreProp.GetDouble();
+                }
+
+                if (root.TryGetProperty("fraud_signals", out var fraudProp) && 
+                    fraudProp.TryGetProperty("clone_classification", out var cloneProp))
+                {
+                    cloneRiskClassification = cloneProp.GetString() ?? "clean";
+                }
+            }
+
+            // Find or create RepositoryAssessment
+            var existingAssessment = await _context.RepositoryAssessments
+                .FirstOrDefaultAsync(ra => ra.AnalysisJobId == jobId, cancellationToken);
+
+            if (existingAssessment == null)
+            {
+                existingAssessment = new RepositoryAssessment
+                {
+                    Id = Guid.CreateVersion7(),
+                    RepositoryId = repo.Id,
+                    AnalysisJobId = jobId,
+                    CommitSha = commitSha,
+                    Status = "Completed",
+                    CreatedAtUtc = _timeProvider.GetUtcNow()
+                };
+                _context.RepositoryAssessments.Add(existingAssessment);
+            }
+            else
+            {
+                existingAssessment.Status = "Completed";
+            }
+
+            existingAssessment.CompletedAtUtc = _timeProvider.GetUtcNow();
+            existingAssessment.OverallScore = trustScore;
+            existingAssessment.TechStack = JsonSerializer.Serialize(languages);
+            existingAssessment.Patterns = JsonSerializer.Serialize(patterns);
+            existingAssessment.QualityMetrics = JsonSerializer.Serialize(new { qualityScore = qualityScore, cloneRiskClassification = cloneRiskClassification });
+            existingAssessment.JsonData = finalReportJson;
+            existingAssessment.ModelVersion = "claude-3-5-sonnet-20241022";
+            existingAssessment.PromptVersion = "v2.3.0";
+            existingAssessment.AssessmentSchemaVersion = "2.2.0";
+            existingAssessment.PipelineVersion = "1.0.0";
+
+            await _context.SaveChangesAsync(cancellationToken);
+            var assessmentId = existingAssessment.Id;
+
+            // Remove existing records (idempotency)
+            var oldCapabilities = await _context.RepositoryCapabilities.Where(x => x.RepositoryAssessmentId == assessmentId).ToListAsync(cancellationToken);
+            _context.RepositoryCapabilities.RemoveRange(oldCapabilities);
+
+            var oldSkills = await _context.RepositorySkillAttributions.Where(x => x.RepositoryAssessmentId == assessmentId).ToListAsync(cancellationToken);
+            _context.RepositorySkillAttributions.RemoveRange(oldSkills);
+
+            var oldDomains = await _context.RepositoryDomains.Where(x => x.RepositoryAssessmentId == assessmentId).ToListAsync(cancellationToken);
+            _context.RepositoryDomains.RemoveRange(oldDomains);
+
+            var oldSignals = await _context.RepositoryIntelligenceSignals.Where(x => x.RepositoryAssessmentId == assessmentId).ToListAsync(cancellationToken);
+            _context.RepositoryIntelligenceSignals.RemoveRange(oldSignals);
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            // Project Skill Attributions and Domains
+            var skillsTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "SkillExtraction");
+            var domainsDict = new Dictionary<string, List<string>>();
+            var domainsConfidenceSum = new Dictionary<string, double>();
+            var domainsEvidenceCount = new Dictionary<string, int>();
+
+            if (skillsTaskResult != null && !string.IsNullOrEmpty(skillsTaskResult.ResultData))
+            {
+                try
+                {
+                    using var skillsDoc = JsonDocument.Parse(skillsTaskResult.ResultData);
+                    var skillsRoot = skillsDoc.RootElement;
+                    var dataElement = skillsRoot.TryGetProperty("data", out var dProp) ? dProp : skillsRoot;
+                    if (dataElement.TryGetProperty("skills", out var skillsProp) && skillsProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in skillsProp.EnumerateArray())
+                        {
+                            var skillName = item.GetProperty("skill").GetString() ?? "";
+                            var category = item.GetProperty("category").GetString() ?? "backend";
+                            var confidence = item.GetProperty("confidence").GetDouble();
+                            var evidenceList = new List<string>();
+                            if (item.TryGetProperty("evidence", out var evProp) && evProp.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var ev in evProp.EnumerateArray())
+                                {
+                                    if (ev.GetString() is string evStr) evidenceList.Add(evStr);
+                                }
+                            }
+
+                            var skillAttribution = new RepositorySkillAttribution
+                            {
+                                Id = Guid.CreateVersion7(),
+                                RepositoryAssessmentId = assessmentId,
+                                SkillName = skillName,
+                                ContributionWeight = (trustScore / 100.0) * (confidence / 100.0),
+                                Confidence = confidence / 100.0,
+                                VerificationLevel = "AiAnalyzed",
+                                AssessmentVersion = "2.2.0",
+                                AnalysisVersion = "1.0.0",
+                                ModelVersion = "claude-3-5-sonnet-20241022",
+                                PromptVersion = "v2.3.0"
+                            };
+                            _context.RepositorySkillAttributions.Add(skillAttribution);
+
+                            var normCategory = category.ToLowerInvariant() switch
+                            {
+                                "backend" => "Backend Engineering",
+                                "frontend" => "Frontend Engineering",
+                                "devops" or "infra" => "DevOps & Platform Engineering",
+                                "database" or "data" => "Database & Data Engineering",
+                                "ml" or "ai" => "Machine Learning & AI Engineering",
+                                _ => "Other Engineering"
+                            };
+
+                            if (!domainsDict.ContainsKey(normCategory))
+                            {
+                                domainsDict[normCategory] = new List<string>();
+                                domainsConfidenceSum[normCategory] = 0.0;
+                                domainsEvidenceCount[normCategory] = 0;
+                            }
+                            domainsDict[normCategory].Add(skillName);
+                            domainsConfidenceSum[normCategory] += confidence;
+                            domainsEvidenceCount[normCategory] += evidenceList.Count;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error projecting skill attributions to Postgres for job {JobId}", jobId);
+                }
+            }
+
+            // Create RepositoryDomain records
+            var totalDomainSkills = domainsDict.Values.Sum(v => v.Count);
+            foreach (var kvp in domainsDict)
+            {
+                var normCategory = kvp.Key;
+                var domainSkills = kvp.Value;
+                var avgConfidence = domainsConfidenceSum[normCategory] / domainSkills.Count;
+                var weight = totalDomainSkills > 0 ? (double)domainSkills.Count / totalDomainSkills : 0.0;
+
+                var repoDomain = new RepositoryDomain
+                {
+                    Id = Guid.CreateVersion7(),
+                    RepositoryAssessmentId = assessmentId,
+                    DomainName = normCategory,
+                    Weight = weight,
+                    Confidence = avgConfidence / 100.0,
+                    EvidenceCount = domainsEvidenceCount[normCategory],
+                    SupportingSignals = JsonSerializer.Serialize(domainSkills),
+                    AssessmentVersion = "2.2.0",
+                    AnalysisVersion = "1.0.0",
+                    ModelVersion = "claude-3-5-sonnet-20241022",
+                    PromptVersion = "v2.3.0"
+                };
+                _context.RepositoryDomains.Add(repoDomain);
+            }
+
+            // Project Capabilities from FeatureExtraction
+            var featuresTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "FeatureExtraction");
+            if (featuresTaskResult != null && !string.IsNullOrEmpty(featuresTaskResult.ResultData))
+            {
+                try
+                {
+                    using var featuresDoc = JsonDocument.Parse(featuresTaskResult.ResultData);
+                    var featuresRoot = featuresDoc.RootElement;
+                    var dataElement = featuresRoot.TryGetProperty("data", out var dProp) ? dProp : featuresRoot;
+                    if (dataElement.TryGetProperty("features", out var featuresProp) && featuresProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in featuresProp.EnumerateArray())
+                        {
+                            var name = item.GetProperty("name").GetString() ?? "";
+                            var category = item.GetProperty("category").GetString() ?? "other";
+                            var complexityScore = item.GetProperty("complexity_score").GetDouble();
+                            var description = item.GetProperty("description").GetString() ?? "";
+                            var evidenceList = new List<string>();
+                            if (item.TryGetProperty("evidence", out var evProp) && evProp.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var ev in evProp.EnumerateArray())
+                                {
+                                    if (ev.GetString() is string evStr) evidenceList.Add(evStr);
+                                }
+                            }
+
+                            var maturity = complexityScore switch
+                            {
+                                <= 3 => "Basic",
+                                <= 6 => "Intermediate",
+                                <= 8 => "Advanced",
+                                _ => "Enterprise"
+                            };
+
+                            var capability = new RepositoryCapability
+                            {
+                                Id = Guid.CreateVersion7(),
+                                RepositoryAssessmentId = assessmentId,
+                                Name = name,
+                                Category = category,
+                                Confidence = 0.85,
+                                Maturity = maturity,
+                                DifficultyScore = complexityScore / 10.0,
+                                Score = complexityScore * 10.0,
+                                EvidenceJson = JsonSerializer.Serialize(new { description = description, evidence = evidenceList }),
+                                AssessmentVersion = "2.2.0",
+                                AnalysisVersion = "1.0.0",
+                                ModelVersion = "claude-3-5-sonnet-20241022",
+                                PromptVersion = "v2.3.0"
+                            };
+                            _context.RepositoryCapabilities.Add(capability);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error projecting capabilities to Postgres for job {JobId}", jobId);
+                }
+            }
+
+            // Project Intelligence Signals from TrustScore and CommitIntelligence
+            var trustTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "TrustScore");
+            double scopeSignal = 0.0;
+            double complexitySignal = 0.0;
+            double ownershipSignal = 0.0;
+            double leadershipSignal = 0.0;
+            double consistencySignal = 0.0;
+
+            if (trustTaskResult != null && !string.IsNullOrEmpty(trustTaskResult.ResultData))
+            {
+                try
+                {
+                    using var trustDoc = JsonDocument.Parse(trustTaskResult.ResultData);
+                    var trustRoot = trustDoc.RootElement;
+                    var dataElement = trustRoot.TryGetProperty("data", out var dProp) ? dProp : trustRoot;
+                    
+                    if (dataElement.TryGetProperty("dimensions", out var dimProp))
+                    {
+                        if (dimProp.TryGetProperty("ownership", out var ownProp)) ownershipSignal = ownProp.GetDouble();
+                        if (dimProp.TryGetProperty("code_quality", out var qualProp)) scopeSignal = qualProp.GetDouble();
+                        if (dimProp.TryGetProperty("complexity", out var compProp)) complexitySignal = compProp.GetDouble();
+                        if (dimProp.TryGetProperty("commit_integrity", out var integProp)) consistencySignal = integProp.GetDouble();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error parsing trust score dimensions for job {JobId}", jobId);
+                }
+            }
+
+            var commitsTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "CommitIntelligence");
+            var userCommitRatio = trustScore / 100.0;
+            var isPrimaryAuthor = trustScore >= 50.0;
+            if (commitsTaskResult != null && !string.IsNullOrEmpty(commitsTaskResult.ResultData))
+            {
+                try
+                {
+                    using var commitsDoc = JsonDocument.Parse(commitsTaskResult.ResultData);
+                    var commitsRoot = commitsDoc.RootElement;
+                    var dataElement = commitsRoot.TryGetProperty("data", out var dProp) ? dProp : commitsRoot;
+                    if (dataElement.TryGetProperty("ownership", out var ownProp))
+                    {
+                        if (ownProp.TryGetProperty("user_commit_ratio", out var ratioProp)) userCommitRatio = ratioProp.GetDouble();
+                        if (ownProp.TryGetProperty("is_primary_author", out var primProp)) isPrimaryAuthor = primProp.GetBoolean();
+                    }
+                }
+                catch {}
+            }
+            leadershipSignal = isPrimaryAuthor ? userCommitRatio * 100.0 : userCommitRatio * 50.0;
+
+            var intelligenceSignal = new RepositoryIntelligenceSignal
+            {
+                Id = Guid.CreateVersion7(),
+                RepositoryAssessmentId = assessmentId,
+                ScopeSignal = scopeSignal,
+                ComplexitySignal = complexitySignal,
+                OwnershipSignal = ownershipSignal,
+                LeadershipSignal = leadershipSignal,
+                ConsistencySignal = consistencySignal,
+                LastUpdatedUtc = _timeProvider.GetUtcNow(),
+                AssessmentVersion = "2.2.0",
+                AnalysisVersion = "1.0.0",
+                ModelVersion = "claude-3-5-sonnet-20241022",
+                PromptVersion = "v2.3.0"
+            };
+            _context.RepositoryIntelligenceSignals.Add(intelligenceSignal);
+
+            await _context.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Successfully projected all repository intelligence relational tables for job {JobId}", jobId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to project repository intelligence relational tables for job {JobId}", jobId);
+        }
     }
 }

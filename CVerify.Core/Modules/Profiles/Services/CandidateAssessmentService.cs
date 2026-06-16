@@ -150,6 +150,10 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
         var lastRepoAnalysisAt = await _repositoryProvider.GetLastRepositoryAnalysisAtAsync(userId, cancellationToken);
 
+        var maxVersion = await _context.CandidateAssessments
+            .Where(ca => ca.UserId == userId)
+            .MaxAsync(ca => (int?)ca.Version, cancellationToken) ?? 0;
+
         // 4. Create new assessment
         var assessment = new CandidateAssessment
         {
@@ -157,12 +161,13 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             UserId = userId,
             CvId = userId, // Default to UserId representing the candidate's active CV
             Status = "Queued",
-            PipelineVersion = "2.1.0",
-            AssessmentSchemaVersion = "1.1.0",
-            PromptVersion = "v2.1.0",
+            PipelineVersion = "2.2.0",
+            AssessmentSchemaVersion = "1.2.0",
+            PromptVersion = "v2.2.0",
             ModelVersion = "gemini-1.5-flash",
             LastProfileUpdateAt = profile.LastProfileUpdateAt,
             LastRepositoryAnalysisAt = lastRepoAnalysisAt,
+            Version = maxVersion + 1,
             CreatedAtUtc = DateTimeOffset.UtcNow
         };
 
@@ -280,42 +285,76 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
             await PublishProgressAsync(assessment.UserId, "Running", "Initialize", "Starting candidate assessment...", 0.0);
 
+            const string targetPipelineVersion = "2.2.0";
+            const string targetModelVersion = "gemini-1.5-flash";
+            const string targetPromptVersion = "v2.1.0-scoringV2-projectionV2";
+            const string targetSchemaVersion = "1.1.0";
+
+            // Query active (non-deleted) project repository links to determine attached repositories
+            var attachedLinks = await _context.ProjectRepositoryLinks
+                .Include(l => l.ProjectEntry)
+                .Include(l => l.SourceCodeRepository)
+                .Where(l => l.ProjectEntry.UserId == assessment.UserId && l.ProjectEntry.DeletedAt == null && l.SourceCodeRepository.IsEnabled)
+                .ToListAsync(cancellationToken);
+
+            var attachedRepoIds = attachedLinks.Select(l => l.SourceCodeRepositoryId).ToHashSet();
+
             // Fetch completed repositories job IDs
             var jobIds = await _repositoryProvider.GetCompletedAnalysisJobIdsAsync(assessment.UserId, cancellationToken);
 
-            if (jobIds.Count == 0)
-            {
-                throw new BusinessRuleException("NO_ANALYZED_REPOS", "No completed repository analysis jobs found for this candidate.");
-            }
+            var cvJobs = new List<CVerify.API.Modules.SourceCode.Entities.AnalysisJob>();
+            var bgJobs = new List<CVerify.API.Modules.SourceCode.Entities.AnalysisJob>();
 
-            // Limit to top 5 repos
-            var selectedJobIds = jobIds.Take(5).ToList();
-
-            // Run parallel Repository Assessments
-            var repoAssessmentTasks = selectedJobIds.Select(async jid =>
+            foreach (var jid in jobIds)
             {
                 var aJob = await _context.AnalysisJobs
                     .Include(j => j.Repository)
                     .FirstOrDefaultAsync(j => j.Id == Guid.Parse(jid), cancellationToken);
-                
-                if (aJob == null) return null;
+
+                if (aJob == null) continue;
+
+                if (attachedRepoIds.Contains(aJob.RepositoryId))
+                {
+                    cvJobs.Add(aJob);
+                }
+                else
+                {
+                    bgJobs.Add(aJob);
+                }
+            }
+
+            var selectedCvJobs = cvJobs.Take(5).ToList();
+            var selectedBgJobs = bgJobs.Take(5).ToList();
+
+            if (selectedCvJobs.Count == 0)
+            {
+                throw new BusinessRuleException("NO_ATTACHED_REPOS", "No verified repositories are attached to your CV. Please link at least one analyzed repository to a CV project.");
+            }
+
+            // 1. Process CV-Attached Repositories
+            var activeRepoAssessments = new List<object>();
+            foreach (var aJob in selectedCvJobs)
+            {
+                var link = attachedLinks.FirstOrDefault(l => l.SourceCodeRepositoryId == aJob.RepositoryId);
+                var entryId = link?.ProjectEntryId;
+                var entryName = link?.ProjectEntry?.Name;
+                var verificationLevel = link?.ProjectEntry?.VerificationLevel.ToString();
+                var trustLevel = link?.ProjectEntry?.VerificationLevel == CVerify.API.Modules.Shared.Domain.Enums.ProjectVerificationLevel.AiAnalyzed ? 3 : 2;
 
                 var existingAssess = await _context.RepositoryAssessments
-                    .FirstOrDefaultAsync(ra => ra.AnalysisJobId == aJob.Id && ra.Status == "Completed", cancellationToken);
+                    .FirstOrDefaultAsync(ra => ra.AnalysisJobId == aJob.Id 
+                        && ra.Status == "Completed"
+                        && ra.PipelineVersion == targetPipelineVersion
+                        && ra.ModelVersion == targetModelVersion
+                        && ra.PromptVersion == targetPromptVersion
+                        && ra.AssessmentSchemaVersion == targetSchemaVersion, cancellationToken);
 
                 if (existingAssess != null)
                 {
-                    return new
-                    {
-                        repositoryId = existingAssess.RepositoryId,
-                        repositoryName = aJob.Repository.Name,
-                        verifiedCommitSha = existingAssess.CommitSha,
-                        overallScore = existingAssess.OverallScore,
-                        techStack = string.IsNullOrEmpty(existingAssess.TechStack) ? null : JsonSerializer.Deserialize<object>(existingAssess.TechStack),
-                        patterns = string.IsNullOrEmpty(existingAssess.Patterns) ? null : JsonSerializer.Deserialize<object>(existingAssess.Patterns),
-                        qualityMetrics = string.IsNullOrEmpty(existingAssess.QualityMetrics) ? null : JsonSerializer.Deserialize<object>(existingAssess.QualityMetrics),
-                        jsonData = string.IsNullOrEmpty(existingAssess.JsonData) ? null : JsonSerializer.Deserialize<object>(existingAssess.JsonData)
-                    };
+                    await ProjectRelationalDataAsync(existingAssess.Id, aJob.Id, existingAssess.OverallScore, cancellationToken);
+                    var payloadItem = await GetRelationalAssessPayloadAsync(existingAssess, aJob.Repository.Name, entryId, entryName, verificationLevel, trustLevel, cancellationToken);
+                    activeRepoAssessments.Add(payloadItem);
+                    continue;
                 }
 
                 var newAssess = new RepositoryAssessment
@@ -325,10 +364,10 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     AnalysisJobId = aJob.Id,
                     CommitSha = aJob.CommitSha ?? "unknown",
                     Status = "Running",
-                    ModelVersion = "gemini-1.5-flash",
-                    PromptVersion = "v2.1.0",
-                    AssessmentSchemaVersion = "1.1.0",
-                    PipelineVersion = "2.1.0",
+                    ModelVersion = targetModelVersion,
+                    PromptVersion = targetPromptVersion,
+                    AssessmentSchemaVersion = targetSchemaVersion,
+                    PipelineVersion = targetPipelineVersion,
                     CreatedAtUtc = DateTimeOffset.UtcNow
                 };
 
@@ -346,67 +385,153 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     var repoPayloadJson = JsonSerializer.Serialize(repoPayload);
                     var repoPath = "/api/v1/repository/assess";
 
-                    var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
-                    var requestMessage = new HttpRequestMessage(HttpMethod.Post, repoPath)
+                    var repoHttpClient = _httpClientFactory.CreateClient("AiServiceClient");
+                    var repoRequestMessage = new HttpRequestMessage(HttpMethod.Post, repoPath)
                     {
                         Content = new StringContent(repoPayloadJson, Encoding.UTF8, "application/json")
                     };
 
                     var (sig, ts, non) = _hmacService.CreateSignatureHeaders("POST", repoPath, repoPayloadJson);
-                    requestMessage.Headers.Add("X-Client-Id", "cverify-core");
-                    requestMessage.Headers.Add("X-Timestamp", ts);
-                    requestMessage.Headers.Add("X-Nonce", non);
-                    requestMessage.Headers.Add("X-Correlation-Id", assessment.Id.ToString());
-                    requestMessage.Headers.Add("X-Signature", sig);
+                    repoRequestMessage.Headers.Add("X-Client-Id", "cverify-core");
+                    repoRequestMessage.Headers.Add("X-Timestamp", ts);
+                    repoRequestMessage.Headers.Add("X-Nonce", non);
+                    repoRequestMessage.Headers.Add("X-Correlation-Id", assessment.Id.ToString());
+                    repoRequestMessage.Headers.Add("X-Signature", sig);
 
-                    var response = await httpClient.SendAsync(requestMessage, cancellationToken);
-                    if (!response.IsSuccessStatusCode)
+                    var repoResponse = await repoHttpClient.SendAsync(repoRequestMessage, cancellationToken);
+                    if (!repoResponse.IsSuccessStatusCode)
                     {
-                        var errStr = await response.Content.ReadAsStringAsync(cancellationToken);
-                        throw new Exception($"AI repo assess returned {response.StatusCode}: {errStr}");
+                        var errStr = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
+                        throw new Exception($"AI repo assess returned {repoResponse.StatusCode}: {errStr}");
                     }
 
-                    var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-                    using var doc = JsonDocument.Parse(responseJson);
-                    var root = doc.RootElement;
+                    var responseJson = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
+                    using var repoDoc = JsonDocument.Parse(responseJson);
+                    var repoRoot = repoDoc.RootElement;
 
                     newAssess.Status = "Completed";
                     newAssess.CompletedAtUtc = DateTimeOffset.UtcNow;
-                    newAssess.OverallScore = root.TryGetProperty("complexityScore", out var scoreProp) ? scoreProp.GetDouble() : 0.0;
+                    newAssess.OverallScore = repoRoot.TryGetProperty("complexityScore", out var repoScoreProp) ? repoScoreProp.GetDouble() : 0.0;
                     
-                    if (root.TryGetProperty("primaryLanguages", out var langProp))
+                    if (repoRoot.TryGetProperty("primaryLanguages", out var langProp))
                         newAssess.TechStack = JsonSerializer.Serialize(langProp);
-                    if (root.TryGetProperty("verifiedPatterns", out var patProp))
+                    if (repoRoot.TryGetProperty("verifiedPatterns", out var patProp))
                         newAssess.Patterns = JsonSerializer.Serialize(patProp);
-                    if (root.TryGetProperty("qualityScore", out var qualProp))
-                        newAssess.QualityMetrics = JsonSerializer.Serialize(new { qualityScore = qualProp.GetDouble(), cloneRiskClassification = root.TryGetProperty("cloneRiskClassification", out var crProp) ? crProp.GetString() : "clean" });
+                    if (repoRoot.TryGetProperty("qualityScore", out var qualProp))
+                        newAssess.QualityMetrics = JsonSerializer.Serialize(new { qualityScore = qualProp.GetDouble(), cloneRiskClassification = repoRoot.TryGetProperty("cloneRiskClassification", out var crProp) ? crProp.GetString() : "clean" });
 
                     newAssess.JsonData = responseJson;
                     await _context.SaveChangesAsync(cancellationToken);
 
-                    return new
-                    {
-                        repositoryId = newAssess.RepositoryId,
-                        repositoryName = aJob.Repository.Name,
-                        verifiedCommitSha = newAssess.CommitSha,
-                        overallScore = newAssess.OverallScore,
-                        techStack = string.IsNullOrEmpty(newAssess.TechStack) ? null : JsonSerializer.Deserialize<object>(newAssess.TechStack),
-                        patterns = string.IsNullOrEmpty(newAssess.Patterns) ? null : JsonSerializer.Deserialize<object>(newAssess.Patterns),
-                        qualityMetrics = string.IsNullOrEmpty(newAssess.QualityMetrics) ? null : JsonSerializer.Deserialize<object>(newAssess.QualityMetrics),
-                        jsonData = JsonSerializer.Deserialize<object>(responseJson)
-                    };
+                    await ProjectRelationalDataAsync(newAssess.Id, aJob.Id, newAssess.OverallScore, cancellationToken);
+                    var payloadItem = await GetRelationalAssessPayloadAsync(newAssess, aJob.Repository.Name, entryId, entryName, verificationLevel, trustLevel, cancellationToken);
+                    activeRepoAssessments.Add(payloadItem);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error assessing repository {RepoName} for job {JobId}", aJob.Repository.Name, aJob.Id);
                     newAssess.Status = "Failed";
                     await _context.SaveChangesAsync(cancellationToken);
-                    return null;
                 }
-            });
+            }
 
-            var repoAssessResults = await Task.WhenAll(repoAssessmentTasks);
-            var activeRepoAssessments = repoAssessResults.Where(r => r != null).ToList();
+            // 2. Process Background Repositories
+            var backgroundRepoAssessments = new List<object>();
+            foreach (var aJob in selectedBgJobs)
+            {
+                var existingAssess = await _context.RepositoryAssessments
+                    .FirstOrDefaultAsync(ra => ra.AnalysisJobId == aJob.Id 
+                        && ra.Status == "Completed"
+                        && ra.PipelineVersion == targetPipelineVersion
+                        && ra.ModelVersion == targetModelVersion
+                        && ra.PromptVersion == targetPromptVersion
+                        && ra.AssessmentSchemaVersion == targetSchemaVersion, cancellationToken);
+
+                if (existingAssess != null)
+                {
+                    await ProjectRelationalDataAsync(existingAssess.Id, aJob.Id, existingAssess.OverallScore, cancellationToken);
+                    var payloadItem = await GetRelationalAssessPayloadAsync(existingAssess, aJob.Repository.Name, null, null, "Background", 0, cancellationToken);
+                    backgroundRepoAssessments.Add(payloadItem);
+                    continue;
+                }
+
+                var newAssess = new RepositoryAssessment
+                {
+                    Id = Guid.CreateVersion7(),
+                    RepositoryId = aJob.RepositoryId,
+                    AnalysisJobId = aJob.Id,
+                    CommitSha = aJob.CommitSha ?? "unknown",
+                    Status = "Running",
+                    ModelVersion = targetModelVersion,
+                    PromptVersion = targetPromptVersion,
+                    AssessmentSchemaVersion = targetSchemaVersion,
+                    PipelineVersion = targetPipelineVersion,
+                    CreatedAtUtc = DateTimeOffset.UtcNow
+                };
+
+                _context.RepositoryAssessments.Add(newAssess);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                try
+                {
+                    var repoPayload = new
+                    {
+                        jobId = aJob.Id.ToString(),
+                        repositoryId = aJob.RepositoryId.ToString()
+                    };
+
+                    var repoPayloadJson = JsonSerializer.Serialize(repoPayload);
+                    var repoPath = "/api/v1/repository/assess";
+
+                    var repoHttpClient = _httpClientFactory.CreateClient("AiServiceClient");
+                    var repoRequestMessage = new HttpRequestMessage(HttpMethod.Post, repoPath)
+                    {
+                        Content = new StringContent(repoPayloadJson, Encoding.UTF8, "application/json")
+                    };
+
+                    var (sig, ts, non) = _hmacService.CreateSignatureHeaders("POST", repoPath, repoPayloadJson);
+                    repoRequestMessage.Headers.Add("X-Client-Id", "cverify-core");
+                    repoRequestMessage.Headers.Add("X-Timestamp", ts);
+                    repoRequestMessage.Headers.Add("X-Nonce", non);
+                    repoRequestMessage.Headers.Add("X-Correlation-Id", assessment.Id.ToString());
+                    repoRequestMessage.Headers.Add("X-Signature", sig);
+
+                    var repoResponse = await repoHttpClient.SendAsync(repoRequestMessage, cancellationToken);
+                    if (!repoResponse.IsSuccessStatusCode)
+                    {
+                        var errStr = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
+                        throw new Exception($"AI repo assess returned {repoResponse.StatusCode}: {errStr}");
+                    }
+
+                    var responseJson = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
+                    using var repoDoc = JsonDocument.Parse(responseJson);
+                    var repoRoot = repoDoc.RootElement;
+
+                    newAssess.Status = "Completed";
+                    newAssess.CompletedAtUtc = DateTimeOffset.UtcNow;
+                    newAssess.OverallScore = repoRoot.TryGetProperty("complexityScore", out var repoScoreProp) ? repoScoreProp.GetDouble() : 0.0;
+                    
+                    if (repoRoot.TryGetProperty("primaryLanguages", out var langProp))
+                        newAssess.TechStack = JsonSerializer.Serialize(langProp);
+                    if (repoRoot.TryGetProperty("verifiedPatterns", out var patProp))
+                        newAssess.Patterns = JsonSerializer.Serialize(patProp);
+                    if (repoRoot.TryGetProperty("qualityScore", out var qualProp))
+                        newAssess.QualityMetrics = JsonSerializer.Serialize(new { qualityScore = qualProp.GetDouble(), cloneRiskClassification = repoRoot.TryGetProperty("cloneRiskClassification", out var crProp) ? crProp.GetString() : "clean" });
+
+                    newAssess.JsonData = responseJson;
+                    await _context.SaveChangesAsync(cancellationToken);
+
+                    await ProjectRelationalDataAsync(newAssess.Id, aJob.Id, newAssess.OverallScore, cancellationToken);
+                    var payloadItem = await GetRelationalAssessPayloadAsync(newAssess, aJob.Repository.Name, null, null, "Background", 0, cancellationToken);
+                    backgroundRepoAssessments.Add(payloadItem);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error assessing background repository {RepoName} for job {JobId}", aJob.Repository.Name, aJob.Id);
+                    newAssess.Status = "Failed";
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+            }
 
             // Load UserProfile detail
             var userProfile = await _context.UserProfiles
@@ -538,7 +663,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     certifications = achievementsList,
                     projects = projectList
                 },
-                repositoryAssessments = activeRepoAssessments
+                repositoryAssessments = activeRepoAssessments,
+                backgroundRepositories = backgroundRepoAssessments
             };
 
             var payloadJson = JsonSerializer.Serialize(payload);
@@ -586,8 +712,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                             throw new Exception($"AI Stream Stage Failed: {progressEvent.Message}");
                         }
 
-                        // Publish progress to Redis channel
-                        var redisJson = JsonSerializer.Serialize(progressEvent);
+                        // Publish progress to Redis channel (using camelCase to align with client-side expectations)
+                        var redisJson = JsonSerializer.Serialize(progressEvent, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
                         await PublishRawProgressAsync(assessment.UserId, redisJson);
 
                         // If stage completed with artifact, save it to DB
@@ -626,9 +752,19 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 assessment.SummaryParagraph = sumProp.GetString();
             }
 
+            // Populate Indexing ranking columns
+            assessment.TechnicalDepth = root.TryGetProperty("technicalDepth", out var depthProp) ? depthProp.GetDouble() : 0.0;
+            assessment.TechnicalBreadth = root.TryGetProperty("technicalBreadth", out var breadthProp) ? breadthProp.GetDouble() : 0.0;
+            assessment.LeadershipPotential = root.TryGetProperty("leadershipPotential", out var leadPProp) ? leadPProp.GetDouble() : 0.0;
+            assessment.ExecutionStrength = root.TryGetProperty("executionStrength", out var execPProp) ? execPProp.GetDouble() : 0.0;
+            assessment.TrustLevel = root.TryGetProperty("trustLevel", out var trustProp) ? trustProp.GetDouble() : 0.0;
+
             assessment.Status = "Completed";
             assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
             assessment.LastAssessmentAt = DateTimeOffset.UtcNow;
+
+            // Save structured relational profile collections
+            await SaveCandidateRelationalProfileAsync(assessment.Id, root, cancellationToken);
 
             // Touch UserProfile.LastAssessmentAt / Update
             userProfile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == assessment.UserId, cancellationToken);
@@ -693,7 +829,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             Message = message,
             Percentage = percentage
         };
-        var json = JsonSerializer.Serialize(progress);
+        var json = JsonSerializer.Serialize(progress, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         await PublishRawProgressAsync(userId, json);
     }
 
@@ -730,6 +866,540 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             entity.CreatedAtUtc,
             entity.CompletedAtUtc
         );
+    }
+
+    private async Task ProjectRelationalDataAsync(Guid assessmentId, Guid jobId, double overallScore, CancellationToken cancellationToken)
+    {
+        // Check if already projected
+        var exists = await _context.RepositoryCapabilities.AnyAsync(c => c.RepositoryAssessmentId == assessmentId, cancellationToken);
+        if (exists) return;
+
+        var results = await _context.AnalysisTaskResults
+            .Include(r => r.Task)
+            .Where(r => r.Task.JobId == jobId)
+            .ToListAsync(cancellationToken);
+
+        if (results.Count == 0) return;
+
+        // Project Skill Attributions and Domains
+        var skillsTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "SkillExtraction");
+        var domainsDict = new Dictionary<string, List<string>>();
+        var domainsConfidenceSum = new Dictionary<string, double>();
+        var domainsEvidenceCount = new Dictionary<string, int>();
+
+        if (skillsTaskResult != null && !string.IsNullOrEmpty(skillsTaskResult.ResultData))
+        {
+            try
+            {
+                using var skillsDoc = JsonDocument.Parse(skillsTaskResult.ResultData);
+                var skillsRoot = skillsDoc.RootElement;
+                var dataElement = skillsRoot.TryGetProperty("data", out var dProp) ? dProp : skillsRoot;
+                if (dataElement.TryGetProperty("skills", out var skillsProp) && skillsProp.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in skillsProp.EnumerateArray())
+                    {
+                        var skillName = item.GetProperty("skill").GetString() ?? "";
+                        var category = item.GetProperty("category").GetString() ?? "backend";
+                        var confidence = item.GetProperty("confidence").GetDouble();
+                        var evidenceList = new List<string>();
+                        if (item.TryGetProperty("evidence", out var evProp) && evProp.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var ev in evProp.EnumerateArray())
+                            {
+                                if (ev.GetString() is string evStr) evidenceList.Add(evStr);
+                            }
+                        }
+
+                        var skillAttribution = new RepositorySkillAttribution
+                        {
+                            Id = Guid.CreateVersion7(),
+                            RepositoryAssessmentId = assessmentId,
+                            SkillName = skillName,
+                            ContributionWeight = (overallScore / 100.0) * (confidence / 100.0),
+                            Confidence = confidence / 100.0,
+                            VerificationLevel = "AiAnalyzed",
+                            AssessmentVersion = "2.2.0",
+                            AnalysisVersion = "1.0.0",
+                            ModelVersion = "claude-3-5-sonnet-20241022",
+                            PromptVersion = "v2.3.0"
+                        };
+                        _context.RepositorySkillAttributions.Add(skillAttribution);
+
+                        var normCategory = category.ToLowerInvariant() switch
+                        {
+                            "backend" => "Backend Engineering",
+                            "frontend" => "Frontend Engineering",
+                            "devops" or "infra" => "DevOps & Platform Engineering",
+                            "database" or "data" => "Database & Data Engineering",
+                            "ml" or "ai" => "Machine Learning & AI Engineering",
+                            _ => "Other Engineering"
+                        };
+
+                        if (!domainsDict.ContainsKey(normCategory))
+                        {
+                            domainsDict[normCategory] = new List<string>();
+                            domainsConfidenceSum[normCategory] = 0.0;
+                            domainsEvidenceCount[normCategory] = 0;
+                        }
+                        domainsDict[normCategory].Add(skillName);
+                        domainsConfidenceSum[normCategory] += confidence;
+                        domainsEvidenceCount[normCategory] += evidenceList.Count;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error projecting skill attributions to Postgres for job {JobId}", jobId);
+            }
+        }
+
+        // Create RepositoryDomain records
+        var totalDomainSkills = domainsDict.Values.Sum(v => v.Count);
+        foreach (var kvp in domainsDict)
+        {
+            var normCategory = kvp.Key;
+            var domainSkills = kvp.Value;
+            var avgConfidence = domainsConfidenceSum[normCategory] / domainSkills.Count;
+            var weight = totalDomainSkills > 0 ? (double)domainSkills.Count / totalDomainSkills : 0.0;
+
+            var repoDomain = new RepositoryDomain
+            {
+                Id = Guid.CreateVersion7(),
+                RepositoryAssessmentId = assessmentId,
+                DomainName = normCategory,
+                Weight = weight,
+                Confidence = avgConfidence / 100.0,
+                EvidenceCount = domainsEvidenceCount[normCategory],
+                SupportingSignals = JsonSerializer.Serialize(domainSkills),
+                AssessmentVersion = "2.2.0",
+                AnalysisVersion = "1.0.0",
+                ModelVersion = "claude-3-5-sonnet-20241022",
+                PromptVersion = "v2.3.0"
+            };
+            _context.RepositoryDomains.Add(repoDomain);
+        }
+
+        // Project Capabilities
+        var featuresTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "FeatureExtraction");
+        if (featuresTaskResult != null && !string.IsNullOrEmpty(featuresTaskResult.ResultData))
+        {
+            try
+            {
+                using var featuresDoc = JsonDocument.Parse(featuresTaskResult.ResultData);
+                var featuresRoot = featuresDoc.RootElement;
+                var dataElement = featuresRoot.TryGetProperty("data", out var dProp) ? dProp : featuresRoot;
+                if (dataElement.TryGetProperty("features", out var featuresProp) && featuresProp.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in featuresProp.EnumerateArray())
+                    {
+                        var name = item.GetProperty("name").GetString() ?? "";
+                        var category = item.GetProperty("category").GetString() ?? "other";
+                        var complexityScore = item.GetProperty("complexity_score").GetDouble();
+                        var description = item.GetProperty("description").GetString() ?? "";
+                        var evidenceList = new List<string>();
+                        if (item.TryGetProperty("evidence", out var evProp) && evProp.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var ev in evProp.EnumerateArray())
+                            {
+                                if (ev.GetString() is string evStr) evidenceList.Add(evStr);
+                            }
+                        }
+
+                        var maturity = complexityScore switch
+                        {
+                            <= 3 => "Basic",
+                            <= 6 => "Intermediate",
+                            <= 8 => "Advanced",
+                            _ => "Enterprise"
+                        };
+
+                        var capability = new RepositoryCapability
+                        {
+                            Id = Guid.CreateVersion7(),
+                            RepositoryAssessmentId = assessmentId,
+                            Name = name,
+                            Category = category,
+                            Confidence = 0.85,
+                            Maturity = maturity,
+                            DifficultyScore = complexityScore / 10.0,
+                            Score = complexityScore * 10.0,
+                            EvidenceJson = JsonSerializer.Serialize(new { description = description, evidence = evidenceList }),
+                            AssessmentVersion = "2.2.0",
+                            AnalysisVersion = "1.0.0",
+                            ModelVersion = "claude-3-5-sonnet-20241022",
+                            PromptVersion = "v2.3.0"
+                        };
+                        _context.RepositoryCapabilities.Add(capability);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error projecting capabilities to Postgres for job {JobId}", jobId);
+            }
+        }
+
+        // Project Signals
+        var trustTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "TrustScore");
+        var ownershipTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "Ownership");
+
+        double scopeSignal = 0.0;
+        double complexitySignal = 0.0;
+        double ownershipSignal = 0.0;
+        double leadershipSignal = 0.0;
+        double consistencySignal = 0.0;
+
+        if (ownershipTaskResult != null && !string.IsNullOrEmpty(ownershipTaskResult.ResultData))
+        {
+            try
+            {
+                using var ownershipDoc = JsonDocument.Parse(ownershipTaskResult.ResultData);
+                var ownershipRoot = ownershipDoc.RootElement;
+                var dataElement = ownershipRoot.TryGetProperty("data", out var dProp) ? dProp : ownershipRoot;
+                if (dataElement.TryGetProperty("ownership_score", out var osProp))
+                {
+                    ownershipSignal = osProp.GetDouble();
+                    if (ownershipSignal <= 1.0) ownershipSignal *= 100.0;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing ownership score for job {JobId}", jobId);
+            }
+        }
+
+        if (trustTaskResult != null && !string.IsNullOrEmpty(trustTaskResult.ResultData))
+        {
+            try
+            {
+                using var trustDoc = JsonDocument.Parse(trustTaskResult.ResultData);
+                var trustRoot = trustDoc.RootElement;
+                var dataElement = trustRoot.TryGetProperty("data", out var dProp) ? dProp : trustRoot;
+                
+                if (dataElement.TryGetProperty("scope_score", out var ssProp)) scopeSignal = ssProp.GetDouble();
+                if (dataElement.TryGetProperty("complexity_score", out var csProp)) complexitySignal = csProp.GetDouble();
+                if (ownershipSignal == 0.0 && dataElement.TryGetProperty("ownership_score", out var osProp))
+                {
+                    ownershipSignal = osProp.GetDouble();
+                    if (ownershipSignal <= 1.0) ownershipSignal *= 100.0;
+                }
+                if (dataElement.TryGetProperty("leadership_score", out var lsProp)) leadershipSignal = lsProp.GetDouble();
+                if (dataElement.TryGetProperty("consistency_score", out var consProp)) consistencySignal = consProp.GetDouble();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing trust score signals for job {JobId}", jobId);
+            }
+        }
+
+        var repoSignal = new RepositoryIntelligenceSignal
+        {
+            Id = Guid.CreateVersion7(),
+            RepositoryAssessmentId = assessmentId,
+            ScopeSignal = scopeSignal,
+            ComplexitySignal = complexitySignal,
+            OwnershipSignal = ownershipSignal,
+            LeadershipSignal = leadershipSignal,
+            ConsistencySignal = consistencySignal,
+            LastUpdatedUtc = DateTimeOffset.UtcNow,
+            AssessmentVersion = "2.2.0",
+            AnalysisVersion = "1.0.0",
+            ModelVersion = "claude-3-5-sonnet-20241022",
+            PromptVersion = "v2.3.0"
+        };
+        _context.RepositoryIntelligenceSignals.Add(repoSignal);
+
+        // Project Architecture (L1-006) and Code Quality (L1-011) to RepositoryAssessment if null/empty
+        var repoAssess = await _context.RepositoryAssessments.FirstOrDefaultAsync(ra => ra.Id == assessmentId, cancellationToken);
+        if (repoAssess != null)
+        {
+            var archResult = results.FirstOrDefault(r => r.Task.TaskType == "ArchitectureAnalysis");
+            if (archResult != null && !string.IsNullOrEmpty(archResult.ResultData) && string.IsNullOrEmpty(repoAssess.Patterns))
+            {
+                try
+                {
+                    using var archDoc = JsonDocument.Parse(archResult.ResultData);
+                    var archRoot = archDoc.RootElement;
+                    var dataElement = archRoot.TryGetProperty("data", out var dProp) ? dProp : archRoot;
+                    if (dataElement.TryGetProperty("patterns", out var patProp))
+                    {
+                        var patternList = new List<string>();
+                        foreach (var p in patProp.EnumerateArray())
+                        {
+                            if (p.TryGetProperty("pattern", out var pName))
+                            {
+                                patternList.Add(pName.GetString() ?? "");
+                            }
+                        }
+                        repoAssess.Patterns = JsonSerializer.Serialize(patternList);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error projecting architecture patterns for assessment {AssessmentId}", assessmentId);
+                }
+            }
+
+            var qualityResult = results.FirstOrDefault(r => r.Task.TaskType == "CodeQuality");
+            if (qualityResult != null && !string.IsNullOrEmpty(qualityResult.ResultData) && string.IsNullOrEmpty(repoAssess.QualityMetrics))
+            {
+                try
+                {
+                    using var qualDoc = JsonDocument.Parse(qualityResult.ResultData);
+                    var qualRoot = qualDoc.RootElement;
+                    var dataElement = qualRoot.TryGetProperty("data", out var dProp) ? dProp : qualRoot;
+                    
+                    double qualityScore = 0.0;
+                    if (dataElement.TryGetProperty("quality_score", out var qsProp)) qualityScore = qsProp.GetDouble();
+                    else if (dataElement.TryGetProperty("score", out var sProp)) qualityScore = sProp.GetDouble();
+                    
+                    repoAssess.QualityMetrics = JsonSerializer.Serialize(new 
+                    { 
+                        qualityScore = qualityScore, 
+                        cloneRiskClassification = "clean",
+                        cicd = dataElement.TryGetProperty("cicd", out var cicdProp) ? (object)cicdProp : null,
+                        testing = dataElement.TryGetProperty("testing", out var testProp) ? (object)testProp : null
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error projecting quality metrics for assessment {AssessmentId}", assessmentId);
+                }
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<object> GetRelationalAssessPayloadAsync(
+        RepositoryAssessment assessment, 
+        string repoName, 
+        Guid? cvProjectEntryId, 
+        string? cvProjectName, 
+        string? cvVerificationLevel, 
+        int trustLevel, 
+        CancellationToken cancellationToken)
+    {
+        var capabilitiesRaw = await _context.RepositoryCapabilities
+            .Where(c => c.RepositoryAssessmentId == assessment.Id)
+            .Select(c => new
+            {
+                c.Name,
+                c.Category,
+                c.Confidence,
+                c.Maturity,
+                c.DifficultyScore,
+                c.Score,
+                c.EvidenceJson
+            })
+            .ToListAsync(cancellationToken);
+
+        var capabilitiesList = capabilitiesRaw.Select(c => new
+        {
+            name = c.Name,
+            category = c.Category,
+            confidence = c.Confidence,
+            maturity = c.Maturity,
+            difficultyScore = c.DifficultyScore,
+            score = c.Score,
+            evidenceJson = string.IsNullOrEmpty(c.EvidenceJson) ? null : JsonSerializer.Deserialize<object>(c.EvidenceJson, (JsonSerializerOptions?)null)
+        }).ToList();
+
+        var skillsList = await _context.RepositorySkillAttributions
+            .Where(s => s.RepositoryAssessmentId == assessment.Id)
+            .Select(s => new
+            {
+                skillName = s.SkillName,
+                contributionWeight = s.ContributionWeight,
+                confidence = s.Confidence,
+                verificationLevel = s.VerificationLevel
+            })
+            .ToListAsync(cancellationToken);
+
+        var domainsRaw = await _context.RepositoryDomains
+            .Where(d => d.RepositoryAssessmentId == assessment.Id)
+            .Select(d => new
+            {
+                d.DomainName,
+                d.Weight,
+                d.Confidence,
+                d.EvidenceCount,
+                d.SupportingSignals
+            })
+            .ToListAsync(cancellationToken);
+
+        var domainsList = domainsRaw.Select(d => new
+        {
+            domainName = d.DomainName,
+            weight = d.Weight,
+            confidence = d.Confidence,
+            evidenceCount = d.EvidenceCount,
+            supportingSignals = string.IsNullOrEmpty(d.SupportingSignals) ? null : JsonSerializer.Deserialize<object>(d.SupportingSignals, (JsonSerializerOptions?)null)
+        }).ToList();
+
+        var signalEntity = await _context.RepositoryIntelligenceSignals
+            .FirstOrDefaultAsync(s => s.RepositoryAssessmentId == assessment.Id, cancellationToken);
+
+        var intelligenceSignal = signalEntity == null ? null : new
+        {
+            scopeSignal = signalEntity.ScopeSignal,
+            complexitySignal = signalEntity.ComplexitySignal,
+            ownershipSignal = signalEntity.OwnershipSignal,
+            leadershipSignal = signalEntity.LeadershipSignal,
+            consistencySignal = signalEntity.ConsistencySignal
+        };
+
+        return new
+        {
+            repositoryId = assessment.RepositoryId,
+            repositoryName = repoName,
+            verifiedCommitSha = assessment.CommitSha,
+            overallScore = assessment.OverallScore,
+            techStack = string.IsNullOrEmpty(assessment.TechStack) ? null : JsonSerializer.Deserialize<object>(assessment.TechStack, (JsonSerializerOptions?)null),
+            patterns = string.IsNullOrEmpty(assessment.Patterns) ? null : JsonSerializer.Deserialize<object>(assessment.Patterns, (JsonSerializerOptions?)null),
+            qualityMetrics = string.IsNullOrEmpty(assessment.QualityMetrics) ? null : JsonSerializer.Deserialize<object>(assessment.QualityMetrics, (JsonSerializerOptions?)null),
+            jsonData = string.IsNullOrEmpty(assessment.JsonData) ? null : JsonSerializer.Deserialize<object>(assessment.JsonData, (JsonSerializerOptions?)null),
+            capabilities = capabilitiesList,
+            skillAttributions = skillsList,
+            domains = domainsList,
+            intelligenceSignal = intelligenceSignal,
+            cvProjectEntryId = cvProjectEntryId,
+            cvProjectName = cvProjectName,
+            cvVerificationLevel = cvVerificationLevel,
+            trustLevel = trustLevel
+        };
+    }
+
+    private async Task SaveCandidateRelationalProfileAsync(Guid assessmentId, JsonElement root, CancellationToken cancellationToken)
+    {
+        // Clean old records for idempotency (e.g. if we reassess or retry)
+        var oldSkills = await _context.CandidateSkills.Where(s => s.CandidateAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.CandidateSkills.RemoveRange(oldSkills);
+
+        var oldDomains = await _context.CandidateDomainProfiles.Where(d => d.CandidateAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.CandidateDomainProfiles.RemoveRange(oldDomains);
+
+        var oldSignals = await _context.CandidateIntelligenceSignals.Where(s => s.CandidateAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.CandidateIntelligenceSignals.RemoveRange(oldSignals);
+
+        var oldRoles = await _context.CandidateBestFitRoles.Where(r => r.CandidateAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.CandidateBestFitRoles.RemoveRange(oldRoles);
+
+        var oldSW = await _context.CandidateStrengthsWeaknesses.Where(sw => sw.CandidateAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.CandidateStrengthsWeaknesses.RemoveRange(oldSW);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // 1. Save Skills
+        if (root.TryGetProperty("skills", out var skillsProp) && skillsProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var s in skillsProp.EnumerateArray())
+            {
+                var skill = new CandidateSkill
+                {
+                    Id = Guid.CreateVersion7(),
+                    CandidateAssessmentId = assessmentId,
+                    SkillName = s.GetProperty("skillName").GetString() ?? "unknown",
+                    Score = s.GetProperty("score").GetDouble(),
+                    Confidence = s.GetProperty("confidence").GetDouble(),
+                    Level = s.GetProperty("level").GetString() ?? "Working",
+                    EvidenceSources = s.TryGetProperty("evidenceSources", out var evProp) ? evProp.GetString() : null
+                };
+                _context.CandidateSkills.Add(skill);
+            }
+        }
+
+        // 2. Save Domain Profiles
+        if (root.TryGetProperty("domainProfiles", out var domainsProp) && domainsProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var d in domainsProp.EnumerateArray())
+            {
+                var dom = new CandidateDomainProfile
+                {
+                    Id = Guid.CreateVersion7(),
+                    CandidateAssessmentId = assessmentId,
+                    DomainName = d.GetProperty("domainName").GetString() ?? "unknown",
+                    Score = d.GetProperty("score").GetDouble(),
+                    Confidence = d.GetProperty("confidence").GetDouble(),
+                    Seniority = d.GetProperty("seniority").GetString() ?? "Middle",
+                    SupportingEvidence = d.TryGetProperty("supportingEvidence", out var evProp) ? evProp.GetString() : null
+                };
+                _context.CandidateDomainProfiles.Add(dom);
+            }
+        }
+
+        // 3. Save Signals
+        var scope = root.TryGetProperty("technicalBreadth", out var scProp) ? scProp.GetDouble() : 0.0;
+        var complexity = root.TryGetProperty("technicalDepth", out var compProp) ? compProp.GetDouble() : 0.0;
+        
+        double verifiedSkillRatio = 0.0;
+        double verifiedRepoRatio = 0.0;
+        double verifiedEvidenceRatio = 0.0;
+        double candidateTrustScore = 0.0;
+        if (root.TryGetProperty("trustScoreMetrics", out var tProp))
+        {
+            if (tProp.TryGetProperty("verifiedSkillRatio", out var r1)) verifiedSkillRatio = r1.GetDouble();
+            if (tProp.TryGetProperty("verifiedRepositoryRatio", out var r2)) verifiedRepoRatio = r2.GetDouble();
+            if (tProp.TryGetProperty("verifiedEvidenceRatio", out var r3)) verifiedEvidenceRatio = r3.GetDouble();
+            if (tProp.TryGetProperty("candidateTrustScore", out var r4)) candidateTrustScore = r4.GetDouble();
+        }
+
+        var signals = new CandidateIntelligenceSignal
+        {
+            Id = Guid.CreateVersion7(),
+            CandidateAssessmentId = assessmentId,
+            ScopeSignal = scope,
+            ComplexitySignal = complexity,
+            OwnershipSignal = root.TryGetProperty("ownership", out var ownProp) ? ownProp.GetDouble() : 0.0,
+            LeadershipSignal = root.TryGetProperty("leadershipPotential", out var leadProp) ? leadProp.GetDouble() : 0.0,
+            ConsistencySignal = root.TryGetProperty("executionStrength", out var execProp) ? execProp.GetDouble() : 0.0,
+            DeliverySignal = verifiedRepoRatio * 100.0,
+            EngineeringMaturitySignal = root.TryGetProperty("engineeringMaturityScore", out var matProp) ? matProp.GetDouble() : 50.0,
+            ProblemSolvingSignal = root.TryGetProperty("problemSolvingScore", out var probProp) ? probProp.GetDouble() : 50.0,
+            LastUpdatedUtc = DateTimeOffset.UtcNow
+        };
+        _context.CandidateIntelligenceSignals.Add(signals);
+
+        // 4. Save Best-Fit Roles
+        if (root.TryGetProperty("bestFitRoles", out var rolesProp) && rolesProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var r in rolesProp.EnumerateArray())
+            {
+                var role = new CandidateBestFitRole
+                {
+                    Id = Guid.CreateVersion7(),
+                    CandidateAssessmentId = assessmentId,
+                    RoleTitle = r.GetProperty("roleTitle").GetString() ?? "unknown",
+                    MatchScore = r.GetProperty("matchScore").GetDouble(),
+                    Confidence = r.GetProperty("confidence").GetDouble(),
+                    Rank = r.GetProperty("rank").GetInt32(),
+                    MatchingEngineVersion = r.TryGetProperty("matchingEngineVersion", out var mvProp) ? mvProp.GetString() ?? "V1" : "V1",
+                    Evidence = r.TryGetProperty("evidence", out var evProp) ? evProp.GetString() : null,
+                    EngineMetadata = r.TryGetProperty("engineMetadata", out var metaProp) ? metaProp.GetString() : null
+                };
+                _context.CandidateBestFitRoles.Add(role);
+            }
+        }
+
+        // 5. Save Strengths & Weaknesses
+        if (root.TryGetProperty("strengthsWeaknesses", out var swProp) && swProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var sw in swProp.EnumerateArray())
+            {
+                var item = new CandidateStrengthWeakness
+                {
+                    Id = Guid.CreateVersion7(),
+                    CandidateAssessmentId = assessmentId,
+                    FindingType = sw.GetProperty("findingType").GetString() ?? "Strength",
+                    Topic = sw.GetProperty("topic").GetString() ?? "General",
+                    Description = sw.GetProperty("description").GetString() ?? "",
+                    Evidence = sw.TryGetProperty("evidence", out var evProp) ? evProp.GetString() : null
+                };
+                _context.CandidateStrengthsWeaknesses.Add(item);
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     private class FastApiProgressEvent

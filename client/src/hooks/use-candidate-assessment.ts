@@ -11,6 +11,7 @@ export function useCandidateAssessment() {
       store.fetchReadiness();
       store.fetchLatest();
       store.fetchHistory();
+      store.fetchStages();
     }
   }, [user?.id]);
 
@@ -30,6 +31,7 @@ export function useCandidateAssessment() {
     latestAssessment: store.latestAssessment,
     assessmentDetails: store.assessmentDetails,
     history: store.history,
+    stages: store.stages,
     isLoadingReadiness: !!store.loading.readiness,
     isLoadingLatest: !!store.loading.latest,
     isLoadingDetails: !!store.loading.details,
@@ -48,6 +50,7 @@ export function useCandidateAssessment() {
     fetchLatest: store.fetchLatest,
     fetchDetails: store.fetchDetails,
     fetchHistory: store.fetchHistory,
+    fetchStages: store.fetchStages,
     triggerAssessment: trigger,
     connectProgressStream: connect,
     disconnectProgressStream: store.disconnectProgressStream,

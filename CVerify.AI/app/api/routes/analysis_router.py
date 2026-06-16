@@ -50,6 +50,7 @@ class AggregationRequest(BaseModel):
 class CandidateAssessmentRequest(BaseModel):
     cv: dict
     repositoryAssessments: List[dict]
+    backgroundRepositories: Optional[List[dict]] = None
 
 @router.post("/api/v1/analysis/orchestrate/stream")
 async def orchestrate_stream(
@@ -102,6 +103,7 @@ async def assess_candidate_stream(
             async for progress_event in orchestrator.orchestrate_async(
                 cv=request_data.cv,
                 repository_assessments=request_data.repositoryAssessments,
+                background_repositories=request_data.backgroundRepositories,
                 correlation_id=correlation_id
             ):
                 yield f"data: {json.dumps(progress_event)}\n\n"

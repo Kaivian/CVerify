@@ -7,6 +7,8 @@ import {
   Button,
   Spinner,
   toast,
+  ProgressBar,
+  Chip,
 } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import {
@@ -30,6 +32,11 @@ import {
   ShieldAlert,
   X,
   Compass,
+  Clock,
+  AlertTriangle,
+  ExternalLink,
+  Share2,
+  ShieldCheck,
 } from "lucide-react";
 
 import { useProfile } from "@/hooks/use-profile";
@@ -153,12 +160,7 @@ const SAMPLE_DATA = {
 
 type ViewState = "overview" | "editor" | "assessment";
 
-const ASSESSMENT_STAGES = [
-  { id: 'CloneRepository', label: 'Clone and parse source code repositories' },
-  { id: 'StaticAnalysis', label: 'Run static analysis and security auditing tools' },
-  { id: 'ComputeMetrics', label: 'Calculate codebase architecture and ownership metrics' },
-  { id: 'AIEval', label: 'AI evaluation of candidate experience and engineering depth' }
-];
+// Local state for layout view
 
 // Initial draft states to prevent undefined errors before hydration
 const INITIAL_DRAFT_STATE: CvDraftState = {
@@ -250,15 +252,37 @@ export default function CvManagementCenter() {
     streamProgress,
     streamStep,
     streamMessage,
+    connectProgressStream,
     disconnectProgressStream,
     fetchDetails,
+    stages,
   } = useCandidateAssessment();
 
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState<string>("summary");
+  const hasClosedProgressModal = useRef(false);
+
+  // Auto-recovery: Reopen modal on load/refresh if assessment is running or queued
+  useEffect(() => {
+    if (latestAssessment && (latestAssessment.status === 'Running' || latestAssessment.status === 'Queued')) {
+      if (!hasClosedProgressModal.current) {
+        setIsProgressModalOpen(true);
+      }
+    } else {
+      hasClosedProgressModal.current = false;
+    }
+  }, [latestAssessment?.status]);
+
+  // Re-connect stream on modal open/reopen if running/queued and idle
+  useEffect(() => {
+    if (isProgressModalOpen && latestAssessment && (latestAssessment.status === 'Running' || latestAssessment.status === 'Queued') && streamStatus === 'idle') {
+      connectProgressStream();
+    }
+  }, [isProgressModalOpen, latestAssessment, streamStatus, connectProgressStream]);
 
   const handleTriggerAssessment = async () => {
     try {
+      hasClosedProgressModal.current = false;
       setIsProgressModalOpen(true);
       await triggerAssessment();
     } catch (err: any) {
@@ -952,32 +976,126 @@ export default function CvManagementCenter() {
     const profileData = profileArtifact ? JSON.parse(profileArtifact.jsonData) : null;
     const activeData = profileData || assessment;
 
+    const scrollToSection = (id: string) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+
+    const handleShareProfile = () => {
+      if (typeof window !== "undefined") {
+        const url = `${window.location.origin}/${profile?.username || ''}`;
+        navigator.clipboard.writeText(url);
+        toast.success("Public profile link copied to clipboard!");
+      }
+    };
+
+    // Normalize skills and role recommendations to support both legacy and Pipeline 2 schemas
+    const rawSkills = (activeData.skills || activeData.skillProficiencies || []).map((item: any) => {
+      let reasoningText = item.reasoning || item.evidenceRationale || "";
+      if (!reasoningText && item.evidenceSources) {
+        try {
+          const parsed = typeof item.evidenceSources === 'string' ? JSON.parse(item.evidenceSources) : item.evidenceSources;
+          reasoningText = parsed.rationale || "";
+        } catch (e) {}
+      }
+      return {
+        ...item,
+        skillName: item.skillName || item.skill || "",
+        proficiencyLevel: item.level || item.proficiencyLevel || "Working",
+        reasoning: reasoningText
+      };
+    });
+
+    const rawRoles = (activeData.bestFitRoles || activeData.suggestedRoles || []).map((item: any) => {
+      let rationale = item.rationale || "";
+      if (!rationale && item.evidence) {
+        try {
+          const parsed = typeof item.evidence === 'string' ? JSON.parse(item.evidence) : item.evidence;
+          rationale = parsed.rationale || "";
+        } catch (e) {}
+      }
+      const reasonsList = Array.isArray(item.reasons)
+        ? item.reasons
+        : rationale
+          ? [rationale]
+          : ["Verified capability match based on codebase evidence."];
+      return {
+        ...item,
+        role: item.role || item.roleTitle || "Software Engineer",
+        matchScore: item.matchScore || (item.confidence ? Math.round(item.confidence * 100) : 0),
+        reasons: reasonsList
+      };
+    });
+
+    // Grouping skills for capability clusters
+    const langSkills = rawSkills.filter((item: any) =>
+      item.skillName && ['react', 'typescript', 'next.js', 'javascript', 'python', 'c#', '.net core', 'node.js', 'css', 'tailwind css', 'three.js', 'glsl'].includes(item.skillName.toLowerCase())
+    ) || [];
+
+    const systemSkills = rawSkills.filter((item: any) =>
+      item.skillName && !['react', 'typescript', 'next.js', 'javascript', 'python', 'c#', '.net core', 'node.js', 'css', 'tailwind css', 'three.js', 'glsl'].includes(item.skillName.toLowerCase())
+    ) || [];
+
     return (
-      <div className="flex flex-col gap-6 text-left w-full h-full relative pb-10">
-        {/* Dashboard Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-border/40 select-none">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="rounded-xl font-bold text-xs select-none border-border/40 flex items-center gap-1.5"
-            onPress={() => setViewState("overview")}
-          >
-            <ArrowLeft className="size-3.5" />
-            <span>Back to Overview</span>
-          </Button>
-          <Typography.Heading level={4} className="font-bold text-accent">
-            AI Profile Assessment Dashboard
-          </Typography.Heading>
+      <div className="flex flex-col gap-8 text-left w-full relative pb-16 select-none font-sans">
+        {/* Top Breadcrumb & Quick Controls */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/40 select-none shrink-0">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Candidates</span>
+            <ChevronRight className="size-3" />
+            <span className="font-semibold text-foreground">{profile?.fullName || "Candidate"}</span>
+            <ChevronRight className="size-3" />
+            <span className="font-semibold text-accent">AI Vetting Assessment</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${readiness?.requiresReassessment
+                ? "bg-warning/15 text-warning border border-warning/30"
+                : "bg-success/15 text-success border border-success/30"
+              }`}>
+              {readiness?.requiresReassessment ? "Outdated" : "Verified & Up-to-date"}
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="rounded-xl font-bold text-xs select-none border border-border/30 hover:bg-surface-secondary h-8 w-fit flex items-center gap-1.5 cursor-pointer"
+              onPress={handleShareProfile}
+            >
+              <Share2 className="size-3.5" />
+              <span>Share Profile</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="rounded-xl font-bold text-xs select-none border border-border/30 hover:bg-surface-secondary h-8 w-fit flex items-center gap-1.5 cursor-pointer"
+              onPress={() => window.print()}
+            >
+              <Printer className="size-3.5" />
+              <span>Export PDF</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="rounded-xl font-bold text-xs select-none border border-border/30 hover:bg-surface-secondary h-8 w-fit flex items-center gap-1.5 cursor-pointer"
+              onPress={() => setViewState("overview")}
+            >
+              <ArrowLeft className="size-3.5" />
+              <span>Back</span>
+            </Button>
+          </div>
         </div>
 
-        {/* Top Header Card - Score and Overview */}
-        <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col md:flex-row gap-6 items-center">
-          {/* Circular Score Gauge */}
-          <div className="relative size-32 flex items-center justify-center shrink-0">
+        {/* Hero Card: Candidate intelligence overview */}
+        <div id="section-summary" className="p-8 md:p-10 border border-border/50 bg-surface rounded-2xl flex flex-col lg:flex-row gap-8 items-center shadow-xs relative overflow-hidden shrink-0">
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-linear-to-r from-accent/10 via-accent/30 to-accent/10" />
+
+          {/* Calibrated Dial Score */}
+          <div className="relative size-32 flex items-center justify-center shrink-0 bg-surface-secondary/40 rounded-full border border-border/50 p-4">
             <svg className="size-full -rotate-90" viewBox="0 0 36 36">
               <path
-                className="text-border/20"
-                strokeWidth="3"
+                className="text-border/10"
+                strokeWidth="2.5"
                 stroke="currentColor"
                 fill="none"
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -985,262 +1103,439 @@ export default function CvManagementCenter() {
               <path
                 className="text-accent transition-all duration-500 ease-out"
                 strokeDasharray={`${activeData.candidateScore || activeData.overallScore || 0}, 100`}
-                strokeWidth="3.2"
+                strokeWidth="3.0"
                 strokeLinecap="round"
                 stroke="currentColor"
                 fill="none"
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
               />
             </svg>
-            <div className="absolute flex flex-col items-center">
-              <span className="text-2xl font-black text-foreground">
+            <div className="absolute flex flex-col items-center text-center">
+              <span className="text-3xl font-black text-foreground tracking-tight">
                 {Math.round(activeData.candidateScore || activeData.overallScore || 0)}
               </span>
-              <span className="text-[10px] text-muted uppercase font-bold tracking-wider">Score</span>
+              <span className="text-[8px] text-muted-foreground uppercase font-extrabold tracking-wider mt-0.5">Calibrated Index</span>
             </div>
           </div>
 
           {/* Quick Metrics */}
-          <div className="flex-1 flex flex-col gap-3 text-center md:text-left">
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                <h3 className="text-lg font-black text-foreground">
+          <div className="flex-1 flex flex-col gap-4 text-center lg:text-left min-w-0">
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
+                <h3 className="text-xl font-extrabold text-foreground tracking-tight">
                   {profile?.fullName || "Candidate Evaluation"}
                 </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-accent-soft text-accent">
+                <Chip size="sm" color="accent" variant="soft" className="text-[9px] font-black uppercase tracking-wider px-2 h-5 bg-accent/10 border-none text-accent">
                   {activeData.careerLevelLabel || activeData.careerLevel || "Middle"}
-                </span>
+                </Chip>
                 {activeData.displayConfidence && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-default-soft text-muted">
+                  <Chip size="sm" color="default" variant="soft" className="text-[9px] font-bold uppercase tracking-wider px-2 h-5 text-muted-foreground">
                     Confidence: {Math.round(activeData.displayConfidence * 100)}%
-                  </span>
+                  </Chip>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground italic max-w-2xl">
-                "{activeData.recruiterHeadline || activeData.summaryHeadline || "Verified Software Engineer Profile"}"
-              </p>
-            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 border-t border-border/10 pt-3 text-xs">
-              <div className="flex flex-col">
-                <span className="text-muted text-[10px] uppercase font-bold">Primary Tendency</span>
-                <span className="font-extrabold text-foreground">{activeData.primaryTendency || "Fullstack Engineer"}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-muted text-[10px] uppercase font-bold">Working Style</span>
-                <span className="font-extrabold text-foreground">{activeData.primaryWorkingStyle || "Collaborative"}</span>
-              </div>
-              <div className="flex flex-col col-span-2 sm:col-span-1">
-                <span className="text-muted text-[10px] uppercase font-bold">Evaluation Framework</span>
-                <span className="font-extrabold text-foreground">Pipeline v{assessment.pipelineVersion}</span>
+              {/* Premium blockquote for Recruiter Headline */}
+              <div className="border-l-4 border-accent pl-5 py-3 bg-accent/5 rounded-r-xl text-left select-text">
+                <p className="text-xs md:text-sm text-foreground/90 italic leading-relaxed font-medium">
+                  "{activeData.recruiterHeadline || activeData.summaryHeadline || "Verified Software Engineer Profile"}"
+                </p>
               </div>
             </div>
           </div>
-        </Card>
-
-        {/* Tabs Navigation */}
-        <div className="flex border-b border-border/20 gap-2 overflow-x-auto select-none">
-          {[
-            { id: "summary", label: "Overview Summary", icon: FileText },
-            { id: "skills", label: "Calibrated Skills", icon: Award },
-            { id: "breakdown", label: "Score Breakdown", icon: TrendingUp },
-            { id: "roles", label: "Recommended Roles", icon: Target },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeDetailTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveDetailTab(tab.id)}
-                className={[
-                  "flex items-center gap-2 px-4 py-2.5 border-b-2 text-xs font-bold transition-all cursor-pointer whitespace-nowrap bg-transparent outline-none",
-                  isActive ? "border-accent text-accent font-black" : "border-transparent text-muted-foreground hover:text-foreground"
-                ].join(" ")}
-              >
-                <Icon className="size-4 shrink-0" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
         </div>
 
-        {/* Tab Contents */}
-        <div className="w-full">
-          {activeDetailTab === "summary" && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Recruiter Summary narrative */}
-              <Card rounded="xl" className="md:col-span-2 p-6 border border-border/40 bg-surface flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">AI Evaluation Narrative</h4>
-                  <p className="text-xs text-muted">A synthesized, recruiter-ready profile summary backed by source code artifacts.</p>
-                </div>
-                <div className="w-full h-px bg-border/10" />
-                <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                  {activeData.fullSummary || activeData.summaryParagraph || "No assessment narrative generated."}
-                </p>
-              </Card>
-
-              {/* Strengths & Watchpoints checklist */}
-              <div className="flex flex-col gap-6">
-                {/* Key Strengths */}
-                <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-3">
-                  <h4 className="font-extrabold text-sm uppercase tracking-wide text-success flex items-center gap-2">
-                    <CheckCircle2 className="size-4 shrink-0" />
-                    Key Strengths
-                  </h4>
-                  <div className="w-full h-px bg-border/10" />
-                  <ul className="flex flex-col gap-2 pl-4 list-disc text-xs text-muted-foreground text-left">
-                    {activeData.keyStrengths && activeData.keyStrengths.length > 0 ? (
-                      activeData.keyStrengths.map((str: string, index: number) => (
-                        <li key={index} className="leading-relaxed">
-                          {str}
-                        </li>
-                      ))
-                    ) : (
-                      <li>Strong codebase contribution patterns detected.</li>
-                    )}
-                  </ul>
-                </Card>
-
-                {/* Watch Points */}
-                <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-3">
-                  <h4 className="font-extrabold text-sm uppercase tracking-wide text-warning flex items-center gap-2">
-                    <ShieldAlert className="size-4 shrink-0" />
-                    Watch Points
-                  </h4>
-                  <div className="w-full h-px bg-border/10" />
-                  <ul className="flex flex-col gap-2 pl-4 list-disc text-xs text-muted-foreground text-left">
-                    {activeData.watchPoints && activeData.watchPoints.length > 0 ? (
-                      activeData.watchPoints.map((wp: string, index: number) => (
-                        <li key={index} className="leading-relaxed">
-                          {wp}
-                        </li>
-                      ))
-                    ) : (
-                      <li>No major adversarial risks or gaps identified.</li>
-                    )}
-                  </ul>
-                </Card>
-              </div>
+        {/* Intelligence Snapshot Grid (4 Columns) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0">
+          <div className="p-5 border border-border/40 rounded-2xl bg-surface flex flex-col justify-between h-28 shadow-xs hover:border-border transition-colors">
+            <div className="p-2.5 bg-surface-secondary rounded-xl text-accent shrink-0 w-fit">
+              <Award className="size-4.5" />
             </div>
-          )}
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Primary Affinity</span>
+              <span className="text-xs font-extrabold text-foreground truncate">{activeData.primaryTendency || "Fullstack Engineer"}</span>
+            </div>
+          </div>
+          <div className="p-5 border border-border/40 rounded-2xl bg-surface flex flex-col justify-between h-28 shadow-xs hover:border-border transition-colors">
+            <div className="p-2.5 bg-surface-secondary rounded-xl text-accent shrink-0 w-fit">
+              <User className="size-4.5" />
+            </div>
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Technical Level</span>
+              <span className="text-xs font-extrabold text-foreground truncate">{activeData.careerLevelLabel || "Middle (L2)"}</span>
+            </div>
+          </div>
+          <div className="p-5 border border-border/40 rounded-2xl bg-surface flex flex-col justify-between h-28 shadow-xs hover:border-border transition-colors">
+            <div className="p-2.5 bg-surface-secondary rounded-xl text-accent shrink-0 w-fit">
+              <FolderCode className="size-4.5" />
+            </div>
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Scope Scanned</span>
+              <span className="text-xs font-extrabold text-foreground truncate">{repositories.length} Repositories</span>
+            </div>
+          </div>
+          <div className="p-5 border border-border/40 rounded-2xl bg-surface flex flex-col justify-between h-28 shadow-xs hover:border-border transition-colors">
+            <div className="p-2.5 bg-surface-secondary rounded-xl text-accent shrink-0 w-fit">
+              <Target className="size-4.5" />
+            </div>
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Style Index</span>
+              <span className="text-xs font-extrabold text-foreground truncate">{activeData.primaryWorkingStyle || "Feature Builder"}</span>
+            </div>
+          </div>
+        </div>
 
-          {activeDetailTab === "skills" && (
-            <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">Calibrated Technical Skill Stack</h4>
-                <p className="text-xs text-muted">Skills derived from the commit evidence graph mapping and target CV skills.</p>
-              </div>
-              <div className="w-full h-px bg-border/10" />
+        {/* Sticky Local Nav Anchor Tabs */}
+        <div className="sticky top-0 z-30 flex border-b border-border/30 bg-background/85 backdrop-blur-md gap-2 py-2 overflow-x-auto select-none scrollbar-none shrink-0">
+          {[
+            { id: "section-narrative", label: "AI Evaluation Report" },
+            { id: "section-skills", label: "Skill Intelligence" },
+            { id: "section-repos", label: "Repository Evidence" },
+            { id: "section-breakdown", label: "Score Breakdown" },
+            { id: "section-roles", label: "Recommended Fit" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => scrollToSection(tab.id)}
+              className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-surface-secondary/50 border-none bg-transparent cursor-pointer transition-colors"
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
+        {/* AI Narrative & Strengths Split Grid (2-Column) */}
+        <div id="section-narrative" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Narrative Text */}
+          <div className="lg:col-span-7 p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-4 shadow-xs select-text">
+            <div className="flex items-center gap-2">
+              <FileText className="size-4.5 text-accent" />
+              <h4 className="font-extrabold text-xs uppercase tracking-wider text-foreground">AI Evaluation Narrative</h4>
+            </div>
+            <div className="w-full h-px bg-border/10" />
+            <p className="text-xs md:text-sm text-foreground/90 leading-relaxed text-justify font-sans font-light whitespace-pre-wrap">
+              {activeData.fullSummary || activeData.summaryParagraph || "No assessment narrative generated."}
+            </p>
+          </div>
+
+          {/* Vetting Checklists */}
+          <div className="lg:col-span-5 flex flex-col gap-6">
+            {/* Key Vetted Strengths */}
+            <div className="p-6 border border-success/25 bg-success/5 rounded-2xl flex flex-col gap-4 shadow-xs">
+              <h4 className="font-extrabold text-xs uppercase tracking-wider text-success flex items-center gap-2">
+                <CheckCircle2 className="size-4 shrink-0" />
+                Key Vetted Strengths
+              </h4>
+              <div className="w-full h-px bg-success/15" />
+              <ul className="flex flex-col gap-3 pl-0 text-xs text-foreground/90 text-left select-text list-none">
+                {activeData.keyStrengths && activeData.keyStrengths.length > 0 ? (
+                  activeData.keyStrengths.map((str: string, index: number) => (
+                    <li key={index} className="flex gap-2.5 leading-relaxed items-start font-light">
+                      <CheckCircle2 className="size-3.5 text-success mt-0.5 shrink-0" />
+                      <span>{str}</span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="flex gap-2.5 leading-relaxed items-start font-light">
+                    <CheckCircle2 className="size-3.5 text-success mt-0.5 shrink-0" />
+                    <span>Strong codebase contribution patterns detected.</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+
+            {/* Watch Points */}
+            <div className="p-6 border border-warning/25 bg-warning/5 rounded-2xl flex flex-col gap-4 shadow-xs">
+              <h4 className="font-extrabold text-xs uppercase tracking-wider text-warning flex items-center gap-2">
+                <AlertTriangle className="size-4 shrink-0" />
+                Vetting Risks & Watch Points
+              </h4>
+              <div className="w-full h-px bg-warning/15" />
+              <ul className="flex flex-col gap-3 pl-0 text-xs text-foreground/90 text-left select-text list-none">
+                {activeData.watchPoints && activeData.watchPoints.length > 0 ? (
+                  activeData.watchPoints.map((wp: string, index: number) => (
+                    <li key={index} className="flex gap-2.5 leading-relaxed items-start font-light">
+                      <AlertTriangle className="size-3.5 text-warning mt-0.5 shrink-0" />
+                      <span>{wp}</span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="flex gap-2.5 leading-relaxed items-start font-light">
+                    <AlertTriangle className="size-3.5 text-warning mt-0.5 shrink-0" />
+                    <span>No major risks or architectural gaps flagged.</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Skill Clusters */}
+        <div id="section-skills" className="p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-5 shadow-xs">
+          <div className="flex flex-col gap-1">
+            <h4 className="font-extrabold text-xs uppercase tracking-wider text-foreground">Skill Intelligence & Evidence Graph</h4>
+            <p className="text-[10px] text-muted-foreground">Technologies evaluated and verified through codebase commit signatures.</p>
+          </div>
+          <div className="w-full h-px bg-border/10" />
+
+          {rawSkills.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 select-text">
+              {/* Group A: Languages & Frameworks */}
               <div className="flex flex-col gap-4">
-                {activeData.skillProficiencies && activeData.skillProficiencies.length > 0 ? (
-                  activeData.skillProficiencies.map((item: any, index: number) => (
-                    <div key={index} className="flex flex-col gap-2 p-4 border border-border/30 rounded-xl bg-surface-secondary/10 text-xs">
+                <span className="text-[10px] uppercase font-bold text-accent tracking-wider select-none">
+                  Core Languages & Front-end Stack ({langSkills.length})
+                </span>
+                <div className="flex flex-col gap-3">
+                  {langSkills.map((item: any, idx: number) => (
+                    <div key={idx} className="p-4 border border-border/40 rounded-xl bg-surface-secondary/20 flex flex-col gap-2">
                       <div className="flex justify-between items-center flex-wrap gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-foreground text-sm">{item.skillName}</span>
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent-soft text-accent uppercase">
+                          <span className="font-bold text-foreground text-xs">{item.skillName}</span>
+                          <Chip size="sm" variant="soft" color="accent" className="text-[8px] font-black uppercase px-1.5 h-4.5 bg-accent/10 border-none text-accent">
                             {item.proficiencyLevel}
-                          </span>
+                          </Chip>
                         </div>
                         {item.evidenceCount !== undefined && (
-                          <span className="text-[10px] text-muted font-bold">
-                            Evidence commits: {item.evidenceCount}
+                          <span className="text-[9px] font-semibold text-success bg-success/5 border border-success/15 px-1.5 py-0.5 rounded-full">
+                            {item.evidenceCount} Commits
                           </span>
                         )}
                       </div>
-                      <p className="text-muted-foreground leading-relaxed">
-                        {item.reasoning}
-                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed font-light">{item.reasoning}</p>
                     </div>
-                  ))
-                ) : (
-                  <div className="py-8 text-center text-muted-foreground text-xs">
-                    No individual skill mappings available in this assessment.
-                  </div>
-                )}
+                  ))}
+                  {langSkills.length === 0 && <span className="text-xs text-muted-foreground italic font-light">No core framework matches.</span>}
+                </div>
               </div>
-            </Card>
-          )}
 
-          {activeDetailTab === "breakdown" && (
-            <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">Overall Score Calibrated Breakdown</h4>
-                <p className="text-xs text-muted">Weights and sub-scores according to the Line 2 Candidate score framework.</p>
-              </div>
-              <div className="w-full h-px bg-border/10" />
-
-              <div className="flex flex-col gap-5">
-                {activeData.scoreBreakdown ? (
-                  Object.entries(activeData.scoreBreakdown).map(([key, value]: [string, any]) => {
-                    const labelMap: Record<string, string> = {
-                      skillDepth: "Skill Depth & Scope",
-                      ownership: "Repository Ownership Ratio",
-                      architecture: "System Architecture Evidence",
-                      problemSolving: "Problem Solving Complexity",
-                      impact: "Engineering Business Impact",
-                    };
-                    const percent = value.score;
-                    const weight = Math.round(value.weight * 100);
-
-                    return (
-                      <div key={key} className="flex flex-col gap-2 text-xs">
-                        <div className="flex justify-between font-bold text-foreground">
-                          <span>{labelMap[key] || key}</span>
-                          <span>{Math.round(percent)}/100 (Weight: {weight}%)</span>
+              {/* Group B: Systems & Databases */}
+              <div className="flex flex-col gap-4">
+                <span className="text-[10px] uppercase font-bold text-accent tracking-wider select-none">
+                  Systems Architecture, Databases & Tooling ({systemSkills.length})
+                </span>
+                <div className="flex flex-col gap-3">
+                  {systemSkills.map((item: any, idx: number) => (
+                    <div key={idx} className="p-4 border border-border/40 rounded-xl bg-surface-secondary/20 flex flex-col gap-2">
+                      <div className="flex justify-between items-center flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground text-xs">{item.skillName}</span>
+                          <Chip size="sm" variant="soft" color="default" className="text-[8px] font-black uppercase px-1.5 h-4.5">
+                            {item.proficiencyLevel}
+                          </Chip>
                         </div>
-                        <div className="w-full bg-surface-secondary/50 rounded-full h-2.5 overflow-hidden">
+                        {item.evidenceCount !== undefined && (
+                          <span className="text-[9px] font-semibold text-success bg-success/5 border border-success/15 px-1.5 py-0.5 rounded-full">
+                            {item.evidenceCount} Commits
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed font-light">{item.reasoning}</p>
+                    </div>
+                  ))}
+                  {systemSkills.length === 0 && <span className="text-xs text-muted-foreground italic font-light">No architectural matches.</span>}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground text-xs font-light">
+              No technical skill proficiencies mapped in this assessment.
+            </div>
+          )}
+        </div>
+
+        {/* Repository Evidence */}
+        <div id="section-repos" className="p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-5 shadow-xs">
+          <div className="flex flex-col gap-1">
+            <h4 className="font-extrabold text-xs uppercase tracking-wider text-foreground">Verified Repository Evidence</h4>
+            <p className="text-[10px] text-muted-foreground">Source code bases linked to candidate profile that form the basis of the assessment details.</p>
+          </div>
+          <div className="w-full h-px bg-border/10" />
+
+          {repositories.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {repositories.map((repo) => (
+                <div key={repo.id} className="p-4 border border-border/40 rounded-xl bg-surface-secondary/20 flex flex-col gap-3 hover:border-border transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <ShieldCheck className="size-4 text-success shrink-0" />
+                      <span className="font-bold text-foreground text-xs truncate" title={`${repo.ownerLogin}/${repo.name}`}>
+                        {repo.ownerLogin}/{repo.name}
+                      </span>
+                    </div>
+                    {repo.isPrivate && (
+                      <span className="px-1.5 py-0.5 text-[8px] font-bold bg-muted-foreground/10 text-muted-foreground rounded-sm">
+                        Private
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 min-h-[32px] font-light leading-normal">
+                    {repo.description || "No description provided."}
+                  </p>
+                  <div className="w-full h-px bg-border/10 my-0.5" />
+                  <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-3">
+                      {repo.primaryLanguage && (
+                        <span className="font-semibold">{repo.primaryLanguage}</span>
+                      )}
+                      {repo.starsCount > 0 && (
+                        <span>★ {repo.starsCount}</span>
+                      )}
+                    </div>
+                    {repo.latestAnalysisStatus === "Completed" ? (
+                      <span className="text-success font-bold">Analysis Vetted</span>
+                    ) : (
+                      <span className="text-muted-foreground">{repo.latestAnalysisStatus}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground text-xs font-light">
+              No code repositories linked. Linked repositories will be detailed here once synchronized.
+            </div>
+          )}
+        </div>
+
+        {/* Detailed Score Breakdown */}
+        <div id="section-breakdown" className="p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-5 shadow-xs select-text">
+          <div className="flex flex-col gap-1">
+            <h4 className="font-extrabold text-xs uppercase tracking-wider text-foreground">Overall Score Calibrated Breakdown</h4>
+            <p className="text-[10px] text-muted-foreground">Calibration dimensions analyzed by CVerify Vetting engines.</p>
+          </div>
+          <div className="w-full h-px bg-border/10" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {activeData.scoreBreakdown ? (
+              (() => {
+                const getDimensionMetadata = (key: string, val: any) => {
+                  if (val && typeof val === 'object' && 'band' in val) {
+                    return {
+                      score: val.score,
+                      weight: Math.round(val.weight * 100),
+                      band: val.band,
+                      percent: val.percent,
+                      isRaw: val.scale === "raw" || key === "skillDepth"
+                    };
+                  }
+                  const score = typeof val === 'number' ? val : (val?.score ?? 0);
+                  const weight = val?.weight !== undefined ? Math.round(val.weight * 100) : 0;
+                  const isRaw = key === "skillDepth";
+
+                  let band = "Limited Evidence";
+                  if (key === "skillDepth") {
+                    if (score < 5) band = "Limited Evidence";
+                    else if (score < 15) band = "Emerging Scope";
+                    else if (score < 35) band = "Advanced Scope";
+                    else band = "Enterprise Scale";
+                  } else if (key === "ownership") {
+                    if (score < 15) band = "Low/External Contributor";
+                    else if (score < 50) band = "Collaborative Contributor";
+                    else if (score < 80) band = "Core Owner";
+                    else band = "Lead / Sole Owner";
+                  } else if (key === "architecture") {
+                    if (score < 30) band = "Basic CRUD / Scripting";
+                    else if (score < 60) band = "Modular / Structural Design";
+                    else if (score < 83) band = "System Architecture Patterns";
+                    else band = "Distributed / Platform Scale";
+                  } else if (key === "problemSolving") {
+                    if (score < 30) band = "Symptom-level Debugging";
+                    else if (score < 60) band = "Standard Bug-Fix Cycle";
+                    else if (score < 83) band = "Root-Cause Diagnostics";
+                    else band = "Complex Recovery & Stabilization";
+                  } else if (key === "impact") {
+                    if (score < 30) band = "Ad-hoc / Unstructured";
+                    else if (score < 60) band = "Structured Development";
+                    else if (score < 83) band = "High Quality & Test Discipline";
+                    else band = "Strategic / Enterprise Standards";
+                  }
+                  return { score, weight, band, percent: score, isRaw };
+                };
+
+                return Object.entries(activeData.scoreBreakdown).map(([key, val]: [string, any]) => {
+                  const labelMap: Record<string, string> = {
+                    skillDepth: "Skill Depth & Scope",
+                    ownership: "Repository Ownership Ratio",
+                    architecture: "System Architecture Evidence",
+                    problemSolving: "Problem Solving Complexity",
+                    impact: "Engineering Business Impact",
+                  };
+                  const { score, weight, band, percent, isRaw } = getDimensionMetadata(key, val);
+
+                  return (
+                    <div key={key} className="flex flex-col gap-3 text-xs border border-border/40 p-4 rounded-xl bg-surface-secondary/20 hover:border-border/80 transition-colors">
+                      <div className="flex justify-between items-start flex-wrap gap-2">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-bold text-foreground text-xs">{labelMap[key] || key}</span>
+                          <span className="text-[9px] text-muted-foreground font-normal">Weight: {weight}%</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <Chip size="sm" variant="soft" color="accent" className="text-[9px] font-black h-4.5 px-1 bg-accent/10 border-none text-accent">
+                            {key === "ownership" && !isNaN(score)
+                              ? `${Math.round(score)}%`
+                              : isRaw
+                                ? `Raw: ${Math.round(score * 10) / 10}`
+                                : `Score: ${Math.round(score * 10) / 10}`
+                            }
+                          </Chip>
+                          <span className="text-[10px] font-bold text-muted-foreground">{band}</span>
+                        </div>
+                      </div>
+                      {!isRaw && (
+                        <div className="w-full mt-1 bg-surface-secondary rounded-full h-1.5 overflow-hidden">
                           <div
                             className="bg-accent h-full rounded-full transition-all duration-300"
-                            style={{ width: `${percent}%` }}
+                            style={{ width: `${Math.min(Math.max(percent, 0), 100)}%` }}
                           />
                         </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="py-8 text-center text-muted-foreground text-xs">
-                    No detailed score breakdown details available.
-                  </div>
-                )}
+                      )}
+                    </div>
+                  );
+                });
+              })()
+            ) : (
+              <div className="col-span-2 py-8 text-center text-muted-foreground text-xs font-light">
+                No detailed score breakdown details available.
               </div>
-            </Card>
-          )}
+            )}
+          </div>
+        </div>
 
-          {activeDetailTab === "roles" && (
-            <Card rounded="xl" className="p-6 border border-border/40 bg-surface flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <h4 className="font-extrabold text-sm uppercase tracking-wide text-foreground">Target Role Recommendations</h4>
-                <p className="text-xs text-muted font-medium">Matched roles based on tech stack evidence, maturity levels, and preferences.</p>
-              </div>
-              <div className="w-full h-px bg-border/10" />
+        {/* Target Role Recommendations */}
+        <div id="section-roles" className="p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-5 shadow-xs select-text">
+          <div className="flex flex-col gap-1">
+            <h4 className="font-extrabold text-xs uppercase tracking-wider text-foreground">Target Role Recommendations</h4>
+            <p className="text-[10px] text-muted-foreground">Matched roles based on tech stack evidence, maturity levels, and preferences.</p>
+          </div>
+          <div className="w-full h-px bg-border/10" />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {activeData.suggestedRoles && activeData.suggestedRoles.length > 0 ? (
-                  activeData.suggestedRoles.map((item: any, index: number) => (
-                    <Card key={index} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface-secondary/10 flex flex-col gap-3">
-                      <div className="flex justify-between items-center">
-                        <span className="font-extrabold text-foreground text-xs">{item.role}</span>
-                        <span className="text-xs font-black text-accent">{Math.round(item.matchScore)}% Match</span>
-                      </div>
-                      <div className="w-full h-px bg-border/10" />
-                      <ul className="flex flex-col gap-1.5 pl-4 list-disc text-[10px] text-muted-foreground text-left">
-                        {item.reasons && item.reasons.map((r: string, rIdx: number) => (
-                          <li key={rIdx}>{r}</li>
-                        ))}
-                      </ul>
-                    </Card>
-                  ))
-                ) : (
-                  <div className="col-span-2 py-8 text-center text-muted-foreground text-xs">
-                    No role recommendations found in this assessment.
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {rawRoles.length > 0 ? (
+              rawRoles.map((item: any, index: number) => (
+                <div key={index} className="p-5 border border-border/40 bg-surface-secondary/20 rounded-2xl flex flex-col gap-4 hover:border-border transition-colors">
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="font-extrabold text-foreground text-xs tracking-tight">{item.role}</span>
+                    <Chip size="sm" color="accent" variant="soft" className="text-[10px] font-black uppercase px-2 h-5.5 bg-accent/15 text-accent border-none">
+                      {Math.round(item.matchScore)}% Match
+                    </Chip>
                   </div>
-                )}
+                  <div className="w-full h-px bg-border/10" />
+                  <ul className="flex flex-col gap-2.5 pl-0 text-[11px] text-foreground/80 text-left leading-relaxed list-none">
+                    {item.reasons && item.reasons.map((r: string, rIdx: number) => (
+                      <li key={rIdx} className="flex gap-2 items-start font-light">
+                        <CheckCircle2 className="size-3.5 text-success mt-0.5 shrink-0" />
+                        <span>{r}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            ) : (
+              <div className="col-span-2 py-8 text-center text-muted-foreground text-xs font-light">
+                No role recommendations found in this assessment.
               </div>
-            </Card>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1249,32 +1544,100 @@ export default function CvManagementCenter() {
   const renderProgressModal = () => {
     if (!isProgressModalOpen) return null;
 
+    // Build timeline stages dynamically with fallback support for unknown step IDs
+    const timelineStages = [...stages];
+    if (streamStep && streamStep !== 'Completed' && streamStep !== 'Failed' && streamStep !== 'Initializing' && !timelineStages.some(s => s.id === streamStep)) {
+      timelineStages.push({
+        id: streamStep,
+        name: `Stage: ${streamStep}`,
+        description: streamMessage || 'Executing custom assessment pipeline stage...'
+      });
+    }
+
+    const getStageStatus = (stageId: string): 'Completed' | 'Failed' | 'Running' | 'Queued' => {
+      if (streamStatus === 'completed') {
+        return 'Completed';
+      }
+
+      const stepIds = timelineStages.map(s => s.id);
+      const activeIndex = stepIds.indexOf(streamStep);
+      const stageIndex = stepIds.indexOf(stageId);
+
+      if (streamStatus === 'failed') {
+        if (stageId === streamStep) {
+          return 'Failed';
+        }
+        if (activeIndex !== -1 && stageIndex < activeIndex) {
+          return 'Completed';
+        }
+        return 'Queued';
+      }
+
+      if (stageId === streamStep) {
+        return 'Running';
+      }
+      if (activeIndex !== -1 && stageIndex < activeIndex) {
+        return 'Completed';
+      }
+      return 'Queued';
+    };
+
+    const getStatusIcon = (status: 'Completed' | 'Failed' | 'Running' | 'Queued') => {
+      switch (status) {
+        case 'Completed':
+          return <CheckCircle2 className="size-4 text-success shrink-0" />;
+        case 'Failed':
+          return <XCircle className="size-4 text-danger shrink-0" />;
+        case 'Running':
+          return <Spinner size="sm" color="warning" className="shrink-0" />;
+        case 'Queued':
+        default:
+          return <Clock className="size-4 text-muted-foreground/60 shrink-0" />;
+      }
+    };
+
+    const getStatusColor = (status: 'Completed' | 'Failed' | 'Running' | 'Queued') => {
+      switch (status) {
+        case 'Completed':
+          return 'success' as const;
+        case 'Failed':
+          return 'danger' as const;
+        case 'Running':
+          return 'warning' as const;
+        case 'Queued':
+        default:
+          return 'default' as const;
+      }
+    };
+
+    const isRunningOrQueued = streamStatus === 'connecting' || streamStatus === 'streaming';
+    const failedStage = streamStep || latestAssessment?.failedStage || 'Unknown';
+    const failureReason = streamMessage || latestAssessment?.failureReason || 'Connection to assessment progress lost.';
+
     return (
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-        <Card rounded="xl" className="w-full max-w-[500px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left p-6">
+        <div className="w-full max-w-[620px] max-h-[90vh] border border-border/85 bg-surface text-foreground shadow-2xl rounded-2xl flex flex-col overflow-hidden text-left p-6 relative">
           <div className="flex items-center justify-between border-b border-border/20 pb-3 shrink-0">
             <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
               <Sparkles className="size-4 text-accent animate-pulse" />
               AI Profile Evaluation
             </span>
-            {streamStatus !== 'connecting' && streamStatus !== 'streaming' && (
-              <Button
-                isIconOnly
-                size="sm"
-                variant="secondary"
-                className="rounded-xl border border-border/30 h-8 w-8"
-                onPress={() => {
-                  setIsProgressModalOpen(false);
-                  disconnectProgressStream();
-                }}
-                aria-label="Close modal"
-              >
-                <X className="size-4" />
-              </Button>
-            )}
+            <Button
+              isIconOnly
+              size="sm"
+              variant="secondary"
+              className="rounded-xl border border-border/30 h-8 w-8"
+              onPress={() => {
+                setIsProgressModalOpen(false);
+                hasClosedProgressModal.current = true;
+              }}
+              aria-label="Minimize modal"
+            >
+              <X className="size-4" />
+            </Button>
           </div>
 
-          <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0">
+          <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0 scrollbar-thin scrollbar-thumb-border">
             <div className="flex flex-col gap-1 text-center py-2 shrink-0">
               <span className="text-sm font-extrabold text-foreground">
                 {streamStatus === 'connecting'
@@ -1293,7 +1656,7 @@ export default function CvManagementCenter() {
             </div>
 
             {/* Progress Bar */}
-            <div className="w-full bg-surface-secondary/50 rounded-full h-3 overflow-hidden shrink-0">
+            <div className="w-full bg-surface-secondary/50 rounded-full h-2.5 overflow-hidden shrink-0">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${streamStatus === 'failed' ? 'bg-danger' : streamStatus === 'completed' ? 'bg-success' : 'bg-accent'
                   }`}
@@ -1302,71 +1665,168 @@ export default function CvManagementCenter() {
             </div>
             <div className="flex justify-between text-[10px] text-muted-foreground shrink-0 font-bold">
               <span>ACTIVE STAGE: {streamStep || 'FETCH_ARTIFACTS'}</span>
-              <span>{Math.round(streamProgress)}%</span>
+              <span>{Math.round(streamProgress)}% (Stage Completion)</span>
             </div>
+            <span className="text-[9px] text-muted-foreground/80 italic shrink-0 -mt-2">
+              *Progress bar represents stage completion milestones. AI processing on active stage may require extra processing time.
+            </span>
+
+            {/* Detailed Failure Information Card */}
+            {streamStatus === 'failed' && (
+              <div className="p-4 border border-danger/30 bg-danger/5 rounded-xl space-y-3 shrink-0">
+                <div className="flex items-center gap-2 text-danger">
+                  <AlertTriangle className="size-5 shrink-0" />
+                  <span className="font-extrabold text-sm uppercase tracking-wide">Evaluation Failed</span>
+                </div>
+                <div className="space-y-2 text-xs leading-relaxed text-foreground/90">
+                  <p>
+                    <strong>Failed Stage:</strong> <span className="font-mono text-danger bg-danger/10 px-1 py-0.5 rounded text-[10px]">{failedStage}</span>
+                  </p>
+                  <p>
+                    <strong>Error Message:</strong> <span className="text-muted-foreground">{failureReason}</span>
+                  </p>
+                  <div className="border-t border-danger/10 pt-2 mt-2 text-muted-foreground">
+                    <strong className="text-foreground">Retry Guidance:</strong>
+                    <ul className="list-disc pl-4 mt-1 space-y-1 text-[11px]">
+                      <li>Ensure your linked source code repositories have completed their initial scanning.</li>
+                      <li>Check that your GitHub integration credentials are still valid.</li>
+                      <li>Ensure you have a reliable network connection and click "Retry Assessment" below.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Completion Summary Card */}
+            {streamStatus === 'completed' && latestAssessment && (
+              <div className="p-4 border border-success/30 bg-success/5 rounded-xl space-y-3 shrink-0">
+                <div className="flex items-center gap-2 text-success">
+                  <CheckCircle2 className="size-5 shrink-0" />
+                  <span className="font-extrabold text-sm uppercase tracking-wide">Synthesis Complete</span>
+                </div>
+                <div className="space-y-2 text-xs leading-relaxed text-foreground/90">
+                  {latestAssessment.careerLevelLabel && latestAssessment.primaryTendency && (
+                    <p>
+                      <strong>Calibrated Profile:</strong> {latestAssessment.careerLevelLabel} ({latestAssessment.primaryTendency} specialization)
+                    </p>
+                  )}
+                  {latestAssessment.summaryHeadline && (
+                    <p>
+                      <strong>Headline:</strong> <span className="text-foreground font-semibold">"{latestAssessment.summaryHeadline}"</span>
+                    </p>
+                  )}
+                  {latestAssessment.summaryParagraph && (
+                    <p className="text-muted-foreground line-clamp-3 italic pt-1 border-t border-success/10">
+                      "{latestAssessment.summaryParagraph}"
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Visual Timeline of Stages */}
-            <div className="flex flex-col gap-2 border-t border-border/10 pt-3 overflow-y-auto">
+            <div className="flex flex-col gap-4 border-t border-border/10 pt-4">
               <span className="text-[10px] text-muted uppercase font-bold tracking-wider select-none mb-1">
                 Evaluation Timeline
               </span>
-              <div className="flex flex-col gap-2.5 pl-1.5">
-                {[
-                  { id: 'FetchLine1', label: 'Fetch verified repository analysis artifacts' },
-                  { id: 'ConsolidateLine1', label: 'Consolidate multi-repository metrics' },
-                  ...ASSESSMENT_STAGES
-                ].map((stage) => {
-                  let status: 'pending' | 'running' | 'completed' | 'failed' = 'pending';
+              <div className="relative pl-1">
+                {/* Vertical line indicator */}
+                <div className="absolute left-[13.5px] top-3 bottom-3 w-[1.5px] bg-border/40" />
 
-                  if (streamStatus === 'completed') {
-                    status = 'completed';
-                  } else if (streamStatus === 'failed') {
-                    const steps = ['FetchLine1', 'ConsolidateLine1', ...ASSESSMENT_STAGES.map(s => s.id)];
-                    const activeIndex = steps.indexOf(streamStep);
-                    const stageIndex = steps.indexOf(stage.id);
-                    if (stage.id === streamStep) {
-                      status = 'failed';
-                    } else if (stageIndex < activeIndex && activeIndex !== -1) {
-                      status = 'completed';
-                    } else {
-                      status = 'pending';
-                    }
-                  } else {
-                    const steps = ['FetchLine1', 'ConsolidateLine1', ...ASSESSMENT_STAGES.map(s => s.id)];
-                    const activeIndex = steps.indexOf(streamStep);
-                    const stageIndex = steps.indexOf(stage.id);
-                    if (stage.id === streamStep) {
-                      status = 'running';
-                    } else if (stageIndex < activeIndex && activeIndex !== -1) {
-                      status = 'completed';
-                    } else {
-                      status = 'pending';
-                    }
-                  }
+                <div className="flex flex-col gap-4">
+                  {timelineStages.map((stage) => {
+                    const status = getStageStatus(stage.id);
+                    const isRunning = status === 'Running';
 
-                  return (
-                    <div key={stage.id} className="flex items-center gap-3 text-xs">
-                      <div className="shrink-0 flex items-center justify-center">
-                        {status === 'completed' ? (
-                          <CheckCircle2 className="size-4 text-success" />
-                        ) : status === 'failed' ? (
-                          <XCircle className="size-4 text-danger" />
-                        ) : status === 'running' ? (
-                          <Spinner size="sm" color="accent" className="size-4" />
+                    return (
+                      <div key={stage.id} className="relative pl-10 min-h-[28px] flex flex-col justify-center">
+                        {/* Status Icon Wrapper */}
+                        <div className="absolute left-0 top-0 size-7 flex items-center justify-center bg-background rounded-full border border-border/10 shadow-xs z-10">
+                          {getStatusIcon(status)}
+                        </div>
+
+                        {/* Content Block */}
+                        {status === 'Running' ? (
+                          <div className="p-4 border border-warning/60 bg-warning/5 dark:bg-warning/10 rounded-2xl flex flex-col gap-2 shadow-xs transition-all duration-300">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-extrabold text-xs text-warning">
+                                {stage.name}
+                              </span>
+                              <span className="text-[8px] font-black uppercase text-warning bg-warning/15 px-2 py-0.5 rounded-md tracking-wider animate-pulse">
+                                Running
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-foreground/90 leading-relaxed font-light">
+                              {stage.description}
+                            </p>
+                            {streamMessage && (
+                              <div className="mt-1 font-mono text-[9px] text-warning/90 bg-warning/10 p-2.5 rounded-xl border border-warning/20 break-all leading-normal">
+                                &gt; {streamMessage}
+                              </div>
+                            )}
+                            <div className="w-full mt-1">
+                              <ProgressBar
+                                aria-label={`${stage.name} progress`}
+                                value={streamProgress}
+                                color="warning"
+                                size="sm"
+                                className="w-full"
+                              >
+                                <ProgressBar.Track>
+                                  <ProgressBar.Fill />
+                                </ProgressBar.Track>
+                              </ProgressBar>
+                            </div>
+                          </div>
+                        ) : status === 'Failed' ? (
+                          <div className="p-4 border border-danger/50 bg-danger/5 dark:bg-danger/10 rounded-2xl flex flex-col gap-2 transition-all duration-300">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-extrabold text-xs text-danger">
+                                {stage.name}
+                              </span>
+                              <span className="text-[8px] font-black uppercase text-danger bg-danger/15 px-2 py-0.5 rounded-md tracking-wider">
+                                Failed
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-foreground/90 leading-relaxed font-light">
+                              {stage.description}
+                            </p>
+                            {streamMessage && (
+                              <div className="mt-1 font-mono text-[9px] text-danger bg-danger/10 p-2.5 rounded-xl border border-danger/20 break-all leading-normal">
+                                {streamMessage}
+                              </div>
+                            )}
+                          </div>
+                        ) : status === 'Completed' ? (
+                          <div className="flex flex-col gap-0.5 min-w-0 pl-1 py-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-xs text-foreground/90">
+                                {stage.name}
+                              </span>
+                              <span className="text-[8px] font-black uppercase text-success bg-success/10 px-1.5 py-0.5 rounded-md tracking-wider">
+                                Completed
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground font-light leading-relaxed max-w-[95%]">
+                              {stage.description}
+                            </p>
+                          </div>
                         ) : (
-                          <div className="size-3.5 rounded-full border border-border bg-surface-secondary/40" />
+                          <div className="flex flex-col gap-0.5 min-w-0 pl-1 py-1 opacity-60 hover:opacity-100 transition-opacity duration-150">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-xs text-muted-foreground">
+                                {stage.name}
+                              </span>
+                              <span className="text-[8px] font-bold uppercase text-muted bg-surface-secondary px-1.5 py-0.5 rounded-md tracking-wider">
+                                Queued
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </div>
-                      <span className={[
-                        "truncate font-medium",
-                        status === 'running' ? 'text-accent font-bold' :
-                          status === 'completed' ? 'text-foreground/80' : 'text-muted-foreground'
-                      ].join(" ")}>
-                        {stage.label}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -1386,11 +1846,32 @@ export default function CvManagementCenter() {
                 Open Dashboard
               </Button>
             )}
+            {streamStatus === 'failed' && (
+              <Button
+                size="sm"
+                className="bg-accent text-accent-foreground font-bold rounded-xl border-none"
+                onPress={handleTriggerAssessment}
+              >
+                Retry Assessment
+              </Button>
+            )}
+            {isRunningOrQueued && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="rounded-xl font-bold border-border/30"
+                onPress={() => {
+                  setIsProgressModalOpen(false);
+                  hasClosedProgressModal.current = true;
+                }}
+              >
+                Run in Background
+              </Button>
+            )}
             <Button
               size="sm"
               variant="secondary"
               className="rounded-xl font-bold border-border/30"
-              isDisabled={streamStatus === 'connecting' || streamStatus === 'streaming'}
               onPress={() => {
                 setIsProgressModalOpen(false);
                 disconnectProgressStream();
@@ -1399,20 +1880,20 @@ export default function CvManagementCenter() {
               Close
             </Button>
           </div>
-        </Card>
+        </div>
       </div>
     );
   };
 
   const renderOverview = () => {
     // Dynamically calculate completeness status per section
-    const isBasicInfoFilled = !!(drafts["basic-info"].fullName && drafts["basic-info"].publicEmail && drafts["basic-info"].bio);
-    const isSkillsFilled = !!(drafts["skills"].targetSkills && drafts["skills"].targetSkills.length > 0);
+    const isBasicInfoFilled = !(!drafts["basic-info"].fullName || !drafts["basic-info"].publicEmail || !drafts["basic-info"].bio);
+    const isSkillsFilled = !(!drafts["skills"].targetSkills || drafts["skills"].targetSkills.length === 0);
     const isProjectsFilled = repositories.length > 0;
     const isExperienceFilled = drafts["experience"] && drafts["experience"].length > 0;
     const isEducationFilled = drafts["education"] && drafts["education"].length > 0;
     const isAchievementsFilled = drafts["achievements"] && drafts["achievements"].length > 0;
-    const isPreferencesFilled = !!(drafts["preferences"].desiredJobPositions && drafts["preferences"].desiredJobPositions.length > 0);
+    const isPreferencesFilled = !(!drafts["preferences"].desiredJobPositions || drafts["preferences"].desiredJobPositions.length === 0);
 
     // Dynamic counts/summaries for sections
     const getSectionDetails = (id: CvSectionId) => {
@@ -1454,41 +1935,42 @@ export default function CvManagementCenter() {
     };
 
     return (
-      <div className="flex flex-col gap-6 w-full">
-        {/* Profile Completeness card */}
-        <Card rounded="2xl" glow={true} className="p-6 border border-border/40 bg-surface flex flex-col gap-5 relative overflow-hidden">
+      <div className="flex flex-col gap-8 w-full select-none">
+        {/* Profile Completeness Card */}
+        <div className="p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-5 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between gap-3 w-full border-b border-border/20 pb-4">
             <div className="flex flex-col gap-1">
-              <span className="text-xs uppercase font-extrabold tracking-widest text-muted-foreground">Completeness</span>
-              <Typography type="body-sm" className="font-extrabold text-foreground leading-none">
-                Profile Optimization
-              </Typography>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Completeness</span>
+              <span className="font-extrabold text-foreground text-sm">Profile Optimization</span>
             </div>
-            <div className="flex flex-col items-end gap-1.5 shrink-0 font-outfit">
-              <span className="text-3xl font-black text-foreground tracking-tight">{completenessPercent}%</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide bg-${status.color}-soft text-${status.color}`}>
-                {String(status.label)}
-              </span>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <span className="text-2xl font-black text-foreground tracking-tight">{completenessPercent}%</span>
+              <Chip
+                size="sm"
+                variant="soft"
+                color={status.color}
+                className="text-[9px] font-black uppercase tracking-wider h-5"
+              >
+                {status.label}
+              </Chip>
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 w-full">
-            <div className="w-full bg-surface-secondary rounded-full h-3 overflow-hidden p-0.5 border border-border/20">
-              <div
-                className="bg-accent h-full rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${completenessPercent}%` }}
-              />
-            </div>
+          <div className="w-full bg-surface-secondary rounded-full h-2 overflow-hidden border border-border/10">
+            <div
+              className="bg-accent h-full rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${completenessPercent}%` }}
+            />
           </div>
 
           {suggestedActions.length > 0 ? (
             <div className="flex flex-col gap-3 pt-2">
-              <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
-                Action Checklist
+              <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                Recommended Actions
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {suggestedActions.map((action) => (
-                  <div key={action.id} className="flex gap-2.5 items-start text-[11px] text-muted-foreground leading-normal bg-surface-secondary/40 p-2.5 rounded-xl border border-border/10">
+                  <div key={action.id} className="flex gap-2.5 items-start text-[11px] text-muted-foreground leading-normal bg-surface-secondary/30 p-3 rounded-xl border border-border/20">
                     <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
                     <span>{String(action.text)}</span>
                   </div>
@@ -1496,23 +1978,24 @@ export default function CvManagementCenter() {
               </div>
             </div>
           ) : (
-            <div className="flex gap-3 items-center text-xs text-success bg-success-soft/20 p-3 rounded-xl mt-1 border border-success/10">
+            <div className="flex gap-3 items-center text-xs text-success bg-success/5 p-3 rounded-xl mt-1 border border-success/15">
               <CheckCircle2 className="size-5 text-success shrink-0" />
               <span className="font-bold">Your profile is fully optimized!</span>
             </div>
           )}
-        </Card>
+        </div>
 
+        {/* Main Columns Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
-          {/* Left Column: CV Structure sections (8 cols) */}
+          {/* Left Column: Sections (8 cols) */}
           <div className="lg:col-span-8 flex flex-col gap-6">
             {/* Identity & Summary Group */}
             <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+              <div className="flex items-center gap-2 border-b border-border/30 pb-2 mb-1">
                 <span className="w-1.5 h-3.5 bg-accent rounded-full" />
-                <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                <span className="text-[10px] font-black uppercase tracking-wider text-accent">
                   Identity & Summary
-                </Typography>
+                </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
@@ -1523,40 +2006,36 @@ export default function CvManagementCenter() {
                   const isComplete = sectionCompleteness[section.id];
                   const hasDraftChanges = dirtyFlags[section.id];
                   return (
-                    <Card
+                    <div
                       key={section.id}
-                      rounded="2xl"
-                      glow={true}
-                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface cursor-pointer text-left select-none relative group h-[110px] transition-all duration-300"
+                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface rounded-2xl cursor-pointer text-left select-none relative group transition-colors flex gap-4 items-start h-28"
                       onClick={() => {
                         setActiveTab(section.id);
                         setViewState("editor");
                       }}
                     >
-                      <div className="flex gap-4 items-start w-full h-full">
-                        <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-all duration-300">
-                          <Icon className="size-4.5" />
-                        </div>
-                        <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
-                          <div className="flex flex-col gap-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 w-full">
-                              <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
-                                {section.label}
-                              </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {hasDraftChanges && (
-                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
-                                    Draft
-                                  </span>
-                                )}
-                                <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                              </div>
+                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-colors">
+                        <Icon className="size-4.5" />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 w-full">
+                            <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                              {section.label}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {hasDraftChanges && (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-warning/10 text-warning">
+                                  Draft
+                                </span>
+                              )}
+                              <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/35"}`} />
                             </div>
-                            <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
                           </div>
+                          <span className="text-[10px] text-muted-foreground leading-normal line-clamp-2 mt-0.5">{String(section.desc)}</span>
                         </div>
                       </div>
-                    </Card>
+                    </div>
                   );
                 })}
               </div>
@@ -1564,11 +2043,11 @@ export default function CvManagementCenter() {
 
             {/* Credentials & Background Group */}
             <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+              <div className="flex items-center gap-2 border-b border-border/30 pb-2 mb-1">
                 <span className="w-1.5 h-3.5 bg-accent rounded-full" />
-                <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                <span className="text-[10px] font-black uppercase tracking-wider text-accent">
                   Credentials & Background
-                </Typography>
+                </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
@@ -1580,40 +2059,36 @@ export default function CvManagementCenter() {
                   const isComplete = sectionCompleteness[section.id];
                   const hasDraftChanges = dirtyFlags[section.id];
                   return (
-                    <Card
+                    <div
                       key={section.id}
-                      rounded="2xl"
-                      glow={true}
-                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface cursor-pointer text-left select-none relative group h-[110px] transition-all duration-300"
+                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface rounded-2xl cursor-pointer text-left select-none relative group transition-colors flex gap-4 items-start h-28"
                       onClick={() => {
                         setActiveTab(section.id);
                         setViewState("editor");
                       }}
                     >
-                      <div className="flex gap-4 items-start w-full h-full">
-                        <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-all duration-300">
-                          <Icon className="size-4.5" />
-                        </div>
-                        <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
-                          <div className="flex flex-col gap-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 w-full">
-                              <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
-                                {section.label}
-                              </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {hasDraftChanges && (
-                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
-                                    Draft
-                                  </span>
-                                )}
-                                <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                              </div>
+                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-colors">
+                        <Icon className="size-4.5" />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 w-full">
+                            <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                              {section.label}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {hasDraftChanges && (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-warning/10 text-warning">
+                                  Draft
+                                </span>
+                              )}
+                              <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/35"}`} />
                             </div>
-                            <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
                           </div>
+                          <span className="text-[10px] text-muted-foreground leading-normal line-clamp-2 mt-0.5">{String(section.desc)}</span>
                         </div>
                       </div>
-                    </Card>
+                    </div>
                   );
                 })}
               </div>
@@ -1621,11 +2096,11 @@ export default function CvManagementCenter() {
 
             {/* Integrations & Preferences Group */}
             <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 border-b border-border/40 pb-2 mb-1 text-left">
+              <div className="flex items-center gap-2 border-b border-border/30 pb-2 mb-1">
                 <span className="w-1.5 h-3.5 bg-accent rounded-full" />
-                <Typography type="body-xs" className="font-extrabold uppercase tracking-widest text-accent">
+                <span className="text-[10px] font-black uppercase tracking-wider text-accent">
                   Integrations & Preferences
-                </Typography>
+                </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
@@ -1636,40 +2111,36 @@ export default function CvManagementCenter() {
                   const isComplete = sectionCompleteness[section.id];
                   const hasDraftChanges = dirtyFlags[section.id];
                   return (
-                    <Card
+                    <div
                       key={section.id}
-                      rounded="2xl"
-                      glow={true}
-                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface cursor-pointer text-left select-none relative group h-[110px] transition-all duration-300"
+                      className="p-5 border border-border/40 hover:border-accent/40 bg-surface rounded-2xl cursor-pointer text-left select-none relative group transition-colors flex gap-4 items-start h-28"
                       onClick={() => {
                         setActiveTab(section.id);
                         setViewState("editor");
                       }}
                     >
-                      <div className="flex gap-4 items-start w-full h-full">
-                        <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-all duration-300">
-                          <Icon className="size-4.5" />
-                        </div>
-                        <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
-                          <div className="flex flex-col gap-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 w-full">
-                              <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
-                                {section.label}
-                              </span>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {hasDraftChanges && (
-                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-warning-soft text-warning" title="Unsaved changes">
-                                    Draft
-                                  </span>
-                                )}
-                                <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/30"}`} title={isComplete ? "Completed" : "Incomplete"} />
-                              </div>
+                      <div className="p-2.5 rounded-xl bg-surface-secondary text-accent group-hover:bg-accent group-hover:text-accent-foreground shrink-0 flex items-center justify-center size-10 mt-0.5 transition-colors">
+                        <Icon className="size-4.5" />
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between min-w-0 h-full">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 w-full">
+                            <span className="text-xs font-bold text-foreground truncate group-hover:text-accent">
+                              {section.label}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {hasDraftChanges && (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-warning/10 text-warning">
+                                  Draft
+                                </span>
+                              )}
+                              <span className={`w-2 h-2 rounded-full ${isComplete ? "bg-success" : "bg-muted-foreground/35"}`} />
                             </div>
-                            <span className="text-[10px] text-muted leading-tight line-clamp-2 mt-0.5">{String(section.desc)}</span>
                           </div>
+                          <span className="text-[10px] text-muted-foreground leading-normal line-clamp-2 mt-0.5">{String(section.desc)}</span>
                         </div>
                       </div>
-                    </Card>
+                    </div>
                   );
                 })}
               </div>
@@ -1678,66 +2149,60 @@ export default function CvManagementCenter() {
 
           {/* Right Column: Previews and Assessments (4 cols) */}
           <div className="lg:col-span-4 flex flex-col gap-6">
-            {/* AI Candidate Assessment Card */}
-            <Card rounded="2xl" glow={true} className="p-6 border border-accent/25 bg-surface flex flex-col gap-5 relative overflow-hidden">
-              {latestAssessment?.status === 'Completed' && (
-                <div className="absolute top-0 right-0 w-32 h-32 bg-accent/5 rounded-full blur-2xl pointer-events-none" />
-              )}
+            {/* AI Candidate Assessment Hero Card */}
+            <div className="p-6 border border-accent/20 bg-surface rounded-2xl flex flex-col gap-5 relative overflow-hidden shadow-xs">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-accent/5 rounded-full blur-xl pointer-events-none" />
 
               <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-accent-soft text-accent shrink-0">
-                  <Sparkles className="size-5.5 animate-pulse" />
+                <div className="p-2.5 rounded-xl bg-accent/10 text-accent shrink-0">
+                  <Sparkles className="size-5 animate-pulse" />
                 </div>
                 <div className="flex flex-col text-left">
-                  <Typography type="body-sm" className="font-extrabold text-foreground">
-                    AI Candidate Assessment
-                  </Typography>
-                  <span className="text-[10px] text-muted mt-0.5">
-                    Verified Codebase Quality & Tech Stack Calibrations
-                  </span>
+                  <span className="font-extrabold text-foreground text-xs">AI Candidate Assessment</span>
+                  <span className="text-[10px] text-muted-foreground mt-0.5">Codebase quality & skill validations</span>
                 </div>
               </div>
 
-              <div className="w-full h-px bg-border/20" />
+              <div className="w-full h-px bg-border/10" />
 
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Analyze your full technical profile, system complexity, and contribution ratios across all verified repositories.
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Vetch candidate capability, architecture level, and repository metrics using CVerify AI evaluations.
               </p>
 
-              <div className="flex flex-col gap-3.5 bg-surface-secondary/40 p-4 rounded-2xl border border-border/10">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-foreground">Status:</span>
+              <div className="flex flex-col gap-3.5 bg-surface-secondary/40 p-4 rounded-xl border border-border/10">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-foreground text-xs">Status:</span>
                   {latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued' ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning-soft text-warning animate-pulse">
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning/10 text-warning animate-pulse">
                       Running ({streamProgress}%)
                     </span>
                   ) : latestAssessment?.status === 'Completed' ? (
                     readiness?.requiresReassessment ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning-soft text-warning">
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-warning/10 text-warning">
                         Outdated
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-success-soft text-success">
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-success/15 text-success">
                         Up To Date
                       </span>
                     )
                   ) : latestAssessment?.status === 'Failed' ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-danger-soft text-danger">
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-danger/10 text-danger">
                       Failed
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-default-soft text-muted-foreground">
-                      Never Assessed
+                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-default text-muted-foreground">
+                      Never Vetted
                     </span>
                   )}
                 </div>
 
                 {readiness && !readiness.isReady ? (
-                  <div className="flex gap-2.5 items-start text-muted text-xs">
+                  <div className="flex gap-2.5 items-start text-xs">
                     <AlertCircle className="size-4 text-warning shrink-0 mt-0.5" />
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1 min-w-0">
                       <span className="font-bold text-foreground">Required Fields Missing</span>
-                      <span className="text-[10px] text-danger bg-danger-soft px-2.5 py-1 rounded-lg font-semibold leading-relaxed">
+                      <span className="text-[10px] text-danger bg-danger/5 px-2.5 py-1 rounded-lg font-semibold leading-relaxed wrap-break-word">
                         Missing: {readiness.missingFields.join(", ")}
                       </span>
                     </div>
@@ -1745,9 +2210,9 @@ export default function CvManagementCenter() {
                 ) : (
                   <div className="flex flex-col gap-3">
                     {latestAssessment?.completedAtUtc && (
-                      <div className="flex justify-between text-[10px] text-muted">
-                        <span>Last Assessed</span>
-                        <span>{new Date(latestAssessment.completedAtUtc).toLocaleString()}</span>
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Last Vetted</span>
+                        <span>{new Date(latestAssessment.completedAtUtc).toLocaleDateString()}</span>
                       </div>
                     )}
                     <div className="flex gap-2 w-full mt-1">
@@ -1755,7 +2220,7 @@ export default function CvManagementCenter() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          className="rounded-xl font-bold text-xs select-none border-border/30 h-10 flex-1"
+                          className="rounded-xl font-bold text-xs select-none border-border/30 h-9 flex-1 cursor-pointer"
                           onPress={() => handleViewAssessmentDetails(latestAssessment.id)}
                         >
                           View Report
@@ -1763,9 +2228,9 @@ export default function CvManagementCenter() {
                       )}
                       <Button
                         size="sm"
-                        className={`rounded-xl font-bold text-xs select-none h-10 flex-1 border-none ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                          ? "bg-warning text-warning-foreground"
-                          : "bg-accent text-accent-foreground"
+                        className={`rounded-xl font-bold text-xs select-none h-9 flex-1 border-none cursor-pointer ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
+                            ? "bg-warning text-warning-foreground"
+                            : "bg-accent text-accent-foreground"
                           }`}
                         onPress={
                           latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
@@ -1777,39 +2242,35 @@ export default function CvManagementCenter() {
                           ? "Progress"
                           : latestAssessment?.status === 'Completed'
                             ? "Re-Run"
-                            : "Run Assessment"}
+                            : "Run Vetting"}
                       </Button>
                     </div>
                   </div>
                 )}
               </div>
-            </Card>
+            </div>
 
-            {/* Export & Previews unified card */}
-            <Card rounded="2xl" glow={true} className="p-6 border border-border/40 bg-surface flex flex-col gap-5">
+            {/* Export & Sharing */}
+            <div className="p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-5 shadow-xs">
               <div className="flex flex-col gap-1 border-b border-border/20 pb-3 text-left">
-                <Typography type="body-sm" className="font-extrabold text-foreground">
-                  Export & Sharing
-                </Typography>
-                <span className="text-[10px] text-muted">
-                  Publish or view your profile formats.
-                </span>
+                <span className="font-extrabold text-foreground text-xs">Export & Sharing</span>
+                <span className="text-[10px] text-muted-foreground">View and download your profile formats</span>
               </div>
 
               <div className="flex flex-col gap-3">
                 {/* Option 1: Standard A4 CV */}
-                <div className="flex flex-col gap-2.5 p-4 rounded-2xl border border-border/30 bg-surface-secondary/20 hover:border-accent/30 transition-all group/item">
+                <div className="flex flex-col gap-2.5 p-4 rounded-xl border border-border/20 bg-surface-secondary/20 hover:border-accent/30 transition-colors">
                   <div className="flex items-center gap-2 text-accent">
                     <FileText className="size-4 shrink-0" />
                     <span className="text-xs font-bold text-foreground">Standard A4 CV</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground leading-normal text-left">
-                    Traditional A4 layout ready for download or printing.
+                    Traditional print-ready layout ready for download or sharing.
                   </p>
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="rounded-xl font-bold text-xs select-none w-full border-border/30 py-1.5 bg-surface-secondary hover:bg-surface-tertiary transition-colors"
+                    className="rounded-xl font-bold text-xs select-none w-full border-border/30 bg-surface hover:bg-surface-secondary transition-colors cursor-pointer"
                     onPress={() => setIsA4PreviewOpen(true)}
                   >
                     Open A4 Preview
@@ -1817,17 +2278,17 @@ export default function CvManagementCenter() {
                 </div>
 
                 {/* Option 2: CVerify Digital Profile */}
-                <div className="flex flex-col gap-2.5 p-4 rounded-2xl border border-border/30 bg-surface-secondary/20 hover:border-emerald-500/30 transition-all group/item">
-                  <div className="flex items-center gap-2 text-emerald-500">
+                <div className="flex flex-col gap-2.5 p-4 rounded-xl border border-border/20 bg-surface-secondary/20 hover:border-emerald-500/30 transition-colors">
+                  <div className="flex items-center gap-2 text-success">
                     <Sparkles className="size-4 shrink-0" />
                     <span className="text-xs font-bold text-foreground">Digital Profile</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground leading-normal text-left">
-                    Online portfolio containing your AI verification badges.
+                    Live digital portfolio with interactive commit evidence.
                   </p>
                   <Button
                     size="sm"
-                    className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none py-1.5 hover:opacity-90 transition-opacity"
+                    className="rounded-xl font-bold text-xs select-none w-full bg-accent text-accent-foreground border-none hover:opacity-90 cursor-pointer"
                     onPress={() => {
                       if (profile?.username) {
                         router.push(`/${profile.username.toLowerCase()}`);
@@ -1840,7 +2301,7 @@ export default function CvManagementCenter() {
                   </Button>
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
         </div>
       </div>

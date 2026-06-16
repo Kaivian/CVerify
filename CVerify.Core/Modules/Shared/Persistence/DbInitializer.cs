@@ -62,7 +62,11 @@ public static class DbInitializer
                 ('20260614071252_AddWorkspacePostsTable', '10.0.0'),
                 ('20260614100549_AddJobVacanciesTable', '10.0.0'),
                 ('20260615093611_AddCandidateAssessments', '10.0.0'),
-                ('20260615141609_AddExternalOrganizations', '10.0.0')
+                ('20260615141609_AddExternalOrganizations', '10.0.0'),
+                ('20260615152001_AddProjectEntriesAndLinks', '10.0.0'),
+                ('20260615171115_AddRepositoryAssessments', '10.0.0'),
+                ('20260616080806_AddRepositoryIntelligenceTables', '10.0.0'),
+                ('20260616082519_AddCandidateIntelligenceTablesPhase2', '10.0.0')
                 ON CONFLICT (migration_id) DO NOTHING;
             ");
         }
@@ -78,6 +82,20 @@ public static class DbInitializer
         if (shouldReset)
         {
             const string dropSql = @"
+                DROP TABLE IF EXISTS candidate_strengths_weaknesses CASCADE;
+                DROP TABLE IF EXISTS candidate_best_fit_roles CASCADE;
+                DROP TABLE IF EXISTS candidate_intelligence_signals CASCADE;
+                DROP TABLE IF EXISTS candidate_domain_profiles CASCADE;
+                DROP TABLE IF EXISTS candidate_skills CASCADE;
+                DROP TABLE IF EXISTS artifact_registry_entries CASCADE;
+                DROP TABLE IF EXISTS pipeline_tasks CASCADE;
+                DROP TABLE IF EXISTS pipeline_jobs CASCADE;
+                DROP TABLE IF EXISTS prompt_deployments CASCADE;
+                DROP TABLE IF EXISTS repository_skill_attributions CASCADE;
+                DROP TABLE IF EXISTS repository_intelligence_signals CASCADE;
+                DROP TABLE IF EXISTS repository_domains CASCADE;
+                DROP TABLE IF EXISTS repository_capabilities CASCADE;
+
                 DROP TABLE IF EXISTS admin_audit_logs CASCADE;
 
                 DROP TABLE IF EXISTS notification_preferences CASCADE;
@@ -415,6 +433,23 @@ public static class DbInitializer
                         ALTER TABLE candidate_assessments ADD COLUMN prompt_version VARCHAR(50);
                     END IF;
                 END IF;
+
+                -- Ensure artifact_registry_entries table has the correct foreign key constraint to analysis_jobs
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'artifact_registry_entries') THEN
+                    -- Check if constraint fk_artifact_registry_pipeline_jobs_job_id exists, drop it
+                    IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_artifact_registry_pipeline_jobs_job_id') THEN
+                        ALTER TABLE artifact_registry_entries DROP CONSTRAINT fk_artifact_registry_pipeline_jobs_job_id;
+                    END IF;
+                    -- Also check if default PostgreSQL name was used, e.g. artifact_registry_entries_job_id_fkey
+                    IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'artifact_registry_entries_job_id_fkey') THEN
+                        ALTER TABLE artifact_registry_entries DROP CONSTRAINT artifact_registry_entries_job_id_fkey;
+                    END IF;
+
+                    -- Add the correct foreign key constraint referencing analysis_jobs(id)
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_artifact_registry_analysis_jobs_job_id') THEN
+                        ALTER TABLE artifact_registry_entries ADD CONSTRAINT fk_artifact_registry_analysis_jobs_job_id FOREIGN KEY (job_id) REFERENCES analysis_jobs(id) ON DELETE CASCADE;
+                    END IF;
+                END IF;
             END $$;
 
             -- Migrate and clean up legacy database tables and columns
@@ -598,6 +633,50 @@ public static class DbInitializer
                 END IF;
             END $$;
 
+             -- Greenfield Pipeline and AI subsystem tables
+             CREATE TABLE IF NOT EXISTS pipeline_jobs (
+                 id UUID PRIMARY KEY,
+                 pipeline_type VARCHAR(50) NOT NULL,
+                 reference_id UUID NOT NULL,
+                 status VARCHAR(30) NOT NULL DEFAULT 'Queued',
+                 progress NUMERIC NOT NULL DEFAULT 0.00,
+                 started_at TIMESTAMP WITH TIME ZONE NULL,
+                 completed_at TIMESTAMP WITH TIME ZONE NULL,
+                 error_message VARCHAR(2000) NULL,
+                 retry_count INT NOT NULL DEFAULT 0,
+                 max_budget_usd NUMERIC NOT NULL DEFAULT 5.00,
+                 cumulative_cost_usd NUMERIC NOT NULL DEFAULT 0.00,
+                 created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                 last_updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+             );
+
+             CREATE TABLE IF NOT EXISTS pipeline_tasks (
+                 id UUID PRIMARY KEY,
+                 job_id UUID NOT NULL REFERENCES pipeline_jobs(id) ON DELETE CASCADE,
+                 task_identifier VARCHAR(50) NOT NULL,
+                 task_name VARCHAR(100) NOT NULL,
+                 status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+                 started_at TIMESTAMP WITH TIME ZONE NULL,
+                 completed_at TIMESTAMP WITH TIME ZONE NULL,
+                 retry_count INT NOT NULL DEFAULT 0,
+                 lease_expires_at TIMESTAMP WITH TIME ZONE NULL,
+                 worker_id VARCHAR(100) NULL,
+                 error_details TEXT NULL,
+                 cost_usd NUMERIC NOT NULL DEFAULT 0.000000,
+                 created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                 last_updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+             );
+             CREATE UNIQUE INDEX IF NOT EXISTS idx_job_task_identifier ON pipeline_tasks(job_id, task_identifier);
+             CREATE INDEX IF NOT EXISTS ix_pipeline_tasks_job_id ON pipeline_tasks(job_id);
+
+             CREATE TABLE IF NOT EXISTS prompt_deployments (
+                 prompt_id VARCHAR(50) PRIMARY KEY,
+                 active_version VARCHAR(30) NOT NULL,
+                 sha256hash VARCHAR(64) NOT NULL,
+                 updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+             );
+
+
             -- Stores user roles for the Role-Based Access Control (RBAC) system
             CREATE TABLE IF NOT EXISTS roles (
                 id UUID PRIMARY KEY,
@@ -764,7 +843,6 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_latest_risk_score ON source_code_repositories(latest_risk_score);
             CREATE INDEX IF NOT EXISTS idx_source_code_repositories_latest_analysis_status ON source_code_repositories(latest_analysis_status);
 
-            -- Stores verified organization workspaces
             CREATE TABLE IF NOT EXISTS organizations (
                 id UUID PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -773,6 +851,8 @@ public static class DbInitializer
                 username VARCHAR(100) NOT NULL,
                 is_verified BOOLEAN NOT NULL DEFAULT FALSE,
                 verification_level INTEGER NOT NULL DEFAULT 0,
+                registration_number VARCHAR(50),
+                initial_admin_assigned_at TIMESTAMP WITH TIME ZONE,
                 representative_name VARCHAR(255),
                 representative_email VARCHAR(255),
                 representative_phone VARCHAR(50),
@@ -2298,6 +2378,20 @@ public static class DbInitializer
             );
             CREATE INDEX IF NOT EXISTS idx_analysis_task_events_task_id ON analysis_task_events(task_id);
 
+            -- Artifact Registry (stores analysis job task outputs/artifacts metadata)
+            CREATE TABLE IF NOT EXISTS artifact_registry_entries (
+                id UUID PRIMARY KEY,
+                job_id UUID NOT NULL REFERENCES analysis_jobs(id) ON DELETE CASCADE,
+                artifact_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                storage_path TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_job_artifact ON artifact_registry_entries(job_id, artifact_id);
+            CREATE INDEX IF NOT EXISTS ix_artifact_registry_entries_job_id ON artifact_registry_entries(job_id);
+
             -- Optimized Indexes
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
@@ -2617,10 +2711,35 @@ public static class DbInitializer
                 version INTEGER NOT NULL,
                 created_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
                 completed_at_utc TIMESTAMP WITH TIME ZONE,
+                execution_strength DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                leadership_potential DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                technical_breadth DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                technical_depth DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                trust_level DOUBLE PRECISION NOT NULL DEFAULT 0.0,
                 CONSTRAINT fk_candidate_assessments_users_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_candidate_assessments_user_id ON candidate_assessments(user_id);
             CREATE UNIQUE INDEX IF NOT EXISTS ux_candidate_assessments_user_version ON candidate_assessments(user_id, version);
+
+            -- Patch candidate_assessments to add new columns if table exists but columns are missing
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'execution_strength') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN execution_strength DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'leadership_potential') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN leadership_potential DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'technical_breadth') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN technical_breadth DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'technical_depth') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN technical_depth DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'trust_level') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN trust_level DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+                END IF;
+            END $$;
 
             -- Stores candidate assessment artifact details
             CREATE TABLE IF NOT EXISTS candidate_assessment_artifacts (
@@ -2656,6 +2775,140 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_repository_assessments_job_id ON repository_assessments(analysis_job_id);
             CREATE INDEX IF NOT EXISTS idx_repository_assessments_repo_id ON repository_assessments(repository_id);
             CREATE INDEX IF NOT EXISTS ux_repository_assessments_repo_sha ON repository_assessments(repository_id, commit_sha);
+
+            -- Stores repository capability records
+            CREATE TABLE IF NOT EXISTS repository_capabilities (
+                id UUID PRIMARY KEY,
+                repository_assessment_id UUID NOT NULL REFERENCES repository_assessments(id) ON DELETE CASCADE,
+                name VARCHAR(100) NOT NULL,
+                category VARCHAR(50) NOT NULL,
+                confidence DOUBLE PRECISION NOT NULL,
+                maturity VARCHAR(30) NOT NULL,
+                difficulty_score DOUBLE PRECISION NOT NULL,
+                score DOUBLE PRECISION NOT NULL,
+                evidence_json JSONB,
+                assessment_version VARCHAR(20) NOT NULL,
+                analysis_version VARCHAR(20) NOT NULL,
+                model_version VARCHAR(100) NOT NULL,
+                prompt_version VARCHAR(50) NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_repository_capabilities_assessment_id ON repository_capabilities(repository_assessment_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_repository_capabilities_assessment_id_name ON repository_capabilities(repository_assessment_id, name);
+
+            -- Stores repository domain records
+            CREATE TABLE IF NOT EXISTS repository_domains (
+                id UUID PRIMARY KEY,
+                repository_assessment_id UUID NOT NULL REFERENCES repository_assessments(id) ON DELETE CASCADE,
+                domain_name VARCHAR(100) NOT NULL,
+                weight DOUBLE PRECISION NOT NULL,
+                confidence DOUBLE PRECISION NOT NULL,
+                evidence_count INTEGER NOT NULL,
+                supporting_signals JSONB,
+                assessment_version VARCHAR(20) NOT NULL,
+                analysis_version VARCHAR(20) NOT NULL,
+                model_version VARCHAR(100) NOT NULL,
+                prompt_version VARCHAR(50) NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_repository_domains_assessment_id ON repository_domains(repository_assessment_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_repository_domains_assessment_id_domain ON repository_domains(repository_assessment_id, domain_name);
+
+            -- Stores repository intelligence signal records
+            CREATE TABLE IF NOT EXISTS repository_intelligence_signals (
+                id UUID PRIMARY KEY,
+                repository_assessment_id UUID NOT NULL REFERENCES repository_assessments(id) ON DELETE CASCADE,
+                scope_signal DOUBLE PRECISION NOT NULL,
+                complexity_signal DOUBLE PRECISION NOT NULL,
+                ownership_signal DOUBLE PRECISION NOT NULL,
+                leadership_signal DOUBLE PRECISION NOT NULL,
+                consistency_signal DOUBLE PRECISION NOT NULL,
+                last_updated_utc TIMESTAMP WITH TIME ZONE NOT NULL,
+                assessment_version VARCHAR(20) NOT NULL,
+                analysis_version VARCHAR(20) NOT NULL,
+                model_version VARCHAR(100) NOT NULL,
+                prompt_version VARCHAR(50) NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_repository_intelligence_signals_assessment_id ON repository_intelligence_signals(repository_assessment_id);
+
+            -- Stores repository skill attribution records
+            CREATE TABLE IF NOT EXISTS repository_skill_attributions (
+                id UUID PRIMARY KEY,
+                repository_assessment_id UUID NOT NULL REFERENCES repository_assessments(id) ON DELETE CASCADE,
+                skill_name VARCHAR(100) NOT NULL,
+                contribution_weight DOUBLE PRECISION NOT NULL,
+                confidence DOUBLE PRECISION NOT NULL,
+                verification_level VARCHAR(30) NOT NULL,
+                assessment_version VARCHAR(20) NOT NULL,
+                analysis_version VARCHAR(20) NOT NULL,
+                model_version VARCHAR(100) NOT NULL,
+                prompt_version VARCHAR(50) NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_repository_skill_attributions_assessment_id ON repository_skill_attributions(repository_assessment_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_repository_skill_attributions_assessment_id_skill ON repository_skill_attributions(repository_assessment_id, skill_name);
+
+            -- Stores candidate skill records
+            CREATE TABLE IF NOT EXISTS candidate_skills (
+                id UUID PRIMARY KEY,
+                candidate_assessment_id UUID NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
+                skill_name VARCHAR(100) NOT NULL,
+                score DOUBLE PRECISION NOT NULL,
+                confidence DOUBLE PRECISION NOT NULL,
+                level VARCHAR(50) NOT NULL,
+                evidence_sources JSONB
+            );
+            CREATE INDEX IF NOT EXISTS ix_candidate_skills_candidate_assessment_id ON candidate_skills(candidate_assessment_id);
+
+            -- Stores candidate domain profile records
+            CREATE TABLE IF NOT EXISTS candidate_domain_profiles (
+                id UUID PRIMARY KEY,
+                candidate_assessment_id UUID NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
+                domain_name VARCHAR(100) NOT NULL,
+                score DOUBLE PRECISION NOT NULL,
+                confidence DOUBLE PRECISION NOT NULL,
+                seniority VARCHAR(50) NOT NULL,
+                supporting_evidence JSONB
+            );
+            CREATE INDEX IF NOT EXISTS ix_candidate_domain_profiles_candidate_assessment_id ON candidate_domain_profiles(candidate_assessment_id);
+
+            -- Stores candidate intelligence signal records
+            CREATE TABLE IF NOT EXISTS candidate_intelligence_signals (
+                id UUID PRIMARY KEY,
+                candidate_assessment_id UUID NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
+                scope_signal DOUBLE PRECISION NOT NULL,
+                complexity_signal DOUBLE PRECISION NOT NULL,
+                ownership_signal DOUBLE PRECISION NOT NULL,
+                leadership_signal DOUBLE PRECISION NOT NULL,
+                consistency_signal DOUBLE PRECISION NOT NULL,
+                delivery_signal DOUBLE PRECISION NOT NULL,
+                engineering_maturity_signal DOUBLE PRECISION NOT NULL,
+                problem_solving_signal DOUBLE PRECISION NOT NULL,
+                last_updated_utc TIMESTAMP WITH TIME ZONE NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_candidate_intelligence_signals_candidate_assessment_id ON candidate_intelligence_signals(candidate_assessment_id);
+
+            -- Stores candidate best fit role records
+            CREATE TABLE IF NOT EXISTS candidate_best_fit_roles (
+                id UUID PRIMARY KEY,
+                candidate_assessment_id UUID NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
+                role_title VARCHAR(100) NOT NULL,
+                match_score DOUBLE PRECISION NOT NULL,
+                confidence DOUBLE PRECISION NOT NULL,
+                rank INTEGER NOT NULL,
+                matching_engine_version VARCHAR(20) NOT NULL,
+                evidence JSONB,
+                engine_metadata JSONB
+            );
+            CREATE INDEX IF NOT EXISTS ix_candidate_best_fit_roles_candidate_assessment_id ON candidate_best_fit_roles(candidate_assessment_id);
+
+            -- Stores candidate strengths and weaknesses findings
+            CREATE TABLE IF NOT EXISTS candidate_strengths_weaknesses (
+                id UUID PRIMARY KEY,
+                candidate_assessment_id UUID NOT NULL REFERENCES candidate_assessments(id) ON DELETE CASCADE,
+                finding_type VARCHAR(20) NOT NULL,
+                topic VARCHAR(150) NOT NULL,
+                description VARCHAR(1000) NOT NULL,
+                evidence JSONB
+            );
+            CREATE INDEX IF NOT EXISTS ix_candidate_strengths_weaknesses_candidate_assessment_id ON candidate_strengths_weaknesses(candidate_assessment_id);
 
             -- Stores manual/AI-analyzed project entries linked to a CV
             CREATE TABLE IF NOT EXISTS project_entries (
