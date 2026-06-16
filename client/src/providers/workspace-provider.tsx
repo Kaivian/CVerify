@@ -1,9 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 import { usePathname } from "next/navigation";
+import { resolveNavigationContext, type WorkspaceType } from "../lib/navigation-utils";
 
-export type WorkspaceType = "ADMIN" | "COMPONENTS" | "AUDIT" | "AI" | "ORGANIZATION";
+export type { WorkspaceType };
 
 interface WorkspaceContextProps {
   activeWorkspace: WorkspaceType;
@@ -14,29 +15,21 @@ const WorkspaceContext = createContext<WorkspaceContextProps | undefined>(undefi
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
-  const [activeWorkspace, setActiveWorkspaceState] = useState<WorkspaceType>("ADMIN");
+  
+  // Resolve navigation context synchronously on initial render
+  const context = resolveNavigationContext(pathname || "");
+  const [activeWorkspace, setActiveWorkspaceState] = useState<WorkspaceType>(context.workspaceType);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+
+  // Sync state synchronously during render if pathname changes
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setActiveWorkspaceState(context.workspaceType);
+  }
 
   const setActiveWorkspace = (workspace: WorkspaceType) => {
     setActiveWorkspaceState(workspace);
   };
-
-  useEffect(() => {
-    if (!pathname) return;
-
-    let target: WorkspaceType = "ADMIN";
-    if (pathname.startsWith("/admin/components")) {
-      target = "COMPONENTS";
-    } else if (pathname.startsWith("/admin/audit-logs")) {
-      target = "AUDIT";
-    } else if (pathname.startsWith("/business/")) {
-      target = "ORGANIZATION";
-    }
-
-    // Set state asynchronously to avoid cascading synchronous renders warning
-    Promise.resolve().then(() => {
-      setActiveWorkspaceState(target);
-    });
-  }, [pathname]);
 
   return (
     <WorkspaceContext.Provider value={{ activeWorkspace, setActiveWorkspace }}>

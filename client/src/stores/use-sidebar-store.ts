@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 
 interface SidebarState {
+  currentPortal: string | null;
   isCollapsed: boolean;
   isMobileOpen: boolean;
   expandedGroups: Record<string, boolean>;
@@ -12,9 +13,11 @@ interface SidebarState {
   setGroupExpanded: (id: string, expanded: boolean) => void;
   resetMobile: () => void;
   initializeCollapsed: () => void;
+  switchPortal: (nextPortal: string) => void;
 }
 
 export const useSidebarStore = create<SidebarState>((set) => ({
+  currentPortal: null,
   isCollapsed: false,
   isMobileOpen: false,
   expandedGroups: {},
@@ -37,7 +40,8 @@ export const useSidebarStore = create<SidebarState>((set) => ({
         [id]: !state.expandedGroups[id],
       };
       if (typeof window !== "undefined") {
-        localStorage.setItem("sidebar_expanded_groups", JSON.stringify(nextExpanded));
+        const portal = state.currentPortal || "candidate";
+        localStorage.setItem(`sidebar_expanded_groups_${portal}`, JSON.stringify(nextExpanded));
       }
       return { expandedGroups: nextExpanded };
     }),
@@ -49,7 +53,8 @@ export const useSidebarStore = create<SidebarState>((set) => ({
         [id]: expanded,
       };
       if (typeof window !== "undefined") {
-        localStorage.setItem("sidebar_expanded_groups", JSON.stringify(nextExpanded));
+        const portal = state.currentPortal || "candidate";
+        localStorage.setItem(`sidebar_expanded_groups_${portal}`, JSON.stringify(nextExpanded));
       }
       return { expandedGroups: nextExpanded };
     }),
@@ -62,13 +67,36 @@ export const useSidebarStore = create<SidebarState>((set) => ({
     if (stored !== null) {
       set({ isCollapsed: stored === "true" });
     }
-    const storedExpanded = localStorage.getItem("sidebar_expanded_groups");
-    if (storedExpanded !== null) {
-      try {
-        set({ expandedGroups: JSON.parse(storedExpanded) });
-      } catch (_error) {
-        // Ignore JSON parse errors
+  },
+
+  switchPortal: (nextPortal: string) => {
+    set((state) => {
+      const prevPortal = state.currentPortal;
+      if (prevPortal === nextPortal) return {};
+
+      // 1. Persist the current expanded groups for the old portal
+      if (prevPortal && typeof window !== "undefined") {
+        localStorage.setItem(
+          `sidebar_expanded_groups_${prevPortal}`,
+          JSON.stringify(state.expandedGroups)
+        );
       }
-    }
+
+      // 2. Load the expanded groups for the new portal
+      let nextExpanded = {};
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem(`sidebar_expanded_groups_${nextPortal}`);
+        if (stored) {
+          try {
+            nextExpanded = JSON.parse(stored);
+          } catch (_) {}
+        }
+      }
+
+      return {
+        currentPortal: nextPortal,
+        expandedGroups: nextExpanded,
+      };
+    });
   },
 }));

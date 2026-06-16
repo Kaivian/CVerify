@@ -9,7 +9,8 @@ export const RESERVED_USERNAMES = new Set([
   "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
   "chat", "business", "user", "organization", "organizations", "auth", "system", "unauthorized", "company-onboarding",
   "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email", "workspace-setup",
-  "company-setup", "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects", "ranking"
+  "company-setup", "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects", "ranking",
+  "companies", "employers", "analytics"
 ]);
 
 /**
@@ -291,3 +292,104 @@ export const getExpandedGroupsForPath = (
   nodes.forEach((node) => traverse(node, []));
   return expanded;
 };
+
+export type SidebarMode = "COMPANY" | "WORKSPACE" | "CANDIDATE" | "SYSTEM_ADMIN" | "COMPONENTS";
+export type WorkspaceType = "ADMIN" | "COMPONENTS" | "AUDIT" | "AI" | "ORGANIZATION";
+
+export interface NavigationContext {
+  portal: "candidate" | "company" | "admin";
+  sidebarMode: SidebarMode;
+  workspaceType: WorkspaceType;
+}
+
+/**
+ * Consolidates pathname parsing into a single pure utility to resolve
+ * active portal, sidebarMode, and workspaceType context.
+ */
+export const resolveNavigationContext = (pathname: string): NavigationContext => {
+  if (!pathname) {
+    return {
+      portal: "candidate",
+      sidebarMode: "CANDIDATE",
+      workspaceType: "ADMIN",
+    };
+  }
+
+  // 1. Admin Portal
+  if (pathname.startsWith("/admin/components")) {
+    return {
+      portal: "admin",
+      sidebarMode: "COMPONENTS",
+      workspaceType: "COMPONENTS",
+    };
+  }
+  if (pathname.startsWith("/admin/audit-logs")) {
+    return {
+      portal: "admin",
+      sidebarMode: "SYSTEM_ADMIN",
+      workspaceType: "AUDIT",
+    };
+  }
+  if (pathname.startsWith("/admin")) {
+    return {
+      portal: "admin",
+      sidebarMode: "SYSTEM_ADMIN",
+      workspaceType: "ADMIN",
+    };
+  }
+
+  // 2. Company/Business Portal
+  if (pathname.startsWith("/business/")) {
+    const segments = pathname.split("/").filter(Boolean);
+    const isWorkspaceSubRoute = segments.length >= 3 && (segments[2] === "workspace" || segments[2] === "recruitment");
+    return {
+      portal: "company",
+      sidebarMode: isWorkspaceSubRoute ? "WORKSPACE" : "COMPANY",
+      workspaceType: "ORGANIZATION",
+    };
+  }
+  if (pathname === "/business") {
+    return {
+      portal: "company",
+      sidebarMode: "COMPANY",
+      workspaceType: "ORGANIZATION",
+    };
+  }
+
+  // 3. Candidate Portal (default fallback)
+  return {
+    portal: "candidate",
+    sidebarMode: "CANDIDATE",
+    workspaceType: "ADMIN",
+  };
+};
+
+import {
+  workspaceNavigationConfig,
+  candidateNavigationConfig,
+  adminNavigationConfig,
+  companyNavigationConfig,
+  adminCandidateNavigationConfig,
+  adminCompanyNavigationConfig,
+} from "../config/navigation-config";
+
+/**
+ * Resolves the appropriate navigation configuration based on the user role and active sidebar mode.
+ */
+export const resolveSidebarNavigation = (
+  sidebarMode: SidebarMode,
+  userRole: string
+): NavigationNode[] => {
+  if (sidebarMode === "WORKSPACE") {
+    return workspaceNavigationConfig;
+  }
+  if (sidebarMode === "CANDIDATE") {
+    return userRole === "ADMIN" ? adminCandidateNavigationConfig : candidateNavigationConfig;
+  }
+  if (sidebarMode === "SYSTEM_ADMIN" || sidebarMode === "COMPONENTS") {
+    return adminNavigationConfig;
+  }
+  // Default: COMPANY Mode
+  return userRole === "ADMIN" ? adminCompanyNavigationConfig : companyNavigationConfig;
+};
+
