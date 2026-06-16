@@ -695,7 +695,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                           shouldValidate: true,
                         })
                       }
-                      placeholder="Nguyễn Văn A"
+                      placeholder="Alex Rivera"
                     />
                   </div>
                   <div className="flex flex-col w-full gap-2">
