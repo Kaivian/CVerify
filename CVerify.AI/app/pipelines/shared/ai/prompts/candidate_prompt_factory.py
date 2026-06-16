@@ -244,6 +244,9 @@ class CandidatePromptFactory:
             f"- Maintenance Engineer: Primarily chore/refactor/docs commits, stabilization focus\n"
             f"- Performance Optimizer: Profiling evidence, perf-focused refactors\n"
             f"- Research-Oriented: Experimental branches, proof-of-concept patterns\n\n"
+            f"CRITICAL REQUIREMENTS:\n"
+            f"- You MUST classify primaryWorkingStyle strictly into one of the 6 options listed above. Do NOT output 'Unclassifiable', 'None', or any other value.\n"
+            f"- If the candidate's signals are mixed or unclear, choose the closest style and assign a lower confidence score (e.g., <= 0.4) to represent a neutral/mixed band.\n\n"
             f"COMMIT TIMELINE:\n{json.dumps(commit_timeline, indent=2)}\n\n"
             f"COMMIT INTENT:\n{json.dumps(commit_intent, indent=2)}\n\n"
             f"STRONGEST DOMAINS:\n{json.dumps(strongest_domains, indent=2)}\n\n"
@@ -277,14 +280,15 @@ class CandidatePromptFactory:
             f"{bg_repos_str}\n\n"
             f"TASK:\n"
             f"1. Recommend Top 1 best-fit role with specific job titles.\n"
-            f"2. Suggest 5-10 additional matching positions with confidence scores.\n"
+            f"2. Suggest 5-10 additional matching positions with confidence scores. Each suggested role item MUST include a detailed, evidence-grounded 'rationale' string explaining the match.\n"
             f"3. Generate suggested CV role titles the candidate should use.\n"
             f"4. If any background repositories have strong relevant tech stacks that are not attached to CV projects, generate suggestions advising the candidate to link them to show proof of those skills.\n\n"
             f"Return JSON:\n"
             f'{{"topMatch": {{"roleTitle": "Senior Backend Engineer", "confidence": 0.91, '
             f'"rationale": "string"}}, '
             f'"suggestedRoles": [{{"roleTitle": "string", "confidence": 0.75, '
-            f'"domain": "string", "levelFit": "exact|stretch|underqualified"}}], '
+            f'"domain": "string", "levelFit": "exact|stretch|underqualified", '
+            f'"rationale": "explicit reasoning grounded in repository + CV signals"}}], '
             f'"suggestedCvTitles": ["Senior Python Developer", "Backend Engineer | FastAPI | PostgreSQL"], '
             f'"cvImprovementSuggestions": [{{"suggestion": "Link repository Kaivian/CVerify to prove C# expertise.", "repositoryName": "Kaivian/CVerify", "reason": "Contains advanced C# patterns matching your target role."}}]}}'
         )

@@ -1415,12 +1415,12 @@ export default function CvManagementCenter() {
                       weight: Math.round(val.weight * 100),
                       band: val.band,
                       percent: val.percent,
-                      isRaw: val.scale === "raw" || key === "skillDepth"
+                      isRaw: val.scale === "raw"
                     };
                   }
                   const score = typeof val === 'number' ? val : (val?.score ?? 0);
                   const weight = val?.weight !== undefined ? Math.round(val.weight * 100) : 0;
-                  const isRaw = key === "skillDepth";
+                  const isRaw = false;
 
                   let band = "Limited Evidence";
                   if (key === "skillDepth") {

@@ -319,6 +319,7 @@ public class ProfileService : IProfileService
                   AND r.latest_analysis_status = 'Completed'
                   AND r.is_private = FALSE
                   AND r.is_enabled = TRUE
+                  AND r.is_accessible = TRUE
                 ORDER BY r.latest_analysis_completed_at_utc DESC", 
                 profile.UserId)
             .ToListAsync(cancellationToken);

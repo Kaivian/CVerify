@@ -303,7 +303,6 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             var jobIds = await _repositoryProvider.GetCompletedAnalysisJobIdsAsync(assessment.UserId, cancellationToken);
 
             var cvJobs = new List<CVerify.API.Modules.SourceCode.Entities.AnalysisJob>();
-            var bgJobs = new List<CVerify.API.Modules.SourceCode.Entities.AnalysisJob>();
 
             foreach (var jid in jobIds)
             {
@@ -317,14 +316,9 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 {
                     cvJobs.Add(aJob);
                 }
-                else
-                {
-                    bgJobs.Add(aJob);
-                }
             }
 
             var selectedCvJobs = cvJobs.Take(5).ToList();
-            var selectedBgJobs = bgJobs.Take(5).ToList();
 
             if (selectedCvJobs.Count == 0)
             {
@@ -435,103 +429,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 }
             }
 
-            // 2. Process Background Repositories
+            // 2. Process Background Repositories (Removed - CV-driven repositories only)
             var backgroundRepoAssessments = new List<object>();
-            foreach (var aJob in selectedBgJobs)
-            {
-                var existingAssess = await _context.RepositoryAssessments
-                    .FirstOrDefaultAsync(ra => ra.AnalysisJobId == aJob.Id 
-                        && ra.Status == "Completed"
-                        && ra.PipelineVersion == targetPipelineVersion
-                        && ra.ModelVersion == targetModelVersion
-                        && ra.PromptVersion == targetPromptVersion
-                        && ra.AssessmentSchemaVersion == targetSchemaVersion, cancellationToken);
-
-                if (existingAssess != null)
-                {
-                    await ProjectRelationalDataAsync(existingAssess.Id, aJob.Id, existingAssess.OverallScore, cancellationToken);
-                    var payloadItem = await GetRelationalAssessPayloadAsync(existingAssess, aJob.Repository.Name, null, null, "Background", 0, cancellationToken);
-                    backgroundRepoAssessments.Add(payloadItem);
-                    continue;
-                }
-
-                var newAssess = new RepositoryAssessment
-                {
-                    Id = Guid.CreateVersion7(),
-                    RepositoryId = aJob.RepositoryId,
-                    AnalysisJobId = aJob.Id,
-                    CommitSha = aJob.CommitSha ?? "unknown",
-                    Status = "Running",
-                    ModelVersion = targetModelVersion,
-                    PromptVersion = targetPromptVersion,
-                    AssessmentSchemaVersion = targetSchemaVersion,
-                    PipelineVersion = targetPipelineVersion,
-                    CreatedAtUtc = DateTimeOffset.UtcNow
-                };
-
-                _context.RepositoryAssessments.Add(newAssess);
-                await _context.SaveChangesAsync(cancellationToken);
-
-                try
-                {
-                    var repoPayload = new
-                    {
-                        jobId = aJob.Id.ToString(),
-                        repositoryId = aJob.RepositoryId.ToString()
-                    };
-
-                    var repoPayloadJson = JsonSerializer.Serialize(repoPayload);
-                    var repoPath = "/api/v1/repository/assess";
-
-                    var repoHttpClient = _httpClientFactory.CreateClient("AiServiceClient");
-                    var repoRequestMessage = new HttpRequestMessage(HttpMethod.Post, repoPath)
-                    {
-                        Content = new StringContent(repoPayloadJson, Encoding.UTF8, "application/json")
-                    };
-
-                    var (sig, ts, non) = _hmacService.CreateSignatureHeaders("POST", repoPath, repoPayloadJson);
-                    repoRequestMessage.Headers.Add("X-Client-Id", "cverify-core");
-                    repoRequestMessage.Headers.Add("X-Timestamp", ts);
-                    repoRequestMessage.Headers.Add("X-Nonce", non);
-                    repoRequestMessage.Headers.Add("X-Correlation-Id", assessment.Id.ToString());
-                    repoRequestMessage.Headers.Add("X-Signature", sig);
-
-                    var repoResponse = await repoHttpClient.SendAsync(repoRequestMessage, cancellationToken);
-                    if (!repoResponse.IsSuccessStatusCode)
-                    {
-                        var errStr = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
-                        throw new Exception($"AI repo assess returned {repoResponse.StatusCode}: {errStr}");
-                    }
-
-                    var responseJson = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
-                    using var repoDoc = JsonDocument.Parse(responseJson);
-                    var repoRoot = repoDoc.RootElement;
-
-                    newAssess.Status = "Completed";
-                    newAssess.CompletedAtUtc = DateTimeOffset.UtcNow;
-                    newAssess.OverallScore = repoRoot.TryGetProperty("complexityScore", out var repoScoreProp) ? repoScoreProp.GetDouble() : 0.0;
-                    
-                    if (repoRoot.TryGetProperty("primaryLanguages", out var langProp))
-                        newAssess.TechStack = JsonSerializer.Serialize(langProp);
-                    if (repoRoot.TryGetProperty("verifiedPatterns", out var patProp))
-                        newAssess.Patterns = JsonSerializer.Serialize(patProp);
-                    if (repoRoot.TryGetProperty("qualityScore", out var qualProp))
-                        newAssess.QualityMetrics = JsonSerializer.Serialize(new { qualityScore = qualProp.GetDouble(), cloneRiskClassification = repoRoot.TryGetProperty("cloneRiskClassification", out var crProp) ? crProp.GetString() : "clean" });
-
-                    newAssess.JsonData = responseJson;
-                    await _context.SaveChangesAsync(cancellationToken);
-
-                    await ProjectRelationalDataAsync(newAssess.Id, aJob.Id, newAssess.OverallScore, cancellationToken);
-                    var payloadItem = await GetRelationalAssessPayloadAsync(newAssess, aJob.Repository.Name, null, null, "Background", 0, cancellationToken);
-                    backgroundRepoAssessments.Add(payloadItem);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error assessing background repository {RepoName} for job {JobId}", aJob.Repository.Name, aJob.Id);
-                    newAssess.Status = "Failed";
-                    await _context.SaveChangesAsync(cancellationToken);
-                }
-            }
 
             // Load UserProfile detail
             var userProfile = await _context.UserProfiles
@@ -1200,7 +1099,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             category = c.Category,
             confidence = c.Confidence,
             maturity = c.Maturity,
-            difficultyScore = c.DifficultyScore,
+            difficultyScore = c.DifficultyScore * 10.0,
             score = c.Score,
             evidenceJson = string.IsNullOrEmpty(c.EvidenceJson) ? null : JsonSerializer.Deserialize<object>(c.EvidenceJson, (JsonSerializerOptions?)null)
         }).ToList();

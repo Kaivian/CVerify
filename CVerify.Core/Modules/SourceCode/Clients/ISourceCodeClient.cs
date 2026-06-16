@@ -46,5 +46,5 @@ public interface ISourceCodeClient
     
     Task<ExternalUserProfile> GetUserProfileAsync(string accessToken, CancellationToken cancellationToken);
     
-    Task<SyncResult> SyncRepositoriesAsync(string accessToken, CancellationToken cancellationToken);
+    Task<SyncResult> SyncRepositoriesAsync(string accessToken, List<string> referencedRepoPaths, CancellationToken cancellationToken);
 }
