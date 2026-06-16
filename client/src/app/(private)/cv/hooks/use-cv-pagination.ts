@@ -308,47 +308,6 @@ export function useCvPagination(
       });
     }
 
-    // D. Education blocks
-    if (education && education.length > 0) {
-      items.push(
-        createBlock("section-title-education", "section-title", {
-          title: "Education & Credentials",
-        })
-      );
-      education.forEach((edu: EducationDraftItem) => {
-        const eduAny = edu as any;
-        const schoolName = eduAny.schoolName || eduAny.school || "";
-        const startDate = eduAny.startDate || eduAny.period?.start?.toString() || "";
-        const endDate = eduAny.endDate || eduAny.period?.end?.toString() || "";
-        const start = formatMonthYear(startDate);
-        const end = edu.isCurrentlyStudying ? "Present" : formatMonthYear(endDate);
-
-        items.push(
-          createBlock(`edu-header-${edu.id}`, "entry-header", {
-            title: `${schoolName}${edu.label ? ` - ${edu.label}` : ""}`,
-            dateRange: start && end ? `${start} - ${end}` : (start || end || ""),
-            subtitle: `${edu.degree || ""}${edu.major ? `${edu.degree ? " - " : ""}${edu.major}` : ""}`,
-            rightSubtitle: edu.gpa ? `GPA: ${edu.gpa}/${edu.gpaScale || 4.0}` : undefined,
-          })
-        );
-
-        if (edu.description) {
-          const lines = edu.description
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0);
-
-          lines.forEach((line, idx) => {
-            items.push(
-              createBlock(`edu-desc-${edu.id}-${idx}`, "paragraph", {
-                text: line.replace(/^[•\*\-\u25e6]\s*/, ""),
-              })
-            );
-          });
-        }
-      });
-    }
-
     // E. Projects blocks
     const normalizedProjects = projects.map((p: Record<string, any>) => {
       if (p.verificationLevel !== undefined) {
@@ -449,6 +408,47 @@ export function useCvPagination(
               createBlock(`proj-contrib-${proj.id}-${idx}`, "bullet-point", {
                 text: contrib,
                 isCircle: true,
+              })
+            );
+          });
+        }
+      });
+    }
+
+    // D. Education blocks
+    if (education && education.length > 0) {
+      items.push(
+        createBlock("section-title-education", "section-title", {
+          title: "Education & Credentials",
+        })
+      );
+      education.forEach((edu: EducationDraftItem) => {
+        const eduAny = edu as any;
+        const schoolName = eduAny.schoolName || eduAny.school || "";
+        const startDate = eduAny.startDate || eduAny.period?.start?.toString() || "";
+        const endDate = eduAny.endDate || eduAny.period?.end?.toString() || "";
+        const start = formatMonthYear(startDate);
+        const end = edu.isCurrentlyStudying ? "Present" : formatMonthYear(endDate);
+
+        items.push(
+          createBlock(`edu-header-${edu.id}`, "entry-header", {
+            title: `${schoolName}${edu.label ? ` - ${edu.label}` : ""}`,
+            dateRange: start && end ? `${start} - ${end}` : (start || end || ""),
+            subtitle: `${edu.degree || ""}${edu.major ? `${edu.degree ? " - " : ""}${edu.major}` : ""}`,
+            rightSubtitle: edu.gpa ? `GPA: ${edu.gpa}/${edu.gpaScale || 4.0}` : undefined,
+          })
+        );
+
+        if (edu.description) {
+          const lines = edu.description
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+
+          lines.forEach((line, idx) => {
+            items.push(
+              createBlock(`edu-desc-${edu.id}-${idx}`, "paragraph", {
+                text: line.replace(/^[•\*\-\u25e6]\s*/, ""),
               })
             );
           });
