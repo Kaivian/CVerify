@@ -994,19 +994,22 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         parsed = self._extract_json(raw_text, correlation_id)
         await self.publish_task_event(job_id, "CommitIntelligence", "AI reasoning complete. Parsed response successfully.")
         
+        # Handle case where AI wraps response inside "data" key (github_prompt_factory schema)
+        target_dict = parsed.get("data", parsed) if isinstance(parsed.get("data"), dict) else parsed
+        
         # Override Claude's generated values with real deterministic facts
-        if "ownership" not in parsed:
-            parsed["ownership"] = {}
-        parsed["ownership"]["total_commits"] = final_total_commits
-        parsed["ownership"]["user_commit_ratio"] = round(final_user_commit_ratio, 4)
-        parsed["ownership"]["is_primary_author"] = (final_user_commit_ratio >= 0.50)
-        parsed["ownership"]["bus_factor"] = final_bus_factor
-        parsed["ownership"]["active_contributors"] = final_active_contributors
-        parsed["ownership"]["contributor_distribution"] = final_distribution
-        parsed["ownership"]["human_contributors_count"] = final_human_contributors_count
-        parsed["ownership"]["ownership_method"] = final_ownership_method
-        parsed["ownership"]["ownership_confidence"] = final_ownership_confidence
-        parsed["ownership"]["attribution_strategy"] = final_attribution_strategy
+        if "ownership" not in target_dict:
+            target_dict["ownership"] = {}
+        target_dict["ownership"]["total_commits"] = final_total_commits
+        target_dict["ownership"]["user_commit_ratio"] = round(final_user_commit_ratio, 4)
+        target_dict["ownership"]["is_primary_author"] = (final_user_commit_ratio >= 0.50)
+        target_dict["ownership"]["bus_factor"] = final_bus_factor
+        target_dict["ownership"]["active_contributors"] = final_active_contributors
+        target_dict["ownership"]["contributor_distribution"] = final_distribution
+        target_dict["ownership"]["human_contributors_count"] = final_human_contributors_count
+        target_dict["ownership"]["ownership_method"] = final_ownership_method
+        target_dict["ownership"]["ownership_confidence"] = final_ownership_confidence
+        target_dict["ownership"]["attribution_strategy"] = final_attribution_strategy
         
         # Inject task-level confidence metadata
         parsed["confidence_meta"] = {
@@ -2481,12 +2484,14 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
 
                 if duplicates_found > 0:
                     clone_similarity_score = min(1.0, duplicates_found / max(1, len(minhash_pairs)))
+                    # Internal duplication within the same repo is not fraud/plagiarism,
+                    # limit its contribution to risk_score to max 15.0 to avoid false positives.
                     if duplicates_found >= 5:
                         flags.append(f"minhash_near_duplicates:{duplicates_found}_pairs")
-                        risk_score += min(40.0, duplicates_found * 4.0)
+                        risk_score += min(15.0, duplicates_found * 1.5)
                     elif duplicates_found >= 2:
                         flags.append(f"minhash_some_duplicates:{duplicates_found}_pairs")
-                        risk_score += min(20.0, duplicates_found * 4.0)
+                        risk_score += min(10.0, duplicates_found * 1.5)
 
         except ImportError:
             flags.append("datasketch_unavailable:minhash_skipped")

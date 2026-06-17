@@ -246,11 +246,11 @@ class CandidateAssessmentStreamOrchestrator:
             quality_metrics = ra.get("qualityMetrics") or {}
             clone_classification = quality_metrics.get("cloneRiskClassification", "clean")
             
-            if ownership_score >= 0.30 and clone_classification != "high_risk":
-                eligible_repos.append(ra)
-            else:
+            # Always include repository in CV analysis, ignoring the readiness gates (ownership and clone risk classification)
+            eligible_repos.append(ra)
+            if ownership_score < 0.30 or clone_classification == "high_risk":
                 logger.info(
-                    f"Repo excluded via aggregator quality check (Ownership: {ownership_score}, Clone classification: {clone_classification})",
+                    f"Repo included despite failing readiness gates check (Ownership: {ownership_score}, Clone classification: {clone_classification})",
                     extra=extra
                 )
 

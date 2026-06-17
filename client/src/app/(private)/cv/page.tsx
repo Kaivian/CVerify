@@ -49,6 +49,7 @@ import { useAuth } from "@/features/auth/hooks/use-auth";
 import { useCandidateAssessment } from "@/hooks/use-candidate-assessment";
 import { isDeepEqual } from "@/components/ui/unsaved-changes-bar";
 import { parseDate } from "@internationalized/date";
+import { useProfileStore } from "@/stores/use-profile-store";
 
 import {
   type CvDraftState,
@@ -698,7 +699,10 @@ export default function CvManagementCenter() {
         const payload = drafts["skills"];
         const response = await updateCareer({
           targetSkills: payload.targetSkills,
-          version: career?.declaredPreferences?.version || 0,
+          version:
+            useProfileStore.getState().career?.declaredPreferences?.version ??
+            career?.declaredPreferences?.version ??
+            0,
         });
 
         const updatedSkills: SkillsDraft = { targetSkills: response.declaredPreferences.targetSkills || [] };
@@ -730,7 +734,10 @@ export default function CvManagementCenter() {
           workStyles: payload.workStyles,
           companyValues: payload.companyValues,
           workPreferenceNotes: payload.workPreferenceNotes,
-          version: career?.declaredPreferences?.version || 0,
+          version:
+            useProfileStore.getState().career?.declaredPreferences?.version ??
+            career?.declaredPreferences?.version ??
+            0,
         });
 
         const declared = response.declaredPreferences || {};
@@ -1009,7 +1016,7 @@ export default function CvManagementCenter() {
         try {
           const parsed = typeof item.evidenceSources === 'string' ? JSON.parse(item.evidenceSources) : item.evidenceSources;
           reasoningText = parsed.rationale || "";
-        } catch (e) {}
+        } catch (e) { }
       }
       return {
         ...item,
@@ -1025,7 +1032,7 @@ export default function CvManagementCenter() {
         try {
           const parsed = typeof item.evidence === 'string' ? JSON.parse(item.evidence) : item.evidence;
           rationale = parsed.rationale || "";
-        } catch (e) {}
+        } catch (e) { }
       }
       const reasonsList = Array.isArray(item.reasons)
         ? item.reasons
@@ -1062,8 +1069,8 @@ export default function CvManagementCenter() {
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${readiness?.requiresReassessment
-                ? "bg-warning/15 text-warning border border-warning/30"
-                : "bg-success/15 text-success border border-success/30"
+              ? "bg-warning/15 text-warning border border-warning/30"
+              : "bg-success/15 text-success border border-success/30"
               }`}>
               {readiness?.requiresReassessment ? "Outdated" : "Verified & Up-to-date"}
             </span>
@@ -1738,7 +1745,7 @@ export default function CvManagementCenter() {
                 {/* Real-Time Actionable Recommendations */}
                 {realtimeRecommendations.length > 0 && (
                   <div className="flex flex-col gap-1.5 border-t border-border/5 pt-2">
-                    <span className="text-[9px] text-muted-foreground font-black uppercase font-extrabold">Generated Recommendations ({realtimeRecommendations.length})</span>
+                    <span className="text-[9px] text-muted-foreground font-black uppercase">Generated Recommendations ({realtimeRecommendations.length})</span>
                     <div className="max-h-[80px] overflow-y-auto flex flex-col gap-1.5 pr-1 scrollbar-thin scrollbar-thumb-border">
                       {realtimeRecommendations.map((rec) => (
                         <div key={rec.id} className="flex items-start gap-2 p-2 border border-border/20 bg-surface rounded-xl text-[10px] leading-relaxed">
@@ -2312,8 +2319,8 @@ export default function CvManagementCenter() {
                       <Button
                         size="sm"
                         className={`rounded-xl font-bold text-xs select-none h-9 flex-1 border-none cursor-pointer ${latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                            ? "bg-warning text-warning-foreground"
-                            : "bg-accent text-accent-foreground"
+                          ? "bg-warning text-warning-foreground"
+                          : "bg-accent text-accent-foreground"
                           }`}
                         onPress={
                           latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
@@ -2354,7 +2361,10 @@ export default function CvManagementCenter() {
                     size="sm"
                     variant="secondary"
                     className="rounded-xl font-bold text-xs select-none w-full border-border/30 bg-surface hover:bg-surface-secondary transition-colors cursor-pointer"
-                    onPress={() => setIsA4PreviewOpen(true)}
+                    onPress={() => {
+                      setViewState("editor");
+                      setEditorMode("preview");
+                    }}
                   >
                     Open A4 Preview
                   </Button>

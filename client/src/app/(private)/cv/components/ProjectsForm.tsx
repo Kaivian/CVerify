@@ -37,7 +37,22 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
   const [newTech, setNewTech] = useState("");
   const [newContribution, setNewContribution] = useState("");
   const [step, setStep] = useState<"select_type" | "edit_form" | "select_repos_ai">("edit_form");
-  const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
+  const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
+
+  const getLinkedRepoIds = (excludeProjectId?: string) => {
+    const ids = new Set<string>();
+    draft.forEach((p) => {
+      if (excludeProjectId && p.id === excludeProjectId) {
+        return;
+      }
+      p.repositoryLinks.forEach((link) => {
+        if (link.sourceCodeRepositoryId) {
+          ids.add(link.sourceCodeRepositoryId);
+        }
+      });
+    });
+    return ids;
+  };
 
   // Connection states
   const [hasLinkedAccount, setHasLinkedAccount] = useState<boolean | null>(null);
@@ -72,38 +87,43 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
   const isAiAnalyzed = editingItem?.verificationLevel === ProjectVerificationLevel.AiAnalyzed;
 
   const handleImportAiProjects = () => {
-    if (!selectedRepoId) return;
+    if (selectedRepoIds.length === 0) return;
 
-    const repo = repositories.find((r) => r.id === selectedRepoId);
-    if (!repo) return;
+    const newProjects: ProjectDraftItem[] = [];
 
-    const newProject: ProjectDraftItem = {
-      id: `temp-${Date.now()}-${repo.id}`,
-      name: repo.name,
-      role: "",
-      description: "AI Analysis Snapshot", // Non-empty string to pass [Required] backend model validation. Will be overwritten by backend with the actual AI summary.
-      startDate: "",
-      endDate: null,
-      isCurrentlyWorking: false,
-      verificationLevel: ProjectVerificationLevel.AiAnalyzed,
-      verificationStatus: ProjectVerificationStatus.Unverified,
-      verifiedAt: null,
-      verificationMetadataJson: null,
-      repositoryLinks: [
-        {
-          id: `temp-link-${Date.now()}-${repo.id}`,
-          sourceCodeRepositoryId: repo.id,
-          name: repo.name,
-          owner: repo.owner,
-          htmlUrl: repo.htmlUrl,
-        },
-      ],
-      technologies: [],
-      contributions: [],
-    };
+    selectedRepoIds.forEach((repoId, idx) => {
+      const repo = repositories.find((r) => r.id === repoId);
+      if (!repo) return;
 
-    onChange([...draft, newProject]);
-    setSelectedRepoId(null);
+      const uniqueTime = Date.now() + idx;
+      newProjects.push({
+        id: `temp-${uniqueTime}-${repo.id}`,
+        name: repo.name,
+        role: "",
+        description: "AI Analysis Snapshot", // Non-empty string to pass [Required] backend model validation. Will be overwritten by backend with the actual AI summary.
+        startDate: "",
+        endDate: null,
+        isCurrentlyWorking: false,
+        verificationLevel: ProjectVerificationLevel.AiAnalyzed,
+        verificationStatus: ProjectVerificationStatus.Unverified,
+        verifiedAt: null,
+        verificationMetadataJson: null,
+        repositoryLinks: [
+          {
+            id: `temp-link-${uniqueTime}-${repo.id}`,
+            sourceCodeRepositoryId: repo.id,
+            name: repo.name,
+            owner: repo.owner,
+            htmlUrl: repo.htmlUrl,
+          },
+        ],
+        technologies: [],
+        contributions: [],
+      });
+    });
+
+    onChange([...draft, ...newProjects]);
+    setSelectedRepoIds([]);
     setStep("edit_form");
   };
 
@@ -289,7 +309,7 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                 glow={false}
                 className="p-5 border border-primary/20 bg-primary/5 hover:border-primary/45 transition-all cursor-pointer flex flex-col gap-3"
                 onClick={() => {
-                  setSelectedRepoId(null);
+                  setSelectedRepoIds([]);
                   setStep("select_repos_ai");
                   setEditingItem(null);
                 }}
@@ -353,7 +373,10 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                 size="sm"
                 variant="secondary"
                 className="rounded-xl border border-border/30 h-8 w-8"
-                onPress={() => setStep("select_type")}
+                onPress={() => {
+                  setSelectedRepoIds([]);
+                  setStep("select_type");
+                }}
                 aria-label="Back to select type"
               >
                 <X className="size-4" />
@@ -382,24 +405,34 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                     </Button>
                   )}
                 </div>
-              ) : (
-                repositories
+              ) : (() => {
+                const linkedRepoIds = getLinkedRepoIds();
+                return repositories
                   .filter(r => r.latestAnalysisStatus === "Completed")
                   .map((repo) => {
-                    const isSelected = selectedRepoId === repo.id;
+                    const isAlreadyLinked = linkedRepoIds.has(repo.id);
+                    const isSelected = selectedRepoIds.includes(repo.id);
+                    const handleToggle = () => {
+                      if (isAlreadyLinked) return;
+                      if (isSelected) {
+                        setSelectedRepoIds(selectedRepoIds.filter(id => id !== repo.id));
+                      } else {
+                        setSelectedRepoIds([...selectedRepoIds, repo.id]);
+                      }
+                    };
                     return (
                       <Card
                         key={repo.id}
                         rounded="xl"
                         glow={false}
-                        className={`p-3 border transition-all cursor-pointer flex items-center justify-between gap-3 text-left ${isSelected ? "border-accent bg-accent/5" : "border-border/40 bg-surface"}`}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedRepoId(null);
-                          } else {
-                            setSelectedRepoId(repo.id);
-                          }
-                        }}
+                        className={`p-3 border transition-all flex items-center justify-between gap-3 text-left ${
+                          isAlreadyLinked 
+                            ? "border-secondary/20 bg-secondary/5 opacity-70 cursor-not-allowed" 
+                            : isSelected 
+                              ? "border-accent bg-accent/5 cursor-pointer" 
+                              : "border-border/40 bg-surface cursor-pointer"
+                        }`}
+                        onClick={handleToggle}
                       >
                         <div className="flex flex-col min-w-0">
                           <span className="font-extrabold text-[11px] text-foreground truncate">{repo.name}</span>
@@ -416,23 +449,23 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                             <Chip size="sm" variant="soft" color="success" className="text-[8px] h-4 min-h-0 py-0 px-1 font-extrabold uppercase">
                               Analyzed
                             </Chip>
+                            {isAlreadyLinked && (
+                              <Chip size="sm" variant="soft" color="default" className="text-[8px] h-4 min-h-0 py-0 px-1 font-bold">
+                                Linked in CV
+                              </Chip>
+                            )}
                           </div>
                         </div>
                         <Checkbox
                           isSelected={isSelected}
-                          onChange={() => {
-                            if (isSelected) {
-                              setSelectedRepoId(null);
-                            } else {
-                              setSelectedRepoId(repo.id);
-                            }
-                          }}
+                          isDisabled={isAlreadyLinked}
+                          onChange={handleToggle}
                           aria-label={`Select ${repo.name}`}
                         />
                       </Card>
                     );
-                  })
-              )}
+                  });
+              })()}
             </div>
 
             <div className="flex gap-2 justify-end mt-4">
@@ -440,14 +473,17 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                 size="sm"
                 variant="secondary"
                 className="rounded-xl border border-border/30 h-9 px-4 font-bold text-xs"
-                onPress={() => setStep("select_type")}
+                onPress={() => {
+                  setSelectedRepoIds([]);
+                  setStep("select_type");
+                }}
               >
                 Cancel
               </Button>
               <Button
                 size="sm"
                 className="bg-accent text-accent-foreground font-bold rounded-xl border-none h-9 px-4 text-xs"
-                isDisabled={!selectedRepoId}
+                isDisabled={selectedRepoIds.length === 0}
                 onPress={handleImportAiProjects}
               >
                 Import to CV
@@ -526,8 +562,10 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                           </Button>
                         )}
                       </div>
-                    ) : (
-                      filteredRepos.map((repo) => {
+                    ) : (() => {
+                      const linkedRepoIds = getLinkedRepoIds(editingItem.id);
+                      return filteredRepos.map((repo) => {
+                        const isAlreadyLinked = linkedRepoIds.has(repo.id);
                         const isLinked = editingItem.repositoryLinks.some((l) => l.sourceCodeRepositoryId === repo.id);
                         const isAnalyzed = repo.latestAnalysisStatus === "Completed";
                         return (
@@ -535,8 +573,17 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                             key={repo.id}
                             rounded="xl"
                             glow={false}
-                            className={`p-3 border transition-all flex items-center justify-between gap-3 text-left ${isLinked ? "border-accent bg-accent/5" : "border-border/40 bg-surface"} ${isAiAnalyzed ? "cursor-not-allowed opacity-80" : "cursor-pointer"}`}
-                            onClick={() => !isAiAnalyzed && handleToggleRepoSelection(repo)}
+                            className={`p-3 border transition-all flex items-center justify-between gap-3 text-left ${
+                              isAlreadyLinked 
+                                ? "border-secondary/20 bg-secondary/5 opacity-70 cursor-not-allowed"
+                                : isLinked 
+                                  ? "border-accent bg-accent/5 cursor-pointer" 
+                                  : "border-border/40 bg-surface cursor-pointer"
+                            } ${isAiAnalyzed ? "cursor-not-allowed opacity-80" : ""}`}
+                            onClick={() => {
+                              if (isAlreadyLinked) return;
+                              if (!isAiAnalyzed) handleToggleRepoSelection(repo);
+                            }}
                           >
                             <div className="flex flex-col min-w-0">
                               <span className="font-extrabold text-[11px] text-foreground truncate">{repo.name}</span>
@@ -561,18 +608,26 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                                     {repo.latestAnalysisStatus === "Pending" ? "Analyzing" : "Not Analyzed"}
                                   </Chip>
                                 )}
+                                {isAlreadyLinked && (
+                                  <Chip size="sm" variant="soft" color="default" className="text-[8px] h-4 min-h-0 py-0 px-1 font-bold">
+                                    Linked in CV
+                                  </Chip>
+                                )}
                               </div>
                             </div>
                             <Checkbox
                               isSelected={isLinked}
-                              isDisabled={isAiAnalyzed}
-                              onChange={() => !isAiAnalyzed && handleToggleRepoSelection(repo)}
+                              isDisabled={isAiAnalyzed || isAlreadyLinked}
+                              onChange={() => {
+                                if (isAlreadyLinked) return;
+                                if (!isAiAnalyzed) handleToggleRepoSelection(repo);
+                              }}
                               aria-label={`Select ${repo.name}`}
                             />
                           </Card>
                         );
-                      })
-                    )}
+                      });
+                    })()}
                   </div>
                 </div>
               );

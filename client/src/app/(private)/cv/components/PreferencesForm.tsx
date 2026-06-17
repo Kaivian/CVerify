@@ -3,6 +3,7 @@ import { Input, Button, Checkbox, Select, ListBox, Switch, Chip, TextArea, Toolt
 import { PlusCircle, X, Info } from "lucide-react";
 import { type PreferencesDraft } from "./types";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
+import { TagChipMultiSelect } from "@/app/(private)/settings/components/TagChipMultiSelect";
 
 interface PreferencesFormProps {
   draft: PreferencesDraft;
@@ -124,10 +125,6 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
 
   const handleRemoveLocation = (loc: string) => {
     onChange({ preferredLocations: draft.preferredLocations.filter((l) => l !== loc) });
-  };
-
-  const handleRemovePosition = (pos: string) => {
-    onChange({ desiredJobPositions: draft.desiredJobPositions.filter((p) => p !== pos) });
   };
 
   const toggleEmployment = (val: string) => {
@@ -387,54 +384,14 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
         </div>
 
         {/* Target Roles */}
-        <div className="flex flex-col gap-3 border-t border-border/20 pt-4">
-          <span className="font-bold text-xs text-foreground">Target Roles</span>
-          <div className="flex gap-2 items-start">
-            <Select
-              className="w-full"
-              placeholder="Select target role"
-              selectedKey={null}
-              onSelectionChange={(key) => {
-                if (key && !draft.desiredJobPositions.includes(key as string)) {
-                  onChange({ desiredJobPositions: [...draft.desiredJobPositions, key as string] });
-                }
-              }}
-              isDisabled={draft.desiredJobPositions.length >= ROLES_OPTIONS.length}
-              aria-label="Select target role"
-            >
-              <Select.Trigger className="rounded-xl border border-border bg-surface text-xs h-10 px-3">
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover className="bg-surface border border-border rounded-xl p-1 text-xs">
-                <ListBox aria-label="Target role options">
-                  {ROLES_OPTIONS.filter(role => !draft.desiredJobPositions.includes(role)).map((role) => (
-                    <ListBox.Item key={role} id={role} textValue={role} className="p-2 hover:bg-accent/10 rounded-lg cursor-pointer">
-                      {role}
-                    </ListBox.Item>
-                  ))}
-                </ListBox>
-              </Select.Popover>
-            </Select>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {draft.desiredJobPositions.map((pos) => (
-              <Chip
-                key={pos}
-                size="sm"
-                variant="soft"
-                color="default"
-                className="text-[9px] font-bold py-0.5 px-2"
-              >
-                <span className="flex items-center gap-1">
-                  {pos}
-                  <button type="button" onClick={() => handleRemovePosition(pos)} className="bg-transparent border-none text-muted-foreground hover:text-foreground cursor-pointer flex items-center" aria-label={`Remove target role ${pos}`}>
-                    <X className="size-2.5" />
-                  </button>
-                </span>
-              </Chip>
-            ))}
-          </div>
+        <div className="border-t border-border/20 pt-4">
+          <TagChipMultiSelect
+            label="Target Roles"
+            options={ROLES_OPTIONS}
+            value={draft.desiredJobPositions || []}
+            onChange={(val) => onChange({ desiredJobPositions: val })}
+            allowCustom={false}
+          />
         </div>
 
         {/* Target Locations */}

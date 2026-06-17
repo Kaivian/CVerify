@@ -563,7 +563,14 @@ public class AuthService : IAuthService
         // Redis Distributed Lock to avoid concurrent rotation race conditions
         var lockKey = $"lock:token:rotate:{refreshTokenStr}";
         var lockValue = Guid.NewGuid().ToString("N");
-        var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
+        bool acquired = false;
+        for (int i = 0; i < 5; i++)
+        {
+            acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
+            if (acquired) break;
+            await Task.Delay(200);
+        }
+
         var maskedToken = refreshTokenStr.Length > 8 ? $"{refreshTokenStr[..4]}...{refreshTokenStr[^4..]}" : "***MASKED***";
         if (!acquired)
         {
@@ -584,7 +591,13 @@ public class AuthService : IAuthService
             var lockTargetId = storedToken.UserId ?? storedToken.OrganizationId;
             var userLockKey = $"lock:user:sessions:{lockTargetId}";
             var userLockValue = Guid.NewGuid().ToString("N");
-            var userLockAcquired = await _cacheService.AcquireLockAsync(userLockKey, userLockValue, TimeSpan.FromSeconds(10));
+            bool userLockAcquired = false;
+            for (int i = 0; i < 5; i++)
+            {
+                userLockAcquired = await _cacheService.AcquireLockAsync(userLockKey, userLockValue, TimeSpan.FromSeconds(10));
+                if (userLockAcquired) break;
+                await Task.Delay(200);
+            }
             if (!userLockAcquired)
             {
                 throw new AuthException(AuthErrorCodes.InvalidToken, "Concurrent session operations detected.");

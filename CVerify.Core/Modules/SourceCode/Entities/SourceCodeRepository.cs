@@ -122,4 +122,18 @@ public class SourceCodeRepository
 
     [Required]
     public DateTimeOffset LastSyncedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public void ResetAnalysisState()
+    {
+        IsVerified = false;
+        TrustScore = 0.0;
+        Classification = null;
+        AuthenticityType = null;
+        LatestRiskScore = 0.0;
+        LatestRiskLevel = "Low";
+        LatestAnalysisStatus = "NeverAnalyzed";
+        LatestAnalysisCompletedAtUtc = null;
+        LatestRiskFactorsJson = null;
+    }
 }
+

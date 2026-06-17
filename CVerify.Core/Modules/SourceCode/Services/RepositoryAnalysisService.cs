@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
 using CVerify.API.Modules.Shared.Configuration;
 using CVerify.API.Modules.Shared.Persistence;
@@ -18,6 +19,9 @@ using CVerify.API.Modules.SourceCode.DTOs;
 using CVerify.API.Modules.SourceCode.Entities;
 using CVerify.API.Pipelines.Shared.Storage;
 using CVerify.API.Modules.Profiles.Entities;
+using CVerify.API.Modules.Profiles.Services;
+using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Domain.Enums;
 
 namespace CVerify.API.Modules.SourceCode.Services;
 
@@ -32,6 +36,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     private readonly ILogger<RepositoryAnalysisService> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly IArtifactStorageProvider _storageProvider;
+    private readonly ICandidateAssessmentService _candidateAssessmentService;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public RepositoryAnalysisService(
         ApplicationDbContext context,
@@ -42,7 +48,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         EnvConfiguration envConfig,
         ILogger<RepositoryAnalysisService> logger,
         TimeProvider timeProvider,
-        IArtifactStorageProvider storageProvider)
+        IArtifactStorageProvider storageProvider,
+        ICandidateAssessmentService candidateAssessmentService,
+        IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _queue = queue;
@@ -53,6 +61,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         _logger = logger;
         _timeProvider = timeProvider;
         _storageProvider = storageProvider;
+        _candidateAssessmentService = candidateAssessmentService;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<Guid> EnqueueAnalysisJobAsync(Guid userId, Guid repositoryId)
@@ -2020,6 +2030,293 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to project repository intelligence relational tables for job {JobId}", jobId);
+        }
+    }
+
+    public async Task<bool> ResetRepositoryAnalysisAsync(Guid userId, Guid repositoryId, CancellationToken cancellationToken = default)
+    {
+        var lockKey = $"repository:reset:lock:{repositoryId}";
+        var lockValue = Guid.NewGuid().ToString();
+        var database = _redis.GetDatabase();
+
+        // 1. Acquire Redis distributed lock
+        bool acquired = await database.LockTakeAsync(lockKey, lockValue, TimeSpan.FromSeconds(30));
+        if (!acquired)
+        {
+            throw new InvalidOperationException("Another operation is currently running on this repository. Please try again later.");
+        }
+
+        try
+        {
+            // 2. Verify repository exists and belongs to the user
+            var repository = await _context.SourceCodeRepositories
+                .Include(r => r.AuthProvider)
+                .FirstOrDefaultAsync(r => r.Id == repositoryId && r.AuthProvider.UserId == userId && r.AuthProvider.DeletedAt == null, cancellationToken);
+
+            if (repository == null)
+            {
+                throw new KeyNotFoundException("Repository not found or access denied.");
+            }
+
+            // 3. Check for any active analysis jobs to prevent race conditions
+            var activeStates = new[] { "Queued", "Preparing", "CloningRepository", "DetectingTechnologyStack", "SamplingCode", "RunningAgents", "AggregatingResults", "SavingReport" };
+            var hasActiveJob = await _context.AnalysisJobs
+                .AnyAsync(j => j.RepositoryId == repositoryId && activeStates.Contains(j.Status), cancellationToken);
+
+            if (hasActiveJob)
+            {
+                throw new InvalidOperationException("Cannot reset repository analysis while an analysis job is active.");
+            }
+
+            // 4. Fetch all jobs and their physical artifact paths
+            var jobs = await _context.AnalysisJobs
+                .Where(j => j.RepositoryId == repositoryId)
+                .ToListAsync(cancellationToken);
+
+            var jobIds = jobs.Select(j => j.Id).ToList();
+
+            var storagePaths = await _context.ArtifactRegistryEntries
+                .Where(e => jobIds.Contains(e.JobId))
+                .Select(e => e.StoragePath)
+                .ToListAsync(cancellationToken);
+
+            // Check if repo is linked to CV
+            bool wasLinked = await _context.CvRepositoryMappings
+                .AnyAsync(m => m.SourceCodeRepositoryId == repositoryId && m.UserId == userId, cancellationToken);
+
+            bool reassessmentTriggered = false;
+
+            // 5. Start DB Transaction
+            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                // Unlink repository from projects & CV, deleting AI analyzed project entries if this is their only repository
+                var projectLinks = await _context.ProjectRepositoryLinks
+                    .Include(l => l.ProjectEntry)
+                    .Where(l => l.SourceCodeRepositoryId == repositoryId)
+                    .ToListAsync(cancellationToken);
+
+                var projectsToDelete = new List<ProjectEntry>();
+                var linksToRemove = new List<ProjectRepositoryLink>();
+
+                foreach (var link in projectLinks)
+                {
+                    var project = link.ProjectEntry;
+                    if (project != null)
+                    {
+                        var otherLinksCount = await _context.ProjectRepositoryLinks
+                            .CountAsync(l => l.ProjectEntryId == project.Id && l.SourceCodeRepositoryId != repositoryId, cancellationToken);
+
+                        if (otherLinksCount == 0 && (project.VerificationLevel == ProjectVerificationLevel.AiAnalyzed || project.VerificationLevel == ProjectVerificationLevel.RepositoryLinked))
+                        {
+                            projectsToDelete.Add(project);
+                        }
+                        else
+                        {
+                            linksToRemove.Add(link);
+                        }
+                    }
+                }
+
+                if (projectsToDelete.Any())
+                {
+                    _context.ProjectEntries.RemoveRange(projectsToDelete);
+                }
+                if (linksToRemove.Any())
+                {
+                    _context.ProjectRepositoryLinks.RemoveRange(linksToRemove);
+                }
+
+                var cvMappings = await _context.CvRepositoryMappings
+                    .Where(m => m.SourceCodeRepositoryId == repositoryId && m.UserId == userId)
+                    .ToListAsync(cancellationToken);
+                if (cvMappings.Any())
+                {
+                    _context.CvRepositoryMappings.RemoveRange(cvMappings);
+                }
+
+                // Delete repository intelligence relational projections
+                var assessments = await _context.RepositoryAssessments
+                    .Where(ra => ra.RepositoryId == repositoryId)
+                    .ToListAsync(cancellationToken);
+
+                if (assessments.Any())
+                {
+                    var assessmentIds = assessments.Select(ra => ra.Id).ToList();
+
+                    var capabilities = await _context.RepositoryCapabilities
+                        .Where(c => assessmentIds.Contains(c.RepositoryAssessmentId))
+                        .ToListAsync(cancellationToken);
+                    if (capabilities.Any()) _context.RepositoryCapabilities.RemoveRange(capabilities);
+
+                    var skills = await _context.RepositorySkillAttributions
+                        .Where(s => assessmentIds.Contains(s.RepositoryAssessmentId))
+                        .ToListAsync(cancellationToken);
+                    if (skills.Any()) _context.RepositorySkillAttributions.RemoveRange(skills);
+
+                    var domains = await _context.RepositoryDomains
+                        .Where(d => assessmentIds.Contains(d.RepositoryAssessmentId))
+                        .ToListAsync(cancellationToken);
+                    if (domains.Any()) _context.RepositoryDomains.RemoveRange(domains);
+
+                    var signals = await _context.RepositoryIntelligenceSignals
+                        .Where(s => assessmentIds.Contains(s.RepositoryAssessmentId))
+                        .ToListAsync(cancellationToken);
+                    if (signals.Any()) _context.RepositoryIntelligenceSignals.RemoveRange(signals);
+
+                    _context.RepositoryAssessments.RemoveRange(assessments);
+                }
+
+                // Delete job executions and metadata
+                if (jobIds.Any())
+                {
+                    var registryEntries = await _context.ArtifactRegistryEntries
+                        .Where(e => jobIds.Contains(e.JobId))
+                        .ToListAsync(cancellationToken);
+                    if (registryEntries.Any()) _context.ArtifactRegistryEntries.RemoveRange(registryEntries);
+
+                    var executions = await _context.AnalysisExecutions
+                        .Where(e => jobIds.Contains(e.JobId))
+                        .ToListAsync(cancellationToken);
+                    if (executions.Any()) _context.AnalysisExecutions.RemoveRange(executions);
+
+                    var results = await _context.AnalysisTaskResults
+                        .Where(r => jobIds.Contains(r.Task.JobId))
+                        .ToListAsync(cancellationToken);
+                    if (results.Any()) _context.AnalysisTaskResults.RemoveRange(results);
+
+                    var taskEvents = await _context.AnalysisTaskEvents
+                        .Where(e => jobIds.Contains(e.Task.JobId))
+                        .ToListAsync(cancellationToken);
+                    if (taskEvents.Any()) _context.AnalysisTaskEvents.RemoveRange(taskEvents);
+
+                    var tasks = await _context.AnalysisTasks
+                        .Where(t => jobIds.Contains(t.JobId))
+                        .ToListAsync(cancellationToken);
+                    if (tasks.Any()) _context.AnalysisTasks.RemoveRange(tasks);
+
+                    var reports = await _context.AnalysisReports
+                        .Where(r => jobIds.Contains(r.JobId))
+                        .ToListAsync(cancellationToken);
+                    if (reports.Any()) _context.AnalysisReports.RemoveRange(reports);
+
+                    var jobEvents = await _context.AnalysisJobEvents
+                        .Where(e => jobIds.Contains(e.JobId))
+                        .ToListAsync(cancellationToken);
+                    if (jobEvents.Any()) _context.AnalysisJobEvents.RemoveRange(jobEvents);
+
+                    _context.AnalysisJobs.RemoveRange(jobs);
+                }
+
+                // Reset repository state using domain method
+                repository.ResetAnalysisState();
+
+                // Check other repositories completed for user
+                bool hasOtherCompleted = await _context.SourceCodeRepositories
+                    .AnyAsync(r => r.AuthProvider.UserId == userId && r.Id != repositoryId && r.IsEnabled && r.LatestAnalysisStatus == "Completed" && r.IsAccessible, cancellationToken);
+
+                if (!hasOtherCompleted)
+                {
+                    // No other completed repositories remain. Delete candidate assessment (returns profile to unassessed state)
+                    var userAssessments = await _context.CandidateAssessments
+                        .Where(ca => ca.UserId == userId)
+                        .ToListAsync(cancellationToken);
+                    if (userAssessments.Any())
+                    {
+                        _context.CandidateAssessments.RemoveRange(userAssessments);
+                    }
+                }
+                else
+                {
+                    reassessmentTriggered = true;
+                }
+
+                // Append audit log record
+                var auditLog = new AuditLog
+                {
+                    Id = Guid.CreateVersion7(),
+                    UserId = userId,
+                    ActorUserId = userId,
+                    EventType = "RepositoryReset",
+                    Description = $"Repository '{repository.Name}' analysis was reset by owner.",
+                    ScopeType = "Repository",
+                    ScopeId = repositoryId,
+                    DetailsJson = JsonSerializer.Serialize(new
+                    {
+                        RepositoryId = repositoryId,
+                        RepositoryName = repository.Name,
+                        Owner = repository.Owner,
+                        ResetAt = _timeProvider.GetUtcNow(),
+                        WasLinkedToCv = wasLinked,
+                        ReassessmentTriggered = reassessmentTriggered,
+                        JobsDeletedCount = jobIds.Count
+                    }),
+                    CreatedAt = _timeProvider.GetUtcNow()
+                };
+                _context.AuditLogs.Add(auditLog);
+
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+
+            // 6. After-Transaction Execution: Asynchronous physical file cleanup
+            if (storagePaths.Any())
+            {
+                var scopeFactory = _scopeFactory;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var scope = scopeFactory.CreateScope();
+                        var storageProvider = scope.ServiceProvider.GetRequiredService<IArtifactStorageProvider>();
+                        foreach (var path in storagePaths)
+                        {
+                            try
+                            {
+                                await storageProvider.DeleteArtifactAsync(path, CancellationToken.None);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Failed to asynchronously delete physical artifact: {Path}", path);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to resolve storage provider in background scope during cleanup.");
+                    }
+                }, CancellationToken.None);
+            }
+
+            // 7. After-Transaction Execution: CV reassessment triggering
+            if (reassessmentTriggered)
+            {
+                var scopeFactory = _scopeFactory;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var scope = scopeFactory.CreateScope();
+                        var assessmentService = scope.ServiceProvider.GetRequiredService<ICandidateAssessmentService>();
+                        await assessmentService.TriggerAssessmentAsync(userId, CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to trigger CV reassessment after resetting repository {RepositoryId} for user {UserId}", repositoryId, userId);
+                    }
+                }, CancellationToken.None);
+            }
+
+            return true;
+        }
+        finally
+        {
+            await database.LockReleaseAsync(lockKey, lockValue);
         }
     }
 }

@@ -196,7 +196,7 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
   }
 
   // Ensure facts has a valid structure
-  const facts = v.facts || {
+  const rawFacts = v.facts || {
     repo,
     git_metrics: {
       total_commits: 1,
@@ -214,6 +214,51 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
       prompt_cache_efficiency: 0.0
     }
   };
+
+  const facts = { ...rawFacts };
+  if (facts.git_metrics) {
+    const gitMetrics = { ...facts.git_metrics };
+    const totalCommits = gitMetrics.total_commits ?? 1;
+    if (Array.isArray(gitMetrics.contributor_distribution)) {
+      gitMetrics.contributor_distribution = gitMetrics.contributor_distribution.map((item: unknown) => {
+        if (!item || typeof item !== "object") {
+          return {
+            author: "developer",
+            email: "verified_git_signature@github.com",
+            commits: 1,
+            pct: 100
+          };
+        }
+        const itemObj = item as Record<string, unknown>;
+        if (
+          itemObj.author !== undefined &&
+          itemObj.email !== undefined &&
+          itemObj.commits !== undefined &&
+          itemObj.pct !== undefined
+        ) {
+          return item;
+        }
+        const username = (typeof itemObj.username === "string" ? itemObj.username : null) ??
+                         (typeof itemObj.author === "string" ? itemObj.author : null) ??
+                         "developer";
+        const rawCommitRatio = itemObj.commit_ratio;
+        const commitRatio = typeof rawCommitRatio === "number" ? rawCommitRatio :
+                            (typeof itemObj.pct === "number" ? itemObj.pct / 100 : 1.0);
+        const email = typeof itemObj.email === "string" ? itemObj.email : `${username}@users.noreply.github.com`;
+        const commits = typeof itemObj.commits === "number" ? itemObj.commits : Math.round(commitRatio * totalCommits);
+        const pct = typeof itemObj.pct === "number" ? itemObj.pct : (commitRatio * 100);
+        return {
+          author: username,
+          email,
+          commits,
+          pct,
+        };
+      });
+    } else {
+      gitMetrics.contributor_distribution = [];
+    }
+    facts.git_metrics = gitMetrics;
+  }
 
   return {
     ...v,
@@ -343,6 +388,11 @@ export const repositoryAnalysisApi = {
     monthlyTrends: Array<{ year: number; month: number; totalCostUsd: number; totalTokens: number }>;
   }> => {
     const response = await axiosClient.get<any>('/repository-analyses/costs/platform-summary');
+    return response.data;
+  },
+
+  resetAnalysis: async (repositoryId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await axiosClient.post<{ success: boolean; message: string }>(`/repositories/${repositoryId}/reset`);
     return response.data;
   }
 };

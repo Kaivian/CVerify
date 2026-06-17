@@ -66,8 +66,15 @@ public class ProjectService : IProjectService
         };
 
         // Link repositories
-        if (request.LinkedRepositoryIds != null)
+        if (request.LinkedRepositoryIds != null && request.LinkedRepositoryIds.Any())
         {
+            var alreadyLinked = await _context.ProjectRepositoryLinks
+                .AnyAsync(l => request.LinkedRepositoryIds.Contains(l.SourceCodeRepositoryId) && l.ProjectEntry.UserId == userId, cancellationToken);
+            if (alreadyLinked)
+            {
+                throw new ValidationException("One or more selected repositories are already linked to another project in your CV.");
+            }
+
             foreach (var repoId in request.LinkedRepositoryIds)
             {
                 var repoExists = await _context.SourceCodeRepositories
@@ -184,8 +191,15 @@ public class ProjectService : IProjectService
         // Sync Repository Links
         _context.ProjectRepositoryLinks.RemoveRange(project.RepositoryLinks);
         project.RepositoryLinks.Clear();
-        if (request.LinkedRepositoryIds != null)
+        if (request.LinkedRepositoryIds != null && request.LinkedRepositoryIds.Any())
         {
+            var alreadyLinked = await _context.ProjectRepositoryLinks
+                .AnyAsync(l => request.LinkedRepositoryIds.Contains(l.SourceCodeRepositoryId) && l.ProjectEntry.UserId == userId && l.ProjectEntryId != id, cancellationToken);
+            if (alreadyLinked)
+            {
+                throw new ValidationException("One or more selected repositories are already linked to another project in your CV.");
+            }
+
             foreach (var repoId in request.LinkedRepositoryIds)
             {
                 var repoExists = await _context.SourceCodeRepositories

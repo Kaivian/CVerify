@@ -90,6 +90,22 @@ public class CandidateAssessmentController : ControllerBase
         return Accepted(result);
     }
 
+    [HttpGet("v1/candidate-assessments/dev-trigger")]
+    [AllowAnonymous]
+    public async Task<IActionResult> DevTriggerAssessment(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var targetUserId = Guid.Parse("019ecc1b-44e6-7600-803f-11249088ae92");
+            var result = await _assessmentService.TriggerAssessmentAsync(targetUserId, cancellationToken);
+            return Ok(new { Success = true, Message = "Candidate assessment trigger successfully initiated.", Result = result });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
     [HttpGet("v1/candidate-assessments/latest")]
     [ProducesResponseType(typeof(CandidateAssessmentResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

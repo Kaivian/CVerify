@@ -101,6 +101,10 @@ export default function SourceCodeProvidersPage() {
   const [selectedRepoId, setSelectedRepoId] = useState<string>("");
   const [repoToReanalyze, setRepoToReanalyze] = useState<{ id: string; name: string; owner: string } | null>(null);
   const [isReanalyzeConfirmOpen, setIsReanalyzeConfirmOpen] = useState(false);
+  const [repoToReset, setRepoToReset] = useState<{ id: string; name: string; owner: string } | null>(null);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [linkedRepoIds, setLinkedRepoIds] = useState<Set<string>>(new Set());
   const loadedReportsRef = useRef<Record<string, boolean>>({});
 
 
@@ -141,6 +145,15 @@ export default function SourceCodeProvidersPage() {
       setOrganizations(data);
     } catch (err) {
       console.error("Failed to load organizations:", err);
+    }
+  }, []);
+
+  const loadLinkedRepositories = useCallback(async () => {
+    try {
+      const data = await sourceCodeProviderApi.fetchRepositories({ mode: "cv_linked", page: 1, pageSize: 100 });
+      setLinkedRepoIds(new Set(data.items.map(r => r.id)));
+    } catch (err) {
+      console.error("Failed to load CV-linked repositories:", err);
     }
   }, []);
 
@@ -207,6 +220,22 @@ export default function SourceCodeProvidersPage() {
     }
   };
 
+  const handleResetRepository = async (repoId: string) => {
+    setIsResetting(true);
+    try {
+      await useAnalysisJobStore.getState().resetRepositoryAnalysis(repoId);
+      toast.success("Repository analysis was reset successfully.");
+      setPage(1);
+      fetchRepos(1, true);
+      loadLinkedRepositories();
+    } catch (err: any) {
+      console.error("Reset repository analysis failed:", err);
+      toast.danger(err.response?.data?.message || "Failed to reset repository analysis.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
 
 
   // Check and restore active jobs on page load
@@ -238,9 +267,10 @@ export default function SourceCodeProvidersPage() {
       loadProviders();
       loadCategories();
       loadOrganizations();
+      loadLinkedRepositories();
     }, 0);
     return () => clearTimeout(timer);
-  }, [loadProviders, loadCategories, loadOrganizations]);
+  }, [loadProviders, loadCategories, loadOrganizations, loadLinkedRepositories]);
 
   // Trigger initial fetch when filters change (always resets to page 1)
   useEffect(() => {
@@ -618,8 +648,21 @@ export default function SourceCodeProvidersPage() {
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
+                    variant="outline"
+                    className="text-xs font-bold rounded-xl flex items-center gap-1 border-danger/30 hover:bg-danger/10 text-danger cursor-pointer"
+                    isDisabled={isResetting}
+                    onClick={() => {
+                      setRepoToReset({ id: repo.id, name: repo.name, owner: repo.owner });
+                      setIsResetConfirmOpen(true);
+                    }}
+                  >
+                    <span>Reset</span>
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="secondary"
                     className="text-xs font-bold rounded-xl flex items-center gap-1 border-border/40"
+                    isDisabled={isResetting}
                     onClick={() => {
                       setRepoToReanalyze({ id: repo.id, name: repo.name, owner: repo.owner });
                       setIsReanalyzeConfirmOpen(true);
@@ -631,6 +674,7 @@ export default function SourceCodeProvidersPage() {
                   <Button
                     size="sm"
                     className="text-xs font-bold rounded-xl bg-accent text-accent-foreground"
+                    isDisabled={isResetting}
                     onClick={() => {
                       setSelectedRepoId(repo.id);
                       setIsModalOpen(true);
@@ -939,6 +983,7 @@ export default function SourceCodeProvidersPage() {
                       size="sm"
                       variant="secondary"
                       className="text-xs font-bold rounded-xl border-border/40"
+                      isDisabled={isResetting}
                       onClick={() => {
                         setSelectedRepoId(repo.id);
                         setIsModalOpen(true);
@@ -948,8 +993,21 @@ export default function SourceCodeProvidersPage() {
                     </Button>
                     <Button
                       size="sm"
+                      variant="outline"
+                      className="text-xs font-bold rounded-xl flex items-center gap-1 border-danger/30 hover:bg-danger/10 text-danger cursor-pointer"
+                      isDisabled={isResetting}
+                      onClick={() => {
+                        setRepoToReset({ id: repo.id, name: repo.name, owner: repo.owner });
+                        setIsResetConfirmOpen(true);
+                      }}
+                    >
+                      <span>Reset</span>
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="danger"
                       className="text-xs font-bold rounded-xl"
+                      isDisabled={isResetting}
                       onClick={() => handleAnalyzeRepository(repo.id, repo.name, repo.owner)}
                     >
                       <span>Retry</span>
@@ -960,6 +1018,7 @@ export default function SourceCodeProvidersPage() {
                   <Button
                     size="sm"
                     className="text-xs font-bold rounded-xl bg-accent text-accent-foreground"
+                    isDisabled={isResetting}
                     onClick={() => handleAnalyzeRepository(repo.id, repo.name, repo.owner)}
                   >
                     <span>Analyze</span>
@@ -1650,6 +1709,81 @@ export default function SourceCodeProvidersPage() {
                     className="bg-warning-soft text-warning rounded-xl font-semibold"
                   >
                     Reanalyze
+                  </Button>
+                </AlertDialog.Footer>
+              </>
+            )}
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+
+      {/* Reset Confirmation Modal */}
+      <AlertDialog.Backdrop
+        isOpen={isResetConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsResetConfirmOpen(false);
+            setRepoToReset(null);
+          }
+        }}
+      >
+        <AlertDialog.Container>
+          <AlertDialog.Dialog className="sm:max-w-[400px]">
+            {(renderProps) => (
+              <>
+                <AlertDialog.CloseTrigger />
+                <AlertDialog.Header>
+                  <AlertDialog.Icon status="danger">
+                    <AlertTriangle className="size-5 text-danger" />
+                  </AlertDialog.Icon>
+                  <AlertDialog.Heading>
+                    Confirm Repository Reset
+                  </AlertDialog.Heading>
+                </AlertDialog.Header>
+                <AlertDialog.Body className="text-sm font-sans font-light leading-relaxed space-y-3">
+                  <p>
+                    Are you sure you want to reset the repository{" "}
+                    <strong>{repoToReset?.owner}/{repoToReset?.name}</strong>?
+                  </p>
+                  <p className="text-xs text-muted">
+                    This will permanently delete all repository analysis reports, career insights, capabilities, and scores from the platform.
+                  </p>
+                  {repoToReset && linkedRepoIds.has(repoToReset.id) && (
+                    <div className="p-3 border border-danger/20 bg-danger/5 text-danger text-xs rounded-xl flex items-start gap-2 mt-2">
+                      <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-extrabold uppercase block mb-1">CV Link Warning</strong>
+                        This repository is currently linked to your CV. Resetting it will unlink it, remove it from your projects, and trigger a CV recalculation.
+                      </div>
+                    </div>
+                  )}
+                </AlertDialog.Body>
+                <AlertDialog.Footer>
+                  <Button
+                    variant="tertiary"
+                    onPress={() => {
+                      setIsResetConfirmOpen(false);
+                      setRepoToReset(null);
+                      renderProps.close();
+                    }}
+                    className="rounded-xl"
+                    isDisabled={isResetting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onPress={async () => {
+                      if (repoToReset) {
+                        await handleResetRepository(repoToReset.id);
+                      }
+                      setIsResetConfirmOpen(false);
+                      setRepoToReset(null);
+                      renderProps.close();
+                    }}
+                    className="bg-danger/10 text-danger border border-danger/20 hover:bg-danger/20 rounded-xl font-semibold animate-none"
+                    isDisabled={isResetting}
+                  >
+                    {isResetting ? <Spinner size="sm" color="danger" /> : "Reset Repository"}
                   </Button>
                 </AlertDialog.Footer>
               </>

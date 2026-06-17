@@ -944,6 +944,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         // Project Signals
         var trustTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "TrustScore");
         var ownershipTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "Ownership");
+        var commitsTaskResult = results.FirstOrDefault(r => r.Task.TaskType == "CommitIntelligence");
 
         double scopeSignal = 0.0;
         double complexitySignal = 0.0;
@@ -978,21 +979,42 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 var trustRoot = trustDoc.RootElement;
                 var dataElement = trustRoot.TryGetProperty("data", out var dProp) ? dProp : trustRoot;
                 
-                if (dataElement.TryGetProperty("scope_score", out var ssProp)) scopeSignal = ssProp.GetDouble();
-                if (dataElement.TryGetProperty("complexity_score", out var csProp)) complexitySignal = csProp.GetDouble();
-                if (ownershipSignal == 0.0 && dataElement.TryGetProperty("ownership_score", out var osProp))
+                if (dataElement.TryGetProperty("dimensions", out var dimProp))
                 {
-                    ownershipSignal = osProp.GetDouble();
-                    if (ownershipSignal <= 1.0) ownershipSignal *= 100.0;
+                    if (dimProp.TryGetProperty("code_quality", out var ssProp)) scopeSignal = ssProp.GetDouble();
+                    if (dimProp.TryGetProperty("complexity", out var csProp)) complexitySignal = csProp.GetDouble();
+                    if (ownershipSignal == 0.0 && dimProp.TryGetProperty("ownership", out var osProp))
+                    {
+                        ownershipSignal = osProp.GetDouble();
+                        if (ownershipSignal <= 1.0) ownershipSignal *= 100.0;
+                    }
+                    if (dimProp.TryGetProperty("commit_integrity", out var consProp)) consistencySignal = consProp.GetDouble();
                 }
-                if (dataElement.TryGetProperty("leadership_score", out var lsProp)) leadershipSignal = lsProp.GetDouble();
-                if (dataElement.TryGetProperty("consistency_score", out var consProp)) consistencySignal = consProp.GetDouble();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error parsing trust score signals for job {JobId}", jobId);
             }
         }
+
+        double userCommitRatio = 1.0;
+        bool isPrimaryAuthor = true;
+        if (commitsTaskResult != null && !string.IsNullOrEmpty(commitsTaskResult.ResultData))
+        {
+            try
+            {
+                using var commitsDoc = JsonDocument.Parse(commitsTaskResult.ResultData);
+                var commitsRoot = commitsDoc.RootElement;
+                var dataElement = commitsRoot.TryGetProperty("data", out var dProp) ? dProp : commitsRoot;
+                if (dataElement.TryGetProperty("ownership", out var ownProp))
+                {
+                    if (ownProp.TryGetProperty("user_commit_ratio", out var ratioProp)) userCommitRatio = ratioProp.GetDouble();
+                    if (ownProp.TryGetProperty("is_primary_author", out var primProp)) isPrimaryAuthor = primProp.GetBoolean();
+                }
+            }
+            catch {}
+        }
+        leadershipSignal = isPrimaryAuthor ? userCommitRatio * 100.0 : userCommitRatio * 50.0;
 
         var repoSignal = new RepositoryIntelligenceSignal
         {
