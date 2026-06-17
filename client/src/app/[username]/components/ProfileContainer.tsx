@@ -858,7 +858,11 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
             {/* Tab 2: AI Verified Assessment Panel */}
             <Tabs.Panel id="assessment" className="pt-6">
               {profile.hasCompletedAssessment && assessment ? (
-                <AiAssessmentTab assessmentDetail={assessment} fullName={profile.fullName || ""} />
+                <AiAssessmentTab 
+                  assessmentDetail={assessment} 
+                  fullName={profile.fullName || ""} 
+                  repositories={profile.repositories}
+                />
               ) : (
                 <div className="flex flex-col items-center justify-center p-12 border border-dashed border-border rounded-xl text-center max-w-lg mx-auto gap-4 mt-6 select-none">
                   <ShieldCheck className="size-12 text-muted/40" />
