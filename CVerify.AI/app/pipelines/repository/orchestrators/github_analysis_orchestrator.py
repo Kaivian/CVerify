@@ -606,12 +606,17 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         await self.publish_task_event(job_id, "RepoStructure", f"Creating workspace directory: {job_dir}")
         os.makedirs(job_dir, exist_ok=True)
 
+        await self.publish_task_event(job_id, "RepoStructure", "Discovering authenticated user identity...")
+        from app.pipelines.repository.github.identity_resolver import GitHubIdentityService
+        identity = await GitHubIdentityService.fetch_user_identity(encrypted_token, correlation_id)
+
         await self.publish_task_event(job_id, "RepoStructure", "Classifying repository: checking stats (stars, forks) and history...")
         classification = await classify_repository(
             repo_owner=repo_owner,
             repo_name=repo_name,
             encrypted_token=encrypted_token,
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
+            resolved_identity=identity
         )
         await self.publish_task_event(job_id, "RepoStructure", f"Repository classified. Type: {classification.repo_type}. Stars: {classification.stars_count}. Forks: {classification.forks_count}.")
 
@@ -738,7 +743,13 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             # Trust and Adversarial metrics
             "unverified_commits_count": getattr(classification, "unverified_commits_count", 0),
             "timestamp_compression_ratio": getattr(classification, "timestamp_compression_ratio", 0.0),
-            "uncalibrated_identities_count": getattr(classification, "uncalibrated_identities_count", 0)
+            "uncalibrated_identities_count": getattr(classification, "uncalibrated_identities_count", 0),
+
+            # Resolved identity & owner verification data
+            "authenticated_user_login": classification.username,
+            "repository_owner_login": repo_owner,
+            "owner_verified": bool(classification.username and repo_owner.lower() == classification.username.lower()),
+            "user_email_hashes": classification.user_emails
         }
 
         with open(meta_path, "w", encoding="utf-8") as f_out:
@@ -828,19 +839,67 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                         key = email.lower().strip() if email else name.strip()
                         local_contrib_counts[key] = local_contrib_counts.get(key, 0) + 1
                     
-                    # Compute user commits matching details
-                    user_email = meta.get("user_email", "")
-                    username = meta.get("username", "")
+                    # Compute user commits matching details via ContributorIdentityResolver
+                    from app.pipelines.repository.github.identity_resolver import ContributorIdentityResolver
+                    resolver = ContributorIdentityResolver(
+                        github_username=meta.get("username"),
+                        github_email_hashes=meta.get("user_email_hashes"),
+                        repository_owner_login=meta.get("repository_owner_login"),
+                        authenticated_user_login=meta.get("authenticated_user_login"),
+                        owner_verified=meta.get("owner_verified", False)
+                    )
+
                     user_local_commits = 0
-                    
                     for email, name in local_commits:
-                        email_match = user_email and email.lower().strip() == user_email.lower().strip()
-                        name_match = username and (username.lower().strip() in name.lower().strip() or name.lower().strip() in username.lower().strip())
-                        if email_match or name_match:
+                        if resolver.is_user(email, name):
                             user_local_commits += 1
 
-                    local_user_commit_ratio = user_local_commits / local_total_commits if local_total_commits > 0 else 1.0
-                    
+                    human_contrib_counts = {}
+                    for email, name in local_commits:
+                        if not resolver.is_bot(email, name):
+                            key = email.lower().strip() if email else name.strip()
+                            human_contrib_counts[key] = human_contrib_counts.get(key, 0) + 1
+
+                    local_user_commit_ratio = 0.0
+                    ownership_method = "verified"
+                    ownership_confidence = 1.0
+                    attribution_strategy = "strict_identity_resolution"
+
+                    if user_local_commits > 0:
+                        local_user_commit_ratio = user_local_commits / local_total_commits
+                    else:
+                        # Fallback for personal / single-contributor repo
+                        if len(human_contrib_counts) <= 1 and meta.get("owner_verified", False):
+                            local_user_commit_ratio = 1.0
+                            ownership_method = "fallback_single_author"
+                            ownership_confidence = 1.0
+                            attribution_strategy = "owner_verified_single_author"
+                        elif len(human_contrib_counts) == 2:
+                            # 2 contributors: only fallback if there is positive identity evidence
+                            matched_key = None
+                            for key in human_contrib_counts:
+                                email_part = key if "@" in key else None
+                                name_part = None if "@" in key else key
+                                if resolver.is_user(email_part, name_part):
+                                    matched_key = key
+                                    break
+                            
+                            if matched_key:
+                                local_user_commit_ratio = human_contrib_counts[matched_key] / local_total_commits
+                                ownership_method = "fallback_dominant_author"
+                                ownership_confidence = 0.9
+                                attribution_strategy = "identity_matched_two_contributors"
+                            else:
+                                local_user_commit_ratio = 0.0
+                                ownership_method = "unresolved"
+                                ownership_confidence = 0.0
+                                attribution_strategy = "failed_mismatch"
+                        else:
+                            local_user_commit_ratio = 0.0
+                            ownership_method = "unresolved"
+                            ownership_confidence = 0.0
+                            attribution_strategy = "failed_mismatch"
+
                     for key, count in local_contrib_counts.items():
                         local_contributor_distribution.append({
                             "username": key,
@@ -868,6 +927,12 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         final_active_contributors = len(local_contrib_counts) if local_total_commits > 0 else meta.get("active_contributors", 1)
         final_distribution = local_contributor_distribution if local_total_commits > 0 else meta.get("contributor_distribution", [])
 
+        # Hashing and verification facts
+        final_human_contributors_count = len(human_contrib_counts) if local_total_commits > 0 else 1
+        final_ownership_method = ownership_method if local_total_commits > 0 else "unresolved"
+        final_ownership_confidence = ownership_confidence if local_total_commits > 0 else 0.0
+        final_attribution_strategy = attribution_strategy if local_total_commits > 0 else "failed_mismatch"
+
         await self.publish_task_event(job_id, "CommitIntelligence", f"Git metrics computed: Bus Factor={final_bus_factor}, Active Contributors={final_active_contributors}, User Contribution Ratio={final_user_commit_ratio*100:.1f}%.")
 
         if not meta.get("is_cloned"):
@@ -885,7 +950,11 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                         "explanation": "No contributions were found in this repository by the current user.",
                         "contributor_distribution": [],
                         "bus_factor": 1,
-                        "active_contributors": 1
+                        "active_contributors": 1,
+                        "human_contributors_count": 1,
+                        "ownership_method": "unresolved",
+                        "ownership_confidence": 0.0,
+                        "attribution_strategy": "failed_mismatch"
                     },
                     "trust": {
                         "classification": "template_dump",
@@ -934,6 +1003,10 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         parsed["ownership"]["bus_factor"] = final_bus_factor
         parsed["ownership"]["active_contributors"] = final_active_contributors
         parsed["ownership"]["contributor_distribution"] = final_distribution
+        parsed["ownership"]["human_contributors_count"] = final_human_contributors_count
+        parsed["ownership"]["ownership_method"] = final_ownership_method
+        parsed["ownership"]["ownership_confidence"] = final_ownership_confidence
+        parsed["ownership"]["attribution_strategy"] = final_attribution_strategy
         
         # Inject task-level confidence metadata
         parsed["confidence_meta"] = {
@@ -2018,17 +2091,25 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             }]
         }
 
-    # â”€â”€ L1-012 GitBlame â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
+    # 1-012 GitBlame
+    
     @trace_stage("GitBlame")
     async def analyze_git_blame(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
-        """Per-file authorship via git blame on the most-changed files (Â§4.2 cregit approach)."""
+        """Per-file authorship via git blame on the most-changed files (§4.2 cregit approach)."""
         import subprocess
         meta = self._read_meta(job_id)
         clone_dir = self._clone_dir(job_id)
 
         if not meta.get("is_cloned") or not os.path.exists(os.path.join(clone_dir, ".git")):
-            return self._empty_result({"file_authorship": [], "overall_author_ratio": 0.0})
+            return self._empty_result({
+                "file_authorship": [],
+                "overall_author_ratio": 0.0,
+                "total_lines_blamed": 0,
+                "user_lines_blamed": 0,
+                "ownership_method": "unresolved",
+                "ownership_confidence": 0.0,
+                "attribution_strategy": "failed_mismatch"
+            })
 
         await self.publish_task_event(job_id, "GitBlame", "Running git blame on top-changed files...")
 
@@ -2046,23 +2127,26 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
 
         top_files = sorted(file_freq, key=file_freq.__getitem__, reverse=True)[:10]
 
-        # Get committer identity (email-based matching)
-        user_email = meta.get("user_email", "").lower().strip()
-        username = meta.get("username", "").lower().strip()
-
-        def is_user_author(author_email: str, author_name: str) -> bool:
-            e = author_email.lower().strip()
-            n = author_name.lower().strip()
-            if user_email and e == user_email:
-                return True
-            if username and (username in n or n in username):
-                return True
-            return False
+        # Get identity resolver
+        from app.pipelines.repository.github.identity_resolver import ContributorIdentityResolver
+        resolver = ContributorIdentityResolver(
+            github_username=meta.get("username"),
+            github_email_hashes=meta.get("user_email_hashes"),
+            repository_owner_login=meta.get("repository_owner_login"),
+            authenticated_user_login=meta.get("authenticated_user_login"),
+            owner_verified=meta.get("owner_verified", False)
+        )
 
         file_authorship = []
         total_lines = 0
         user_lines = 0
 
+        # Unique human authors across all files and their lines blamed
+        human_authors = set()
+        human_author_lines: dict[str, int] = {}
+
+        # We will parse per-file blame outputs first
+        raw_blames = []
         for rel_path in top_files:
             abs_path = os.path.join(clone_dir, rel_path.replace("/", os.sep))
             if not os.path.isfile(abs_path):
@@ -2075,7 +2159,11 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             if blame_proc.returncode != 0:
                 continue
 
-            author_lines: dict[str, int] = {}
+            # Keep track of file level authors and lines
+            file_author_lines: dict[str, int] = {}
+            file_total = 0
+            file_user_lines = 0
+
             cur_email = ""
             cur_name = ""
             for bline in blame_proc.stdout.split("\n"):
@@ -2084,27 +2172,129 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 elif bline.startswith("author-mail "):
                     cur_email = bline[12:].strip().strip("<>")
                 elif bline.startswith("\t"):  # actual code line
-                    key = cur_email or cur_name
-                    author_lines[key] = author_lines.get(key, 0) + 1
+                    file_total += 1
                     total_lines += 1
-                    if is_user_author(cur_email, cur_name):
+
+                    is_u = resolver.is_user(cur_email, cur_name)
+                    is_b = resolver.is_bot(cur_email, cur_name)
+
+                    if is_u:
+                        file_user_lines += 1
                         user_lines += 1
 
-            file_total = max(1, sum(author_lines.values()))
-            top_author = max(author_lines, key=author_lines.__getitem__, default="unknown")
-            file_authorship.append({
+                    if not is_b:
+                        author_key = cur_email.lower().strip() if cur_email else cur_name.lower().strip()
+                        human_authors.add(author_key)
+                        human_author_lines[author_key] = human_author_lines.get(author_key, 0) + 1
+                        file_author_lines[author_key] = file_author_lines.get(author_key, 0) + 1
+
+            raw_blames.append({
                 "file": rel_path,
-                "total_lines": file_total,
-                "user_lines": author_lines.get(
-                    next((k for k in author_lines if is_user_author(
-                        k if "@" in k else "", k if "@" not in k else ""
-                    )), ""), 0
-                ),
-                "top_author": top_author,
-                "author_count": len(author_lines),
+                "total_lines": max(1, file_total),
+                "user_lines": file_user_lines,
+                "file_author_lines": file_author_lines,
             })
 
-        overall_author_ratio = round(user_lines / max(1, total_lines), 4)
+        # Calculate fallbacks if user_lines is 0
+        ownership_method = "verified"
+        ownership_confidence = 1.0
+        attribution_strategy = "strict_identity_resolution"
+
+        if user_lines > 0:
+            overall_author_ratio = round(user_lines / max(1, total_lines), 4)
+            # Fill final file authorship list
+            for rb in raw_blames:
+                author_lines_dict = rb["file_author_lines"]
+                top_author = max(author_lines_dict, key=author_lines_dict.__getitem__, default="unknown")
+                file_authorship.append({
+                    "file": rb["file"],
+                    "total_lines": rb["total_lines"],
+                    "user_lines": rb["user_lines"],
+                    "top_author": top_author,
+                    "author_count": len(author_lines_dict)
+                })
+        else:
+            # Fallback for personal / single-contributor repo
+            if len(human_authors) <= 1 and meta.get("owner_verified", False):
+                user_lines = total_lines
+                overall_author_ratio = 1.0
+                ownership_method = "fallback_single_author"
+                ownership_confidence = 1.0
+                attribution_strategy = "owner_verified_single_author"
+
+                # Override files to be 100% owned by the user
+                for rb in raw_blames:
+                    author_lines_dict = rb["file_author_lines"]
+                    top_author = max(author_lines_dict, key=author_lines_dict.__getitem__, default="unknown")
+                    file_authorship.append({
+                        "file": rb["file"],
+                        "total_lines": rb["total_lines"],
+                        "user_lines": rb["total_lines"],
+                        "top_author": top_author,
+                        "author_count": len(author_lines_dict)
+                    })
+            elif len(human_authors) == 2:
+                # 2 contributors: check if one matches positive identity
+                matched_key = None
+                for key in human_authors:
+                    email_part = key if "@" in key else None
+                    name_part = None if "@" in key else key
+                    if resolver.is_user(email_part, name_part):
+                        matched_key = key
+                        break
+
+                if matched_key:
+                    user_lines = human_author_lines[matched_key]
+                    overall_author_ratio = round(user_lines / max(1, total_lines), 4)
+                    ownership_method = "fallback_dominant_author"
+                    ownership_confidence = 0.9
+                    attribution_strategy = "identity_matched_two_contributors"
+
+                    # Override files to have user lines equal to the matched author's lines in that file
+                    for rb in raw_blames:
+                        author_lines_dict = rb["file_author_lines"]
+                        top_author = max(author_lines_dict, key=author_lines_dict.__getitem__, default="unknown")
+                        file_authorship.append({
+                            "file": rb["file"],
+                            "total_lines": rb["total_lines"],
+                            "user_lines": author_lines_dict.get(matched_key, 0),
+                            "top_author": top_author,
+                            "author_count": len(author_lines_dict)
+                        })
+                else:
+                    overall_author_ratio = 0.0
+                    ownership_method = "unresolved"
+                    ownership_confidence = 0.0
+                    attribution_strategy = "failed_mismatch"
+
+                    # No override
+                    for rb in raw_blames:
+                        author_lines_dict = rb["file_author_lines"]
+                        top_author = max(author_lines_dict, key=author_lines_dict.__getitem__, default="unknown")
+                        file_authorship.append({
+                            "file": rb["file"],
+                            "total_lines": rb["total_lines"],
+                            "user_lines": 0,
+                            "top_author": top_author,
+                            "author_count": len(author_lines_dict)
+                        })
+            else:
+                overall_author_ratio = 0.0
+                ownership_method = "unresolved"
+                ownership_confidence = 0.0
+                attribution_strategy = "failed_mismatch"
+
+                for rb in raw_blames:
+                    author_lines_dict = rb["file_author_lines"]
+                    top_author = max(author_lines_dict, key=author_lines_dict.__getitem__, default="unknown")
+                    file_authorship.append({
+                        "file": rb["file"],
+                        "total_lines": rb["total_lines"],
+                        "user_lines": 0,
+                        "top_author": top_author,
+                        "author_count": len(author_lines_dict)
+                    })
+
         await self.publish_task_event(job_id, "GitBlame",
             f"Git blame on {len(file_authorship)} files. User lines: {user_lines}/{total_lines} ({overall_author_ratio:.1%}).")
 
@@ -2114,6 +2304,9 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 "overall_author_ratio": overall_author_ratio,
                 "total_lines_blamed": total_lines,
                 "user_lines_blamed": user_lines,
+                "ownership_method": ownership_method,
+                "ownership_confidence": ownership_confidence,
+                "attribution_strategy": attribution_strategy
             },
             "telemetry": None,
             "events": [{
@@ -2138,6 +2331,25 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         """SimHash / MinHash LSH clone detection on source code content (Â§4.4 spec).
         Detects near-duplicate blocks, Type-2/3 clones, and inter-file copy-paste.
         Falls back to commit-pattern heuristics when datasketch is unavailable."""
+        if not settings.clone_detection_enabled:
+            await self.publish_task_event(job_id, "CloneDetection", "Clone detection is disabled via feature flag.")
+            return {
+                "data": {
+                    "clone_risk_score": 0.0,
+                    "clone_similarity_score": 0.0,
+                    "classification": "not_evaluated",
+                    "flags": ["feature_disabled"],
+                    "clone_pairs": [],
+                },
+                "telemetry": None,
+                "events": [{
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "level": "Info",
+                    "eventType": "StepCompleted",
+                    "message": "Clone detection bypassed."
+                }]
+            }
+
         import subprocess, re
         meta = self._read_meta(job_id)
         clone_dir = self._clone_dir(job_id)
@@ -2345,15 +2557,14 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                     "ratio": single_touch_ratio,
                     "note": f"{single_touch_ratio:.0%} of files touched only once â€” suggests copy-paste or AI generation"
                 })
-
-        # Signal 3: intent conflicts from CommitDiff (message â‰  diff)
+        # Signal 3: intent conflicts from CommitDiff (message ≠ diff)
         intent_conflicts = [c for c in commits if c.get("intent_conflict")]
         if len(intent_conflicts) > 3:
             ai_risk_score += min(20.0, len(intent_conflicts) * 4.0)
             flags.append({
                 "flag": "intent_message_conflicts",
                 "count": len(intent_conflicts),
-                "note": "Commit messages don't match diff content â€” possible obfuscation"
+                "note": "Commit messages don't match diff content — possible obfuscation"
             })
 
         ai_risk_score = min(100.0, ai_risk_score)
@@ -2378,36 +2589,36 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             }]
         }
 
-    # â”€â”€ L1-015 Ownership â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── L1-015 Ownership ────────────────────────────────────────────────────────────
 
-    # Weights for the 4-component ownership formula (Â§4.3 spec)
-    # AuthorshipRatioÃ—w1 + (1âˆ’CloneSimilarity)Ã—w2 + OriginalityScoreÃ—w3 + MaintenanceContributionÃ—w4
-    _OWNERSHIP_W1 = 0.40  # AuthorshipRatio â€” git blame line ownership
-    _OWNERSHIP_W2 = 0.25  # (1 âˆ’ CloneSimilarity) â€” penalise near-duplicate code
-    _OWNERSHIP_W3 = 0.20  # OriginalityScore â€” commit-based originality
-    _OWNERSHIP_W4 = 0.15  # MaintenanceContribution â€” refactor/fix commits
+    # Weights for the 4-component ownership formula (§4.3 spec)
+    # AuthorshipRatio×w1 + (1─CloneSimilarity)×w2 + OriginalityScore×w3 + MaintenanceContribution×w4
+    _OWNERSHIP_W1 = 0.40  # AuthorshipRatio — git blame line ownership
+    _OWNERSHIP_W2 = 0.25  # (1 ─ CloneSimilarity) — penalise near-duplicate code
+    _OWNERSHIP_W3 = 0.20  # OriginalityScore — commit-based originality
+    _OWNERSHIP_W4 = 0.15  # MaintenanceContribution — refactor/fix commits
 
     @trace_stage("Ownership")
     async def analyze_ownership(self, job_id: str, encrypted_token: str, correlation_id: str) -> dict:
-        """Ownership Score = AuthorshipRatioÃ—w1 + (1âˆ’CloneSimilarity)Ã—w2 +
-        OriginalityScoreÃ—w3 + MaintenanceContributionÃ—w4  (Â§4.3 spec formula)."""
+        """Ownership Score = AuthorshipRatio×w1 + (1─CloneSimilarity)×w2 +
+        OriginalityScore×w3 + MaintenanceContribution×w4  (§4.3 spec formula)."""
         meta = self._read_meta(job_id)
         blame_cache = self._read_task_cache(job_id, "GitBlame")
         commit_cache = self._read_task_cache(job_id, "CommitIntelligence")
         clone_cache = self._read_task_cache(job_id, "CloneDetection")
         timeline_cache = self._read_task_cache(job_id, "CommitTimeline")
 
-        # â”€â”€ w1: AuthorshipRatio â€” from git blame â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── w1: AuthorshipRatio ─ from git blame ──────────────────────────
         authorship_ratio = float(
             blame_cache.get("overall_author_ratio",
                             meta.get("user_commit_ratio", 1.0))
         )
 
-        # â”€â”€ w2: (1 âˆ’ CloneSimilarity) â€” from MinHash clone detection â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── w2: (1 ─ CloneSimilarity) ─ from MinHash clone detection ─────────
         clone_similarity = float(clone_cache.get("clone_similarity_score", 0.0))
         originality_from_clone = 1.0 - clone_similarity
 
-        # â”€â”€ w3: OriginalityScore â€” commit-authored lines vs total â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ── w3: OriginalityScore ─ commit-authored lines vs total ─────────────
         commit_ratio = float(
             (commit_cache.get("ownership") or {}).get(
                 "user_commit_ratio", meta.get("user_commit_ratio", authorship_ratio)
@@ -2418,26 +2629,66 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             commit_ratio *= 0.5
         originality_score = min(1.0, commit_ratio)
 
-        # â”€â”€ w4: MaintenanceContribution â€” voluntary refactor/fix ratio â”€â”€â”€â”€â”€â”€â”€
+        # ── w4: MaintenanceContribution ─ voluntary refactor/fix ratio ───────
         refactor_initiative = float(timeline_cache.get("refactor_initiative", 0.0))
         bug_fix_ratio = float(timeline_cache.get("bug_to_fix_ratio", 0.0))
         maintenance_contribution = min(1.0, (refactor_initiative + bug_fix_ratio) * 2.0)
 
-        # â”€â”€ Weighted ownership score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        raw_ownership = (
-            authorship_ratio       * self._OWNERSHIP_W1 +
-            originality_from_clone * self._OWNERSHIP_W2 +
-            originality_score      * self._OWNERSHIP_W3 +
-            maintenance_contribution * self._OWNERSHIP_W4
+        # ── Refined fallback and attribution checks ───────────────────────────
+        owner_verified = meta.get("owner_verified", False)
+        human_contributors_count = int(
+            (commit_cache.get("ownership") or {}).get(
+                "human_contributors_count", 1
+            )
         )
-        ownership_score = round(max(0.0, min(1.0, raw_ownership)), 4)
 
-        # â”€â”€ Module-level ownership from GitBlame â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        commit_method = (commit_cache.get("ownership") or {}).get("ownership_method")
+        blame_method = blame_cache.get("ownership_method")
+
+        if human_contributors_count <= 1 and owner_verified:
+            ownership_score = 1.0
+            ownership_method = "fallback_single_author"
+            ownership_confidence = 1.0
+            attribution_strategy = "owner_verified_single_author"
+            
+            # Since user is verified single author, components should reflect complete ownership
+            authorship_ratio = 1.0
+            originality_score = 1.0
+        else:
+            if commit_method == "verified" or blame_method == "verified":
+                ownership_method = "verified"
+                ownership_confidence = 1.0
+                attribution_strategy = "strict_identity_resolution"
+            elif commit_method == "fallback_dominant_author" or blame_method == "fallback_dominant_author":
+                ownership_method = "fallback_dominant_author"
+                ownership_confidence = 0.9
+                attribution_strategy = "identity_matched_two_contributors"
+            else:
+                ownership_method = "unresolved"
+                ownership_confidence = 0.0
+                attribution_strategy = "failed_mismatch"
+
+            if ownership_method == "unresolved":
+                ownership_score = 0.0
+            else:
+                # ── Weighted ownership score ──────────────────────────────────────────
+                raw_ownership = (
+                    authorship_ratio       * self._OWNERSHIP_W1 +
+                    originality_from_clone * self._OWNERSHIP_W2 +
+                    originality_score      * self._OWNERSHIP_W3 +
+                    maintenance_contribution * self._OWNERSHIP_W4
+                )
+                ownership_score = round(max(0.0, min(1.0, raw_ownership)), 4)
+
+        # ── Module-level ownership from GitBlame ──────────────────────────
         module_ownership: dict[str, float] = {}
         module_count: dict[str, int] = {}
         for fa in blame_cache.get("file_authorship", []):
             f = fa.get("file", "")
             user_lines = fa.get("user_lines", 0)
+            # If we fall back to single author, all lines belong to the user
+            if ownership_method == "fallback_single_author":
+                user_lines = fa.get("total_lines", 1)
             total_lines = max(1, fa.get("total_lines", 1))
             module = f.split("/")[0] if "/" in f else "root"
             module_ownership[module] = module_ownership.get(module, 0) + user_lines / total_lines
@@ -2455,7 +2706,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             f"Ownership score={ownership_score:.3f} "
             f"(AR={authorship_ratio:.2f}, OC={originality_from_clone:.2f}, "
             f"OS={originality_score:.2f}, MC={maintenance_contribution:.2f}). "
-            f"Primary={is_primary}.")
+            f"Primary={is_primary}. Method={ownership_method}")
 
         return {
             "data": {
@@ -2476,6 +2727,11 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 "bus_factor": bus_factor,
                 "total_commits": total_commits,
                 "module_ownership": normalized_module,
+                "attribution_metadata": {
+                    "ownership_method": ownership_method,
+                    "ownership_confidence": ownership_confidence,
+                    "attribution_strategy": attribution_strategy,
+                }
             },
             "telemetry": None,
             "events": [{

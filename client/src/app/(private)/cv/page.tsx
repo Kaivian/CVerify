@@ -256,6 +256,12 @@ export default function CvManagementCenter() {
     disconnectProgressStream,
     fetchDetails,
     stages,
+    realtimeScore,
+    realtimeLevel,
+    realtimeLevelLabel,
+    realtimeDimensions,
+    realtimeRecommendations,
+    realtimeSignals,
   } = useCandidateAssessment();
 
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
@@ -1675,6 +1681,78 @@ export default function CvManagementCenter() {
             <span className="text-[9px] text-muted-foreground/80 italic shrink-0 -mt-2">
               *Progress bar represents stage completion milestones. AI processing on active stage may require extra processing time.
             </span>
+
+            {/* Real-Time Live Scorecard Card */}
+            {(realtimeScore !== null || realtimeLevelLabel !== null || Object.keys(realtimeDimensions).length > 0) && (
+              <div className="p-4 border border-border/80 bg-surface-secondary/30 rounded-2xl flex flex-col gap-3 shrink-0 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">Live Evaluation Vector</span>
+                  {realtimeLevelLabel && (
+                    <Chip size="sm" color="accent" variant="soft" className="text-[10px] font-black uppercase px-2 h-5.5 bg-accent/15 text-accent border-none">
+                      {realtimeLevelLabel}
+                    </Chip>
+                  )}
+                </div>
+                <div className="w-full h-px bg-border/5" />
+                <div className="flex items-center justify-between gap-4">
+                  {realtimeScore !== null && (
+                    <div className="flex flex-col items-center justify-center p-3 border border-border/40 bg-surface rounded-2xl shrink-0 min-w-[90px]">
+                      <span className="text-[9px] text-muted-foreground uppercase font-black tracking-wide">Live Score</span>
+                      <span className="text-2xl font-black text-foreground">{Math.round(realtimeScore)}</span>
+                    </div>
+                  )}
+                  {/* Real-time Dimensions list */}
+                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {Object.entries(realtimeDimensions).map(([dim, val]) => {
+                      const dimLabelMap: Record<string, string> = {
+                        skillDepth: "Skill Depth",
+                        ownership: "Ownership",
+                        architecture: "Architecture",
+                        problemSolving: "Problem Solving",
+                        impact: "Business Impact"
+                      };
+                      return (
+                        <div key={dim} className="flex flex-col border border-border/20 bg-surface-secondary/20 p-2 rounded-xl text-left">
+                          <span className="text-[8px] text-muted-foreground font-extrabold uppercase line-clamp-1">{dimLabelMap[dim] || dim}</span>
+                          <span className="text-xs font-black text-foreground">{val}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Real-Time Observations / Gaps */}
+                {realtimeSignals.length > 0 && (
+                  <div className="flex flex-col gap-1.5 mt-1 border-t border-border/5 pt-2">
+                    <span className="text-[9px] text-muted-foreground font-black uppercase">Detected Improvement Gaps</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {realtimeSignals.map((sig, idx) => (
+                        <Chip key={idx} size="sm" color="danger" variant="soft" className="text-[8px] font-extrabold uppercase px-1.5 h-4.5 bg-danger/10 text-danger border-none">
+                          {sig}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Real-Time Actionable Recommendations */}
+                {realtimeRecommendations.length > 0 && (
+                  <div className="flex flex-col gap-1.5 border-t border-border/5 pt-2">
+                    <span className="text-[9px] text-muted-foreground font-black uppercase font-extrabold">Generated Recommendations ({realtimeRecommendations.length})</span>
+                    <div className="max-h-[80px] overflow-y-auto flex flex-col gap-1.5 pr-1 scrollbar-thin scrollbar-thumb-border">
+                      {realtimeRecommendations.map((rec) => (
+                        <div key={rec.id} className="flex items-start gap-2 p-2 border border-border/20 bg-surface rounded-xl text-[10px] leading-relaxed">
+                          <Chip size="sm" color={rec.priority === 'High' ? 'danger' : 'warning'} variant="soft" className="text-[8px] font-black uppercase shrink-0 px-1 h-4.5 border-none">
+                            {rec.id}
+                          </Chip>
+                          <span className="font-light text-foreground/80">{rec.action}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Detailed Failure Information Card */}
             {streamStatus === 'failed' && (

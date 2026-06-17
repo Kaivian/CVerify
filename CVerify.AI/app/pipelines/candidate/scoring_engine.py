@@ -252,7 +252,7 @@ def calculate_self_declared_score(
     arch_self = a_arch * math.log1p(b_arch * raw_architecture_self)
 
     # 4. Self-Declared Problem Solving
-    problem_solving_score = float(inputs.get("problemSolvingScore", 50.0))
+    problem_solving_score = float(inputs.get("problemSolvingScore") or 50.0)
     raw_solving_self = len(self_declared_projects) * problem_solving_score
     ps_self = a_ps * math.log1p(b_ps * raw_solving_self)
 
