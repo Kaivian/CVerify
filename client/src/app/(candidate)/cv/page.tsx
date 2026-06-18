@@ -18,6 +18,7 @@ import {
   GraduationCap,
   Award,
   FileText,
+  FileDown,
   Sparkles,
   ChevronRight,
   ArrowLeft,
@@ -700,6 +701,126 @@ export default function CvManagementCenter() {
     if (typeof window !== "undefined") {
       window.print();
     }
+  };
+
+  const isVietnameseText = (text: string): boolean => {
+    if (!text) return false;
+    const viRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+    return viRegex.test(text);
+  };
+
+  const handleDownloadMarkdown = () => {
+    const bioText = activeProfile?.bio || "";
+    const isVi = isVietnameseText(bioText) || isVietnameseText(activeProfile?.fullName || "");
+
+    const labels = isVi ? {
+      summary: "Tóm tắt Cá nhân",
+      skills: "Kỹ năng Cốt lõi",
+      experience: "Kinh nghiệm Làm việc",
+      projects: "Dự án Liên kết",
+      education: "Học vấn",
+      achievements: "Thành tích & Chứng chỉ",
+      preferences: "Nguyện vọng Nghề nghiệp",
+    } : {
+      summary: "Professional Summary",
+      skills: "Core Skills",
+      experience: "Work Experience",
+      projects: "Linked Projects",
+      education: "Education",
+      achievements: "Achievements & Certificates",
+      preferences: "Career Preferences",
+    };
+
+    let md = `# ${activeProfile?.fullName || "Untitled"}\n`;
+    if (activeProfile?.headline) {
+      md += `**${activeProfile.headline}**\n\n`;
+    } else {
+      md += `\n`;
+    }
+
+    const contact = [];
+    if (activeProfile?.publicEmail) contact.push(`Email: ${activeProfile.publicEmail}`);
+    if (activeProfile?.phoneNumber) contact.push(`Phone: ${activeProfile.phoneNumber}`);
+    if (activeProfile?.location) contact.push(`Location: ${activeProfile.location}`);
+    if (activeProfile?.socialLinks && activeProfile.socialLinks.length > 0) {
+      activeProfile.socialLinks.forEach((link: string) => {
+        contact.push(link);
+      });
+    }
+    if (contact.length > 0) {
+      md += contact.join(" | ") + "\n\n";
+    }
+
+    if (activeProfile?.bio) {
+      md += `## ${labels.summary}\n${activeProfile.bio}\n\n`;
+    }
+
+    if (activeCareer?.targetSkills && activeCareer.targetSkills.length > 0) {
+      md += `## ${labels.skills}\n`;
+      md += activeCareer.targetSkills.map((s: string) => `- ${s}`).join("\n") + "\n\n";
+    }
+
+    if (activeExp && activeExp.length > 0) {
+      md += `## ${labels.experience}\n`;
+      activeExp.forEach((exp: any) => {
+        const dateStr = exp.startDate ? `${exp.startDate} - ${exp.endDate || "Present"}` : "";
+        md += `### ${exp.companyName} - ${exp.jobTitle} (${dateStr})\n`;
+        if (exp.description) md += `${exp.description}\n`;
+        md += `\n`;
+      });
+    }
+
+    if (activeProjects && activeProjects.length > 0) {
+      md += `## ${labels.projects}\n`;
+      activeProjects.forEach((proj: any) => {
+        const dateStr = proj.startDate ? `${proj.startDate} - ${proj.endDate || "Present"}` : "";
+        md += `### ${proj.projectName} - ${proj.role} (${dateStr})\n`;
+        if (proj.description) md += `${proj.description}\n`;
+        md += `\n`;
+      });
+    }
+
+    if (activeEdu && activeEdu.length > 0) {
+      md += `## ${labels.education}\n`;
+      activeEdu.forEach((edu: any) => {
+        const dateStr = edu.startDate ? `${edu.startDate} - ${edu.endDate || "Present"}` : "";
+        md += `### ${edu.schoolName} (${dateStr})\n`;
+        md += `**${edu.label}**\n`;
+        if (edu.gpa) md += `GPA: ${edu.gpa}/${edu.gpaScale || 4.0}\n`;
+        if (edu.description) md += `${edu.description}\n`;
+        md += `\n`;
+      });
+    }
+
+    if (activeAch && activeAch.length > 0) {
+      md += `## ${labels.achievements}\n`;
+      activeAch.forEach((ach: any) => {
+        const dateStr = ach.date ? `(${ach.date})` : "";
+        md += `### ${ach.title} ${dateStr}\n`;
+        if (ach.issuer) md += `*Issuer: ${ach.issuer}*\n`;
+        if (ach.description) md += `${ach.description}\n`;
+        md += `\n`;
+      });
+    }
+
+    if (activePreferences?.desiredJobPositions && activePreferences.desiredJobPositions.length > 0) {
+      md += `## ${labels.preferences}\n`;
+      md += `- Job Positions: ${activePreferences.desiredJobPositions.join(", ")}\n`;
+      if (activePreferences.preferredLocations && activePreferences.preferredLocations.length > 0) {
+        md += `- Preferred Locations: ${activePreferences.preferredLocations.join(", ")}\n`;
+      }
+      if (activePreferences.employmentPreferences && activePreferences.employmentPreferences.length > 0) {
+        md += `- Employment Preferences: ${activePreferences.employmentPreferences.join(", ")}\n`;
+      }
+    }
+
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `CV_${(activeProfile?.fullName || "Resume").replace(/\s+/g, "_")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const isLoading = isProfileLoading || isCareerLoading || isEduLoading || isWorkLoading || isAchLoading || isProjLoading;
@@ -2229,12 +2350,28 @@ export default function CvManagementCenter() {
 
                 <div className="flex items-center gap-3">
                   {editorMode === "preview" && (
-                    <button
-                      onClick={() => setIsA4PreviewOpen(true)}
-                      className="text-[10px] bg-accent-soft text-accent hover:bg-accent/20 px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-accent/20 outline-none transition-colors select-none"
-                    >
-                      View A4
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsA4PreviewOpen(true)}
+                        className="text-[10px] bg-accent-soft text-accent hover:bg-accent/20 px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-accent/20 outline-none transition-colors select-none"
+                      >
+                        View A4
+                      </button>
+                      <button
+                        onClick={handlePrint}
+                        className="text-[10px] bg-surface-secondary text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-border/40 hover:bg-surface-secondary/80 outline-none transition-colors select-none flex items-center gap-1.5"
+                      >
+                        <Printer className="size-3" />
+                        PDF
+                      </button>
+                      <button
+                        onClick={handleDownloadMarkdown}
+                        className="text-[10px] bg-surface-secondary text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-border/40 hover:bg-surface-secondary/80 outline-none transition-colors select-none flex items-center gap-1.5"
+                      >
+                        <FileDown className="size-3" />
+                        Markdown
+                      </button>
+                    </div>
                   )}
                   <div className="flex items-center bg-surface-secondary/60 p-0.5 rounded-xl border border-border/20">
                     <button
@@ -2402,6 +2539,15 @@ export default function CvManagementCenter() {
                 >
                   <Printer className="size-3.5" />
                   <span>Print</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-xl text-[10px] font-bold select-none border-border/30 flex items-center gap-1.5"
+                  onPress={handleDownloadMarkdown}
+                >
+                  <FileDown className="size-3.5" />
+                  <span>Markdown</span>
                 </Button>
                 <Button
                   size="sm"
