@@ -5,9 +5,10 @@ import { type CvDraftState } from "./types";
 interface CvLivePreviewProps {
   drafts: CvDraftState;
   avatarUrl?: string | null;
+  templateId?: string;
 }
 
-export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
+export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts, templateId, avatarUrl }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -93,6 +94,8 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
             achievements={achievements}
             preferences={preferences}
             projects={drafts["projects"]}
+            templateId={templateId}
+            avatarUrl={avatarUrl}
           />
         </div>
       </div>

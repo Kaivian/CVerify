@@ -78,6 +78,8 @@ import { AchievementsForm } from "./components/AchievementsForm";
 import { PreferencesForm } from "./components/PreferencesForm";
 import { CvLivePreview } from "./components/CvLivePreview";
 import { CVPreview } from "./components/CVPreview";
+import { cvMetadataService } from "./services/cvMetadataService";
+import { CV_TEMPLATES } from "./templates/registry";
 import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
 import type { SourceCodeRepository } from "@/types/source-code-provider.types";
 import { RequiredFieldsMissingModal } from "@/components/ui/RequiredFieldsMissingModal";
@@ -323,6 +325,18 @@ export default function CvManagementCenter() {
   // A4 Preview Overlay state
   const [isA4PreviewOpen, setIsA4PreviewOpen] = useState(false);
   const [useSampleData, setUseSampleData] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("professional");
+
+  // Load persisted template selection on mount
+  useEffect(() => {
+    const meta = cvMetadataService.getMetadata();
+    setSelectedTemplate(meta.templateId);
+  }, []);
+
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplate(templateId);
+    cvMetadataService.saveMetadata("default", { templateId, templateVersion: 1 });
+  };
 
 
 
@@ -2492,6 +2506,36 @@ export default function CvManagementCenter() {
                 <div className="flex items-center gap-3">
                   {editorMode === "preview" && (
                     <div className="flex items-center gap-2">
+                      <Dropdown>
+                        <Dropdown.Trigger>
+                          <button
+                            className="text-[10px] bg-surface-secondary text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-border/40 hover:bg-surface-secondary/80 outline-none transition-colors select-none flex items-center gap-1.5"
+                          >
+                            <span>Template: {CV_TEMPLATES[selectedTemplate]?.name || selectedTemplate}</span>
+                            <ChevronDown className="size-3" />
+                          </button>
+                        </Dropdown.Trigger>
+                        <Dropdown.Popover
+                          placement="bottom end"
+                          className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] z-50 font-outfit"
+                        >
+                          <Dropdown.Menu aria-label="CV Templates">
+                            {Object.values(CV_TEMPLATES).map((tmpl) => (
+                              <Dropdown.Item
+                                key={tmpl.id}
+                                onClick={() => handleTemplateChange(tmpl.id)}
+                                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-none select-none transition-colors duration-150 ${
+                                  selectedTemplate === tmpl.id
+                                    ? "bg-accent/10 text-accent font-bold"
+                                    : "text-foreground hover:bg-surface-secondary focus:bg-surface-secondary"
+                                }`}
+                              >
+                                <span>{tmpl.name}</span>
+                              </Dropdown.Item>
+                            ))}
+                          </Dropdown.Menu>
+                        </Dropdown.Popover>
+                      </Dropdown>
                       <button
                         onClick={() => setIsA4PreviewOpen(true)}
                         className="text-[10px] bg-accent-soft text-accent hover:bg-accent/20 px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-accent/20 outline-none transition-colors select-none"
@@ -2668,8 +2712,8 @@ export default function CvManagementCenter() {
                     )}
                   </>
                 ) : (
-                  <div className="flex justify-center items-start h-full py-2">
-                    <CvLivePreview drafts={drafts} avatarUrl={user?.avatarUrl} />
+                  <div className="flex justify-center items-start h-full py-2 w-full">
+                    <CvLivePreview drafts={drafts} avatarUrl={user?.avatarUrl} templateId={selectedTemplate} />
                   </div>
                 )}
               </div>
@@ -2842,6 +2886,8 @@ export default function CvManagementCenter() {
                     achievements={activeAch}
                     preferences={activePreferences}
                     projects={activeProjects}
+                    templateId={selectedTemplate}
+                    avatarUrl={user?.avatarUrl}
                   />
                 </div>
               </div>
@@ -2871,6 +2917,8 @@ export default function CvManagementCenter() {
             achievements={activeAch}
             preferences={activePreferences}
             projects={activeProjects}
+            templateId={selectedTemplate}
+            avatarUrl={user?.avatarUrl}
           />
         </div>,
         document.body
