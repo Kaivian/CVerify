@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from app.core.middleware.hmac_auth import verify_hmac_signature
@@ -308,5 +308,83 @@ async def assess_repository(
             status_code=400,
             content={"status": "Failed", "errorMessage": str(e)}
         )
+
+
+class HiringRequirementGenerateRequest(BaseModel):
+    requirementData: dict
+
+
+@router.post("/api/v1/hiring-requirements/generate/stream")
+async def generate_requirement_artifacts_stream(
+    request_data: HiringRequirementGenerateRequest,
+    correlation_id: str = Depends(verify_hmac_signature)
+):
+    extra_log = {"correlation_id": correlation_id}
+    req_id = request_data.requirementData.get("id", "unknown")
+    logger.info(f"Initiated hiring requirement artifacts stream request for requirement: {req_id}", extra=extra_log)
+
+    from app.pipelines.requirement.orchestrator import RequirementArtifactsOrchestrator
+    orchestrator = RequirementArtifactsOrchestrator()
+
+    async def sse_generator():
+        try:
+            async for progress_event in orchestrator.generate_all_artifacts_async(
+                requirement_data=request_data.requirementData,
+                correlation_id=correlation_id
+            ):
+                yield f"data: {json.dumps(progress_event)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error(f"Error during requirement artifacts generation: {e}", extra=extra_log)
+            err_payload = {
+                "status": "Failed",
+                "step": "Failed",
+                "message": str(e)
+            }
+            yield f"data: {json.dumps(err_payload)}\n\n"
+
+    return StreamingResponse(sse_generator(), media_type="text/event-stream")
+
+
+class GenerateArtifactBody(BaseModel):
+    requirementData: dict
+    artifactType: str
+
+
+@router.post("/api/v1/hiring-requirements/generate-artifact/stream")
+async def generate_artifact_stream_endpoint(
+    request: Request,
+    request_data: GenerateArtifactBody,
+    correlation_id: str = Depends(verify_hmac_signature)
+):
+    extra_log = {"correlation_id": correlation_id}
+    req_id = request_data.requirementData.get("id", "unknown")
+    logger.info(f"Initiated single requirement artifact stream request ({request_data.artifactType}) for requirement: {req_id}", extra=extra_log)
+
+    from app.pipelines.requirement.orchestrator import RequirementArtifactsOrchestrator
+    orchestrator = RequirementArtifactsOrchestrator()
+
+    async def sse_generator():
+        try:
+            async for progress_event in orchestrator.generate_artifact_stream(
+                requirement_data=request_data.requirementData,
+                artifact_type=request_data.artifactType,
+                request=request,
+                correlation_id=correlation_id
+            ):
+                yield f"data: {json.dumps(progress_event)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error(f"Error during single requirement artifact generation: {e}", extra=extra_log)
+            err_payload = {
+                "status": "Failed",
+                "step": "Failed",
+                "message": str(e)
+            }
+            yield f"data: {json.dumps(err_payload)}\n\n"
+
+    return StreamingResponse(sse_generator(), media_type="text/event-stream")
+
+
 
 

@@ -6,6 +6,42 @@ import { Breadcrumbs } from "@heroui/react";
 import { getRouteMetadata, getDynamicSegmentLabel } from "../../config/routes";
 import { useAuth } from "../../features/auth/hooks/use-auth";
 
+/**
+ * Checks if a generated breadcrumb URL corresponds to a valid existing page route.
+ */
+const isRouteExist = (href: string): boolean => {
+  const path = href.replace(/\/+/g, "/");
+
+  // List of exact matches for valid static routes
+  const validStaticRoutes = [
+    "/",
+    "/user",
+    "/chat",
+    "/business",
+    "/admin",
+    "/admin/users",
+    "/admin/roles",
+    "/admin/audit-logs",
+    "/settings",
+    "/settings/source-code-providers",
+    "/cv",
+  ];
+
+  if (validStaticRoutes.includes(path)) {
+    return true;
+  }
+
+  // Workspace routes checking
+  // Matches:
+  // - /workspace/[organizationSlug]
+  // - /workspace/[organizationSlug]/billing | information | members | roles | settings | jobs | people | posts
+  // - /workspace/[organizationSlug]/recruitment/dashboard
+  // - /workspace/[organizationSlug]/recruitment/jd
+  const workspaceRegex = /^\/workspace\/([^/]+)(?:\/(billing|information|members|roles|settings|jobs|people|posts|recruitment\/dashboard|recruitment\/jd))?$/i;
+
+  return workspaceRegex.test(path);
+};
+
 export const AppBreadcrumbs: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
@@ -52,16 +88,23 @@ export const AppBreadcrumbs: React.FC = () => {
     });
   }
 
+  // Filter breadcrumb items to only include existing routes
+  const filteredBreadcrumbItems = breadcrumbItems.filter((item) => isRouteExist(item.href));
+
   // Set the isLast property for the final item
-  if (breadcrumbItems.length > 0) {
-    breadcrumbItems[breadcrumbItems.length - 1].isLast = true;
+  if (filteredBreadcrumbItems.length > 0) {
+    filteredBreadcrumbItems[filteredBreadcrumbItems.length - 1].isLast = true;
+  }
+
+  if (filteredBreadcrumbItems.length === 0) {
+    return null;
   }
 
   return (
     <nav aria-label="Breadcrumbs Navigation" className="hidden md:flex">
       <Breadcrumbs>
         {/* Dynamic Nodes */}
-        {breadcrumbItems.map((item) => (
+        {filteredBreadcrumbItems.map((item) => (
           <Breadcrumbs.Item
             key={item.href}
             href={item.href}

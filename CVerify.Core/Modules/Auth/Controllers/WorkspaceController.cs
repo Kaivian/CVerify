@@ -561,7 +561,8 @@ public class WorkspaceController : ControllerBase
             signedImages,
             job.IsActive,
             job.CreatedAt,
-            job.UpdatedAt
+            job.UpdatedAt,
+            job.Metadata
         );
     }
 
@@ -1218,6 +1219,7 @@ public class WorkspaceController : ControllerBase
             CoverUrl = request.CoverUrl,
             Images = request.ImageUrls ?? request.Images ?? new List<string>(),
             IsActive = true,
+            Metadata = request.Metadata,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

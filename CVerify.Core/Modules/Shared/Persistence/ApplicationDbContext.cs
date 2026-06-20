@@ -127,6 +127,21 @@ public class ApplicationDbContext : DbContext
     public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
     public DbSet<WorkspacePost> WorkspacePosts => Set<WorkspacePost>();
     public DbSet<JobVacancy> JobVacancies => Set<JobVacancy>();
+    public DbSet<HiringRequirement> HiringRequirements => Set<HiringRequirement>();
+    public DbSet<BusinessOutcome> BusinessOutcomes => Set<BusinessOutcome>();
+    public DbSet<Responsibility> Responsibilities => Set<Responsibility>();
+    public DbSet<RequirementCapability> RequirementCapabilities => Set<RequirementCapability>();
+    public DbSet<CapabilityCatalogItem> CapabilityCatalogItems => Set<CapabilityCatalogItem>();
+    public DbSet<TechnologyRequirement> TechnologyRequirements => Set<TechnologyRequirement>();
+    public DbSet<EvidenceSignal> EvidenceSignals => Set<EvidenceSignal>();
+    public DbSet<EvaluationRubric> EvaluationRubrics => Set<EvaluationRubric>();
+    public DbSet<InterviewBlueprint> InterviewBlueprints => Set<InterviewBlueprint>();
+    public DbSet<RequirementArtifact> RequirementArtifacts => Set<RequirementArtifact>();
+    public DbSet<RequirementSnapshot> RequirementSnapshots => Set<RequirementSnapshot>();
+    public DbSet<EvaluationRubricSnapshot> EvaluationRubricSnapshots => Set<EvaluationRubricSnapshot>();
+    public DbSet<InterviewBlueprintSnapshot> InterviewBlueprintSnapshots => Set<InterviewBlueprintSnapshot>();
+    public DbSet<RequirementArtifactSnapshot> RequirementArtifactSnapshots => Set<RequirementArtifactSnapshot>();
+    public DbSet<RequirementVectorSnapshot> RequirementVectorSnapshots => Set<RequirementVectorSnapshot>();
 
     public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
     public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
@@ -1457,6 +1472,186 @@ public class ApplicationDbContext : DbContext
 
             entity.HasIndex(pc => pc.ProjectEntryId)
                   .HasDatabaseName("idx_project_contributions_project_id");
+        });
+
+        // Hiring Requirement configurations
+        modelBuilder.Entity<HiringRequirement>(entity =>
+        {
+            entity.ToTable("hiring_requirements");
+            entity.HasKey(hr => hr.Id);
+            entity.Property(hr => hr.Id).ValueGeneratedNever();
+
+            entity.HasOne(hr => hr.Organization)
+                  .WithMany()
+                  .HasForeignKey(hr => hr.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(hr => hr.Workspace)
+                  .WithMany()
+                  .HasForeignKey(hr => hr.WorkspaceId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(hr => hr.BusinessOutcomes)
+                  .WithOne(bo => bo.HiringRequirement)
+                  .HasForeignKey(bo => bo.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(hr => hr.Responsibilities)
+                  .WithOne(r => r.HiringRequirement)
+                  .HasForeignKey(r => r.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(hr => hr.Capabilities)
+                  .WithOne(c => c.HiringRequirement)
+                  .HasForeignKey(c => c.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(hr => hr.TechnologyRequirements)
+                  .WithOne(tr => tr.HiringRequirement)
+                  .HasForeignKey(tr => tr.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(hr => hr.EvaluationRubrics)
+                  .WithOne(er => er.HiringRequirement)
+                  .HasForeignKey(er => er.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(hr => hr.InterviewBlueprints)
+                  .WithOne(ib => ib.HiringRequirement)
+                  .HasForeignKey(ib => ib.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(hr => hr.Snapshots)
+                  .WithOne(s => s.HiringRequirement)
+                  .HasForeignKey(s => s.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(hr => hr.OrganizationId).HasDatabaseName("idx_hiring_requirements_org_id");
+            entity.HasIndex(hr => hr.WorkspaceId).HasDatabaseName("idx_hiring_requirements_workspace_id");
+        });
+
+        modelBuilder.Entity<BusinessOutcome>(entity =>
+        {
+            entity.ToTable("business_outcomes");
+            entity.HasKey(bo => bo.Id);
+            entity.Property(bo => bo.Id).ValueGeneratedNever();
+            entity.HasIndex(bo => bo.HiringRequirementId).HasDatabaseName("idx_business_outcomes_hr_id");
+        });
+
+        modelBuilder.Entity<Responsibility>(entity =>
+        {
+            entity.ToTable("responsibilities");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).ValueGeneratedNever();
+            entity.Property(r => r.Priority).HasConversion<string>();
+            entity.Property(r => r.OwnershipLevel).HasConversion<string>();
+            entity.HasIndex(r => r.HiringRequirementId).HasDatabaseName("idx_responsibilities_hr_id");
+        });
+
+        modelBuilder.Entity<RequirementCapability>(entity =>
+        {
+            entity.ToTable("requirement_capabilities");
+            entity.HasKey(rc => rc.Id);
+            entity.Property(rc => rc.Id).ValueGeneratedNever();
+            entity.Property(rc => rc.Priority).HasConversion<string>();
+            entity.Property(rc => rc.OwnershipLevel).HasConversion<string>();
+            entity.HasIndex(rc => rc.HiringRequirementId).HasDatabaseName("idx_requirement_capabilities_hr_id");
+
+            entity.HasMany(rc => rc.EvidenceSignals)
+                  .WithOne(es => es.RequirementCapability)
+                  .HasForeignKey(es => es.RequirementCapabilityId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TechnologyRequirement>(entity =>
+        {
+            entity.ToTable("technology_requirements");
+            entity.HasKey(tr => tr.Id);
+            entity.Property(tr => tr.Id).ValueGeneratedNever();
+            entity.Property(tr => tr.Priority).HasConversion<string>();
+            entity.HasIndex(tr => tr.HiringRequirementId).HasDatabaseName("idx_technology_requirements_hr_id");
+        });
+
+        modelBuilder.Entity<EvidenceSignal>(entity =>
+        {
+            entity.ToTable("evidence_signals");
+            entity.HasKey(es => es.Id);
+            entity.Property(es => es.Id).ValueGeneratedNever();
+            entity.HasIndex(es => es.RequirementCapabilityId).HasDatabaseName("idx_evidence_signals_cap_id");
+        });
+
+        modelBuilder.Entity<EvaluationRubric>(entity =>
+        {
+            entity.ToTable("evaluation_rubrics");
+            entity.HasKey(er => er.Id);
+            entity.Property(er => er.Id).ValueGeneratedNever();
+            entity.HasIndex(er => er.HiringRequirementId).HasDatabaseName("idx_evaluation_rubrics_hr_id");
+        });
+
+        modelBuilder.Entity<InterviewBlueprint>(entity =>
+        {
+            entity.ToTable("interview_blueprints");
+            entity.HasKey(ib => ib.Id);
+            entity.Property(ib => ib.Id).ValueGeneratedNever();
+            entity.HasIndex(ib => ib.HiringRequirementId).HasDatabaseName("idx_interview_blueprints_hr_id");
+        });
+
+        // Snapshots configurations
+        modelBuilder.Entity<RequirementSnapshot>(entity =>
+        {
+            entity.ToTable("requirement_snapshots");
+            entity.HasKey(rs => rs.Id);
+            entity.Property(rs => rs.Id).ValueGeneratedNever();
+            entity.HasIndex(rs => rs.HiringRequirementId).HasDatabaseName("idx_requirement_snapshots_hr_id");
+
+            entity.HasOne(rs => rs.EvaluationRubricSnapshot)
+                  .WithOne(ers => ers.RequirementSnapshot)
+                  .HasForeignKey<EvaluationRubricSnapshot>(ers => ers.RequirementSnapshotId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(rs => rs.InterviewBlueprintSnapshot)
+                  .WithOne(ibs => ibs.RequirementSnapshot)
+                  .HasForeignKey<InterviewBlueprintSnapshot>(ibs => ibs.RequirementSnapshotId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(rs => rs.ArtifactSnapshots)
+                  .WithOne(asnp => asnp.RequirementSnapshot)
+                  .HasForeignKey(asnp => asnp.RequirementSnapshotId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(rs => rs.RequirementVectorSnapshot)
+                  .WithOne(rvs => rvs.RequirementSnapshot)
+                  .HasForeignKey<RequirementVectorSnapshot>(rvs => rvs.RequirementSnapshotId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EvaluationRubricSnapshot>(entity =>
+        {
+            entity.ToTable("evaluation_rubric_snapshots");
+        });
+
+        modelBuilder.Entity<InterviewBlueprintSnapshot>(entity =>
+        {
+            entity.ToTable("interview_blueprint_snapshots");
+        });
+
+        modelBuilder.Entity<RequirementArtifactSnapshot>(entity =>
+        {
+            entity.ToTable("requirement_artifact_snapshots");
+        });
+
+        modelBuilder.Entity<RequirementArtifact>(entity =>
+        {
+            entity.ToTable("requirement_artifacts");
+            entity.HasOne(ra => ra.HiringRequirement)
+                  .WithMany(hr => hr.RequirementArtifacts)
+                  .HasForeignKey(ra => ra.HiringRequirementId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RequirementVectorSnapshot>(entity =>
+        {
+            entity.ToTable("requirement_vector_snapshots");
         });
     }
 

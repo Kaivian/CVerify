@@ -81,17 +81,27 @@ public class CvRepositoryIndexer : ICvRepositoryIndexer
                 .Where(rl => rl.ProjectEntry.UserId == userId && rl.ProjectEntry.DeletedAt == null)
                 .ToListAsync(cancellationToken);
 
-            // 5. Fetch all user's synced repositories from database
-            var userRepos = await _context.SourceCodeRepositories
-                .Include(r => r.AuthProvider)
-                .Where(r => r.AuthProvider.UserId == userId)
+            // 5. Fetch all user's synced repositories from database using raw SQL to avoid dependency on Auth module
+            var userRepos = await _context.Database.SqlQuery<UserRepoIdentityRawDto>($@"
+                SELECT 
+                    r.id AS ""Id"", 
+                    ap.provider_name AS ""ProviderType"", 
+                    r.external_repository_id AS ""ExternalRepositoryId"", 
+                    r.html_url AS ""HtmlUrl""
+                FROM source_code_repositories r
+                INNER JOIN auth_providers ap ON r.auth_provider_id = ap.id
+                WHERE ap.user_id = {userId} AND ap.deleted_at IS NULL AND r.is_accessible = true")
                 .ToListAsync(cancellationToken);
 
             // Reconstruct canonical identity for all user repos
             var repoIdentities = userRepos.Select(r => new
             {
-                Repo = r,
-                Identity = r.GetIdentity()
+                RepoId = r.Id,
+                Identity = new CVerify.API.Modules.SourceCode.Models.CanonicalRepositoryIdentity(
+                    ProviderType: r.ProviderType?.ToLowerInvariant() ?? "unknown",
+                    ProviderRepoId: r.ExternalRepositoryId,
+                    CanonicalUrl: RepositoryIdentityHelper.NormalizeUrl(r.HtmlUrl)
+                )
             }).ToList();
 
             var matchedMappings = new List<CvRepositoryMapping>();
@@ -128,7 +138,7 @@ public class CvRepositoryIndexer : ICvRepositoryIndexer
                 {
                     // Avoid duplicate mapping rows
                     if (!matchedMappings.Any(m =>
-                        m.SourceCodeRepositoryId == matched.Repo.Id &&
+                        m.SourceCodeRepositoryId == matched.RepoId &&
                         m.ReferenceSource == reference.Source &&
                         m.ReferenceEntityId == reference.EntityId))
                     {
@@ -136,7 +146,7 @@ public class CvRepositoryIndexer : ICvRepositoryIndexer
                         {
                             Id = Guid.CreateVersion7(),
                             UserId = userId,
-                            SourceCodeRepositoryId = matched.Repo.Id,
+                            SourceCodeRepositoryId = matched.RepoId,
                             ReferenceSource = reference.Source,
                             ReferenceEntityId = reference.EntityId,
                             IndexedAtUtc = DateTimeOffset.UtcNow
@@ -218,4 +228,5 @@ public class CvRepositoryIndexer : ICvRepositoryIndexer
     }
 
     private record PendingReference(string ProviderType, string CanonicalUrl, string Source, Guid? EntityId);
+    private record UserRepoIdentityRawDto(Guid Id, string? ProviderType, string ExternalRepositoryId, string? HtmlUrl);
 }

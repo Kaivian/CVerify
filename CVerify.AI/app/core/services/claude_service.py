@@ -164,6 +164,106 @@ class ClaudeService:
             logger.error(f"Error streaming from Anthropic Claude API: {e}", extra=extra_log)
             yield f"\n\n[Error occurred in CVerify Repository Intelligence Engine: {str(e)}]"
 
+    async def stream_prompt(self, system_prompt: str, user_prompt: str, correlation_id: str = "system") -> AsyncGenerator[dict, None]:
+        extra_log = {"correlation_id": correlation_id}
+        system_config = [
+            {
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"}
+            }
+        ]
+
+        logger.info("Starting prompt token stream", extra=extra_log)
+        start_time = time.perf_counter()
+
+        try:
+            async def get_stream():
+                return await self.client.messages.create(
+                    model=settings.claude_model,
+                    max_tokens=8192,
+                    system=system_config,
+                    messages=[{"role": "user", "content": user_prompt}],
+                    temperature=0.2,
+                    stream=True
+                )
+
+            stream = await retry_with_exponential_backoff(get_stream, correlation_id=correlation_id)
+            
+            prompt_tokens = 0
+            completion_tokens = 0
+            total_tokens = None
+            cache_creation = 0
+            cache_read = 0
+
+            async for event in stream:
+                if event.type == "content_block_delta" and event.delta.type == "text_delta":
+                    yield {"type": "content", "text": event.delta.text}
+                elif event.type == "message_start":
+                    p, c, t = TokenAccountingService.extract_from_provider_usage(event.message.usage)
+                    prompt_tokens = p
+                    cache_creation = getattr(event.message.usage, "cache_creation_input_tokens", 0) or 0
+                    cache_read = getattr(event.message.usage, "cache_read_input_tokens", 0) or 0
+                elif event.type == "message_delta":
+                    p, c, t = TokenAccountingService.extract_from_provider_usage(event.usage)
+                    completion_tokens = c
+                    if t is not None:
+                        total_tokens = t
+
+            duration = int((time.perf_counter() - start_time) * 1000)
+            
+            normalized = TokenAccountingService.normalize_usage(
+                model=settings.claude_model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cache_creation_tokens=cache_creation,
+                cache_read_tokens=cache_read
+            )
+
+            cost = self.cost_tracker.record_usage(
+                model=settings.claude_model,
+                input_tokens=normalized.prompt_tokens,
+                output_tokens=normalized.completion_tokens,
+                cache_creation_tokens=normalized.cache_write_tokens,
+                cache_read_tokens=normalized.cache_read_tokens,
+                correlation_id=correlation_id,
+                total_tokens=normalized.total_tokens
+            )
+
+            logger.info(
+                f"Prompt stream finished. Tokens: In={normalized.prompt_tokens}, Out={normalized.completion_tokens}, Total={normalized.total_tokens}, Cost=${cost:.6f}, Duration={duration}ms",
+                extra={
+                    "correlation_id": correlation_id,
+                    "duration_ms": duration,
+                    "input_tokens": normalized.prompt_tokens,
+                    "output_tokens": normalized.completion_tokens,
+                    "total_tokens": normalized.total_tokens,
+                    "estimated_cost_usd": float(cost),
+                    "token_mismatch_flag": normalized.token_mismatch_detected
+                }
+            )
+
+            yield {
+                "type": "telemetry",
+                "promptTokens": normalized.prompt_tokens,
+                "completionTokens": normalized.completion_tokens,
+                "totalTokens": normalized.total_tokens,
+                "cacheReadTokens": normalized.cache_read_tokens,
+                "cacheWriteTokens": normalized.cache_write_tokens,
+                "estimatedCostUsd": float(cost),
+                "modelName": settings.claude_model,
+                "provider": "Anthropic",
+                "durationMs": duration
+            }
+
+        except Exception as e:
+            logger.error(f"Error streaming prompt from Anthropic Claude API: {e}", extra=extra_log)
+            yield {
+                "type": "error",
+                "message": f"Error occurred during prompt stream: {str(e)}"
+            }
+
     async def analyze_repo(self, system_prompt: str, user_prompt: str, correlation_id: str = "system") -> str:
         text, _ = await self.analyze_repo_with_telemetry(system_prompt, user_prompt, correlation_id)
         return text
