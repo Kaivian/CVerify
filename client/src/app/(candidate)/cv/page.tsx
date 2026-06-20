@@ -874,32 +874,75 @@ export default function CvManagementCenter() {
       return;
     }
 
-    const targetElement = (printPortal.firstElementChild || printPortal) as HTMLElement;
+    // Target the actual CV content area, not the <style> tag (which is firstElementChild)
+    const targetElement = printPortal.querySelector('.cv-print-area') as HTMLElement;
+    if (!targetElement) {
+      toast.danger("CV content area not found. Please wait until the preview finishes rendering.");
+      return;
+    }
 
     setIsExportingPng(true);
     toast.success("Generating CV Image, please wait...");
 
-    try {
-      const { toPng } = await import('html-to-image');
+    // Temporarily make the portal visible for html-to-image capture.
+    // html-to-image respects parent element styles, so opacity: 0 on the
+    // portal container causes a blank image even with style overrides on the target.
+    const savedStyles = {
+      opacity: printPortal.style.opacity,
+      position: printPortal.style.position,
+      top: printPortal.style.top,
+      left: printPortal.style.left,
+      pointerEvents: printPortal.style.pointerEvents,
+      zIndex: printPortal.style.zIndex,
+    };
+    printPortal.style.cssText += '; opacity: 1 !important; position: fixed !important; top: 0 !important; left: 0 !important; pointer-events: none !important; z-index: -9999 !important;';
 
-      const dataUrl = await toPng(targetElement, {
+    try {
+      const { toBlob } = await import('html-to-image');
+
+      // Calculate A4 dimensions based on pagination pages
+      const pages = targetElement.querySelectorAll('.cv-page');
+      const width = 794;
+      const height = pages.length > 0 ? (pages.length * 1123) : (targetElement.scrollHeight || 1123);
+
+      const blob = await toBlob(targetElement, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
+        width: width,
+        height: height,
+        imagePlaceholder: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
         style: {
           opacity: '1',
           visibility: 'visible',
+          transform: 'none',
+          position: 'relative',
+          top: '0',
+          left: '0',
         }
       });
 
+      if (!blob) {
+        throw new Error("Blob generation returned null");
+      }
+
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = dataUrl;
+      a.href = url;
       a.download = `CV_${(activeProfile?.fullName || "Resume").replace(/\s+/g, "_")}.png`;
       a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Failed to generate image:", err);
       toast.danger("Failed to export as Image. Please try PDF print instead.");
     } finally {
+      // Restore the portal's hidden styles
+      printPortal.style.opacity = savedStyles.opacity;
+      printPortal.style.position = savedStyles.position;
+      printPortal.style.top = savedStyles.top;
+      printPortal.style.left = savedStyles.left;
+      printPortal.style.pointerEvents = savedStyles.pointerEvents;
+      printPortal.style.zIndex = savedStyles.zIndex;
       setIsExportingPng(false);
     }
   };
