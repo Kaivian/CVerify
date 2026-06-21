@@ -562,6 +562,11 @@ public class WorkspaceController : ControllerBase
             job.IsActive,
             job.CreatedAt,
             job.UpdatedAt,
+            job.Status,
+            job.AcquisitionStrategy,
+            job.DiscoveryProfileJson,
+            job.RequirementSnapshotId,
+            job.HiringRequirementId,
             job.Metadata
         );
     }

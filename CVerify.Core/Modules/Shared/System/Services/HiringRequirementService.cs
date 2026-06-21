@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -100,7 +100,7 @@ public class HiringRequirementService : IHiringRequirementService
             throw new KeyNotFoundException("Hiring requirement not found.");
         }
 
-        if (!req.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase))
+        if (req.Status.Equals("Published", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Cannot update a published hiring requirement.");
         }
@@ -226,6 +226,7 @@ public class HiringRequirementService : IHiringRequirementService
             .Include(r => r.TechnologyRequirements)
             .Include(r => r.EvaluationRubrics)
             .Include(r => r.InterviewBlueprints)
+            .Include(r => r.RequirementArtifacts)
             .Include(r => r.Snapshots)
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
@@ -255,7 +256,7 @@ public class HiringRequirementService : IHiringRequirementService
                 throw new KeyNotFoundException("Hiring requirement not found.");
             }
 
-            if (!req.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase))
+            if (req.Status.Equals("Published", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("Hiring requirement is already published.");
             }
@@ -311,31 +312,46 @@ public class HiringRequirementService : IHiringRequirementService
                 SnapshottedAt = DateTimeOffset.UtcNow
             };
 
-            // 4. Interview Blueprint Snapshot projection (Stub - to be generated/updated via AI pipeline)
+            // 4. Interview Blueprint Snapshot projection
+            var blueprint = req.InterviewBlueprints.FirstOrDefault();
             snapshot.InterviewBlueprintSnapshot = new InterviewBlueprintSnapshot
             {
                 RequirementSnapshotId = snapshot.Id,
-                CapabilityQuestions = JsonSerializer.Serialize(req.Capabilities.Select(c => new
+                CapabilityQuestions = blueprint?.CapabilityQuestions ?? JsonSerializer.Serialize(req.Capabilities.Select(c => new
                 {
                     capabilityId = c.CapabilityId,
                     questionText = $"Placeholder behavioral question for canonical capability {c.Name}.",
                     gradingRubric = "Look for standard engineering implementation evidence."
                 }).ToList()),
-                Dimensions = JsonSerializer.Serialize(new List<string> { "Code Hygiene", "Problem Solving", "Architecture Intent" }),
+                Dimensions = blueprint?.Dimensions ?? JsonSerializer.Serialize(new List<string> { "Code Hygiene", "Problem Solving", "Architecture Intent" }),
                 SnapshottedAt = DateTimeOffset.UtcNow
             };
 
-            // 5. Job Description Snapshot projection (Stub - will be updated by downstream generator)
-            var jd = req.RequirementArtifacts.FirstOrDefault(a => a.ArtifactType == "JobDescription");
-            snapshot.ArtifactSnapshots.Add(new RequirementArtifactSnapshot
+            // 5. Artifact Snapshots projection (All artifacts, e.g. JobDescription, JobPostMetadata, CandidateDiscoveryProfile)
+            foreach (var art in req.RequirementArtifacts)
             {
-                Id = Guid.CreateVersion7(),
-                RequirementSnapshotId = snapshot.Id,
-                ArtifactType = "JobDescription",
-                MarkdownContent = jd?.MarkdownContent ?? $"# {req.Title} - {req.Department}\n\n## About the Role\n{req.BusinessProblem}",
-                StructuredContentJson = jd?.StructuredContentJson,
-                SnapshottedAt = DateTimeOffset.UtcNow
-            });
+                snapshot.ArtifactSnapshots.Add(new RequirementArtifactSnapshot
+                {
+                    Id = Guid.CreateVersion7(),
+                    RequirementSnapshotId = snapshot.Id,
+                    ArtifactType = art.ArtifactType,
+                    MarkdownContent = art.MarkdownContent ?? "",
+                    StructuredContentJson = art.StructuredContentJson,
+                    SnapshottedAt = DateTimeOffset.UtcNow
+                });
+            }
+            if (!snapshot.ArtifactSnapshots.Any(a => a.ArtifactType == "JobDescription"))
+            {
+                snapshot.ArtifactSnapshots.Add(new RequirementArtifactSnapshot
+                {
+                    Id = Guid.CreateVersion7(),
+                    RequirementSnapshotId = snapshot.Id,
+                    ArtifactType = "JobDescription",
+                    MarkdownContent = $"# {req.Title} - {req.Department}\n\n## About the Role\n{req.BusinessProblem}",
+                    StructuredContentJson = null,
+                    SnapshottedAt = DateTimeOffset.UtcNow
+                });
+            }
 
             // 6. Vector Snapshot projection
             snapshot.RequirementVectorSnapshot = new RequirementVectorSnapshot
@@ -347,37 +363,6 @@ public class HiringRequirementService : IHiringRequirementService
             };
 
             _context.RequirementSnapshots.Add(snapshot);
-
-            // 7. Publish to JobVacancy board (Create new linked posting)
-            var jobVacancy = new JobVacancy
-            {
-                Id = Guid.CreateVersion7(),
-                OrganizationId = req.OrganizationId,
-                HiringRequirementId = req.Id,
-                Title = req.Title,
-                Department = req.Department,
-                WorkplaceType = req.WorkplaceType,
-                City = req.City ?? "Ho Chi Minh City",
-                Type = req.EmploymentType,
-                Salary = req.SalaryMin.HasValue && req.SalaryMax.HasValue ? $"{req.SalaryMin} - {req.SalaryMax} {req.Currency}" : "Negotiable",
-                SalaryMinMax = $"{req.SalaryMin ?? 0}-{req.SalaryMax ?? 0}",
-                Headcount = req.Headcount,
-                Gender = "KhÃ´ng yÃªu cáº§u",
-                Experience = req.Seniority.Equals("Junior", StringComparison.OrdinalIgnoreCase) ? "1-2 years" : req.Seniority.Equals("Middle", StringComparison.OrdinalIgnoreCase) ? "3-4 years" : "5+ years",
-                Degree = req.DegreeRequirement ?? "No Degree Required",
-                Category = "Software Engineering",
-                Description = new List<string> { req.BusinessProblem ?? string.Empty },
-                Requirements = req.Capabilities.Select(c => $"{c.Name} ({c.OwnershipLevel})").ToList(),
-                Benefits = req.Benefits,
-                Tags = new List<string> { req.Department, req.WorkplaceType, req.Seniority },
-                Skills = req.TechnologyRequirements.Select(t => t.Name).ToList(),
-                CoverUrl = "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=600&auto=format&fit=crop",
-                IsActive = true,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-
-            _context.JobVacancies.Add(jobVacancy);
 
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -557,6 +542,14 @@ public class HiringRequirementService : IHiringRequirementService
             throw new KeyNotFoundException("Hiring requirement not found.");
         }
 
+        if (req.Status.Equals("Published", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cannot regenerate artifacts for a published requirement.");
+        }
+
+        req.Status = "Generating";
+        await _context.SaveChangesAsync(cancellationToken);
+
         // Broadcast starting progress
         await PublishProgressAsync(req.Id, "Running", "Initialize", "Initiating requirement artifacts generation...", 0.0);
 
@@ -657,10 +650,18 @@ public class HiringRequirementService : IHiringRequirementService
             }
 
             // Publish completed event
+            req.Status = "Ready";
+            await _context.SaveChangesAsync(cancellationToken);
             await PublishProgressAsync(req.Id, "Completed", "RequirementArtifactsComposer", "All hiring requirement artifacts generated successfully.", 100.0);
         }
         catch (Exception ex)
         {
+            try
+            {
+                req.Status = "Draft";
+                await _context.SaveChangesAsync(CancellationToken.None);
+            }
+            catch {}
             _logger.LogError(ex, "Error generating artifacts for hiring requirement {RequirementId}", req.Id);
             await PublishProgressAsync(req.Id, "Failed", "Failed", ex.Message, 100.0);
             throw;
@@ -792,10 +793,10 @@ public class HiringRequirementService : IHiringRequirementService
                     using var doc = JsonDocument.Parse(eventData);
                     var root = doc.RootElement;
 
-                    var status = root.GetProperty("status").GetString();
-                    var step = root.GetProperty("step").GetString();
-                    var message = root.GetProperty("message").GetString() ?? "";
-                    var percentage = root.GetProperty("percentage").GetDouble();
+                    var status = root.TryGetProperty("status", out var statusProp) ? statusProp.GetString() : null;
+                    var step = root.TryGetProperty("step", out var stepProp) ? stepProp.GetString() : null;
+                    var message = root.TryGetProperty("message", out var msgProp) ? msgProp.GetString() : "";
+                    var percentage = root.TryGetProperty("percentage", out var pctProp) ? pctProp.GetDouble() : 0.0;
 
                     if (status == "Failed")
                     {
@@ -1011,6 +1012,33 @@ public class HiringRequirementService : IHiringRequirementService
                 });
             }
         }
+        else if (artifactType.Equals("JobPostMetadata", StringComparison.OrdinalIgnoreCase) ||
+                 artifactType.Equals("CandidateDiscoveryProfile", StringComparison.OrdinalIgnoreCase))
+        {
+            var existing = await _context.RequirementArtifacts
+                .FirstOrDefaultAsync(ra => ra.HiringRequirementId == requirementId && ra.ArtifactType == artifactType, cancellationToken);
+            if (existing != null)
+            {
+                existing.StructuredContentJson = jsonData;
+                existing.MarkdownContent = "";
+                existing.Status = "Generated";
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                _context.RequirementArtifacts.Add(new RequirementArtifact
+                {
+                    Id = Guid.CreateVersion7(),
+                    HiringRequirementId = requirementId,
+                    ArtifactType = artifactType,
+                    MarkdownContent = "",
+                    StructuredContentJson = jsonData,
+                    Status = "Generated",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -1136,6 +1164,15 @@ public class HiringRequirementService : IHiringRequirementService
             throw new KeyNotFoundException("Hiring requirement not found.");
         }
 
+        // Delete associated JobVacancy
+        var vacancies = await _context.JobVacancies
+            .Where(v => v.HiringRequirementId == id)
+            .ToListAsync(cancellationToken);
+        if (vacancies.Any())
+        {
+            _context.JobVacancies.RemoveRange(vacancies);
+        }
+
         _context.HiringRequirements.Remove(req);
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -1148,6 +1185,15 @@ public class HiringRequirementService : IHiringRequirementService
 
         if (reqs.Count > 0)
         {
+            // Delete associated JobVacancies
+            var vacancies = await _context.JobVacancies
+                .Where(v => v.HiringRequirementId.HasValue && ids.Contains(v.HiringRequirementId.Value))
+                .ToListAsync(cancellationToken);
+            if (vacancies.Any())
+            {
+                _context.JobVacancies.RemoveRange(vacancies);
+            }
+
             _context.HiringRequirements.RemoveRange(reqs);
             await _context.SaveChangesAsync(cancellationToken);
         }
@@ -1168,6 +1214,224 @@ public class HiringRequirementService : IHiringRequirementService
         if (reqs.Count > 0)
         {
             await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<HiringRequirement> CreateNewVersionAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var req = await _context.HiringRequirements
+            .Include(r => r.BusinessOutcomes)
+            .Include(r => r.Responsibilities)
+            .Include(r => r.Capabilities)
+                .ThenInclude(c => c.EvidenceSignals)
+            .Include(r => r.TechnologyRequirements)
+            .Include(r => r.EvaluationRubrics)
+            .Include(r => r.InterviewBlueprints)
+            .Include(r => r.RequirementArtifacts)
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+        if (req == null)
+        {
+            throw new KeyNotFoundException("Hiring requirement not found.");
+        }
+
+        if (!req.Status.Equals("Published", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Can only create a new version from a published hiring requirement.");
+        }
+
+        using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            // Clone the requirement
+            var newReq = new HiringRequirement
+            {
+                Id = Guid.CreateVersion7(),
+                OrganizationId = req.OrganizationId,
+                WorkspaceId = req.WorkspaceId,
+                Title = req.Title,
+                Department = req.Department,
+                Seniority = req.Seniority,
+                WorkplaceType = req.WorkplaceType,
+                City = req.City,
+                EmploymentType = req.EmploymentType,
+                SalaryMin = req.SalaryMin,
+                SalaryMax = req.SalaryMax,
+                Currency = req.Currency,
+                TimezoneRange = req.TimezoneRange,
+                DegreeRequirement = req.DegreeRequirement,
+                Benefits = req.Benefits.ToList(),
+                LanguageRequirements = req.LanguageRequirements.ToList(),
+                Headcount = req.Headcount,
+                Status = "Draft", // New version starts as Draft
+                Version = req.Version + 1, // Version increment
+                HiringReason = req.HiringReason,
+                BusinessProblem = req.BusinessProblem,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            _context.HiringRequirements.Add(newReq);
+
+            // Clone child entities
+            foreach (var bo in req.BusinessOutcomes)
+            {
+                _context.BusinessOutcomes.Add(new BusinessOutcome
+                {
+                    Id = Guid.CreateVersion7(),
+                    HiringRequirementId = newReq.Id,
+                    Text = bo.Text
+                });
+            }
+
+            foreach (var resp in req.Responsibilities)
+            {
+                _context.Responsibilities.Add(new Responsibility
+                {
+                    Id = Guid.CreateVersion7(),
+                    HiringRequirementId = newReq.Id,
+                    Text = resp.Text,
+                    Priority = resp.Priority,
+                    OwnershipLevel = resp.OwnershipLevel,
+                    IsLeadership = resp.IsLeadership
+                });
+            }
+
+            foreach (var cap in req.Capabilities)
+            {
+                var newCap = new RequirementCapability
+                {
+                    Id = Guid.CreateVersion7(),
+                    HiringRequirementId = newReq.Id,
+                    CapabilityId = cap.CapabilityId,
+                    Name = cap.Name,
+                    Category = cap.Category,
+                    Priority = cap.Priority,
+                    OwnershipLevel = cap.OwnershipLevel,
+                    ExpectedProficiency = cap.ExpectedProficiency
+                };
+                _context.RequirementCapabilities.Add(newCap);
+
+                foreach (var sig in cap.EvidenceSignals)
+                {
+                    _context.EvidenceSignals.Add(new EvidenceSignal
+                    {
+                        Id = Guid.CreateVersion7(),
+                        RequirementCapabilityId = newCap.Id,
+                        SignalType = sig.SignalType,
+                        ExpectedMetric = sig.ExpectedMetric,
+                        Rationale = sig.Rationale
+                    });
+                }
+            }
+
+            foreach (var tech in req.TechnologyRequirements)
+            {
+                _context.TechnologyRequirements.Add(new TechnologyRequirement
+                {
+                    Id = Guid.CreateVersion7(),
+                    HiringRequirementId = newReq.Id,
+                    Name = tech.Name,
+                    Priority = tech.Priority,
+                    SfiaLevel = tech.SfiaLevel
+                });
+            }
+
+            // Clone rubrics, blueprints and artifacts as draft artifacts
+            foreach (var er in req.EvaluationRubrics)
+            {
+                _context.EvaluationRubrics.Add(new EvaluationRubric
+                {
+                    Id = Guid.CreateVersion7(),
+                    HiringRequirementId = newReq.Id,
+                    ScoringRules = er.ScoringRules,
+                    EvidenceRequirements = er.EvidenceRequirements,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+            }
+
+            foreach (var ib in req.InterviewBlueprints)
+            {
+                _context.InterviewBlueprints.Add(new InterviewBlueprint
+                {
+                    Id = Guid.CreateVersion7(),
+                    HiringRequirementId = newReq.Id,
+                    CapabilityQuestions = ib.CapabilityQuestions,
+                    Dimensions = ib.Dimensions,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+            }
+
+            foreach (var art in req.RequirementArtifacts)
+            {
+                _context.RequirementArtifacts.Add(new RequirementArtifact
+                {
+                    Id = Guid.CreateVersion7(),
+                    HiringRequirementId = newReq.Id,
+                    ArtifactType = art.ArtifactType,
+                    MarkdownContent = art.MarkdownContent,
+                    StructuredContentJson = art.StructuredContentJson,
+                    Status = "Generated",
+                    ModelInfo = art.ModelInfo,
+                    PromptTemplateId = art.PromptTemplateId,
+                    PromptVersion = art.PromptVersion,
+                    PromptHash = art.PromptHash,
+                    GenerationMetadataJson = art.GenerationMetadataJson,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+            }
+
+            // Clone JobVacancy to Draft
+            var existingVacancy = await _context.JobVacancies
+                .FirstOrDefaultAsync(v => v.HiringRequirementId == req.Id, cancellationToken);
+            if (existingVacancy != null)
+            {
+                var newVacancy = new JobVacancy
+                {
+                    Id = Guid.CreateVersion7(),
+                    OrganizationId = existingVacancy.OrganizationId,
+                    HiringRequirementId = newReq.Id, // Link to new version
+                    Title = existingVacancy.Title,
+                    Department = existingVacancy.Department,
+                    WorkplaceType = existingVacancy.WorkplaceType,
+                    City = existingVacancy.City,
+                    Type = existingVacancy.Type,
+                    Salary = existingVacancy.Salary,
+                    SalaryMinMax = existingVacancy.SalaryMinMax,
+                    Headcount = existingVacancy.Headcount,
+                    Gender = existingVacancy.Gender,
+                    Experience = existingVacancy.Experience,
+                    Degree = existingVacancy.Degree,
+                    Category = existingVacancy.Category,
+                    Description = existingVacancy.Description.ToList(),
+                    Requirements = existingVacancy.Requirements.ToList(),
+                    Benefits = existingVacancy.Benefits.ToList(),
+                    Tags = existingVacancy.Tags.ToList(),
+                    Skills = existingVacancy.Skills.ToList(),
+                    CoverUrl = existingVacancy.CoverUrl,
+                    Images = existingVacancy.Images.ToList(),
+                    IsActive = false, // Not active yet
+                    Status = "Draft", // New vacancy draft
+                    AcquisitionStrategy = existingVacancy.AcquisitionStrategy,
+                    DiscoveryProfileJson = existingVacancy.DiscoveryProfileJson,
+                    RequirementSnapshotId = null, // Not snapshotted yet
+                    Metadata = existingVacancy.Metadata,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                };
+                _context.JobVacancies.Add(newVacancy);
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return newReq;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
         }
     }
 }

@@ -21,7 +21,7 @@ interface ProfileContainerProps {
   username: string;
 }
 
-type TabId = 'overview' | 'assessment';
+type TabId = 'overview' | 'assessment' | 'opportunities';
 
 export function ProfileContainer({ profile, assessment, username: _username }: ProfileContainerProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -352,6 +352,12 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                   AI Verified Assessment
                   <Tabs.Indicator className="bottom-0" />
                 </Tabs.Tab>
+                {profile.vacancies && profile.vacancies.length > 0 && (
+                  <Tabs.Tab id="opportunities" className="pb-2 font-bold text-sm cursor-pointer select-none">
+                    Active Opportunities ({profile.vacancies.length})
+                    <Tabs.Indicator className="bottom-0" />
+                  </Tabs.Tab>
+                )}
               </Tabs.List>
             </Tabs.ListContainer>
 
@@ -873,6 +879,79 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                 </div>
               )}
             </Tabs.Panel>
+
+            {/* Tab 3: Active Opportunities Panel */}
+            {profile.vacancies && profile.vacancies.length > 0 && (
+              <Tabs.Panel id="opportunities" className="pt-6 font-outfit text-left">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 border-b border-border/60 pb-3 mb-4 select-none">
+                    <Briefcase className="text-accent size-5" />
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">Hiring Portfolio</span>
+                      <span className="text-[10px] text-muted block font-medium">Active published opportunities listed by this recruiter</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    {profile.vacancies.map((job: any) => {
+                      const orgSlug = job.metadata || 'tier1-business';
+                      return (
+                        <div
+                          key={job.id}
+                          className="p-5 border border-border rounded-xl bg-surface hover:border-accent/40 transition-all shadow-xs flex flex-col md:flex-row gap-4 justify-between items-start md:items-center"
+                        >
+                          <div className="flex gap-4 items-start w-full min-w-0">
+                            {/* Job Cover banner or placeholder */}
+                            <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden shrink-0 border border-border bg-card/25">
+                              {job.coverUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={job.coverUrl} alt={job.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-default flex items-center justify-center text-xs font-bold text-muted">
+                                  JD
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <h4 className="text-base font-bold text-foreground truncate">{job.title}</h4>
+                              <p className="text-xs text-muted font-semibold">
+                                {job.department} &bull; {job.city} ({job.workplaceType})
+                              </p>
+                              
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-normal text-muted-foreground pt-0.5">
+                                <span className="text-accent font-semibold">{job.salary}</span>
+                                <span>&bull;</span>
+                                <span>Experience: {job.experience}</span>
+                                <span>&bull;</span>
+                                <span>Degree: {job.degree}</span>
+                              </div>
+
+                              <div className="flex flex-wrap gap-1.5 pt-1.5">
+                                {job.tags && job.tags.slice(0, 3).map((tag: string) => (
+                                  <span key={tag} className="text-[9px] bg-default border border-border/80 text-muted px-1.5 py-0.5 rounded-md font-medium">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 pt-2 md:pt-0 w-full md:w-auto">
+                            <Link
+                              href={`/workspace/${orgSlug}/jobs`}
+                              className="inline-block text-xs font-bold px-6 py-2 rounded-lg transition-colors border-none text-center bg-accent text-background hover:bg-accent/90 w-full md:w-auto hover:opacity-95"
+                            >
+                              Apply Now
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Tabs.Panel>
+            )}
           </Tabs>
 
         </div>

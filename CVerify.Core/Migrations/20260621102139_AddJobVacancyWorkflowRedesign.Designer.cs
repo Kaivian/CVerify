@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260621102139_AddJobVacancyWorkflowRedesign")]
+    partial class AddJobVacancyWorkflowRedesign
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -7000,7 +7003,6 @@ namespace CVerify.API.Migrations
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
                         .WithMany()
                         .HasForeignKey("HiringRequirementId")
-                        .OnDelete(DeleteBehavior.Cascade)
                         .HasConstraintName("fk_job_vacancies_hiring_requirements_hiring_requirement_id");
 
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
@@ -7013,7 +7015,6 @@ namespace CVerify.API.Migrations
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", "RequirementSnapshot")
                         .WithMany()
                         .HasForeignKey("RequirementSnapshotId")
-                        .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_job_vacancies_requirement_snapshots_requirement_snapshot_id");
 
                     b.Navigation("HiringRequirement");
