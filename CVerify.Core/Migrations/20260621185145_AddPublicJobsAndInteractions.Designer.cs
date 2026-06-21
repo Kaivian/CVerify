@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260621185145_AddPublicJobsAndInteractions")]
+    partial class AddPublicJobsAndInteractions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3346,27 +3349,6 @@ namespace CVerify.API.Migrations
                     b.ToTable("candidate_capability_histories", (string)null);
                 });
 
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityProjection", b =>
-                {
-                    b.Property<Guid>("CandidateId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("candidate_id");
-
-                    b.Property<string>("CapabilitiesJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("capabilities_json");
-
-                    b.Property<DateTimeOffset>("ProjectedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("projected_at");
-
-                    b.HasKey("CandidateId")
-                        .HasName("pk_candidate_capability_projections");
-
-                    b.ToTable("candidate_capability_projections", (string)null);
-                });
-
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityScore", b =>
                 {
                     b.Property<Guid>("CandidateCapabilityId")
@@ -3450,40 +3432,6 @@ namespace CVerify.API.Migrations
                         .HasDatabaseName("idx_candidate_discovery_runs_triggered_by_id");
 
                     b.ToTable("candidate_discovery_runs", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateEvaluationSnapshot", b =>
-                {
-                    b.Property<Guid>("CandidateId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("candidate_id");
-
-                    b.Property<DateTimeOffset>("EvaluatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("evaluated_at");
-
-                    b.Property<double>("EvidenceTrustScore")
-                        .HasColumnType("double precision")
-                        .HasColumnName("evidence_trust_score");
-
-                    b.Property<double>("IdentityTrustScore")
-                        .HasColumnType("double precision")
-                        .HasColumnName("identity_trust_score");
-
-                    b.Property<double>("ProfileCompleteness")
-                        .HasColumnType("double precision")
-                        .HasColumnName("profile_completeness");
-
-                    b.Property<string>("VerificationState")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("verification_state");
-
-                    b.HasKey("CandidateId")
-                        .HasName("pk_candidate_evaluation_snapshots");
-
-                    b.ToTable("candidate_evaluation_snapshots", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateMatchProjection", b =>
@@ -4431,10 +4379,6 @@ namespace CVerify.API.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
-
-                    b.Property<string>("EligibilitySnapshotJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("eligibility_snapshot_json");
 
                     b.Property<string>("GapsSnapshotJson")
                         .HasColumnType("jsonb")
@@ -8011,18 +7955,6 @@ namespace CVerify.API.Migrations
                     b.Navigation("CandidateCapability");
                 });
 
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityProjection", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
-                        .WithOne()
-                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityProjection", "CandidateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_candidate_capability_projections_users_candidate_id");
-
-                    b.Navigation("Candidate");
-                });
-
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityScore", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapability", "CandidateCapability")
@@ -8053,18 +7985,6 @@ namespace CVerify.API.Migrations
                     b.Navigation("HiringRequirement");
 
                     b.Navigation("TriggeredBy");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateEvaluationSnapshot", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
-                        .WithOne()
-                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateEvaluationSnapshot", "CandidateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_candidate_evaluation_snapshots_users_candidate_id");
-
-                    b.Navigation("Candidate");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateMatchProjection", b =>
