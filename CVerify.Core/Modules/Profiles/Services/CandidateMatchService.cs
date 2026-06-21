@@ -11,6 +11,8 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.Profiles.Entities;
+using StackExchange.Redis;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CVerify.API.Modules.Profiles.Services;
 
@@ -19,15 +21,21 @@ public class CandidateMatchService : ICandidateMatchService
     private readonly ApplicationDbContext _context;
     private readonly ICapabilityCatalogService _catalogService;
     private readonly IHiringRequirementService _hiringRequirementService;
+    private readonly IConnectionMultiplexer _redis;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public CandidateMatchService(
         ApplicationDbContext context,
         ICapabilityCatalogService catalogService,
-        IHiringRequirementService hiringRequirementService)
+        IHiringRequirementService hiringRequirementService,
+        IConnectionMultiplexer redis,
+        IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _catalogService = catalogService;
         _hiringRequirementService = hiringRequirementService;
+        _redis = redis;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<List<CandidateMatchDto>> GetCandidateMatchesAsync(Guid requirementId, CancellationToken cancellationToken)
@@ -436,5 +444,140 @@ public class CandidateMatchService : ICandidateMatchService
 
         double fraction = sumWeightedGaps / sumWeightedMax;
         return Math.Max(0.0, 1.0 - Math.Sqrt(fraction));
+    }
+
+    public async Task<List<CandidateDiscoveryRunDto>> GetDiscoveryRunsAsync(Guid requirementId, CancellationToken cancellationToken)
+    {
+        var runs = await _context.CandidateDiscoveryRuns
+            .Where(r => r.HiringRequirementId == requirementId)
+            .OrderByDescending(r => r.StartedAt)
+            .ToListAsync(cancellationToken);
+
+        return runs.Select(r => new CandidateDiscoveryRunDto(
+            r.Id,
+            r.HiringRequirementId,
+            r.TriggeredById,
+            r.StartedAt,
+            r.CompletedAt,
+            r.Status,
+            r.CandidatesFoundCount,
+            r.MatchQualitySummary,
+            r.ErrorMessage,
+            !string.IsNullOrEmpty(r.RawResultsJson) 
+                ? JsonSerializer.Deserialize<List<CandidateMatchDto>>(r.RawResultsJson)
+                : null
+        )).ToList();
+    }
+
+    public async Task<TriggerDiscoveryResponseDto> TriggerDiscoveryAsync(Guid requirementId, Guid userId, CancellationToken cancellationToken)
+    {
+        var req = await _context.HiringRequirements.FindAsync(new object[] { requirementId }, cancellationToken);
+        if (req == null)
+        {
+            throw new KeyNotFoundException("Hiring requirement not found.");
+        }
+
+        var userExists = await _context.Users.AnyAsync(u => u.Id == userId, cancellationToken);
+
+        var run = new CandidateDiscoveryRun
+        {
+            Id = Guid.CreateVersion7(),
+            HiringRequirementId = requirementId,
+            TriggeredById = userExists ? userId : null,
+            StartedAt = DateTimeOffset.UtcNow,
+            Status = DiscoveryStatus.Pending,
+            CandidatesFoundCount = 0
+        };
+
+        _context.CandidateDiscoveryRuns.Add(run);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        // Run matching in the background
+        var runId = run.Id;
+        var scopeFactory = _scopeFactory;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = scopeFactory.CreateScope();
+                var scopedMatchService = scope.ServiceProvider.GetRequiredService<ICandidateMatchService>();
+                await ((CandidateMatchService)scopedMatchService).ExecuteDiscoveryPipelineAsync(runId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                // Top level async exception handler
+            }
+        });
+
+        return new TriggerDiscoveryResponseDto(run.Id, run.Status);
+    }
+
+    public async Task ExecuteDiscoveryPipelineAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        var run = await _context.CandidateDiscoveryRuns.FindAsync(new object[] { runId }, cancellationToken);
+        if (run == null) return;
+
+        try
+        {
+            // 1. Searching candidates
+            run.Status = DiscoveryStatus.Searching;
+            await _context.SaveChangesAsync(cancellationToken);
+            await PublishProgressAsync(run.HiringRequirementId, "Running", "Searching", "Searching candidates...", 20.0);
+            await Task.Delay(1000, cancellationToken);
+
+            // 2. Matching profiles
+            run.Status = DiscoveryStatus.Matching;
+            await _context.SaveChangesAsync(cancellationToken);
+            await PublishProgressAsync(run.HiringRequirementId, "Running", "Matching", "Matching profiles...", 50.0);
+            await Task.Delay(1000, cancellationToken);
+
+            // 3. Ranking candidates
+            run.Status = DiscoveryStatus.Ranking;
+            await _context.SaveChangesAsync(cancellationToken);
+            await PublishProgressAsync(run.HiringRequirementId, "Running", "Ranking", "Ranking candidates...", 80.0);
+
+            // Perform the actual matching calculation
+            var matches = await GetCandidateMatchesAsync(run.HiringRequirementId, cancellationToken);
+            await Task.Delay(500, cancellationToken);
+
+            // 4. Completed
+            run.CompletedAt = DateTimeOffset.UtcNow;
+            run.Status = DiscoveryStatus.Completed;
+            run.CandidatesFoundCount = matches.Count;
+
+            // Compute match quality summary
+            int highMatchCount = matches.Count(m => m.MatchScore >= 80);
+            int medMatchCount = matches.Count(m => m.MatchScore >= 50 && m.MatchScore < 80);
+            int lowMatchCount = matches.Count(m => m.MatchScore < 50);
+            run.MatchQualitySummary = $"{highMatchCount} High Match, {medMatchCount} Good Fit, {lowMatchCount} Potential Fit";
+
+            run.RawResultsJson = JsonSerializer.Serialize(matches);
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await PublishProgressAsync(run.HiringRequirementId, "Completed", "Completed", "Discovery run completed.", 100.0);
+        }
+        catch (Exception ex)
+        {
+            run.CompletedAt = DateTimeOffset.UtcNow;
+            run.Status = DiscoveryStatus.Failed;
+            run.ErrorMessage = ex.Message;
+            await _context.SaveChangesAsync(CancellationToken.None);
+            await PublishProgressAsync(run.HiringRequirementId, "Failed", "Failed", $"Discovery run failed: {ex.Message}", 100.0);
+        }
+    }
+
+    private async Task PublishProgressAsync(Guid reqId, string status, string step, string message, double percentage)
+    {
+        var progress = new
+        {
+            status = status,
+            step = step,
+            message = message,
+            percentage = percentage
+        };
+        var json = JsonSerializer.Serialize(progress);
+        var subscriber = _redis.GetSubscriber();
+        var channel = $"hiring:requirement:progress:{reqId}";
+        await subscriber.PublishAsync(channel, json);
     }
 }

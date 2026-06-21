@@ -115,6 +115,14 @@ public class HiringRequirementService : IHiringRequirementService
         if (request.DegreeRequirement != null) req.DegreeRequirement = request.DegreeRequirement;
         if (request.Benefits != null) req.Benefits = request.Benefits;
         if (request.LanguageRequirements != null) req.LanguageRequirements = request.LanguageRequirements;
+        if (request.StartDate != null) req.StartDate = request.StartDate;
+        if (request.EndDate != null) req.EndDate = request.EndDate;
+        if (request.AutoCloseRule != null) req.AutoCloseRule = request.AutoCloseRule.Value;
+        if (request.CandidatesNeededCount != null) req.CandidatesNeededCount = request.CandidatesNeededCount;
+        if (request.Headcount != null) req.Headcount = request.Headcount.Value;
+        if (request.SalaryPeriod != null) req.SalaryPeriod = request.SalaryPeriod.Value;
+        if (request.IsSalaryNegotiable != null) req.IsSalaryNegotiable = request.IsSalaryNegotiable.Value;
+        if (request.IsManuallyClosed != null) req.IsManuallyClosed = request.IsManuallyClosed.Value;
 
         // 1. Update Business Outcomes
         if (request.Outcomes != null)
@@ -210,6 +218,24 @@ public class HiringRequirementService : IHiringRequirementService
             }
         }
 
+        // Sync associated JobVacancy draft if exists
+        var vacancy = await _context.JobVacancies.FirstOrDefaultAsync(v => v.HiringRequirementId == req.Id, cancellationToken);
+        if (vacancy != null && vacancy.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase))
+        {
+            vacancy.Title = req.Title;
+            vacancy.Department = req.Department;
+            vacancy.WorkplaceType = req.WorkplaceType;
+            if (req.City != null) vacancy.City = req.City;
+            vacancy.Type = req.EmploymentType;
+            vacancy.Headcount = req.Headcount;
+            vacancy.Degree = req.DegreeRequirement ?? "No Degree Required";
+            vacancy.Salary = req.SalaryMin.HasValue && req.SalaryMax.HasValue ? $"{req.SalaryMin} - {req.SalaryMax} {req.Currency}" : "Negotiable";
+            vacancy.SalaryMinMax = $"{req.SalaryMin ?? 0}-{req.SalaryMax ?? 0}";
+            vacancy.Benefits = req.Benefits ?? new List<string>();
+            vacancy.Skills = req.TechnologyRequirements.Select(t => t.Name).ToList();
+            vacancy.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         req.UpdatedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -285,11 +311,18 @@ public class HiringRequirementService : IHiringRequirementService
                 SalaryMin = req.SalaryMin,
                 SalaryMax = req.SalaryMax,
                 Currency = req.Currency,
+                SalaryPeriod = req.SalaryPeriod,
+                IsSalaryNegotiable = req.IsSalaryNegotiable,
                 TimezoneRange = req.TimezoneRange,
                 DegreeRequirement = req.DegreeRequirement,
                 Benefits = req.Benefits,
                 LanguageRequirements = req.LanguageRequirements,
                 Headcount = req.Headcount,
+                StartDate = req.StartDate,
+                EndDate = req.EndDate,
+                AutoCloseRule = req.AutoCloseRule,
+                CandidatesNeededCount = req.CandidatesNeededCount,
+                IsManuallyClosed = req.IsManuallyClosed,
                 HiringReason = req.HiringReason,
                 BusinessProblem = req.BusinessProblem,
                 BusinessOutcomesJson = JsonSerializer.Serialize(req.BusinessOutcomes.Select(o => o.Text).ToList()),
@@ -962,6 +995,15 @@ public class HiringRequirementService : IHiringRequirementService
                     CreatedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow
                 });
+            }
+
+            // Also update associated JobVacancy if it exists and is in Draft status
+            var vacancy = await _context.JobVacancies
+                .FirstOrDefaultAsync(v => v.HiringRequirementId == requirementId, cancellationToken);
+            if (vacancy != null && vacancy.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase))
+            {
+                vacancy.Description = new List<string> { markdownContent };
+                vacancy.UpdatedAt = DateTimeOffset.UtcNow;
             }
         }
         else if (artifactType.Equals("EvaluationRubric", StringComparison.OrdinalIgnoreCase))

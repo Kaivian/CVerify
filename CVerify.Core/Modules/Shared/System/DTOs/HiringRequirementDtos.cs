@@ -28,7 +28,15 @@ public record UpdateHiringRequirementRequestDto(
     string? TimezoneRange,
     string? DegreeRequirement,
     List<string>? Benefits,
-    List<string>? LanguageRequirements
+    List<string>? LanguageRequirements,
+    DateTimeOffset? StartDate,
+    DateTimeOffset? EndDate,
+    AutoCloseRule? AutoCloseRule,
+    int? CandidatesNeededCount,
+    int? Headcount,
+    SalaryPeriod? SalaryPeriod,
+    bool? IsSalaryNegotiable,
+    bool? IsManuallyClosed
 );
 
 public record ResponsibilityDto(
@@ -146,4 +154,22 @@ public record UpdateJobVacancyDto(
 
 public record PublishRequirementRequestDto(
     string? Notes = null
+);
+
+public record CandidateDiscoveryRunDto(
+    Guid Id,
+    Guid HiringRequirementId,
+    Guid? TriggeredById,
+    DateTimeOffset StartedAt,
+    DateTimeOffset? CompletedAt,
+    DiscoveryStatus Status,
+    int CandidatesFoundCount,
+    string? MatchQualitySummary,
+    string? ErrorMessage,
+    List<CandidateMatchDto>? Matches
+);
+
+public record TriggerDiscoveryResponseDto(
+    Guid RunId,
+    DiscoveryStatus Status
 );

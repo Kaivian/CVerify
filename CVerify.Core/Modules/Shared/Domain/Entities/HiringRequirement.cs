@@ -55,6 +55,10 @@ public class HiringRequirement
     [MaxLength(10)]
     public string? Currency { get; set; } // USD, VND, EUR
 
+    public SalaryPeriod SalaryPeriod { get; set; } = SalaryPeriod.Monthly;
+
+    public bool IsSalaryNegotiable { get; set; } = false;
+
     [MaxLength(100)]
     public string? TimezoneRange { get; set; }
 
@@ -66,6 +70,29 @@ public class HiringRequirement
     public List<string> LanguageRequirements { get; set; } = new();
 
     public int Headcount { get; set; } = 1;
+
+    public DateTimeOffset? StartDate { get; set; }
+
+    public DateTimeOffset? EndDate { get; set; }
+
+    public AutoCloseRule AutoCloseRule { get; set; } = AutoCloseRule.None;
+
+    public int? CandidatesNeededCount { get; set; }
+
+    public bool IsManuallyClosed { get; set; } = false;
+
+    [NotMapped]
+    public string LifecycleStatus
+    {
+        get
+        {
+            if (IsManuallyClosed) return "Closed";
+            var now = DateTimeOffset.UtcNow;
+            if (StartDate.HasValue && StartDate.Value > now) return "Scheduled";
+            if (EndDate.HasValue && EndDate.Value < now) return "Expired";
+            return "Active";
+        }
+    }
 
     [Required]
     [MaxLength(20)]
@@ -91,4 +118,5 @@ public class HiringRequirement
     public virtual ICollection<InterviewBlueprint> InterviewBlueprints { get; set; } = new List<InterviewBlueprint>();
     public virtual ICollection<RequirementArtifact> RequirementArtifacts { get; set; } = new List<RequirementArtifact>();
     public virtual ICollection<RequirementSnapshot> Snapshots { get; set; } = new List<RequirementSnapshot>();
+    public virtual ICollection<CandidateDiscoveryRun> DiscoveryRuns { get; set; } = new List<CandidateDiscoveryRun>();
 }

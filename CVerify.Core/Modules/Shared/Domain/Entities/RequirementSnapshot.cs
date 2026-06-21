@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-
 using System.Text.Json.Serialization;
+using CVerify.API.Modules.Shared.Domain.Enums;
 
 namespace CVerify.API.Modules.Shared.Domain.Entities;
 
@@ -56,6 +56,10 @@ public class RequirementSnapshot
     [MaxLength(10)]
     public string? Currency { get; set; }
 
+    public SalaryPeriod SalaryPeriod { get; set; } = SalaryPeriod.Monthly;
+
+    public bool IsSalaryNegotiable { get; set; } = false;
+
     [MaxLength(100)]
     public string? TimezoneRange { get; set; }
 
@@ -67,6 +71,29 @@ public class RequirementSnapshot
     public List<string> LanguageRequirements { get; set; } = new();
 
     public int Headcount { get; set; } = 1;
+
+    public DateTimeOffset? StartDate { get; set; }
+
+    public DateTimeOffset? EndDate { get; set; }
+
+    public AutoCloseRule AutoCloseRule { get; set; } = AutoCloseRule.None;
+
+    public int? CandidatesNeededCount { get; set; }
+
+    public bool IsManuallyClosed { get; set; } = false;
+
+    [NotMapped]
+    public string LifecycleStatus
+    {
+        get
+        {
+            if (IsManuallyClosed) return "Closed";
+            var now = DateTimeOffset.UtcNow;
+            if (StartDate.HasValue && StartDate.Value > now) return "Scheduled";
+            if (EndDate.HasValue && EndDate.Value < now) return "Expired";
+            return "Active";
+        }
+    }
 
     [MaxLength(100)]
     public string? HiringReason { get; set; }

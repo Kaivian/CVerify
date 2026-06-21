@@ -382,6 +382,40 @@ public class HiringRequirementController : ControllerBase
         }
     }
 
+    [HttpPost("{id}/candidate-matches/discover")]
+    [ProducesResponseType(typeof(TriggerDiscoveryResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TriggerDiscovery(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _candidateMatchService.TriggerDiscoveryAsync(id, CurrentUserId, cancellationToken);
+            return Ok(response);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id}/candidate-matches/discover/runs")]
+    [ProducesResponseType(typeof(List<CandidateDiscoveryRunDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetDiscoveryRuns(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var runs = await _candidateMatchService.GetDiscoveryRunsAsync(id, cancellationToken);
+            return Ok(runs);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Hiring requirement not found." });
+        }
+    }
+
     [HttpPost("{id}/publish")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

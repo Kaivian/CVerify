@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260621172337_AddHiringLifecycleAndDiscoveryRuns")]
+    partial class AddHiringLifecycleAndDiscoveryRuns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3300,7 +3303,7 @@ namespace CVerify.API.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("status");
 
-                    b.Property<Guid?>("TriggeredById")
+                    b.Property<Guid>("TriggeredById")
                         .HasColumnType("uuid")
                         .HasColumnName("triggered_by_id");
 
@@ -3314,28 +3317,6 @@ namespace CVerify.API.Migrations
                         .HasDatabaseName("idx_candidate_discovery_runs_triggered_by_id");
 
                     b.ToTable("candidate_discovery_runs", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityAlias", b =>
-                {
-                    b.Property<string>("AliasName")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("alias_name");
-
-                    b.Property<string>("CanonicalId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("canonical_id");
-
-                    b.HasKey("AliasName")
-                        .HasName("pk_capability_aliases");
-
-                    b.HasIndex("CanonicalId")
-                        .HasDatabaseName("ix_capability_aliases_canonical_id");
-
-                    b.ToTable("capability_aliases", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityCatalogItem", b =>
@@ -3402,104 +3383,6 @@ namespace CVerify.API.Migrations
                         .HasDatabaseName("ix_capability_catalog_items_workspace_id");
 
                     b.ToTable("capability_catalog_items", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityHierarchy", b =>
-                {
-                    b.Property<string>("ParentId")
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("parent_id");
-
-                    b.Property<string>("ChildId")
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("child_id");
-
-                    b.HasKey("ParentId", "ChildId")
-                        .HasName("pk_capability_hierarchies");
-
-                    b.HasIndex("ChildId")
-                        .HasDatabaseName("ix_capability_hierarchies_child_id");
-
-                    b.ToTable("capability_hierarchies", (string)null);
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", b =>
-                {
-                    b.Property<string>("CapabilityId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("capability_id");
-
-                    b.Property<string>("CapabilityVersion")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("capability_version");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("category");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("DeprecatedById")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("deprecated_by_id");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("description");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("display_name");
-
-                    b.Property<DateTimeOffset>("EffectiveDate")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("effective_date");
-
-                    b.Property<string>("MigrationMappings")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("migration_mappings");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("status");
-
-                    b.Property<string>("TaxonomyVersion")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("taxonomy_version");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("CapabilityId")
-                        .HasName("pk_capability_registries");
-
-                    b.HasIndex("DeprecatedById")
-                        .HasDatabaseName("ix_capability_registries_deprecated_by_id");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("ix_capability_registries_status");
-
-                    b.HasIndex("TaxonomyVersion")
-                        .HasDatabaseName("ix_capability_registries_taxonomy_version");
-
-                    b.ToTable("capability_registries", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvaluationRubric", b =>
@@ -7127,24 +7010,13 @@ namespace CVerify.API.Migrations
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "TriggeredBy")
                         .WithMany()
                         .HasForeignKey("TriggeredById")
-                        .OnDelete(DeleteBehavior.SetNull)
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
                         .HasConstraintName("fk_candidate_discovery_runs_users_triggered_by_id");
 
                     b.Navigation("HiringRequirement");
 
                     b.Navigation("TriggeredBy");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityAlias", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", "CanonicalCapability")
-                        .WithMany()
-                        .HasForeignKey("CanonicalId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_capability_aliases_capability_registries_canonical_id");
-
-                    b.Navigation("CanonicalCapability");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityCatalogItem", b =>
@@ -7155,38 +7027,6 @@ namespace CVerify.API.Migrations
                         .HasConstraintName("fk_capability_catalog_items_workspaces_workspace_id");
 
                     b.Navigation("Workspace");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityHierarchy", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", "Child")
-                        .WithMany()
-                        .HasForeignKey("ChildId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_capability_hierarchies_capability_registries_child_id");
-
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", "Parent")
-                        .WithMany()
-                        .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_capability_hierarchies_capability_registries_parent_id");
-
-                    b.Navigation("Child");
-
-                    b.Navigation("Parent");
-                });
-
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", "DeprecatedBy")
-                        .WithMany()
-                        .HasForeignKey("DeprecatedById")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_capability_registries_capability_registries_deprecated_by_id");
-
-                    b.Navigation("DeprecatedBy");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvaluationRubric", b =>
