@@ -16,6 +16,7 @@ namespace CVerify.API.Modules.Intelligence.Services;
 public interface ICandidateEvaluationService
 {
     Task<CandidateEvaluationSnapshot> EvaluateAndSnapshotCandidateAsync(Guid candidateId, CancellationToken cancellationToken = default);
+    Task<CandidateCapabilityIntelligence> GetCapabilityIntelligenceAsync(Guid candidateId, bool forceRefresh = false, CancellationToken cancellationToken = default);
 }
 
 public class CandidateEvaluationService : ICandidateEvaluationService
@@ -136,19 +137,80 @@ public class CandidateEvaluationService : ICandidateEvaluationService
 
             if (!consolidated.TryGetValue(slug, out var item))
             {
+                string targetFile = "";
+                string rationale = "";
+                if (!string.IsNullOrEmpty(rc.EvidenceJson))
+                {
+                    try
+                    {
+                        using var evDoc = JsonDocument.Parse(rc.EvidenceJson);
+                        var root = evDoc.RootElement;
+                        if (root.TryGetProperty("evidence", out var evProp) && evProp.ValueKind == JsonValueKind.Array && evProp.GetArrayLength() > 0)
+                        {
+                            targetFile = evProp[0].GetString() ?? "";
+                        }
+                        else if (root.TryGetProperty("file_path", out var pathProp))
+                        {
+                            targetFile = pathProp.GetString() ?? "";
+                        }
+
+                        if (root.TryGetProperty("description", out var descProp))
+                        {
+                            rationale = descProp.GetString() ?? "";
+                        }
+                    }
+                    catch {}
+                }
+
                 item = new ProjectedCapabilityItem
                 {
                     Slug = slug,
                     Name = rc.Name,
                     Source = "Verified",
                     Score = rc.Score,
-                    Recency = 1.0
+                    Recency = 1.0,
+                    Maturity = rc.Maturity,
+                    Confidence = rc.Confidence,
+                    Rationale = rationale,
+                    TargetFilePath = targetFile
                 };
                 consolidated[slug] = item;
             }
             else
             {
-                item.Score = Math.Max(item.Score, rc.Score);
+                if (rc.Score > item.Score)
+                {
+                    item.Score = rc.Score;
+                    item.Maturity = rc.Maturity;
+                    item.Confidence = rc.Confidence;
+
+                    string targetFile = "";
+                    string rationale = "";
+                    if (!string.IsNullOrEmpty(rc.EvidenceJson))
+                    {
+                        try
+                        {
+                            using var evDoc = JsonDocument.Parse(rc.EvidenceJson);
+                            var root = evDoc.RootElement;
+                            if (root.TryGetProperty("evidence", out var evProp) && evProp.ValueKind == JsonValueKind.Array && evProp.GetArrayLength() > 0)
+                            {
+                                targetFile = evProp[0].GetString() ?? "";
+                            }
+                            else if (root.TryGetProperty("file_path", out var pathProp))
+                            {
+                                targetFile = pathProp.GetString() ?? "";
+                            }
+
+                            if (root.TryGetProperty("description", out var descProp))
+                            {
+                                rationale = descProp.GetString() ?? "";
+                            }
+                        }
+                        catch {}
+                    }
+                    item.TargetFilePath = targetFile;
+                    item.Rationale = rationale;
+                }
                 item.Source = "Verified";
             }
         }
@@ -167,18 +229,25 @@ public class CandidateEvaluationService : ICandidateEvaluationService
                     Name = cs.SkillName,
                     Source = "Verified",
                     Score = cs.Score,
-                    Recency = 1.0
+                    Recency = 1.0,
+                    Maturity = "Intermediate",
+                    Confidence = 0.85,
+                    Rationale = "Verified in Candidate Assessment.",
+                    TargetFilePath = ""
                 };
                 consolidated[slug] = item;
             }
             else
             {
-                item.Score = Math.Max(item.Score, cs.Score);
+                if (cs.Score > item.Score)
+                {
+                    item.Score = cs.Score;
+                }
                 item.Source = "Verified";
             }
         }
 
-        // Process self-declared skills (only add if not already verified or if score is lower)
+        // Process self-declared skills (only add if not already verified)
         foreach (var sd in selfDeclaredSkills)
         {
             var slug = sd.Skill.ToLowerInvariant().Trim();
@@ -191,8 +260,12 @@ public class CandidateEvaluationService : ICandidateEvaluationService
                     Slug = slug,
                     Name = sd.Skill,
                     Source = "SelfDeclared",
-                    Score = 50.0, // Default baseline score for self-declared skills
-                    Recency = 1.0
+                    Score = 50.0,
+                    Recency = 1.0,
+                    Maturity = "Basic",
+                    Confidence = 0.20,
+                    Rationale = "Self-declared skill in profile.",
+                    TargetFilePath = ""
                 };
             }
         }
@@ -226,6 +299,80 @@ public class CandidateEvaluationService : ICandidateEvaluationService
         return snapshot;
     }
 
+    public async Task<CandidateCapabilityIntelligence> GetCapabilityIntelligenceAsync(
+        Guid candidateId, 
+        bool forceRefresh = false, 
+        CancellationToken cancellationToken = default)
+    {
+        var snapshot = await _context.CandidateEvaluationSnapshots
+            .FirstOrDefaultAsync(s => s.CandidateId == candidateId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var projection = await _context.CandidateCapabilityProjections
+            .FirstOrDefaultAsync(p => p.CandidateId == candidateId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (snapshot == null || projection == null || forceRefresh)
+        {
+            snapshot = await EvaluateAndSnapshotCandidateAsync(candidateId, cancellationToken).ConfigureAwait(false);
+            projection = await _context.CandidateCapabilityProjections
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var capabilities = new List<CapabilityItem>();
+        if (projection != null && !string.IsNullOrEmpty(projection.CapabilitiesJson))
+        {
+            capabilities = JsonSerializer.Deserialize<List<CapabilityItem>>(
+                projection.CapabilitiesJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+        }
+
+        decimal? expectedSalaryMin = null;
+        decimal? expectedSalaryMax = null;
+        string? targetWorkplaceType = null;
+
+        var careerPref = await _context.CareerPreferences
+            .FirstOrDefaultAsync(cp => cp.UserId == candidateId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (careerPref != null)
+        {
+            expectedSalaryMin = careerPref.ExpectedSalaryMin ?? careerPref.SalaryExpectations;
+            expectedSalaryMax = careerPref.ExpectedSalaryMax ?? careerPref.SalaryExpectations;
+            targetWorkplaceType = careerPref.RemotePreference;
+        }
+
+        var careerLevel = "";
+        var careerLevelLabel = "";
+        
+        var latestAssessment = await _context.CandidateAssessments
+            .Where(ca => ca.UserId == candidateId && ca.Status == "Completed")
+            .OrderByDescending(ca => ca.CompletedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (latestAssessment != null)
+        {
+            careerLevel = latestAssessment.CareerLevel ?? "";
+            careerLevelLabel = latestAssessment.CareerLevelLabel ?? "";
+        }
+
+        return new CandidateCapabilityIntelligence
+        {
+            CandidateId = candidateId,
+            Capabilities = capabilities,
+            IdentityTrustScore = snapshot?.IdentityTrustScore ?? 0.0,
+            EvidenceTrustScore = snapshot?.EvidenceTrustScore ?? 0.0,
+            CareerLevel = careerLevel,
+            CareerLevelLabel = careerLevelLabel,
+            ExpectedSalaryMin = expectedSalaryMin,
+            ExpectedSalaryMax = expectedSalaryMax,
+            TargetWorkplaceType = targetWorkplaceType,
+            CalculatedAt = projection?.ProjectedAt ?? DateTimeOffset.UtcNow
+        };
+    }
+
     private class ProjectedCapabilityItem
     {
         public string Slug { get; set; } = null!;
@@ -233,5 +380,9 @@ public class CandidateEvaluationService : ICandidateEvaluationService
         public string Source { get; set; } = null!; // Verified, SelfDeclared
         public double Score { get; set; }
         public double Recency { get; set; }
+        public string Maturity { get; set; } = "Basic";
+        public double Confidence { get; set; } = 1.0;
+        public string Rationale { get; set; } = "";
+        public string TargetFilePath { get; set; } = "";
     }
 }
