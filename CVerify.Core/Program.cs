@@ -369,6 +369,8 @@ builder.Services.AddScoped<IRepositoryIntelligencePipeline, RepositoryIntelligen
 builder.Services.AddScoped<IJobRankingStrategy, WeightedJobRankingStrategy>();
 builder.Services.AddScoped<IRecommendationProvider, DefaultRecommendationProvider>();
 builder.Services.AddScoped<IJobEligibilityService, JobEligibilityService>();
+builder.Services.AddScoped<ICandidateRankingCalculator, CandidateRankingCalculator>();
+builder.Services.AddScoped<ICandidateRankingProjectionService, CandidateRankingProjectionService>();
 
 
 // Register Cloudflare R2 Object Storage Stack (IAmazonS3 + IStorageService)
@@ -482,6 +484,7 @@ builder.Services.AddHostedService<TalentOutboxBackgroundProcessor>();
 
 builder.Services.AddHostedService<RedisNotificationSubscriberWorker>();
 builder.Services.AddHostedService<ActivityEventProjectionWorker>();
+builder.Services.AddHostedService<CandidateRankingProjectionWorker>();
 
 
 // Configure JWT Authentication
