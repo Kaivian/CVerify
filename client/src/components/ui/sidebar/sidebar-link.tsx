@@ -109,7 +109,7 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       )}
 
       {/* Renders text label - Hidden on desktop when collapsed */}
-      {!collapsed && <span className="truncate">{label}</span>}
+      {!collapsed && <span className="whitespace-nowrap">{label}</span>}
 
       {/* Renders optional badge - Hidden on desktop when collapsed */}
       {!collapsed && item.badge !== undefined && (

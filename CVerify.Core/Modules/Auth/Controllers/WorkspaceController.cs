@@ -74,6 +74,160 @@ public class WorkspaceController : ControllerBase
         return Ok(orgs);
     }
 
+    [HttpGet("organizations")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaginatedOrganizationsResponseDto))]
+    public async Task<IActionResult> GetOrganizationsList(
+        [FromQuery] string? search = null,
+        [FromQuery] string? industry = null,
+        [FromQuery] string? companySize = null,
+        [FromQuery] bool? isVerified = null,
+        [FromQuery] string? location = null,
+        [FromQuery] string? sortBy = "recently_updated",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 12,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 12;
+
+        var query = _context.Organizations
+            .Where(o => o.DeletedAt == null && o.Status == "active");
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(o => o.Name.ToLower().Contains(searchLower) ||
+                                     o.Username.ToLower().Contains(searchLower) ||
+                                     (o.Description != null && o.Description.ToLower().Contains(searchLower)) ||
+                                     o.IndustryTags.Any(t => t.ToLower().Contains(searchLower)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(industry))
+        {
+            var industryLower = industry.ToLower();
+            query = query.Where(o => o.IndustryTags.Any(t => t.ToLower() == industryLower));
+        }
+
+        if (!string.IsNullOrWhiteSpace(companySize))
+        {
+            query = query.Where(o => o.CompanySize == companySize);
+        }
+
+        if (isVerified.HasValue)
+        {
+            query = query.Where(o => o.IsVerified == isVerified.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(location))
+        {
+            var locLower = location.ToLower();
+            query = query.Where(o => o.City != null && o.City.ToLower() == locLower);
+        }
+
+        var projection = query.Select(o => new
+        {
+            Organization = o,
+            MemberCount = _context.OrganizationMemberships.Count(om => om.OrganizationId == o.Id && om.Status == "active"),
+            OpenPositionsCount = _context.JobVacancies.Count(jv => jv.OrganizationId == o.Id && jv.IsActive && jv.Status == "Published"),
+            RepositoryCount = _context.SourceCodeRepositories.Count(r => _context.OrganizationMemberships.Any(om => om.OrganizationId == o.Id && om.Status == "active" && om.UserId == r.AuthProvider.UserId)),
+            VerifiedRepositoryCount = _context.SourceCodeRepositories.Count(r => r.IsVerified && _context.OrganizationMemberships.Any(om => om.OrganizationId == o.Id && om.Status == "active" && om.UserId == r.AuthProvider.UserId)),
+            AverageTrustScore = _context.SourceCodeRepositories
+                .Where(r => r.IsVerified && _context.OrganizationMemberships.Any(om => om.OrganizationId == o.Id && om.Status == "active" && om.UserId == r.AuthProvider.UserId))
+                .Select(r => (double?)r.TrustScore)
+                .Average() ?? 0.0
+        });
+
+        switch (sortBy?.ToLowerInvariant())
+        {
+            case "recently_created":
+                projection = projection.OrderByDescending(p => p.Organization.CreatedAt);
+                break;
+            case "alphabetical_asc":
+                projection = projection.OrderBy(p => p.Organization.Name);
+                break;
+            case "alphabetical_desc":
+                projection = projection.OrderByDescending(p => p.Organization.Name);
+                break;
+            case "most_active":
+                projection = projection.OrderByDescending(p => p.Organization.UpdatedAt);
+                break;
+            case "most_engineers":
+                projection = projection.OrderByDescending(p => p.MemberCount);
+                break;
+            case "most_repositories":
+                projection = projection.OrderByDescending(p => p.RepositoryCount);
+                break;
+            case "most_jobs":
+                projection = projection.OrderByDescending(p => p.OpenPositionsCount);
+                break;
+            case "recently_updated":
+            default:
+                projection = projection.OrderByDescending(p => p.Organization.UpdatedAt);
+                break;
+        }
+
+        var totalCount = await projection.CountAsync(cancellationToken);
+
+        var items = await projection
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var dtoList = new List<OrganizationListDto>();
+        foreach (var item in items)
+        {
+            var signedLogoUrl = await GetSignedUrlAsync(item.Organization.LogoUrl, cancellationToken);
+            var signedBannerUrl = await GetSignedUrlAsync(item.Organization.BannerUrl, cancellationToken);
+
+            dtoList.Add(new OrganizationListDto(
+                item.Organization.Id,
+                item.Organization.Name,
+                item.Organization.Username,
+                signedLogoUrl,
+                signedBannerUrl,
+                item.Organization.Description,
+                item.Organization.CompanyType,
+                item.Organization.CompanySize,
+                item.Organization.City,
+                item.Organization.Website,
+                item.Organization.IndustryTags ?? new List<string>(),
+                item.Organization.IsVerified,
+                item.Organization.VerificationLevel,
+                item.MemberCount,
+                item.OpenPositionsCount,
+                item.RepositoryCount,
+                item.VerifiedRepositoryCount,
+                item.AverageTrustScore,
+                item.Organization.FollowerCount,
+                item.Organization.CreatedAt,
+                item.Organization.UpdatedAt
+            ));
+        }
+
+        return Ok(new PaginatedOrganizationsResponseDto(dtoList, totalCount, page, pageSize));
+    }
+
+    [HttpGet("organizations/stats")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(OrganizationStatsDto))]
+    public async Task<IActionResult> GetOrganizationsStats(CancellationToken cancellationToken)
+    {
+        var totalOrganizations = await _context.Organizations.CountAsync(o => o.DeletedAt == null && o.Status == "active", cancellationToken);
+        var verifiedOrganizations = await _context.Organizations.CountAsync(o => o.DeletedAt == null && o.Status == "active" && o.IsVerified, cancellationToken);
+        var openOpportunities = await _context.JobVacancies.CountAsync(jv => jv.IsActive && jv.Status == "Published", cancellationToken);
+        var verifiedRepositories = await _context.SourceCodeRepositories.CountAsync(r => r.IsVerified && r.IsAccessible, cancellationToken);
+        var totalMembers = await _context.OrganizationMemberships.CountAsync(om => om.Status == "active", cancellationToken);
+
+        return Ok(new OrganizationStatsDto(
+            totalOrganizations,
+            verifiedOrganizations,
+            openOpportunities,
+            verifiedRepositories,
+            totalMembers
+        ));
+    }
+
     [HttpGet("{organizationSlug}")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(WorkspaceDetailsDto))]

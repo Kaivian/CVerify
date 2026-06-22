@@ -152,3 +152,43 @@ public record CreateJobRequestDto(
     List<string>? ImageUrls = null,
     string? Metadata = null
 );
+
+public record OrganizationListDto(
+    Guid OrganizationId,
+    string OrganizationName,
+    string OrganizationSlug,
+    string? LogoUrl,
+    string? BannerUrl,
+    string? Description,
+    string? CompanyType,
+    string? CompanySize,
+    string? City,
+    string? Website,
+    List<string> IndustryTags,
+    bool IsVerified,
+    int VerificationLevel,
+    int MemberCount,
+    int OpenPositionsCount,
+    int RepositoryCount,
+    int VerifiedRepositoryCount,
+    double AverageTrustScore,
+    int FollowerCount,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt
+);
+
+public record OrganizationStatsDto(
+    int TotalOrganizations,
+    int VerifiedOrganizations,
+    int OpenOpportunities,
+    int VerifiedRepositories,
+    int TotalMembers
+);
+
+public record PaginatedOrganizationsResponseDto(
+    List<OrganizationListDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize
+);
+

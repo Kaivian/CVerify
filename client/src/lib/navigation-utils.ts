@@ -7,7 +7,7 @@ import { type ResourceActionPermission, type UserRole } from '../types/auth.type
  */
 export const RESERVED_USERNAMES = new Set([
   "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
-  "chat", "business", "user", "organization", "auth", "system", "unauthorized", "company-onboarding",
+  "chat", "business", "user", "organization", "organizations", "auth", "system", "unauthorized", "company-onboarding",
   "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email", "workspace-setup",
   "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects"
 ]);
@@ -169,6 +169,11 @@ export const isActiveRoute = (
       cleanPath === '/repositories' ||
       cleanPath.startsWith('/repositories/')
     );
+  }
+
+  // 12. Organizations matching
+  if (itemId === 'organizations' || cleanHref === '/workspace/organizations') {
+    return cleanPath === '/workspace/organizations' || cleanPath.startsWith('/workspace/');
   }
 
   if (exact) {
