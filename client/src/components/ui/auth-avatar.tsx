@@ -67,6 +67,9 @@ export function AuthAvatar() {
         const role = user.role?.toLowerCase() || "user";
         router.push(`/${role}`);
         break;
+      case "profile":
+        router.push(user?.username ? `/${user.username.toLowerCase()}` : "/user/profile");
+        break;
       case "settings":
         router.push("/settings");
         break;

@@ -3,8 +3,9 @@
 import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Accordion, Tooltip, Typography } from "@heroui/react";
+import { Tooltip, Typography } from "@heroui/react";
 import { ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
 import { useAuth } from "../../../features/auth/hooks/use-auth";
 import { isActiveRoute } from "../../../lib/navigation-utils";
@@ -42,7 +43,6 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
   }
 
   const Icon = group.icon;
-
   const label = group.label;
 
   // Recursively check if any descendant is active
@@ -59,9 +59,16 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
     return false;
   };
 
+  const isChildActive = group.children.some(isAnyChildActive);
+
+  const isGroupActive = group.href
+    ? isActiveRoute(pathname, group.href, false, group.id, user?.username, paramsRecord) && !isChildActive
+    : false;
+
   const hasActiveDescendant =
-    group.children.some(isAnyChildActive) ||
+    isChildActive ||
     (group.href ? isActiveRoute(pathname, group.href, false, group.id, user?.username, paramsRecord) : false);
+
   const isExpanded = !!expandedGroups[group.id];
 
   // Auto-expand/collapse parent group on mount or pathname change based on active descendant
@@ -70,171 +77,191 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
   }, [pathname, hasActiveDescendant, group.id, setGroupExpanded]);
 
   // Handle manual toggle and optional navigation
-  const handleToggle = () => {
-    toggleGroup(group.id);
-    if (group.href) {
-      router.push(group.href);
-      if (isMobile) {
-        setMobileOpen(false);
-      }
+  const handleToggle = (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
     }
+    toggleGroup(group.id);
   };
 
-  // Convert expandedGroups record into a React Aria / HeroUI compliant key set
-  const expandedKeys = new Set(
-    Object.keys(expandedGroups).filter(
-      (key) => expandedGroups[key] && key === group.id,
-    ),
-  );
-
-  // Expanded Sidebar layout: Accordion style
+  // Expanded Sidebar layout: Custom collapsible style
   if (!collapsed) {
     return (
       <div className="w-full flex flex-col select-none">
-        <Accordion
-          className="p-0 w-full"
-          variant="default"
-          expandedKeys={expandedKeys}
-          onExpandedChange={() => toggleGroup(group.id)}
-        >
-          <Accordion.Item
-            key={group.id}
-            id={group.id}
-            className="border-none p-0 m-0"
+        {group.href ? (
+          <div
+            className={[
+              "relative w-full flex items-center rounded-xl font-semibold select-none transition-all duration-200 group/row",
+              isMobile ? "h-12 text-base" : "h-10 text-sm",
+              isGroupActive
+                ? "bg-accent/10 text-accent"
+                : hasActiveDescendant
+                  ? "text-accent hover:bg-accent/10"
+                  : "text-muted hover:bg-accent/10 hover:text-accent",
+            ].join(" ")}
           >
-            <Accordion.Heading>
-              {group.href ? (
-                <div
-                  className={[
-                    "w-full flex items-center rounded-xl font-semibold text-muted hover:bg-surface-secondary/40 select-none transition-all duration-200 group/row",
-                    isMobile ? "h-12" : "h-10",
-                  ].join(" ")}
-                >
-                  <Link
-                    href={group.href}
-                    onClick={() => {
-                      if (isMobile) {
-                        setMobileOpen(false);
-                      }
-                    }}
-                    className={[
-                      "flex-1 flex items-center gap-2 min-w-0 h-full rounded-l-xl outline-hidden focus-visible:ring-2 focus-visible:ring-focus hover:text-foreground",
-                      isMobile ? "pl-3.5 pr-2 text-base" : "pl-4 pr-2 text-sm",
-                    ].join(" ")}
-                  >
-                    {Icon && (
-                      <Icon
-                        size={20}
-                        className={[
-                          "shrink-0 transition-colors duration-200",
-                          hasActiveDescendant ? "text-accent" : "text-muted group-hover/row:text-foreground",
-                        ].join(" ")}
-                      />
-                    )}
-                    <span
-                      className={[
-                        "whitespace-nowrap font-outfit font-semibold transition-colors duration-200",
-                        hasActiveDescendant
-                          ? "text-foreground font-bold"
-                          : "text-muted group-hover/row:text-foreground",
-                      ].join(" ")}
-                    >
-                      {label}
-                    </span>
-                  </Link>
+            {/* Dynamic Left Active indicator bar */}
+            {isGroupActive && (
+              <span
+                className={[
+                  "absolute -left-3 rounded-r-full bg-accent shrink-0",
+                  isMobile ? "top-3 w-1.5 h-6" : "w-1 h-8",
+                ].join(" ")}
+              />
+            )}
 
-                  <Accordion.Trigger
-                    className={[
-                      "shrink-0 h-full flex items-center justify-center rounded-r-xl text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors duration-200 cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-focus",
-                      isMobile ? "w-12" : "w-10",
-                    ].join(" ")}
-                  >
-                    <Accordion.Indicator className="text-muted group-hover/row:text-foreground shrink-0 transition-transform duration-200 ease-out">
-                      <ChevronDown
-                        size={14}
-                        className={isExpanded ? "rotate-180" : ""}
-                      />
-                    </Accordion.Indicator>
-                  </Accordion.Trigger>
-                </div>
-              ) : (
-                <Accordion.Trigger
-                  className={[
-                    "w-full flex items-center justify-between rounded-xl font-semibold text-muted hover:text-foreground hover:bg-surface-secondary/40 select-none cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-hidden transition-all duration-200",
-                    isMobile ? "h-12 px-3.5 text-base" : "h-10 px-4 text-sm",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {Icon && (
-                      <Icon
-                        size={20}
-                        className={[
-                          "shrink-0 transition-colors duration-200",
-                          hasActiveDescendant ? "text-accent" : "text-muted",
-                        ].join(" ")}
-                      />
-                    )}
-                    <span
-                      className={[
-                        "whitespace-nowrap font-outfit font-semibold",
-                        hasActiveDescendant
-                          ? "text-foreground font-bold"
-                          : "text-muted",
-                      ].join(" ")}
-                    >
-                      {label}
-                    </span>
-                  </div>
-                  <Accordion.Indicator className="text-muted shrink-0 transition-transform duration-200 ease-out">
-                    <ChevronDown
-                      size={14}
-                      className={isExpanded ? "rotate-180" : ""}
-                    />
-                  </Accordion.Indicator>
-                </Accordion.Trigger>
+            <Link
+              href={group.href}
+              onClick={() => {
+                if (isMobile) {
+                  setMobileOpen(false);
+                }
+              }}
+              style={{
+                paddingLeft: `${depth > 0 ? (isMobile ? 16 : 12) : isMobile ? 14 : 16}px`,
+              }}
+              className="flex-1 flex items-center gap-2 min-w-0 h-full rounded-l-xl outline-hidden focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              {Icon && (
+                <Icon
+                  size={20}
+                  className="shrink-0"
+                />
               )}
-            </Accordion.Heading>
-            <Accordion.Panel>
-              <Accordion.Body className="p-0">
-                {/* Indented recursive items container with a subtle vertical guide line */}
-                <div
-                  className={[
-                    "border-l border-border/70 flex flex-col",
-                    isMobile
-                      ? "ml-4 pl-1.5 gap-2 my-2"
-                      : "ml-4.5 pl-3 gap-1 my-1",
-                  ].join(" ")}
-                >
-                  {group.children.map((child) => {
-                    if (child.type === "item") {
-                      return (
-                        <SidebarLink
-                          key={child.id}
-                          item={child}
-                          collapsed={collapsed}
-                          isMobile={isMobile}
-                          depth={depth + 1}
-                        />
-                      );
-                    }
-                    if (child.type === "group") {
-                      return (
-                        <SidebarGroup
-                          key={child.id}
-                          group={child}
-                          collapsed={collapsed}
-                          isMobile={isMobile}
-                          depth={depth + 1}
-                        />
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-              </Accordion.Body>
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
+              <span className="truncate whitespace-nowrap">
+                {label}
+              </span>
+            </Link>
+
+            {/* Chevron Button (Toggle Expansion) */}
+            <button
+              type="button"
+              onClick={handleToggle}
+              aria-expanded={isExpanded}
+              aria-label={isExpanded ? `Collapse ${label}` : `Expand ${label}`}
+              className={[
+                "flex items-center justify-center shrink-0 rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-hidden",
+                isMobile ? "w-9 h-9 mr-1.5" : "w-8 h-8 mr-1",
+                "text-muted hover:text-accent hover:bg-accent/20",
+              ].join(" ")}
+            >
+              <ChevronDown
+                size={16}
+                className={[
+                  "transition-transform duration-200 ease-out",
+                  isExpanded ? "rotate-180" : "",
+                ].join(" ")}
+              />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => toggleGroup(group.id)}
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? `Collapse ${label}` : `Expand ${label}`}
+            style={{
+              paddingLeft: `${depth > 0 ? (isMobile ? 16 : 12) : isMobile ? 14 : 16}px`,
+            }}
+            className={[
+              "relative w-full flex items-center justify-between rounded-xl font-semibold select-none transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-focus border-0 bg-transparent text-left outline-hidden group/row",
+              isMobile ? "h-12 text-base px-3.5 pr-1.5" : "h-10 text-sm pr-1",
+              isGroupActive
+                ? "bg-accent/10 text-accent"
+                : hasActiveDescendant
+                  ? "text-accent hover:bg-accent/10"
+                  : "text-muted hover:bg-accent/10 hover:text-accent",
+            ].join(" ")}
+          >
+            {/* Dynamic Left Active indicator bar */}
+            {isGroupActive && (
+              <span
+                className={[
+                  "absolute -left-3 rounded-r-full bg-accent shrink-0",
+                  isMobile ? "top-3 w-1.5 h-6" : "w-1 h-8",
+                ].join(" ")}
+              />
+            )}
+
+            <div className="flex items-center gap-2 min-w-0 flex-1 h-full">
+              {Icon && (
+                <Icon
+                  size={20}
+                  className="shrink-0"
+                />
+              )}
+              <span className="truncate whitespace-nowrap">
+                {label}
+              </span>
+            </div>
+
+            <div
+              className={[
+                "flex items-center justify-center shrink-0 rounded-lg transition-all duration-200",
+                isMobile ? "w-9 h-9 mr-1.5" : "w-8 h-8 mr-1",
+                "text-muted group-hover/row:text-accent hover:bg-accent/20",
+              ].join(" ")}
+            >
+              <ChevronDown
+                size={16}
+                className={[
+                  "transition-transform duration-200 ease-out",
+                  isExpanded ? "rotate-180" : "",
+                ].join(" ")}
+              />
+            </div>
+          </button>
+        )}
+
+        {/* Children collapsible panel */}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="overflow-hidden w-full"
+            >
+              {/* Indented recursive items container with a subtle vertical guide line */}
+              <div
+                className={[
+                  "border-l border-border/70 flex flex-col",
+                  isMobile
+                    ? "ml-4 pl-1.5 gap-2 my-2"
+                    : "ml-4.5 pl-3 gap-1 my-1",
+                ].join(" ")}
+              >
+                {group.children.map((child) => {
+                  if (child.type === "item") {
+                    return (
+                      <SidebarLink
+                        key={child.id}
+                        item={child}
+                        collapsed={collapsed}
+                        isMobile={isMobile}
+                        depth={depth + 1}
+                      />
+                    );
+                  }
+                  if (child.type === "group") {
+                    return (
+                      <SidebarGroup
+                        key={child.id}
+                        group={child}
+                        collapsed={collapsed}
+                        isMobile={isMobile}
+                        depth={depth + 1}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }

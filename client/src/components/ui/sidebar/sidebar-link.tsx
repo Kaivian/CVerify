@@ -79,7 +79,7 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       style={{
         paddingLeft: collapsed
           ? undefined
-          : `${depth > 0 ? (isMobile ? 12 : 6) : isMobile ? 14 : 16}px`,
+          : `${depth > 0 ? (isMobile ? 16 : 12) : isMobile ? 14 : 16}px`,
       }}
       className={[
         "relative flex items-center w-full rounded-xl font-semibold transition-all duration-200 group cursor-pointer",
