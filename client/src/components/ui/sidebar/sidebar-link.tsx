@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Tooltip } from "@heroui/react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
 import { isActiveRoute } from "../../../lib/navigation-utils";
@@ -22,9 +22,41 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
 }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { setMobileOpen } = useSidebarStore();
 
-  const active = isActiveRoute(pathname, item.href, item.exactMatch);
+  const checkActive = () => {
+    const pathActive = isActiveRoute(pathname, item.href, item.exactMatch);
+    if (!pathActive) return false;
+
+    // Check query parameters for specific tabs (e.g. ?tab=recommended)
+    if (item.href.includes("?")) {
+      const url = new URL(item.href, "http://localhost");
+      for (const [key, value] of url.searchParams.entries()) {
+        if (searchParams?.get(key) !== value) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // If this link has NO parameters, but the current URL does,
+    // verify if we are on a tabbed layout (like /jobs or /cv) and mismatching defaults.
+    if (searchParams && searchParams.toString()) {
+      if (item.href === "/jobs") {
+        const currentTab = searchParams.get("tab");
+        return !currentTab || currentTab === "explore";
+      }
+      if (item.href === "/cv") {
+        const currentTab = searchParams.get("tab");
+        return !currentTab || currentTab === "basic-info";
+      }
+    }
+
+    return true;
+  };
+
+  const active = checkActive();
   const Icon = item.icon;
 
   const label = item.label;

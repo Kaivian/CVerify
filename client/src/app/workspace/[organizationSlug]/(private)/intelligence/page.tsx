@@ -8,6 +8,7 @@ import { Chip, InputGroup, Slider } from "@heroui/react";
 import { Button } from "@/components/ui/button";
 import { Search, MapPin, ShieldCheck, UserCheck, AlertTriangle } from "lucide-react";
 import { SkeletonLoader } from "@/components/ui/states";
+import { TrustScoreBadge } from "@/components/ui/cverify/trust-score-indicator";
 
 export default function TalentDiscoveryPage() {
   const params = useParams();
@@ -147,15 +148,7 @@ export default function TalentDiscoveryPage() {
                         <h4 className="font-bold text-foreground text-base">{candidate.fullName}</h4>
                         <p className="text-muted text-xs">{candidate.headline || "Software Engineer"}</p>
                       </div>
-                      <Chip
-                        color={candidate.trustScore >= 80 ? "success" : candidate.trustScore >= 50 ? "warning" : "default"}
-                        variant="soft"
-                        size="sm"
-                        className="font-bold"
-                      >
-                        <ShieldCheck size={12} className="inline mr-1" />
-                        {candidate.trustScore}% Trust
-                      </Chip>
+                      <TrustScoreBadge score={candidate.trustScore} />
                     </div>
                     {candidate.location && (
                       <p className="text-xs text-muted flex items-center gap-1.5">

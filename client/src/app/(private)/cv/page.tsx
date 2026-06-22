@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Typography,
   Button,
@@ -213,11 +213,21 @@ const INITIAL_DRAFT_STATE: CvDraftState = {
 
 export default function CvManagementCenter() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
 
   // Page Views State
   const [viewState, setViewState] = useState<ViewState>("overview");
   const [activeTab, setActiveTab] = useState<CvSectionId>("basic-info");
+
+  // Sync tab search param with editor state on mount/update
+  const tabParam = searchParams?.get("tab") as CvSectionId | null;
+  useEffect(() => {
+    if (tabParam && ["basic-info", "skills", "projects", "experience", "education", "achievements", "preferences"].includes(tabParam)) {
+      setActiveTab(tabParam);
+      setViewState("editor");
+    }
+  }, [tabParam]);
   const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
   const [isSaving, setIsSaving] = useState(false);
   const [mobileShowPreview, setMobileShowPreview] = useState(false);

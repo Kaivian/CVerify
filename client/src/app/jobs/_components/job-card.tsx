@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { CandidateVerificationBadge } from "@/components/ui/cverify/verification-badges";
 import {
   MapPin,
   Briefcase,
@@ -157,14 +158,8 @@ export function JobCard({ job, isSaved: passedIsSaved, onToggleSave, isAuthentic
 
             {/* Trust Badges */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-mono font-bold tracking-wide uppercase bg-accent/10 text-accent border border-accent/20">
-                <ShieldCheck size={10} />
-                GPG Verified
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-mono font-bold tracking-wide uppercase bg-success/10 text-success border border-success/20">
-                <Sparkles size={10} />
-                Proof-Based
-              </span>
+              <CandidateVerificationBadge type="gpg" />
+              <CandidateVerificationBadge type="proof" />
             </div>
           </div>
 

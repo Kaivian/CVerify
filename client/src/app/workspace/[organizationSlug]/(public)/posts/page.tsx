@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Typography, Chip, toast } from "@heroui/react";
+import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 import { useWorkspaceStore } from "@/features/workspace/store/use-workspace-store";
 import { useAuthStore } from "@/features/auth/store/use-auth-store";
 import { workspaceService } from "@/features/workspace/services/workspace.service";
@@ -419,13 +420,7 @@ export default function WorkspacePostsTab() {
                       <Typography type="body-sm" className="font-semibold text-foreground text-sm hover:underline cursor-pointer">
                         {orgName}
                       </Typography>
-                      {/* Blue Verified Checkmark */}
-                      <span
-                        title="Verified Enterprise"
-                        className="inline-flex items-center justify-center bg-blue-500 rounded-full p-0.5 shrink-0 text-white size-3.5 select-none"
-                      >
-                        <Check className="size-2" strokeWidth={4} />
-                      </span>
+                      <BusinessVerificationBadge level={workspaceDetails.verificationLevel} className="scale-85 origin-left" />
                     </div>
 
                     {/* Admin Badge */}

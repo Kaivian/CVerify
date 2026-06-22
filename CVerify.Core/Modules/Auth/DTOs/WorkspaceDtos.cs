@@ -67,8 +67,11 @@ public record WorkspaceDetailsDto(
     string? CoreValues = null,
     string? Founded = null,
     int FollowerCount = 0,
-    bool IsFollowing = false
+    bool IsFollowing = false,
+    bool IsVerified = false,
+    int VerificationLevel = 0
 );
+
 
 public record UpdateWorkspaceDetailsRequestDto(
     string? Description,

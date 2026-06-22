@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import {
   jobsApi,
@@ -39,6 +39,7 @@ import { useSavedJobsStore } from "@/stores/use-saved-jobs-store";
 
 export default function JobsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAuthenticated } = useAuth();
 
   // Search & Filters State
@@ -50,6 +51,14 @@ export default function JobsPage() {
 
   // Pagination & Lists State
   const [activeTab, setActiveTab] = useState<string>("explore");
+
+  // Sync tab search param with state on mount/update
+  const tabParam = searchParams?.get("tab");
+  useEffect(() => {
+    if (tabParam && ["explore", "recommended", "saved", "applied"].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
   const [jobs, setJobs] = useState<PublicJobDto[]>([]);
   const [recommendedJobs, setRecommendedJobs] = useState<PublicJobDto[]>([]);
   const [appliedJobs, setAppliedJobs] = useState<JobApplicationDto[]>([]);

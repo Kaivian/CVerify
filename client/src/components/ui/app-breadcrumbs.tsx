@@ -12,34 +12,41 @@ import { useAuth } from "../../features/auth/hooks/use-auth";
 const isRouteExist = (href: string): boolean => {
   const path = href.replace(/\/+/g, "/");
 
-  // List of exact matches for valid static routes
-  const validStaticRoutes = [
-    "/",
-    "/user",
-    "/chat",
-    "/business",
-    "/admin",
-    "/admin/users",
-    "/admin/roles",
-    "/admin/audit-logs",
-    "/settings",
-    "/settings/source-code-providers",
-    "/cv",
-  ];
-
-  if (validStaticRoutes.includes(path)) {
+  if (path === "/") {
     return true;
   }
 
-  // Workspace routes checking
-  // Matches:
-  // - /workspace/[organizationSlug]
-  // - /workspace/[organizationSlug]/billing | information | members | roles | settings | jobs | people | posts
-  // - /workspace/[organizationSlug]/recruitment/dashboard
-  // - /workspace/[organizationSlug]/recruitment/jd
-  const workspaceRegex = /^\/workspace\/([^/]+)(?:\/(billing|information|members|roles|settings|jobs|people|posts|recruitment\/dashboard|recruitment\/jd))?$/i;
+  // 1. Workspace routes checking
+  // Matches exact valid pages. Intermediate paths like /workspace/[org]/recruitment or /workspace/[org]/recruitment/jd/[id] are NOT valid.
+  const workspaceRegex = /^\/workspace\/([^/]+)(?:\/(billing|information|members|roles|settings|jobs|people|posts|intelligence))?$/i;
+  
+  if (workspaceRegex.test(path)) {
+    return true;
+  }
 
-  return workspaceRegex.test(path);
+  // Check for candidate detail in intelligence: /workspace/[org]/intelligence/[id]
+  const intelligenceDetailRegex = /^\/workspace\/[^/]+\/intelligence\/[^/]+$/i;
+  if (intelligenceDetailRegex.test(path)) {
+    return true;
+  }
+
+  // Check for recruitment sub-routes:
+  // - /workspace/[org]/recruitment/dashboard
+  // - /workspace/[org]/recruitment/jd
+  // - /workspace/[org]/recruitment/jd/[id]/review
+  const recruitmentDashboardOrJdRegex = /^\/workspace\/[^/]+\/recruitment\/(dashboard|jd)$/i;
+  if (recruitmentDashboardOrJdRegex.test(path)) {
+    return true;
+  }
+
+  const jdReviewRegex = /^\/workspace\/[^/]+\/recruitment\/jd\/[^/]+\/review$/i;
+  if (jdReviewRegex.test(path)) {
+    return true;
+  }
+
+  // 2. Validate dynamically against centralized route registry
+  const metadata = getRouteMetadata(path);
+  return metadata !== null;
 };
 
 export const AppBreadcrumbs: React.FC = () => {

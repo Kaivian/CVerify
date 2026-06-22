@@ -498,7 +498,9 @@ public class WorkspaceController : ControllerBase
             org.CoreValues,
             org.Founded,
             followerCount,
-            isFollowing
+            isFollowing,
+            org.IsVerified,
+            org.VerificationLevel
         );
     }
 

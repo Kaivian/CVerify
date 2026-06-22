@@ -2142,69 +2142,14 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
                 if (assessments.Any())
                 {
-                    var assessmentIds = assessments.Select(ra => ra.Id).ToList();
-
-                    var capabilities = await _context.RepositoryCapabilities
-                        .Where(c => assessmentIds.Contains(c.RepositoryAssessmentId))
-                        .ToListAsync(cancellationToken);
-                    if (capabilities.Any()) _context.RepositoryCapabilities.RemoveRange(capabilities);
-
-                    var skills = await _context.RepositorySkillAttributions
-                        .Where(s => assessmentIds.Contains(s.RepositoryAssessmentId))
-                        .ToListAsync(cancellationToken);
-                    if (skills.Any()) _context.RepositorySkillAttributions.RemoveRange(skills);
-
-                    var domains = await _context.RepositoryDomains
-                        .Where(d => assessmentIds.Contains(d.RepositoryAssessmentId))
-                        .ToListAsync(cancellationToken);
-                    if (domains.Any()) _context.RepositoryDomains.RemoveRange(domains);
-
-                    var signals = await _context.RepositoryIntelligenceSignals
-                        .Where(s => assessmentIds.Contains(s.RepositoryAssessmentId))
-                        .ToListAsync(cancellationToken);
-                    if (signals.Any()) _context.RepositoryIntelligenceSignals.RemoveRange(signals);
-
+                    // Child entities (capabilities, skill attributions, domains, signals) are deleted via database cascade
                     _context.RepositoryAssessments.RemoveRange(assessments);
                 }
 
                 // Delete job executions and metadata
                 if (jobIds.Any())
                 {
-                    var registryEntries = await _context.ArtifactRegistryEntries
-                        .Where(e => jobIds.Contains(e.JobId))
-                        .ToListAsync(cancellationToken);
-                    if (registryEntries.Any()) _context.ArtifactRegistryEntries.RemoveRange(registryEntries);
-
-                    var executions = await _context.AnalysisExecutions
-                        .Where(e => jobIds.Contains(e.JobId))
-                        .ToListAsync(cancellationToken);
-                    if (executions.Any()) _context.AnalysisExecutions.RemoveRange(executions);
-
-                    var results = await _context.AnalysisTaskResults
-                        .Where(r => jobIds.Contains(r.Task.JobId))
-                        .ToListAsync(cancellationToken);
-                    if (results.Any()) _context.AnalysisTaskResults.RemoveRange(results);
-
-                    var taskEvents = await _context.AnalysisTaskEvents
-                        .Where(e => jobIds.Contains(e.Task.JobId))
-                        .ToListAsync(cancellationToken);
-                    if (taskEvents.Any()) _context.AnalysisTaskEvents.RemoveRange(taskEvents);
-
-                    var tasks = await _context.AnalysisTasks
-                        .Where(t => jobIds.Contains(t.JobId))
-                        .ToListAsync(cancellationToken);
-                    if (tasks.Any()) _context.AnalysisTasks.RemoveRange(tasks);
-
-                    var reports = await _context.AnalysisReports
-                        .Where(r => jobIds.Contains(r.JobId))
-                        .ToListAsync(cancellationToken);
-                    if (reports.Any()) _context.AnalysisReports.RemoveRange(reports);
-
-                    var jobEvents = await _context.AnalysisJobEvents
-                        .Where(e => jobIds.Contains(e.JobId))
-                        .ToListAsync(cancellationToken);
-                    if (jobEvents.Any()) _context.AnalysisJobEvents.RemoveRange(jobEvents);
-
+                    // Child entities (registry entries, executions, results, events, tasks, reports) are deleted via database cascade
                     _context.AnalysisJobs.RemoveRange(jobs);
                 }
 
