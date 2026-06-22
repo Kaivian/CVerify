@@ -58,9 +58,10 @@ export function Providers({
   }, [initializeTheme, initializeCollapsed]);
 
   // Run secure session hydration immediately on app boots
-  // Includes resilience against BFCache restoration and browser history navigation freezes
+  // Uses forceRevalidate to silently refresh the profile from auth/me even when
+  // SSR provides initialUser, ensuring signed avatar URLs and fresh data.
   useEffect(() => {
-    initializeSession();
+    initializeSession(true);
 
     // Revalidate on visibility change (e.g. user returns to the tab)
     const handleVisibilityChange = () => {

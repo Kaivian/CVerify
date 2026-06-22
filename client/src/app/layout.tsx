@@ -57,17 +57,24 @@ export default async function RootLayout({
     try {
       const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'DbqDgBM1u2H5lNnUFBgYrRaotpSP9Wda8jASgjIbFh6');
       const { payload } = await jwtVerify(accessToken, secret);
+
+      // .NET JwtSecurityTokenHandler maps ClaimTypes to short JWT names:
+      // ClaimTypes.NameIdentifier → "sub", ClaimTypes.Email → "email", ClaimTypes.Name → "unique_name"
+      // Custom claims (username, avatarUrl, isEmailVerified, etc.) keep their original names.
+      const id = (payload.sub ?? payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier']) as string;
+      const email = (payload.email ?? payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress']) as string;
+      const fullName = (payload.unique_name ?? payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name']) as string;
+      const username = payload.username as string | undefined;
+      const avatarUrl = (payload.avatarUrl as string) || undefined;
+      const roles = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? payload.role ?? payload.roles;
+
       initialUser = {
-        id: payload.id as string,
-        email: payload.email as string,
-        username: payload.username as string,
-        fullName: payload.fullName as string,
-        avatarUrl: (payload.avatarUrl as string) || null,
-        role: normalizeRole(
-          (payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ||
-          payload.role ||
-          payload.roles) as string | string[] | undefined | null
-        ),
+        id,
+        email,
+        username,
+        fullName,
+        avatarUrl,
+        role: normalizeRole(roles as string | string[] | undefined | null),
         permissions: ((payload.permissions as string[]) || []) as ResourceActionPermission[],
         isEmailVerified: payload.isEmailVerified === 'true' || payload.isEmailVerified === true,
       } as User;

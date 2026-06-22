@@ -8,16 +8,18 @@ import { useThemeStore } from "@/stores/use-theme-store";
 
 interface PublicNavigationHeaderProps {
   className?: string;
+  forceDarkLogo?: boolean;
 }
 
 export function PublicNavigationHeader({ 
-  className = "sticky top-0 z-50 w-full bg-surface/80 backdrop-blur-md border-b border-border transition-colors duration-300" 
+  className = "sticky top-0 z-50 w-full bg-surface/80 backdrop-blur-md border-b border-border transition-colors duration-300",
+  forceDarkLogo = false,
 }: PublicNavigationHeaderProps) {
   const { isAuthenticated, user } = useAuth();
   const { theme } = useThemeStore();
   
   // Choose logo matching the light/dark mode
-  const isLight = theme === "light";
+  const isLight = !forceDarkLogo && theme === "light";
   const logoSrc = isLight ? "/brand/logo&name-black.png" : "/brand/logo&name-white.png";
 
   return (

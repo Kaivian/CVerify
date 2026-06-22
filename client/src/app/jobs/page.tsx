@@ -739,7 +739,6 @@ export default function JobsPage() {
               </div>
             ) : (
               <Card glow={false} className="border border-border/60 bg-surface rounded-xl p-8 flex flex-col items-center justify-center h-full min-h-[300px] text-center select-none">
-                <Briefcase size={36} className="text-muted mb-3" />
                 <span className="text-foreground font-bold text-sm">Select a job to view details</span>
                 <span className="text-muted text-xs mt-1">Choose a role from the feed to view its compatibility score, requirement checklist, and complete description.</span>
               </Card>
