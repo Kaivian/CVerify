@@ -2,10 +2,11 @@
 
 import React, { useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Accordion, Tooltip, Typography } from "@heroui/react";
 import { ChevronDown } from "lucide-react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
+import { useAuth } from "../../../features/auth/hooks/use-auth";
 import { isActiveRoute } from "../../../lib/navigation-utils";
 import {
   type NavigationGroupItem,
@@ -28,8 +29,17 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
 }) => {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
   const { expandedGroups, toggleGroup, setGroupExpanded, setMobileOpen } =
     useSidebarStore();
+
+  const paramsRecord: Record<string, string> = {};
+  if (searchParams) {
+    searchParams.forEach((value, key) => {
+      paramsRecord[key] = value;
+    });
+  }
 
   const Icon = group.icon;
 
@@ -38,12 +48,12 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
   // Recursively check if any descendant is active
   const isAnyChildActive = (node: NavigationNode): boolean => {
     if (node.type === "item") {
-      return isActiveRoute(pathname, node.href);
+      return isActiveRoute(pathname, node.href, node.exactMatch, node.id, user?.username, paramsRecord);
     }
     if (node.type === "group") {
       return (
         node.children.some(isAnyChildActive) ||
-        (node.href ? isActiveRoute(pathname, node.href) : false)
+        (node.href ? isActiveRoute(pathname, node.href, false, node.id, user?.username, paramsRecord) : false)
       );
     }
     return false;
@@ -51,7 +61,7 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
 
   const hasActiveDescendant =
     group.children.some(isAnyChildActive) ||
-    (group.href ? isActiveRoute(pathname, group.href) : false);
+    (group.href ? isActiveRoute(pathname, group.href, false, group.id, user?.username, paramsRecord) : false);
   const isExpanded = !!expandedGroups[group.id];
 
   // Auto-expand parent group on mount or pathname change if a child is active
@@ -247,7 +257,7 @@ export const SidebarGroup: React.FC<SidebarGroupProps> = ({
                     href={child.href}
                     className={[
                       "flex items-center h-8 px-2.5 rounded-lg text-xs font-semibold font-outfit transition-colors",
-                      isActiveRoute(pathname, child.href, child.exactMatch)
+                      isActiveRoute(pathname, child.href, child.exactMatch, child.id, user?.username, paramsRecord)
                         ? "bg-surface-secondary text-foreground font-bold"
                         : "text-muted hover:bg-surface-secondary/40 hover:text-foreground",
                     ].join(" ")}

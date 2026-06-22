@@ -31,7 +31,7 @@ import {
   XCircle,
   X
 } from "lucide-react";
-import { PublicNavigationHeader } from "@/components/ui/public-navigation-header";
+import { PublicPageShell } from "@/components/ui/public-page-shell";
 import { JobCard } from "./_components/job-card";
 import { JobCompatibilityCard } from "./_components/job-compatibility-card";
 import { JobRequirementsCard } from "./_components/job-requirements-card";
@@ -57,6 +57,8 @@ export default function JobsPage() {
   useEffect(() => {
     if (tabParam && ["explore", "recommended", "saved", "applied"].includes(tabParam)) {
       setActiveTab(tabParam);
+    } else {
+      setActiveTab("explore");
     }
   }, [tabParam]);
   const [jobs, setJobs] = useState<PublicJobDto[]>([]);
@@ -336,6 +338,7 @@ export default function JobsPage() {
       fetchExploreJobs();
     } else {
       setActiveTab("explore");
+      router.push("/jobs?tab=explore");
     }
   };
 
@@ -367,12 +370,10 @@ export default function JobsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans select-none pb-12 transition-colors duration-300">
-      {/* Navigation Header */}
-      <PublicNavigationHeader />
-
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto w-full px-6 md:px-12 mt-8 flex flex-col gap-6">
+    <PublicPageShell
+      guestContainerClassName="min-h-screen bg-background text-foreground flex flex-col font-sans select-none pb-12 transition-colors duration-300"
+      guestMainClassName="max-w-7xl mx-auto w-full px-6 md:px-12 mt-8 flex flex-col gap-6"
+    >
 
         {/* Banner Title */}
         <div className="flex flex-col gap-2 text-left">
@@ -478,8 +479,10 @@ export default function JobsPage() {
             <Tabs
               selectedKey={activeTab}
               onSelectionChange={(key) => {
-                setActiveTab(key.toString());
+                const tab = key.toString();
+                setActiveTab(tab);
                 setPage(1);
+                router.push(`/jobs?tab=${tab}`);
               }}
               variant="secondary"
               className="w-full sticky top-0 bg-background/95 backdrop-blur-xs z-10 pb-2"
@@ -744,7 +747,6 @@ export default function JobsPage() {
           </section>
 
         </div>
-      </main>
 
       {/* Job Details Modal */}
       {selectedJob && (
@@ -775,7 +777,7 @@ export default function JobsPage() {
           </Modal.Container>
         </Modal.Backdrop>
       )}
-    </div>
+    </PublicPageShell>
   );
 }
 

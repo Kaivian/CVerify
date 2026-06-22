@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Breadcrumbs } from "@heroui/react";
 import { getRouteMetadata, getDynamicSegmentLabel } from "../../config/routes";
 import { useAuth } from "../../features/auth/hooks/use-auth";
+import { RESERVED_USERNAMES } from "../../lib/navigation-utils";
 
 /**
  * Checks if a generated breadcrumb URL corresponds to a valid existing page route.
@@ -13,6 +14,12 @@ const isRouteExist = (href: string): boolean => {
   const path = href.replace(/\/+/g, "/");
 
   if (path === "/") {
+    return true;
+  }
+
+  // Dynamic candidate profiles validation
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length === 1 && !RESERVED_USERNAMES.has(segments[0].toLowerCase())) {
     return true;
   }
 

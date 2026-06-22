@@ -68,6 +68,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -112,6 +113,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -163,6 +165,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -194,6 +197,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -323,6 +327,7 @@ export const useAuth = () => {
         const user: User = {
           id: response.id,
           email: response.email,
+          username: response.username,
           fullName: response.fullName,
           avatarUrl: response.avatarUrl,
           role: normalizeRole(response.roles),
@@ -470,6 +475,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -546,6 +552,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),

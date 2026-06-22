@@ -81,6 +81,10 @@
       "business": "Doanh nghiệp"
     },
     "jobBoard": "Bảng tin tuyển dụng",
+    "exploreJobs": "Khám phá",
+    "recommendedJobs": "Gợi ý",
+    "savedJobs": "Đã lưu",
+    "appliedJobs": "Đã ứng tuyển",
     "cv": "CV của tôi",
     "candidateDashboard": "Bảng điều khiển",
     "businessDashboard": "Bảng điều khiển doanh nghiệp"
@@ -92,6 +96,7 @@
     "auditTrail": "Nhật ký kiểm toán"
   },
   "cvManagement": {
+    "overview": "Tổng quan",
     "title": "Quản lý CV",
     "subtitle": "Tạo và chia sẻ hồ sơ nghề nghiệp của bạn",
     "description": "Quản lý và cập nhật hồ sơ CV chuyên nghiệp của bạn. Tất cả thay đổi sẽ đồng bộ với Cài đặt tài khoản.",

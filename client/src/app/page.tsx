@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Compass, ShieldCheck, FileCheck2, Bot, Database, Search, ArrowRight, Check, X, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '../features/auth/hooks/use-auth';
@@ -57,6 +58,14 @@ const scaleUpVariants = {
 
 export default function Home() {
   const { isAuthenticated, user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const role = user.role?.toLowerCase() || 'user';
+      router.replace(`/${role}`);
+    }
+  }, [isAuthenticated, user, router]);
 
   // Interactive Pipeline Simulation States
   const [activeStep, setActiveStep] = useState<number>(0);
