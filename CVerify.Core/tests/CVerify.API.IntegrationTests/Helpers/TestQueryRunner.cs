@@ -13,7 +13,7 @@ namespace CVerify.API.IntegrationTests.Helpers
 {
     public class TestQueryRunner
     {
-        [Fact]
+        [Fact(Skip = "Manual diagnostics only. Requires populated local development DB.")]
         public async Task RunDbDiagnosticsTest()
         {
             Console.WriteLine("=== C# DB TEST RUNNER ===");

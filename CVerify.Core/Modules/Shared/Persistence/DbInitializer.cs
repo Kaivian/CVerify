@@ -436,7 +436,8 @@ public static class DbInitializer
                 END IF;
 
                 -- Ensure artifact_registry_entries table has the correct foreign key constraint to analysis_jobs
-                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'artifact_registry_entries') THEN
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'artifact_registry_entries')
+                   AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'analysis_jobs') THEN
                     -- Check if constraint fk_artifact_registry_pipeline_jobs_job_id exists, drop it
                     IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_artifact_registry_pipeline_jobs_job_id') THEN
                         ALTER TABLE artifact_registry_entries DROP CONSTRAINT fk_artifact_registry_pipeline_jobs_job_id;
@@ -677,16 +678,7 @@ public static class DbInitializer
                  updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
              );
 
-             CREATE TABLE IF NOT EXISTS cv_repository_mappings (
-                 id UUID PRIMARY KEY,
-                 user_id UUID NOT NULL,
-                 source_code_repository_id UUID NOT NULL REFERENCES source_code_repositories(id) ON DELETE CASCADE,
-                 reference_source VARCHAR(50) NOT NULL,
-                 reference_entity_id UUID NULL,
-                 indexed_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-             );
-             CREATE INDEX IF NOT EXISTS idx_cv_repository_mappings_user_id ON cv_repository_mappings(user_id);
-             CREATE INDEX IF NOT EXISTS idx_cv_repository_mappings_repo_id ON cv_repository_mappings(source_code_repository_id);
+
 
             -- Stores user roles for the Role-Based Access Control (RBAC) system
             CREATE TABLE IF NOT EXISTS roles (

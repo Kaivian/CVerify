@@ -125,38 +125,6 @@ public record CreateWorkspacePostRequestDto(
     List<string>? ImageUrls = null
 );
 
-public record JobVacancyDto(
-    Guid Id,
-    Guid OrganizationId,
-    string Title,
-    string Department,
-    string WorkplaceType,
-    string City,
-    string Type,
-    string Salary,
-    string SalaryMinMax,
-    int Headcount,
-    string Gender,
-    string Experience,
-    string Degree,
-    string Category,
-    List<string> Description,
-    List<string> Requirements,
-    List<string> Benefits,
-    List<string> Tags,
-    List<string> Skills,
-    string CoverUrl,
-    List<string> Images,
-    bool IsActive,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt,
-    string? Status = "Draft",
-    string? AcquisitionStrategy = "Hybrid",
-    string? DiscoveryProfileJson = null,
-    Guid? RequirementSnapshotId = null,
-    Guid? HiringRequirementId = null,
-    string? Metadata = null
-);
 
 public record CreateJobRequestDto(
     string Title,
