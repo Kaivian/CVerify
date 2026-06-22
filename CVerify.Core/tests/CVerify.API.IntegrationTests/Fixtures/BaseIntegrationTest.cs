@@ -11,11 +11,8 @@ using Microsoft.Extensions.Hosting;
 using Respawn;
 using StackExchange.Redis;
 using Xunit;
-using CVerify.API.Modules.Auth.BackgroundWorkers;
 using CVerify.API.Modules.Shared.Configuration;
-using CVerify.API.Modules.Shared.Email.BackgroundWorkers;
 using CVerify.API.Modules.Shared.Email.Services;
-using CVerify.API.Modules.Shared.System.BackgroundWorkers;
 
 
 namespace CVerify.API.IntegrationTests.Fixtures;
@@ -27,6 +24,8 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly SharedTestcontainerFixture _containerFixture;
     
+    private readonly System.Collections.Generic.Dictionary<string, string?> _originalEnvVars = new();
+
     /// <summary>
     /// Holds the Mock/Fake Email Sender to assert sent emails.
     /// </summary>
@@ -38,6 +37,17 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
     public IntegrationTestApplicationFactory(SharedTestcontainerFixture containerFixture, Dictionary<string, string>? envOverrides = null)
     {
         _containerFixture = containerFixture;
+
+        var varsToBackup = new[] { "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD",
+                                   "GOOGLE_CLIENT_ID", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "AI_SERVICE_URL", "AI_SERVICE_SHARED_SECRET",
+                                   "AI_SERVICE_CLIENT_ID", "CLAUDE_MODEL", "EMAIL_SENDER_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME",
+                                   "SMTP_PASSWORD", "SENDGRID_API_KEY", "Auth__DisableCsrf", "DISABLE_RATE_LIMITS", "SUPER_ADMIN_PASSWORD",
+                                   "SUPER_ADMIN_USERNAME", "SUPER_ADMIN_FULL_NAME", "SEED_TEST_ACCOUNTS", "ASPNETCORE_ENVIRONMENT" };
+
+        foreach (var v in varsToBackup)
+        {
+            _originalEnvVars[v] = Environment.GetEnvironmentVariable(v);
+        }
 
         // Parse dynamic Testcontainer Postgres connection parameters
         var dbBuilder = new Npgsql.NpgsqlConnectionStringBuilder(_containerFixture.DbConnectionString);
@@ -121,10 +131,9 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                 { "RateLimit:RegisterPermitLimit", "1000" }
             });
         });
-
         builder.ConfigureServices(services =>
         {
-            // Remove real transport and decorator bindings completely
+            // Remove real transport, decorator, and storage client bindings completely
             for (int i = services.Count - 1; i >= 0; i--)
             {
                 var descriptor = services[i];
@@ -132,9 +141,13 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                 {
                     services.RemoveAt(i);
                 }
+                else if (descriptor.ServiceType == typeof(Amazon.S3.IAmazonS3))
+                {
+                    services.RemoveAt(i);
+                }
                 else if (descriptor.ServiceType == typeof(IHostedService) && 
-                         (descriptor.ImplementationType == typeof(EmailOutboxBackgroundProcessor) || 
-                          descriptor.ImplementationType == typeof(TokenCleanupBackgroundJob)))
+                         descriptor.ImplementationType != null &&
+                         descriptor.ImplementationType != typeof(CVerify.API.Modules.Shared.Diagnostics.AppLoggingBackgroundWorker))
                 {
                     services.RemoveAt(i);
                 }
@@ -143,6 +156,65 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
             // Register our Single in-memory fake sender in DI
             services.AddSingleton<IEmailSender>(InMemoryEmailSender);
             services.AddKeyedSingleton<IEmailSender>("raw", InMemoryEmailSender);
+
+            // Register in-memory fake IAmazonS3 client in DI to prevent external R2 API timeouts
+            var inMemoryS3Files = new System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] Data, Amazon.S3.Model.MetadataCollection Metadata)>();
+            var mockS3 = new Moq.Mock<Amazon.S3.IAmazonS3>();
+            
+            mockS3.Setup(x => x.PutObjectAsync(Moq.It.IsAny<Amazon.S3.Model.PutObjectRequest>(), Moq.It.IsAny<CancellationToken>()))
+                .Returns<Amazon.S3.Model.PutObjectRequest, CancellationToken>(async (req, ct) =>
+                {
+                    byte[] data;
+                    if (req.InputStream != null)
+                    {
+                        using var ms = new MemoryStream();
+                        req.InputStream.CopyTo(ms);
+                        data = ms.ToArray();
+                    }
+                    else if (!string.IsNullOrEmpty(req.FilePath))
+                    {
+                        data = File.ReadAllBytes(req.FilePath);
+                    }
+                    else
+                    {
+                        data = Array.Empty<byte>();
+                    }
+
+                    inMemoryS3Files[req.Key] = (data, req.Metadata);
+                    return new Amazon.S3.Model.PutObjectResponse { HttpStatusCode = System.Net.HttpStatusCode.OK };
+                });
+
+            mockS3.Setup(x => x.GetObjectAsync(Moq.It.IsAny<Amazon.S3.Model.GetObjectRequest>(), Moq.It.IsAny<CancellationToken>()))
+                .Returns<Amazon.S3.Model.GetObjectRequest, CancellationToken>(async (req, ct) =>
+                {
+                    if (inMemoryS3Files.TryGetValue(req.Key, out var file))
+                    {
+                        var response = new Amazon.S3.Model.GetObjectResponse
+                        {
+                            HttpStatusCode = System.Net.HttpStatusCode.OK,
+                            ResponseStream = new MemoryStream(file.Data),
+                            Key = req.Key
+                        };
+                        foreach (var key in file.Metadata.Keys)
+                        {
+                            response.Metadata[key] = file.Metadata[key];
+                        }
+                        return response;
+                    }
+                    throw new Amazon.S3.AmazonS3Exception("NoSuchKey", Amazon.Runtime.ErrorType.Sender, "NoSuchKey", "", System.Net.HttpStatusCode.NotFound);
+                });
+
+            mockS3.Setup(x => x.DeleteObjectAsync(Moq.It.IsAny<Amazon.S3.Model.DeleteObjectRequest>(), Moq.It.IsAny<CancellationToken>()))
+                .Returns<Amazon.S3.Model.DeleteObjectRequest, CancellationToken>(async (req, ct) =>
+                {
+                    inMemoryS3Files.TryRemove(req.Key, out _);
+                    return new Amazon.S3.Model.DeleteObjectResponse { HttpStatusCode = System.Net.HttpStatusCode.OK };
+                });
+
+            mockS3.Setup(x => x.GetPreSignedURL(Moq.It.IsAny<Amazon.S3.Model.GetPreSignedUrlRequest>()))
+                .Returns((Amazon.S3.Model.GetPreSignedUrlRequest req) => $"https://mock-s3.local/{req.BucketName}/{req.Key}");
+
+            services.AddSingleton<Amazon.S3.IAmazonS3>(mockS3.Object);
 
             // Mock IHttpClientFactory to return a stubbed response for VietQR v2 business tax registry lookups
             var mockFactory = new Moq.Mock<IHttpClientFactory>();
@@ -154,6 +226,19 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
             mockFactory.Setup(_ => _.CreateClient(Moq.It.IsAny<string>())).Returns(mockClient);
             services.Replace(ServiceDescriptor.Singleton<IHttpClientFactory>(mockFactory.Object));
         });
+    }
+
+    /// <inheritdoc />
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+        {
+            foreach (var kvp in _originalEnvVars)
+            {
+                Environment.SetEnvironmentVariable(kvp.Key, kvp.Value);
+            }
+        }
     }
 }
 
@@ -224,7 +309,8 @@ public abstract class BaseIntegrationTest : IAsyncLifetime
             _respawner = await Respawner.CreateAsync(connection, new RespawnerOptions
             {
                 DbAdapter = DbAdapter.Postgres,
-                SchemasToInclude = new[] { "public" }
+                SchemasToInclude = new[] { "public" },
+                TablesToIgnore = new Respawn.Graph.Table[] { "__EFMigrationsHistory" }
             }).ConfigureAwait(false);
         }
 

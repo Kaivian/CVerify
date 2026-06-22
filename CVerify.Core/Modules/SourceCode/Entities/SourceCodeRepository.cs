@@ -17,6 +17,11 @@ public class SourceCodeRepository
     [ForeignKey(nameof(AuthProviderId))]
     public virtual AuthProvider AuthProvider { get; set; } = null!;
 
+    public Guid? ExternalOrganizationId { get; set; }
+
+    [ForeignKey(nameof(ExternalOrganizationId))]
+    public virtual ExternalOrganization? ExternalOrganization { get; set; }
+
     [Required]
     [MaxLength(255)]
     public string ExternalRepositoryId { get; set; } = null!;
@@ -117,4 +122,18 @@ public class SourceCodeRepository
 
     [Required]
     public DateTimeOffset LastSyncedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public void ResetAnalysisState()
+    {
+        IsVerified = false;
+        TrustScore = 0.0;
+        Classification = null;
+        AuthenticityType = null;
+        LatestRiskScore = 0.0;
+        LatestRiskLevel = "Low";
+        LatestAnalysisStatus = "NeverAnalyzed";
+        LatestAnalysisCompletedAtUtc = null;
+        LatestRiskFactorsJson = null;
+    }
 }
+

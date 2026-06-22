@@ -15,7 +15,7 @@ export const AuthOrchestrator: FC = () => {
     if (bootstrapState !== 'READY') return;
 
     const isProtected = isProtectedRoute(pathname);
-    const isAuthRoute = ['/login', '/register', '/forgot-password', '/reset-password'].some((p) => pathname === p);
+    const isAuthRoute = ['/login', '/forgot-password', '/reset-password'].some((p) => pathname === p);
     
     // Parse callback URL safely on the client
     const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');

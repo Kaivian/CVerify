@@ -1,0 +1,364 @@
+import { create } from 'zustand';
+import { profileApi } from '@/services/profile.service';
+import {
+  type CandidateReadinessDto,
+  type CandidateAssessmentResponse,
+  type CandidateAssessmentDetailResponse,
+  type AssessmentStageDto,
+} from '@/types/profile.types';
+
+export type StreamStatus = 'idle' | 'connecting' | 'streaming' | 'completed' | 'failed';
+
+interface CandidateAssessmentState {
+  readiness: CandidateReadinessDto | null;
+  latestAssessment: CandidateAssessmentResponse | null;
+  assessmentDetails: CandidateAssessmentDetailResponse | null;
+  history: CandidateAssessmentResponse[];
+  loading: Record<string, boolean>;
+  error: string | null;
+  stages: AssessmentStageDto[];
+
+  // Real-time SSE progress state
+  streamStatus: StreamStatus;
+  streamProgress: number;
+  streamStep: string;
+  streamMessage: string;
+
+  // Real-time evaluation results
+  realtimeScore: number | null;
+  realtimeLevel: string | null;
+  realtimeLevelLabel: string | null;
+  realtimeDimensions: Record<string, number>;
+  realtimeRecommendations: Array<{ id: string; priority: string; action: string }>;
+  realtimeSignals: string[];
+
+  fetchReadiness: () => Promise<void>;
+  fetchLatest: () => Promise<void>;
+  fetchDetails: (id: string) => Promise<void>;
+  fetchHistory: () => Promise<void>;
+  fetchStages: () => Promise<void>;
+  triggerAssessment: () => Promise<CandidateAssessmentResponse>;
+  connectProgressStream: (userId: string) => void;
+  disconnectProgressStream: () => void;
+  clearError: () => void;
+}
+
+let activeEventSource: EventSource | null = null;
+
+const FALLBACK_STAGES: AssessmentStageDto[] = [
+  { id: 'FetchLine1', name: 'Retrieve Repository Artifacts', description: 'Fetches verified static analysis, provenance, and git telemetry artifacts for the candidate\'s active repositories.' },
+  { id: 'ConsolidateLine1', name: 'Consolidate Repository Signals', description: 'Merges multidimensional capability signals, code quality scores, and commit telemetry across all repositories.' },
+  { id: 'L2-001', name: 'Skill Taxonomy Mapping', description: 'Normalizes raw project-level skills against the global CVerify technical skill taxonomy.' },
+  { id: 'L2-002', name: 'Skill Proficiency Estimation', description: 'Estimates the depth, scope, and capability bands for each extracted skill using commit frequency and syntax patterns.' },
+  { id: 'L2-003', name: 'Capabilities & Gaps Diagnostics', description: 'Pinpoints key architectural strengths and potential engineering development areas from the codebase history.' },
+  { id: 'L2-004', name: 'Career Level Assessment', description: 'Maps codebase scope, ownership ratio, and engineering complexity to career-level thresholds.' },
+  { id: 'L2-005', name: 'Career Level Calibration', description: 'Calibrates career level alignment across multiple repositories using weighted developer experience metrics.' },
+  { id: 'L2-006', name: 'Career Level Evaluation Gate', description: 'Applies validation constraints and overrides to finalize candidate level classifications.' },
+  { id: 'L2-007', name: 'Engineering Maturity Evaluation', description: 'Evaluates project hygiene, logging practices, test coverage, and structural organization.' },
+  { id: 'L2-008', name: 'Problem Solving Complexity Analyzer', description: 'Analyzes diagnostic intent, recovery patterns, and bug-fix cycles in git commit messages.' },
+  { id: 'L2-009', name: 'Technical Tendency Classification', description: 'Classifies developer affinity towards backend, frontend, devops, or fullstack development.' },
+  { id: 'L2-010', name: 'Working Style Classification', description: 'Infers collaboration density, velocity consistency, and code review compliance from git metadata.' },
+  { id: 'L2-011', name: 'Experience Confidence Calibration', description: 'Adjusts assessment confidence scores based on codebase age, volume, and contributor density.' },
+  { id: 'L2-012', name: 'Role Recommendation Engine', description: 'Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect).' },
+  { id: 'L2-013', name: 'Executive Summary Generation', description: 'Generates a comprehensive recruiter-friendly assessment narrative and executive summary.' },
+  { id: 'L2-014', name: 'AI Profile Composition', description: 'Assembles and serializes the final verified candidate profile and calibrated score index.' },
+  { id: 'L2-015', name: 'Candidate Improvement Engine', description: 'Formulates targeted vector-improvement recommendations and prioritizes progression paths.' }
+];
+
+export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set, get) => ({
+  readiness: null,
+  latestAssessment: null,
+  assessmentDetails: null,
+  history: [],
+  loading: {},
+  error: null,
+  stages: FALLBACK_STAGES,
+
+  streamStatus: 'idle',
+  streamProgress: 0,
+  streamStep: '',
+  streamMessage: '',
+
+  realtimeScore: null,
+  realtimeLevel: null,
+  realtimeLevelLabel: null,
+  realtimeDimensions: {},
+  realtimeRecommendations: [],
+  realtimeSignals: [],
+
+  clearError: () => set({ error: null }),
+
+  fetchReadiness: async () => {
+    set((state) => ({ loading: { ...state.loading, readiness: true }, error: null }));
+    try {
+      const readiness = await profileApi.fetchCandidateReadiness();
+      set({ readiness });
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to load readiness status.' });
+    } finally {
+      set((state) => ({ loading: { ...state.loading, readiness: false } }));
+    }
+  },
+
+  fetchLatest: async () => {
+    set((state) => ({ loading: { ...state.loading, latest: true }, error: null }));
+    try {
+      const latestAssessment = await profileApi.fetchLatestCandidateAssessment();
+      set({ latestAssessment });
+      
+      // If the latest assessment is in a running/queued status and we are not currently streaming,
+      // we can automatically reconnect to the progress stream if we have the userId.
+      if (latestAssessment && (latestAssessment.status === 'Queued' || latestAssessment.status === 'Running')) {
+        const userId = latestAssessment.userId;
+        if (userId && !activeEventSource) {
+          get().connectProgressStream(userId);
+        }
+      }
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to load latest assessment.' });
+    } finally {
+      set((state) => ({ loading: { ...state.loading, latest: false } }));
+    }
+  },
+
+  fetchDetails: async (id: string) => {
+    set((state) => ({ loading: { ...state.loading, details: true }, error: null }));
+    try {
+      const assessmentDetails = await profileApi.fetchCandidateAssessmentDetails(id);
+      set({ assessmentDetails });
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to load assessment details.' });
+    } finally {
+      set((state) => ({ loading: { ...state.loading, details: false } }));
+    }
+  },
+
+  fetchHistory: async () => {
+    set((state) => ({ loading: { ...state.loading, history: true }, error: null }));
+    try {
+      const history = await profileApi.fetchCandidateAssessmentHistory();
+      set({ history });
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to load assessment history.' });
+    } finally {
+      set((state) => ({ loading: { ...state.loading, history: false } }));
+    }
+  },
+
+  fetchStages: async () => {
+    try {
+      const stages = await profileApi.fetchAssessmentStages();
+      if (stages && stages.length > 0) {
+        set({ stages });
+      }
+    } catch (err) {
+      console.warn('Failed to fetch assessment stages from backend, using fallbacks:', err);
+    }
+  },
+
+  triggerAssessment: async () => {
+    set((state) => ({ loading: { ...state.loading, trigger: true }, error: null }));
+    try {
+      const response = await profileApi.triggerCandidateAssessment();
+      set({ latestAssessment: response });
+      
+      // Automatically connect to progress stream
+      get().connectProgressStream(response.userId);
+      return response;
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || 'Failed to start candidate assessment.';
+      set({ error: errMsg });
+      throw new Error(errMsg);
+    } finally {
+      set((state) => ({ loading: { ...state.loading, trigger: false } }));
+    }
+  },
+
+  connectProgressStream: (userId: string) => {
+    if (activeEventSource) {
+      activeEventSource.close();
+      activeEventSource = null;
+    }
+
+    set({
+      streamStatus: 'connecting',
+      streamProgress: 0,
+      streamStep: 'Initializing',
+      streamMessage: 'Connecting to progress stream...',
+      realtimeScore: null,
+      realtimeLevel: null,
+      realtimeLevelLabel: null,
+      realtimeDimensions: {},
+      realtimeRecommendations: [],
+      realtimeSignals: [],
+    });
+
+    const sseBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const sseUrl = `${sseBaseUrl}/v1/candidate-assessments/progress/${userId}`;
+
+    const es = new EventSource(sseUrl, { withCredentials: true });
+    activeEventSource = es;
+
+    es.onopen = () => {
+      set({ streamStatus: 'streaming' });
+    };
+
+    es.onmessage = async (event) => {
+      if (activeEventSource !== es) {
+        es.close();
+        return;
+      }
+
+      const dataStr = event.data;
+      if (dataStr === '[DONE]') {
+        es.close();
+        if (activeEventSource === es) {
+          activeEventSource = null;
+        }
+        set({
+          streamStatus: 'completed',
+          streamProgress: 100,
+          streamStep: 'Completed',
+          streamMessage: 'Candidate assessment completed successfully.',
+        });
+        // Refresh details, latest, readiness, and history
+        await get().fetchLatest();
+        await get().fetchHistory();
+        await get().fetchReadiness();
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(dataStr);
+        if (payload) {
+          const status = payload.status || 'Running';
+          const step = payload.step || '';
+          const message = payload.message || '';
+          const progress = payload.percentage !== undefined ? payload.percentage : 0;
+
+          if (status === 'Failed') {
+            es.close();
+            if (activeEventSource === es) {
+              activeEventSource = null;
+            }
+            set({
+              streamStatus: 'failed',
+              streamProgress: progress,
+              streamStep: step,
+              streamMessage: message || 'Assessment run failed.',
+              error: message || 'Assessment run failed.',
+            });
+            await get().fetchLatest();
+            await get().fetchHistory();
+            return;
+          }
+
+          const updates: Partial<CandidateAssessmentState> = {
+            streamProgress: progress,
+            streamStep: step,
+            streamMessage: message,
+          };
+
+          // Parse nested PipelineEvent if it exists in the payload envelope
+          if (payload.event) {
+            const pipeEvent = payload.event;
+            const eventType = pipeEvent.eventType;
+            const eventPayload = pipeEvent.payload || {};
+            const snapshot = pipeEvent.stateSnapshot || {};
+
+            if (snapshot.partialScore !== undefined) {
+              updates.realtimeScore = snapshot.partialScore;
+            }
+            if (snapshot.estimatedLevel !== undefined) {
+              updates.realtimeLevel = snapshot.estimatedLevel;
+              const levelLabels: Record<string, string> = {
+                'L1': 'Junior',
+                'L2': 'Middle',
+                'L3': 'Senior',
+                'L4': 'Staff',
+                'L5': 'Principal'
+              };
+              updates.realtimeLevelLabel = levelLabels[snapshot.estimatedLevel] || snapshot.estimatedLevel;
+            }
+
+            if (eventType === 'DIMENSION_SCORE_UPDATED') {
+              const dim = eventPayload.dimension;
+              const val = eventPayload.value;
+              if (dim && val !== undefined) {
+                updates.realtimeDimensions = {
+                  ...get().realtimeDimensions,
+                  [dim]: val
+                };
+              }
+            } else if (eventType === 'SCORE_DELTA_UPDATED') {
+              if (eventPayload.candidateScore !== undefined) {
+                updates.realtimeScore = eventPayload.candidateScore;
+              }
+            } else if (eventType === 'LEVEL_ESTIMATE_UPDATED') {
+              if (eventPayload.level) {
+                updates.realtimeLevel = eventPayload.level;
+                updates.realtimeLevelLabel = eventPayload.label || eventPayload.level;
+              }
+            } else if (eventType === 'IMPROVEMENT_SIGNAL_DETECTED') {
+              if (eventPayload.gapCategory) {
+                const currentSignals = get().realtimeSignals;
+                if (!currentSignals.includes(eventPayload.gapCategory)) {
+                  updates.realtimeSignals = [...currentSignals, eventPayload.gapCategory];
+                }
+              }
+            } else if (eventType === 'IMPROVEMENT_RECOMMENDATION_READY') {
+              if (eventPayload.id) {
+                const currentRecs = get().realtimeRecommendations;
+                if (!currentRecs.some(r => r.id === eventPayload.id)) {
+                  updates.realtimeRecommendations = [
+                    ...currentRecs,
+                    {
+                      id: eventPayload.id,
+                      priority: eventPayload.priority || 'Medium',
+                      action: eventPayload.action || ''
+                    }
+                  ];
+                }
+              }
+            }
+          }
+
+          set(updates);
+        }
+      } catch (e) {
+        console.error('Failed to parse SSE payload:', e);
+      }
+    };
+
+    es.onerror = (err) => {
+      console.error('Candidate assessment EventSource error:', err);
+      es.close();
+      if (activeEventSource === es) {
+        activeEventSource = null;
+      }
+      set({
+        streamStatus: 'failed',
+        streamMessage: 'Connection to assessment progress lost.',
+      });
+    };
+  },
+
+  disconnectProgressStream: () => {
+    if (activeEventSource) {
+      activeEventSource.close();
+      activeEventSource = null;
+    }
+    set({
+      streamStatus: 'idle',
+      streamProgress: 0,
+      streamStep: '',
+      streamMessage: '',
+      realtimeScore: null,
+      realtimeLevel: null,
+      realtimeLevelLabel: null,
+      realtimeDimensions: {},
+      realtimeRecommendations: [],
+      realtimeSignals: [],
+    });
+  },
+}));

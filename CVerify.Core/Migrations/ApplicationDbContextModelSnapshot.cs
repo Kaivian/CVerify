@@ -833,6 +833,419 @@ namespace CVerify.API.Migrations
                     b.ToTable("ai_inferred_preferences", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssessmentSchemaVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("assessment_schema_version");
+
+                    b.Property<string>("CareerLevel")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("career_level");
+
+                    b.Property<string>("CareerLevelLabel")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("career_level_label");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at_utc");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid?>("CvId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cv_id");
+
+                    b.Property<double>("ExecutionStrength")
+                        .HasColumnType("double precision")
+                        .HasColumnName("execution_strength");
+
+                    b.Property<string>("FailedStage")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("failed_stage");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("text")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<DateTimeOffset?>("LastAssessmentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_assessment_at");
+
+                    b.Property<DateTimeOffset>("LastProfileUpdateAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_profile_update_at");
+
+                    b.Property<DateTimeOffset>("LastRepositoryAnalysisAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_repository_analysis_at");
+
+                    b.Property<double>("LeadershipPotential")
+                        .HasColumnType("double precision")
+                        .HasColumnName("leadership_potential");
+
+                    b.Property<string>("ModelVersion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model_version");
+
+                    b.Property<double>("OverallScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("overall_score");
+
+                    b.Property<string>("PipelineVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("pipeline_version");
+
+                    b.Property<string>("PrimaryTendency")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("primary_tendency");
+
+                    b.Property<string>("PrimaryWorkingStyle")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("primary_working_style");
+
+                    b.Property<string>("PromptVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SummaryHeadline")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("summary_headline");
+
+                    b.Property<string>("SummaryParagraph")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("summary_paragraph");
+
+                    b.Property<double>("TechnicalBreadth")
+                        .HasColumnType("double precision")
+                        .HasColumnName("technical_breadth");
+
+                    b.Property<double>("TechnicalDepth")
+                        .HasColumnType("double precision")
+                        .HasColumnName("technical_depth");
+
+                    b.Property<double>("TrustLevel")
+                        .HasColumnType("double precision")
+                        .HasColumnName("trust_level");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_assessments");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("idx_candidate_assessments_user_id");
+
+                    b.HasIndex("UserId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ux_candidate_assessments_user_version");
+
+                    b.ToTable("candidate_assessments", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateAssessmentArtifact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ArtifactType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("artifact_type");
+
+                    b.Property<Guid>("AssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assessment_id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("JsonData")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("json_data");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_assessment_artifacts");
+
+                    b.HasIndex("AssessmentId")
+                        .HasDatabaseName("idx_candidate_assessment_artifacts_assessment_id");
+
+                    b.HasIndex("AssessmentId", "ArtifactType")
+                        .IsUnique()
+                        .HasDatabaseName("ux_candidate_assessment_artifacts_type");
+
+                    b.ToTable("candidate_assessment_artifacts", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateBestFitRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_assessment_id");
+
+                    b.Property<double>("Confidence")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence");
+
+                    b.Property<string>("EngineMetadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("engine_metadata");
+
+                    b.Property<string>("Evidence")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("evidence");
+
+                    b.Property<double>("MatchScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("match_score");
+
+                    b.Property<string>("MatchingEngineVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("matching_engine_version");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer")
+                        .HasColumnName("rank");
+
+                    b.Property<string>("RoleTitle")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("role_title");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_best_fit_roles");
+
+                    b.HasIndex("CandidateAssessmentId")
+                        .HasDatabaseName("ix_candidate_best_fit_roles_candidate_assessment_id");
+
+                    b.ToTable("candidate_best_fit_roles", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateDomainProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_assessment_id");
+
+                    b.Property<double>("Confidence")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence");
+
+                    b.Property<string>("DomainName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("domain_name");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision")
+                        .HasColumnName("score");
+
+                    b.Property<string>("Seniority")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("seniority");
+
+                    b.Property<string>("SupportingEvidence")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("supporting_evidence");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_domain_profiles");
+
+                    b.HasIndex("CandidateAssessmentId")
+                        .HasDatabaseName("ix_candidate_domain_profiles_candidate_assessment_id");
+
+                    b.ToTable("candidate_domain_profiles", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateIntelligenceSignal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_assessment_id");
+
+                    b.Property<double>("ComplexitySignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("complexity_signal");
+
+                    b.Property<double>("ConsistencySignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("consistency_signal");
+
+                    b.Property<double>("DeliverySignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("delivery_signal");
+
+                    b.Property<double>("EngineeringMaturitySignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("engineering_maturity_signal");
+
+                    b.Property<DateTimeOffset>("LastUpdatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated_utc");
+
+                    b.Property<double>("LeadershipSignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("leadership_signal");
+
+                    b.Property<double>("OwnershipSignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("ownership_signal");
+
+                    b.Property<double>("ProblemSolvingSignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("problem_solving_signal");
+
+                    b.Property<double>("ScopeSignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("scope_signal");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_intelligence_signals");
+
+                    b.HasIndex("CandidateAssessmentId")
+                        .HasDatabaseName("ix_candidate_intelligence_signals_candidate_assessment_id");
+
+                    b.ToTable("candidate_intelligence_signals", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateSkill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_assessment_id");
+
+                    b.Property<double>("Confidence")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence");
+
+                    b.Property<string>("EvidenceSources")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("evidence_sources");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("level");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision")
+                        .HasColumnName("score");
+
+                    b.Property<string>("SkillName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("skill_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_skills");
+
+                    b.HasIndex("CandidateAssessmentId")
+                        .HasDatabaseName("ix_candidate_skills_candidate_assessment_id");
+
+                    b.ToTable("candidate_skills", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateStrengthWeakness", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_assessment_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Evidence")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("evidence");
+
+                    b.Property<string>("FindingType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("finding_type");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("topic");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_strengths_weaknesses");
+
+                    b.HasIndex("CandidateAssessmentId")
+                        .HasDatabaseName("ix_candidate_strengths_weaknesses_candidate_assessment_id");
+
+                    b.ToTable("candidate_strengths_weaknesses", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CareerPreference", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -988,6 +1401,46 @@ namespace CVerify.API.Migrations
                     b.ToTable("career_preferences", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CvRepositoryMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("IndexedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("indexed_at_utc");
+
+                    b.Property<Guid?>("ReferenceEntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reference_entity_id");
+
+                    b.Property<string>("ReferenceSource")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("reference_source");
+
+                    b.Property<Guid>("SourceCodeRepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_code_repository_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cv_repository_mappings");
+
+                    b.HasIndex("SourceCodeRepositoryId")
+                        .HasDatabaseName("idx_cv_repository_mappings_repo_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("idx_cv_repository_mappings_user_id");
+
+                    b.ToTable("cv_repository_mappings", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.EducationEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1135,6 +1588,549 @@ namespace CVerify.API.Migrations
                     b.ToTable("profile_attachments", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectContribution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("ProjectEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_entry_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_contributions");
+
+                    b.HasIndex("ProjectEntryId")
+                        .HasDatabaseName("idx_project_contributions_project_id");
+
+                    b.ToTable("project_contributions", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("display_order");
+
+                    b.Property<DateTimeOffset?>("EndDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_date");
+
+                    b.Property<bool>("IsCurrentlyWorking")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_currently_working");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("role");
+
+                    b.Property<DateTimeOffset?>("StartDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_date");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("VerificationLevel")
+                        .HasColumnType("integer")
+                        .HasColumnName("verification_level");
+
+                    b.Property<string>("VerificationMetadataJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("verification_metadata_json");
+
+                    b.Property<int>("VerificationStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("verification_status");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("verified_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_entries");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("idx_project_entries_user_id");
+
+                    b.ToTable("project_entries", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectRepositoryLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("LinkedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("linked_at");
+
+                    b.Property<Guid>("ProjectEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_entry_id");
+
+                    b.Property<Guid>("SourceCodeRepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_code_repository_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_repository_links");
+
+                    b.HasIndex("SourceCodeRepositoryId")
+                        .HasDatabaseName("ix_project_repository_links_source_code_repository_id");
+
+                    b.HasIndex("ProjectEntryId", "SourceCodeRepositoryId")
+                        .IsUnique()
+                        .HasDatabaseName("idx_project_repo_links_unique");
+
+                    b.ToTable("project_repository_links", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectTechnology", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ProjectEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_entry_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_technologies");
+
+                    b.HasIndex("ProjectEntryId")
+                        .HasDatabaseName("idx_project_technologies_project_id");
+
+                    b.ToTable("project_technologies", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.RepositoryAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AnalysisJobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("analysis_job_id");
+
+                    b.Property<string>("AssessmentSchemaVersion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("assessment_schema_version");
+
+                    b.Property<string>("CommitSha")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("commit_sha");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at_utc");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("JsonData")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("json_data");
+
+                    b.Property<string>("ModelVersion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model_version");
+
+                    b.Property<double>("OverallScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("overall_score");
+
+                    b.Property<string>("Patterns")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("patterns");
+
+                    b.Property<string>("PipelineVersion")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("pipeline_version");
+
+                    b.Property<string>("PromptVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<string>("QualityMetrics")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("quality_metrics");
+
+                    b.Property<Guid>("RepositoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("repository_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TechStack")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tech_stack");
+
+                    b.HasKey("Id")
+                        .HasName("pk_repository_assessments");
+
+                    b.HasIndex("AnalysisJobId")
+                        .HasDatabaseName("idx_repository_assessments_job_id");
+
+                    b.HasIndex("RepositoryId")
+                        .HasDatabaseName("idx_repository_assessments_repo_id");
+
+                    b.HasIndex("RepositoryId", "CommitSha")
+                        .HasDatabaseName("ux_repository_assessments_repo_sha");
+
+                    b.ToTable("repository_assessments", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.RepositoryCapability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AnalysisVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("analysis_version");
+
+                    b.Property<string>("AssessmentVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("assessment_version");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("category");
+
+                    b.Property<double>("Confidence")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence");
+
+                    b.Property<double>("DifficultyScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("difficulty_score");
+
+                    b.Property<string>("EvidenceJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("evidence_json");
+
+                    b.Property<string>("Maturity")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("maturity");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model_version");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("PromptVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<Guid>("RepositoryAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("repository_assessment_id");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision")
+                        .HasColumnName("score");
+
+                    b.HasKey("Id")
+                        .HasName("pk_repository_capabilities");
+
+                    b.HasIndex("RepositoryAssessmentId")
+                        .HasDatabaseName("idx_repository_capabilities_assessment_id");
+
+                    b.HasIndex("RepositoryAssessmentId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ux_repository_capabilities_assessment_id_name");
+
+                    b.ToTable("repository_capabilities", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.RepositoryDomain", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AnalysisVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("analysis_version");
+
+                    b.Property<string>("AssessmentVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("assessment_version");
+
+                    b.Property<double>("Confidence")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence");
+
+                    b.Property<string>("DomainName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("domain_name");
+
+                    b.Property<int>("EvidenceCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("evidence_count");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model_version");
+
+                    b.Property<string>("PromptVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<Guid>("RepositoryAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("repository_assessment_id");
+
+                    b.Property<string>("SupportingSignals")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("supporting_signals");
+
+                    b.Property<double>("Weight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("weight");
+
+                    b.HasKey("Id")
+                        .HasName("pk_repository_domains");
+
+                    b.HasIndex("RepositoryAssessmentId")
+                        .HasDatabaseName("idx_repository_domains_assessment_id");
+
+                    b.HasIndex("RepositoryAssessmentId", "DomainName")
+                        .IsUnique()
+                        .HasDatabaseName("ux_repository_domains_assessment_id_domain");
+
+                    b.ToTable("repository_domains", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.RepositoryIntelligenceSignal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AnalysisVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("analysis_version");
+
+                    b.Property<string>("AssessmentVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("assessment_version");
+
+                    b.Property<double>("ComplexitySignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("complexity_signal");
+
+                    b.Property<double>("ConsistencySignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("consistency_signal");
+
+                    b.Property<DateTimeOffset>("LastUpdatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated_utc");
+
+                    b.Property<double>("LeadershipSignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("leadership_signal");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model_version");
+
+                    b.Property<double>("OwnershipSignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("ownership_signal");
+
+                    b.Property<string>("PromptVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<Guid>("RepositoryAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("repository_assessment_id");
+
+                    b.Property<double>("ScopeSignal")
+                        .HasColumnType("double precision")
+                        .HasColumnName("scope_signal");
+
+                    b.HasKey("Id")
+                        .HasName("pk_repository_intelligence_signals");
+
+                    b.HasIndex("RepositoryAssessmentId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_repository_intelligence_signals_assessment_id");
+
+                    b.ToTable("repository_intelligence_signals", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.RepositorySkillAttribution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AnalysisVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("analysis_version");
+
+                    b.Property<string>("AssessmentVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("assessment_version");
+
+                    b.Property<double>("Confidence")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence");
+
+                    b.Property<double>("ContributionWeight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("contribution_weight");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model_version");
+
+                    b.Property<string>("PromptVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<Guid>("RepositoryAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("repository_assessment_id");
+
+                    b.Property<string>("SkillName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("skill_name");
+
+                    b.Property<string>("VerificationLevel")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("verification_level");
+
+                    b.HasKey("Id")
+                        .HasName("pk_repository_skill_attributions");
+
+                    b.HasIndex("RepositoryAssessmentId")
+                        .HasDatabaseName("idx_repository_skill_attributions_assessment_id");
+
+                    b.HasIndex("RepositoryAssessmentId", "SkillName")
+                        .IsUnique()
+                        .HasDatabaseName("ux_repository_skill_attributions_assessment_id_skill");
+
+                    b.ToTable("repository_skill_attributions", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.UserProfile", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -1178,6 +2174,10 @@ namespace CVerify.API.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("headline");
+
+                    b.Property<DateTimeOffset>("LastProfileUpdateAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_profile_update_at");
 
                     b.Property<string>("Location")
                         .HasMaxLength(50)
@@ -1357,6 +2357,10 @@ namespace CVerify.API.Migrations
                     b.Property<bool>("IsCurrentlyWorking")
                         .HasColumnType("boolean")
                         .HasColumnName("is_currently_working");
+
+                    b.Property<bool>("IsLeadership")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_leadership");
 
                     b.Property<string>("JobTitle")
                         .IsRequired()
@@ -2228,6 +3232,1181 @@ namespace CVerify.API.Migrations
                     b.ToTable("audit_logs", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.BusinessOutcome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_business_outcomes");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("idx_business_outcomes_hr_id");
+
+                    b.ToTable("business_outcomes", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<Guid>("CapabilityNodeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("capability_node_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_capabilities");
+
+                    b.HasIndex("CapabilityNodeId")
+                        .HasDatabaseName("ix_candidate_capabilities_capability_node_id");
+
+                    b.HasIndex("CandidateId", "CapabilityNodeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_candidate_capabilities_candidate_id_capability_node_id");
+
+                    b.ToTable("candidate_capabilities", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityEvidence", b =>
+                {
+                    b.Property<Guid>("CandidateCapabilityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_capability_id");
+
+                    b.Property<Guid>("EvidenceArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evidence_artifact_id");
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("added_at");
+
+                    b.HasKey("CandidateCapabilityId", "EvidenceArtifactId")
+                        .HasName("pk_candidate_capability_evidences");
+
+                    b.HasIndex("EvidenceArtifactId")
+                        .HasDatabaseName("ix_candidate_capability_evidences_evidence_artifact_id");
+
+                    b.ToTable("candidate_capability_evidences", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateCapabilityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_capability_id");
+
+                    b.Property<double>("ProficiencyScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("proficiency_score");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_capability_histories");
+
+                    b.HasIndex("CandidateCapabilityId", "RecordedAt")
+                        .HasDatabaseName("ix_candidate_capability_histories_candidate_capability_id_reco");
+
+                    b.ToTable("candidate_capability_histories", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityProjection", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<string>("CapabilitiesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("capabilities_json");
+
+                    b.Property<DateTimeOffset>("ProjectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("projected_at");
+
+                    b.HasKey("CandidateId")
+                        .HasName("pk_candidate_capability_projections");
+
+                    b.ToTable("candidate_capability_projections", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityScore", b =>
+                {
+                    b.Property<Guid>("CandidateCapabilityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_capability_id");
+
+                    b.Property<DateTimeOffset>("CalculatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("calculated_at");
+
+                    b.Property<string>("ExpertiseLevel")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("expertise_level");
+
+                    b.Property<double>("ProficiencyScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("proficiency_score");
+
+                    b.Property<double>("RecencyIndex")
+                        .HasColumnType("double precision")
+                        .HasColumnName("recency_index");
+
+                    b.HasKey("CandidateCapabilityId")
+                        .HasName("pk_candidate_capability_scores");
+
+                    b.ToTable("candidate_capability_scores", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateDiscoveryRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("CandidatesFoundCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("candidates_found_count");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text")
+                        .HasColumnName("error_message");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<string>("MatchQualitySummary")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("match_quality_summary");
+
+                    b.Property<string>("RawResultsJson")
+                        .HasColumnType("text")
+                        .HasColumnName("raw_results_json");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("TriggeredById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("triggered_by_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_discovery_runs");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("idx_candidate_discovery_runs_requirement_id");
+
+                    b.HasIndex("TriggeredById")
+                        .HasDatabaseName("idx_candidate_discovery_runs_triggered_by_id");
+
+                    b.ToTable("candidate_discovery_runs", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateEvaluationSnapshot", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<DateTimeOffset>("EvaluatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("evaluated_at");
+
+                    b.Property<double>("EvidenceTrustScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("evidence_trust_score");
+
+                    b.Property<double>("IdentityTrustScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("identity_trust_score");
+
+                    b.Property<double>("ProfileCompleteness")
+                        .HasColumnType("double precision")
+                        .HasColumnName("profile_completeness");
+
+                    b.Property<string>("VerificationState")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("verification_state");
+
+                    b.HasKey("CandidateId")
+                        .HasName("pk_candidate_evaluation_snapshots");
+
+                    b.ToTable("candidate_evaluation_snapshots", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateMatchProjection", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<DateTimeOffset>("LastProjectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_projected_at");
+
+                    b.PrimitiveCollection<Guid[]>("NormalizedCapabilities")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("normalized_capabilities");
+
+                    b.Property<string>("ProfileSummary")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("profile_summary");
+
+                    b.HasKey("CandidateId")
+                        .HasName("pk_candidate_match_projections");
+
+                    b.ToTable("candidate_match_projections", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateRankingProjection", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<double>("AiScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("ai_score");
+
+                    b.Property<bool>("AvailableForHire")
+                        .HasColumnType("boolean")
+                        .HasColumnName("available_for_hire");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("avatar_url");
+
+                    b.Property<string>("Bio")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("bio");
+
+                    b.Property<string>("CareerLevelLabel")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("career_level_label");
+
+                    b.Property<double>("CompositeScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("composite_score");
+
+                    b.Property<double>("EvidenceTrustScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("evidence_trust_score");
+
+                    b.Property<int>("FollowersCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("followers_count");
+
+                    b.Property<int>("FollowingCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("following_count");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("full_name");
+
+                    b.Property<int>("GlobalRankPosition")
+                        .HasColumnType("integer")
+                        .HasColumnName("global_rank_position");
+
+                    b.Property<string>("Headline")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("headline");
+
+                    b.Property<DateTimeOffset>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated_at");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("location");
+
+                    b.Property<string>("OpenToWorkStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("open_to_work_status");
+
+                    b.Property<int>("PreviousGlobalRankPosition")
+                        .HasColumnType("integer")
+                        .HasColumnName("previous_global_rank_position");
+
+                    b.Property<string>("PrimaryDomain")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("primary_domain");
+
+                    b.Property<double>("ProfileCompleteness")
+                        .HasColumnType("double precision")
+                        .HasColumnName("profile_completeness");
+
+                    b.Property<string>("TopCapabilitiesJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("top_capabilities_json");
+
+                    b.Property<int>("TotalForksCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_forks_count");
+
+                    b.Property<int>("TotalStarsCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_stars_count");
+
+                    b.Property<double>("TrustScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("trust_score");
+
+                    b.Property<string>("Username")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("username");
+
+                    b.Property<int>("VerifiedContributionCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("verified_contribution_count");
+
+                    b.Property<int>("VerifiedRepoCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("verified_repo_count");
+
+                    b.HasKey("CandidateId")
+                        .HasName("pk_candidate_ranking_projections");
+
+                    b.ToTable("candidate_ranking_projections", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateSearchProfile", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<string>("CapabilitiesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("capabilities_json");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("full_name");
+
+                    b.Property<string>("Headline")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("headline");
+
+                    b.Property<DateTimeOffset>("LastProjectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_projected_at");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("location");
+
+                    b.PrimitiveCollection<float[]>("SearchEmbedding")
+                        .IsRequired()
+                        .HasColumnType("real[]")
+                        .HasColumnName("search_embedding");
+
+                    b.Property<int>("TrustScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("trust_score");
+
+                    b.Property<string>("TrustTier")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("trust_tier");
+
+                    b.HasKey("CandidateId")
+                        .HasName("pk_candidate_search_profiles");
+
+                    b.ToTable("candidate_search_profiles", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateTrustProjection", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<int>("AggregateScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("aggregate_score");
+
+                    b.Property<DateTimeOffset>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated_at");
+
+                    b.Property<Guid>("TrustProfileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trust_profile_id");
+
+                    b.Property<string>("TrustTier")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("trust_tier");
+
+                    b.HasKey("CandidateId")
+                        .HasName("pk_candidate_trust_projections");
+
+                    b.HasIndex("TrustProfileId")
+                        .HasDatabaseName("ix_candidate_trust_projections_trust_profile_id");
+
+                    b.ToTable("candidate_trust_projections", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityAlias", b =>
+                {
+                    b.Property<string>("AliasName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("alias_name");
+
+                    b.Property<string>("CanonicalId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("canonical_id");
+
+                    b.HasKey("AliasName")
+                        .HasName("pk_capability_aliases");
+
+                    b.HasIndex("CanonicalId")
+                        .HasDatabaseName("ix_capability_aliases_canonical_id");
+
+                    b.ToTable("capability_aliases", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityCatalogItem", b =>
+                {
+                    b.Property<string>("CapabilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("capability_id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("display_name");
+
+                    b.PrimitiveCollection<List<string>>("ExpectedEvidence")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("expected_evidence");
+
+                    b.Property<bool>("IsCustom")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_custom");
+
+                    b.PrimitiveCollection<List<string>>("Skills")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("skills");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("CapabilityId")
+                        .HasName("pk_capability_catalog_items");
+
+                    b.HasIndex("WorkspaceId")
+                        .HasDatabaseName("ix_capability_catalog_items_workspace_id");
+
+                    b.ToTable("capability_catalog_items", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityEdge", b =>
+                {
+                    b.Property<Guid>("SourceNodeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_node_id");
+
+                    b.Property<Guid>("TargetNodeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_node_id");
+
+                    b.Property<string>("RelationshipType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("relationship_type");
+
+                    b.Property<double>("Weight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("weight");
+
+                    b.HasKey("SourceNodeId", "TargetNodeId", "RelationshipType")
+                        .HasName("pk_capability_edges");
+
+                    b.HasIndex("TargetNodeId")
+                        .HasDatabaseName("ix_capability_edges_target_node_id");
+
+                    b.ToTable("capability_edges", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityHierarchy", b =>
+                {
+                    b.Property<string>("ParentId")
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("parent_id");
+
+                    b.Property<string>("ChildId")
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("child_id");
+
+                    b.HasKey("ParentId", "ChildId")
+                        .HasName("pk_capability_hierarchies");
+
+                    b.HasIndex("ChildId")
+                        .HasDatabaseName("ix_capability_hierarchies_child_id");
+
+                    b.ToTable("capability_hierarchies", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityNode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("slug");
+
+                    b.PrimitiveCollection<float[]>("VectorEmbedding")
+                        .HasColumnType("real[]")
+                        .HasColumnName("vector_embedding");
+
+                    b.HasKey("Id")
+                        .HasName("pk_capability_nodes");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_capability_nodes_slug");
+
+                    b.ToTable("capability_nodes", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", b =>
+                {
+                    b.Property<string>("CapabilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("capability_id");
+
+                    b.Property<string>("CapabilityVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("capability_version");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DeprecatedById")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("deprecated_by_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("display_name");
+
+                    b.Property<DateTimeOffset>("EffectiveDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("effective_date");
+
+                    b.Property<string>("MigrationMappings")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("migration_mappings");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TaxonomyVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("taxonomy_version");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("CapabilityId")
+                        .HasName("pk_capability_registries");
+
+                    b.HasIndex("DeprecatedById")
+                        .HasDatabaseName("ix_capability_registries_deprecated_by_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_capability_registries_status");
+
+                    b.HasIndex("TaxonomyVersion")
+                        .HasDatabaseName("ix_capability_registries_taxonomy_version");
+
+                    b.ToTable("capability_registries", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvaluationRubric", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CapabilityWeights")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("capability_weights");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EvidenceRequirements")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("evidence_requirements");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<string>("ScoringRules")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("scoring_rules");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evaluation_rubrics");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("idx_evaluation_rubrics_hr_id");
+
+                    b.ToTable("evaluation_rubrics", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvaluationRubricSnapshot", b =>
+                {
+                    b.Property<Guid>("RequirementSnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_snapshot_id");
+
+                    b.Property<string>("CapabilityWeights")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("capability_weights");
+
+                    b.Property<string>("EvidenceRequirements")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("evidence_requirements");
+
+                    b.Property<string>("ScoringRules")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("scoring_rules");
+
+                    b.Property<DateTimeOffset>("SnapshottedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("snapshotted_at");
+
+                    b.HasKey("RequirementSnapshotId")
+                        .HasName("pk_evaluation_rubric_snapshots");
+
+                    b.ToTable("evaluation_rubric_snapshots", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceArtifact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ArtifactType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("artifact_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CryptographicSignature")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("cryptographic_signature");
+
+                    b.Property<string>("ExternalIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("external_identifier");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evidence_artifacts");
+
+                    b.HasIndex("SourceId", "ExternalIdentifier")
+                        .HasDatabaseName("ix_evidence_artifacts_source_id_external_identifier");
+
+                    b.ToTable("evidence_artifacts", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceClaim", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssertionType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("assertion_type");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<double>("ConfidenceScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence_score");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EvidenceArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evidence_artifact_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evidence_claims");
+
+                    b.HasIndex("EvidenceArtifactId")
+                        .HasDatabaseName("ix_evidence_claims_evidence_artifact_id");
+
+                    b.HasIndex("CandidateId", "EvidenceArtifactId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_evidence_claims_candidate_id_evidence_artifact_id");
+
+                    b.ToTable("evidence_claims", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceSignal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ExpectedMetric")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("expected_metric");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata");
+
+                    b.Property<string>("Rationale")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("rationale");
+
+                    b.Property<Guid>("RequirementCapabilityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_capability_id");
+
+                    b.Property<string>("SignalType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("signal_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evidence_signals");
+
+                    b.HasIndex("RequirementCapabilityId")
+                        .HasDatabaseName("idx_evidence_signals_cap_id");
+
+                    b.ToTable("evidence_signals", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceSource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ConnectionConfig")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("connection_config");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ProviderType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("provider_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evidence_sources");
+
+                    b.ToTable("evidence_sources", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceVerification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EvidenceClaimId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evidence_claim_id");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("VerificationLog")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("verification_log");
+
+                    b.Property<string>("VerificationType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("verification_type");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("verified_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evidence_verifications");
+
+                    b.HasIndex("EvidenceClaimId")
+                        .HasDatabaseName("ix_evidence_verifications_evidence_claim_id");
+
+                    b.ToTable("evidence_verifications", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AutoCloseRule")
+                        .HasColumnType("integer")
+                        .HasColumnName("auto_close_rule");
+
+                    b.PrimitiveCollection<List<string>>("Benefits")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("benefits");
+
+                    b.Property<string>("BusinessProblem")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("business_problem");
+
+                    b.Property<int?>("CandidatesNeededCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("candidates_needed_count");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("DegreeRequirement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("degree_requirement");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("department");
+
+                    b.Property<string>("EmploymentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("employment_type");
+
+                    b.Property<DateTimeOffset?>("EndDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_date");
+
+                    b.Property<int>("Headcount")
+                        .HasColumnType("integer")
+                        .HasColumnName("headcount");
+
+                    b.Property<string>("HiringReason")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("hiring_reason");
+
+                    b.Property<bool>("IsManuallyClosed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_manually_closed");
+
+                    b.Property<bool>("IsSalaryNegotiable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_salary_negotiable");
+
+                    b.PrimitiveCollection<List<string>>("LanguageRequirements")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("language_requirements");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<decimal?>("SalaryMax")
+                        .HasColumnType("numeric")
+                        .HasColumnName("salary_max");
+
+                    b.Property<decimal?>("SalaryMin")
+                        .HasColumnType("numeric")
+                        .HasColumnName("salary_min");
+
+                    b.Property<int>("SalaryPeriod")
+                        .HasColumnType("integer")
+                        .HasColumnName("salary_period");
+
+                    b.Property<string>("Seniority")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("seniority");
+
+                    b.Property<DateTimeOffset?>("StartDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TimezoneRange")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("timezone_range");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.Property<string>("WorkplaceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("workplace_type");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_hiring_requirements");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("idx_hiring_requirements_org_id");
+
+                    b.HasIndex("WorkspaceId")
+                        .HasDatabaseName("idx_hiring_requirements_workspace_id");
+
+                    b.ToTable("hiring_requirements", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.InAppNotification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2307,6 +4486,447 @@ namespace CVerify.API.Migrations
                     b.ToTable("in_app_notifications", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.InterviewBlueprint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CapabilityQuestions")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("capability_questions");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Dimensions")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("dimensions");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_interview_blueprints");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("idx_interview_blueprints_hr_id");
+
+                    b.ToTable("interview_blueprints", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.InterviewBlueprintSnapshot", b =>
+                {
+                    b.Property<Guid>("RequirementSnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_snapshot_id");
+
+                    b.Property<string>("CapabilityQuestions")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("capability_questions");
+
+                    b.Property<string>("Dimensions")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("dimensions");
+
+                    b.Property<DateTimeOffset>("SnapshottedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("snapshotted_at");
+
+                    b.HasKey("RequirementSnapshotId")
+                        .HasName("pk_interview_blueprint_snapshots");
+
+                    b.ToTable("interview_blueprint_snapshots", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobApplication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EligibilitySnapshotJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("eligibility_snapshot_json");
+
+                    b.Property<string>("GapsSnapshotJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("gaps_snapshot_json");
+
+                    b.Property<Guid>("JobVacancyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_vacancy_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_job_applications");
+
+                    b.HasIndex("CandidateId")
+                        .HasDatabaseName("ix_job_applications_candidate_id");
+
+                    b.HasIndex("JobVacancyId", "CandidateId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_job_applications_job_vacancy_id_candidate_id");
+
+                    b.ToTable("job_applications", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobInteraction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("InteractionAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("interaction_at");
+
+                    b.Property<string>("InteractionType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("interaction_type");
+
+                    b.Property<Guid>("JobVacancyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_vacancy_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_job_interactions");
+
+                    b.HasIndex("JobVacancyId")
+                        .HasDatabaseName("ix_job_interactions_job_vacancy_id");
+
+                    b.HasIndex("UserId", "InteractionType")
+                        .HasDatabaseName("ix_job_interactions_user_id_interaction_type");
+
+                    b.HasIndex("UserId", "JobVacancyId", "InteractionType")
+                        .IsUnique()
+                        .HasDatabaseName("ix_job_interactions_user_id_job_vacancy_id_interaction_type");
+
+                    b.ToTable("job_interactions", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AcquisitionStrategy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("acquisition_strategy");
+
+                    b.PrimitiveCollection<List<string>>("Benefits")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("benefits");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
+                    b.Property<string>("CoverUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("cover_url");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Degree")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("degree");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("department");
+
+                    b.PrimitiveCollection<List<string>>("Description")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("description");
+
+                    b.Property<string>("DiscoveryProfileJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("discovery_profile_json");
+
+                    b.Property<string>("Experience")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("experience");
+
+                    b.Property<string>("Gender")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("gender");
+
+                    b.Property<int>("Headcount")
+                        .HasColumnType("integer")
+                        .HasColumnName("headcount");
+
+                    b.Property<Guid?>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.PrimitiveCollection<List<string>>("Images")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("images");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("text")
+                        .HasColumnName("metadata");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid?>("RequirementSnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_snapshot_id");
+
+                    b.PrimitiveCollection<List<string>>("Requirements")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("requirements");
+
+                    b.Property<string>("Salary")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("salary");
+
+                    b.Property<string>("SalaryMinMax")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("salary_min_max");
+
+                    b.PrimitiveCollection<List<string>>("Skills")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("skills");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.PrimitiveCollection<List<string>>("Tags")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tags");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("WorkplaceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("workplace_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_job_vacancies");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("ix_job_vacancies_hiring_requirement_id");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_job_vacancies_organization_id");
+
+                    b.HasIndex("RequirementSnapshotId")
+                        .HasDatabaseName("ix_job_vacancies_requirement_snapshot_id");
+
+                    b.HasIndex("Status", "IsActive")
+                        .HasDatabaseName("idx_job_vacancies_published_active")
+                        .HasFilter("status = 'Published' AND is_active = TRUE");
+
+                    b.ToTable("job_vacancies", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.MatchingEvaluation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AggregateScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("aggregate_score");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
+
+                    b.Property<string>("ConfidenceLevel")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("confidence_level");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("JobVacancyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_vacancy_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_matching_evaluations");
+
+                    b.HasIndex("CandidateId")
+                        .HasDatabaseName("ix_matching_evaluations_candidate_id");
+
+                    b.HasIndex("JobVacancyId", "CandidateId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_matching_evaluations_job_vacancy_id_candidate_id");
+
+                    b.ToTable("matching_evaluations", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.MatchingExplanation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AssertionText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("assertion_text");
+
+                    b.Property<Guid?>("CapabilityNodeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("capability_node_id");
+
+                    b.Property<string>("ExplanationType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("explanation_type");
+
+                    b.Property<Guid>("MatchingEvaluationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("matching_evaluation_id");
+
+                    b.Property<Guid?>("SupportingArtifactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supporting_artifact_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_matching_explanations");
+
+                    b.HasIndex("CapabilityNodeId")
+                        .HasDatabaseName("ix_matching_explanations_capability_node_id");
+
+                    b.HasIndex("MatchingEvaluationId")
+                        .HasDatabaseName("ix_matching_explanations_matching_evaluation_id");
+
+                    b.HasIndex("SupportingArtifactId")
+                        .HasDatabaseName("ix_matching_explanations_supporting_artifact_id");
+
+                    b.ToTable("matching_explanations", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.MatchingFactor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("FactorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("factor_name");
+
+                    b.Property<int>("FactorScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("factor_score");
+
+                    b.Property<Guid>("MatchingEvaluationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("matching_evaluation_id");
+
+                    b.Property<double>("Weight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("weight");
+
+                    b.HasKey("Id")
+                        .HasName("pk_matching_factors");
+
+                    b.HasIndex("MatchingEvaluationId")
+                        .HasDatabaseName("ix_matching_factors_matching_evaluation_id");
+
+                    b.ToTable("matching_factors", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.NotificationPreference", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2358,6 +4978,43 @@ namespace CVerify.API.Migrations
                         .HasColumnType("character varying(2048)")
                         .HasColumnName("banner_url");
 
+                    b.PrimitiveCollection<List<string>>("BenefitTags")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("benefit_tags");
+
+                    b.Property<int>("BranchCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("branch_count");
+
+                    b.Property<string>("City")
+                        .HasColumnType("text")
+                        .HasColumnName("city");
+
+                    b.Property<string>("CompanySize")
+                        .HasColumnType("text")
+                        .HasColumnName("company_size");
+
+                    b.Property<string>("CompanyType")
+                        .HasColumnType("text")
+                        .HasColumnName("company_type");
+
+                    b.Property<string>("ContactEmail")
+                        .HasColumnType("text")
+                        .HasColumnName("contact_email");
+
+                    b.Property<string>("ContactName")
+                        .HasColumnType("text")
+                        .HasColumnName("contact_name");
+
+                    b.Property<string>("ContactPhone")
+                        .HasColumnType("text")
+                        .HasColumnName("contact_phone");
+
+                    b.Property<string>("CoreValues")
+                        .HasColumnType("text")
+                        .HasColumnName("core_values");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -2366,11 +5023,45 @@ namespace CVerify.API.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("DetailAddress")
+                        .HasColumnType("text")
+                        .HasColumnName("detail_address");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("email");
+
+                    b.Property<string>("FacebookUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("facebook_url");
+
+                    b.Property<int>("FollowerCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("follower_count");
+
+                    b.Property<string>("Founded")
+                        .HasColumnType("text")
+                        .HasColumnName("founded");
+
+                    b.PrimitiveCollection<List<string>>("GalleryUrls")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("gallery_urls");
+
+                    b.Property<string>("GoogleMapsEmbedUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("google_maps_embed_url");
+
+                    b.PrimitiveCollection<List<string>>("IndustryTags")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("industry_tags");
 
                     b.Property<DateTimeOffset?>("InitialAdminAssignedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2380,10 +5071,18 @@ namespace CVerify.API.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_verified");
 
+                    b.Property<string>("LinkedinUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("linkedin_url");
+
                     b.Property<string>("LogoUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
                         .HasColumnName("logo_url");
+
+                    b.Property<string>("Mission")
+                        .HasColumnType("text")
+                        .HasColumnName("mission");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -2433,6 +5132,10 @@ namespace CVerify.API.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("tax_code");
 
+                    b.Property<string>("TwitterUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("twitter_url");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -2446,6 +5149,14 @@ namespace CVerify.API.Migrations
                     b.Property<int>("VerificationLevel")
                         .HasColumnType("integer")
                         .HasColumnName("verification_level");
+
+                    b.Property<string>("Vision")
+                        .HasColumnType("text")
+                        .HasColumnName("vision");
+
+                    b.Property<string>("Website")
+                        .HasColumnType("text")
+                        .HasColumnName("website");
 
                     b.HasKey("Id")
                         .HasName("pk_organizations");
@@ -2499,6 +5210,29 @@ namespace CVerify.API.Migrations
                     b.ToTable("organization_authorities", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.OrganizationFollower", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTimeOffset>("FollowedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("followed_at");
+
+                    b.HasKey("UserId", "OrganizationId")
+                        .HasName("pk_organization_followers");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_organization_followers_organization_id");
+
+                    b.ToTable("organization_followers", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.OrganizationInvitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2516,6 +5250,19 @@ namespace CVerify.API.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeclinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("declined_at");
+
+                    b.Property<string>("DeclinedReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("declined_reason");
+
+                    b.Property<DateTimeOffset?>("DiscoveryNotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("discovery_notified_at");
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
@@ -2695,6 +5442,56 @@ namespace CVerify.API.Migrations
                     b.ToTable("organization_verifications", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.PendingOrganizationOwnership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consumed_at");
+
+                    b.Property<Guid?>("ConsumedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("consumed_by_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DiscoveryNotifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("discovery_notified_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("OwnerEmail")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("owner_email");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pending_organization_ownerships");
+
+                    b.HasIndex("ConsumedByUserId")
+                        .HasDatabaseName("ix_pending_organization_ownerships_consumed_by_user_id");
+
+                    b.HasIndex("OrganizationId", "OwnerEmail")
+                        .IsUnique()
+                        .HasDatabaseName("idx_pending_org_ownership_unique")
+                        .HasFilter("consumed_at IS NULL");
+
+                    b.ToTable("pending_organization_ownerships", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Permission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2746,6 +5543,400 @@ namespace CVerify.API.Migrations
                     NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "varchar_pattern_ops" });
 
                     b.ToTable("permissions", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementArtifact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ArtifactType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("artifact_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("GenerationMetadataJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("generation_metadata_json");
+
+                    b.Property<DateTimeOffset?>("GenerationTimestamp")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("generation_timestamp");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<string>("MarkdownContent")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("markdown_content");
+
+                    b.Property<string>("ModelInfo")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model_info");
+
+                    b.Property<string>("PromptHash")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("prompt_hash");
+
+                    b.Property<string>("PromptTemplateId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("prompt_template_id");
+
+                    b.Property<string>("PromptVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("prompt_version");
+
+                    b.Property<string>("RegenerationHistoryJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("regeneration_history_json");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StructuredContentJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("structured_content_json");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_requirement_artifacts");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("ix_requirement_artifacts_hiring_requirement_id");
+
+                    b.ToTable("requirement_artifacts", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementArtifactSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ArtifactType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("artifact_type");
+
+                    b.Property<string>("MarkdownContent")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("markdown_content");
+
+                    b.Property<Guid>("RequirementSnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_snapshot_id");
+
+                    b.Property<DateTimeOffset>("SnapshottedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("snapshotted_at");
+
+                    b.Property<string>("StructuredContentJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("structured_content_json");
+
+                    b.HasKey("Id")
+                        .HasName("pk_requirement_artifact_snapshots");
+
+                    b.HasIndex("RequirementSnapshotId")
+                        .HasDatabaseName("ix_requirement_artifact_snapshots_requirement_snapshot_id");
+
+                    b.ToTable("requirement_artifact_snapshots", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementCapability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CapabilityId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("capability_id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("category");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("ExpectedProficiency")
+                        .HasColumnType("integer")
+                        .HasColumnName("expected_proficiency");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("OwnershipLevel")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ownership_level");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("priority");
+
+                    b.HasKey("Id")
+                        .HasName("pk_requirement_capabilities");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("idx_requirement_capabilities_hr_id");
+
+                    b.ToTable("requirement_capabilities", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AutoCloseRule")
+                        .HasColumnType("integer")
+                        .HasColumnName("auto_close_rule");
+
+                    b.PrimitiveCollection<List<string>>("Benefits")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("benefits");
+
+                    b.Property<string>("BusinessOutcomesJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("business_outcomes_json");
+
+                    b.Property<string>("BusinessProblem")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("business_problem");
+
+                    b.Property<int?>("CandidatesNeededCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("candidates_needed_count");
+
+                    b.Property<string>("CapabilitiesJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("capabilities_json");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("currency");
+
+                    b.Property<string>("DegreeRequirement")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("degree_requirement");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("department");
+
+                    b.Property<string>("EmploymentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("employment_type");
+
+                    b.Property<DateTimeOffset?>("EndDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_date");
+
+                    b.Property<int>("Headcount")
+                        .HasColumnType("integer")
+                        .HasColumnName("headcount");
+
+                    b.Property<string>("HiringReason")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("hiring_reason");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<bool>("IsManuallyClosed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_manually_closed");
+
+                    b.Property<bool>("IsSalaryNegotiable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_salary_negotiable");
+
+                    b.PrimitiveCollection<List<string>>("LanguageRequirements")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("language_requirements");
+
+                    b.Property<string>("ResponsibilitiesJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("responsibilities_json");
+
+                    b.Property<decimal?>("SalaryMax")
+                        .HasColumnType("numeric")
+                        .HasColumnName("salary_max");
+
+                    b.Property<decimal?>("SalaryMin")
+                        .HasColumnType("numeric")
+                        .HasColumnName("salary_min");
+
+                    b.Property<int>("SalaryPeriod")
+                        .HasColumnType("integer")
+                        .HasColumnName("salary_period");
+
+                    b.Property<string>("Seniority")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("seniority");
+
+                    b.Property<DateTimeOffset>("SnapshottedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("snapshotted_at");
+
+                    b.Property<DateTimeOffset?>("StartDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_date");
+
+                    b.Property<string>("TechnologyRequirementsJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("technology_requirements_json");
+
+                    b.Property<string>("TimezoneRange")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("timezone_range");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.Property<string>("WorkplaceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("workplace_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_requirement_snapshots");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("idx_requirement_snapshots_hr_id");
+
+                    b.ToTable("requirement_snapshots", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementVectorSnapshot", b =>
+                {
+                    b.Property<Guid>("RequirementSnapshotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requirement_snapshot_id");
+
+                    b.Property<int>("Dimension")
+                        .HasColumnType("integer")
+                        .HasColumnName("dimension");
+
+                    b.Property<DateTimeOffset>("SnapshottedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("snapshotted_at");
+
+                    b.PrimitiveCollection<float[]>("Vector")
+                        .IsRequired()
+                        .HasColumnType("real[]")
+                        .HasColumnName("vector");
+
+                    b.HasKey("RequirementSnapshotId")
+                        .HasName("pk_requirement_vector_snapshots");
+
+                    b.ToTable("requirement_vector_snapshots", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Responsibility", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<bool>("IsLeadership")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_leadership");
+
+                    b.Property<string>("OwnershipLevel")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ownership_level");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("priority");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_responsibilities");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("idx_responsibilities_hr_id");
+
+                    b.ToTable("responsibilities", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Role", b =>
@@ -2867,6 +6058,146 @@ namespace CVerify.API.Migrations
                         .HasDatabaseName("idx_role_assignments_unique");
 
                     b.ToTable("role_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.TechnologyRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("HiringRequirementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("hiring_requirement_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("priority");
+
+                    b.Property<int>("SfiaLevel")
+                        .HasColumnType("integer")
+                        .HasColumnName("sfia_level");
+
+                    b.HasKey("Id")
+                        .HasName("pk_technology_requirements");
+
+                    b.HasIndex("HiringRequirementId")
+                        .HasDatabaseName("idx_technology_requirements_hr_id");
+
+                    b.ToTable("technology_requirements", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.TrustCalculation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AggregateScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("aggregate_score");
+
+                    b.Property<DateTimeOffset>("CalculatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("calculated_at");
+
+                    b.Property<string>("CalculationDetails")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("calculation_details");
+
+                    b.Property<Guid>("TrustProfileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trust_profile_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_trust_calculations");
+
+                    b.HasIndex("TrustProfileId")
+                        .HasDatabaseName("ix_trust_calculations_trust_profile_id");
+
+                    b.ToTable("trust_calculations", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.TrustComponent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ComponentName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("component_name");
+
+                    b.Property<int>("ComponentScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("component_score");
+
+                    b.Property<string>("ExplanationMetadata")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("explanation_metadata");
+
+                    b.Property<Guid>("TrustProfileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("trust_profile_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<double>("Weight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("weight");
+
+                    b.HasKey("Id")
+                        .HasName("pk_trust_components");
+
+                    b.HasIndex("TrustProfileId")
+                        .HasDatabaseName("ix_trust_components_trust_profile_id");
+
+                    b.ToTable("trust_components", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.TrustProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("RecalculatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recalculated_at");
+
+                    b.Property<Guid>("TargetEntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_entity_id");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("target_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_trust_profiles");
+
+                    b.HasIndex("TargetEntityId", "TargetType")
+                        .HasDatabaseName("ix_trust_profiles_target_entity_id_target_type");
+
+                    b.ToTable("trust_profiles", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.User", b =>
@@ -2995,6 +6326,29 @@ namespace CVerify.API.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.UserFollower", b =>
+                {
+                    b.Property<Guid>("FollowerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("follower_id");
+
+                    b.Property<Guid>("FolloweeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("followee_id");
+
+                    b.Property<DateTimeOffset>("FollowedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("followed_at");
+
+                    b.HasKey("FollowerId", "FolloweeId")
+                        .HasName("pk_user_followers");
+
+                    b.HasIndex("FolloweeId")
+                        .HasDatabaseName("ix_user_followers_followee_id");
+
+                    b.ToTable("user_followers", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Workspace", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3091,65 +6445,6 @@ namespace CVerify.API.Migrations
                     b.ToTable("workspace_archive_snapshots", (string)null);
                 });
 
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.WorkspaceInvitation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset?>("ConsumedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("consumed_at");
-
-                    b.Property<Guid?>("ConsumedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("consumed_by_user_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<DateTimeOffset>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("expires_at");
-
-                    b.Property<Guid?>("InvitedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("invited_by_user_id");
-
-                    b.Property<string>("InviteeEmail")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("invitee_email");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("role");
-
-                    b.Property<Guid>("WorkspaceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("workspace_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_workspace_invitations");
-
-                    b.HasIndex("ConsumedByUserId")
-                        .HasDatabaseName("ix_workspace_invitations_consumed_by_user_id");
-
-                    b.HasIndex("InvitedByUserId")
-                        .HasDatabaseName("ix_workspace_invitations_invited_by_user_id");
-
-                    b.HasIndex("WorkspaceId", "InviteeEmail")
-                        .IsUnique()
-                        .HasDatabaseName("idx_workspace_invitations_unique")
-                        .HasFilter("consumed_at IS NULL");
-
-                    b.ToTable("workspace_invitations", (string)null);
-                });
-
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.WorkspaceMember", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3185,6 +6480,64 @@ namespace CVerify.API.Migrations
                         .HasDatabaseName("ix_workspace_members_workspace_id_user_id");
 
                     b.ToTable("workspace_members", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.WorkspacePost", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.PrimitiveCollection<List<string>>("Images")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("images");
+
+                    b.Property<int>("Likes")
+                        .HasColumnType("integer")
+                        .HasColumnName("likes");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<int>("SharesCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("shares_count");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_workspace_posts");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_workspace_posts_created_by_user_id");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_workspace_posts_organization_id");
+
+                    b.ToTable("workspace_posts", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Email.Entities.OutboxMessage", b =>
@@ -3616,6 +6969,73 @@ namespace CVerify.API.Migrations
                     b.ToTable("analysis_task_results", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.SourceCode.Entities.ExternalOrganization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuthProviderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("auth_provider_id");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("avatar_url");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("HtmlUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("html_url");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<DateTimeOffset>("LastSyncedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_synced_at");
+
+                    b.Property<string>("Login")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("login");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_external_organizations");
+
+                    b.HasIndex("AuthProviderId", "ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("idx_external_organizations_provider_external_active");
+
+                    b.ToTable("external_organizations", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.SourceCode.Entities.SourceCodeRepository", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3657,6 +7077,10 @@ namespace CVerify.API.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("description");
+
+                    b.Property<Guid?>("ExternalOrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("external_organization_id");
 
                     b.Property<string>("ExternalRepositoryId")
                         .IsRequired()
@@ -3777,6 +7201,9 @@ namespace CVerify.API.Migrations
                     b.HasKey("Id")
                         .HasName("pk_source_code_repositories");
 
+                    b.HasIndex("ExternalOrganizationId")
+                        .HasDatabaseName("ix_source_code_repositories_external_organization_id");
+
                     b.HasIndex("AuthProviderId", "ExternalRepositoryId")
                         .IsUnique()
                         .HasDatabaseName("idx_source_code_repositories_external_active");
@@ -3821,14 +7248,12 @@ namespace CVerify.API.Migrations
 
                     b.Property<string>("ArtifactId")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                        .HasColumnType("text")
                         .HasColumnName("artifact_id");
 
                     b.Property<string>("Checksum")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
+                        .HasColumnType("text")
                         .HasColumnName("checksum");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
@@ -3846,23 +7271,18 @@ namespace CVerify.API.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasColumnType("text")
                         .HasColumnName("name");
 
                     b.Property<string>("StoragePath")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
+                        .HasColumnType("text")
                         .HasColumnName("storage_path");
 
                     b.HasKey("Id")
-                        .HasName("pk_artifact_registry");
+                        .HasName("pk_artifact_registry_entries");
 
-                    b.HasIndex("JobId")
-                        .HasDatabaseName("ix_artifact_registry_job_id");
-
-                    b.ToTable("artifact_registry", (string)null);
+                    b.ToTable("artifact_registry_entries", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineJob", b =>
@@ -4198,6 +7618,90 @@ namespace CVerify.API.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_assessments_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateAssessmentArtifact", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
+                        .WithMany("Artifacts")
+                        .HasForeignKey("AssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_assessment_artifacts_candidate_assessments_assess");
+
+                    b.Navigation("Assessment");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateBestFitRole", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
+                        .WithMany("BestFitRoles")
+                        .HasForeignKey("CandidateAssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_best_fit_roles_candidate_assessments_candidate_as");
+
+                    b.Navigation("Assessment");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateDomainProfile", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
+                        .WithMany("DomainProfiles")
+                        .HasForeignKey("CandidateAssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_domain_profiles_candidate_assessments_candidate_a");
+
+                    b.Navigation("Assessment");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateIntelligenceSignal", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
+                        .WithMany("IntelligenceSignals")
+                        .HasForeignKey("CandidateAssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_intelligence_signals_candidate_assessments_candid");
+
+                    b.Navigation("Assessment");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateSkill", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
+                        .WithMany("Skills")
+                        .HasForeignKey("CandidateAssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_skills_candidate_assessments_candidate_assessment");
+
+                    b.Navigation("Assessment");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateStrengthWeakness", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
+                        .WithMany("StrengthsWeaknesses")
+                        .HasForeignKey("CandidateAssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_strengths_weaknesses_candidate_assessments_candid");
+
+                    b.Navigation("Assessment");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CareerPreference", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
@@ -4208,6 +7712,18 @@ namespace CVerify.API.Migrations
                         .HasConstraintName("fk_career_preferences_users_user_id");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CvRepositoryMapping", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.SourceCode.Entities.SourceCodeRepository", "SourceCodeRepository")
+                        .WithMany()
+                        .HasForeignKey("SourceCodeRepositoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_cv_repository_mappings_source_code_repositories_source_code");
+
+                    b.Navigation("SourceCodeRepository");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.EducationEntry", b =>
@@ -4232,6 +7748,63 @@ namespace CVerify.API.Migrations
                         .HasConstraintName("fk_profile_attachments_users_user_id");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectContribution", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.ProjectEntry", "ProjectEntry")
+                        .WithMany("Contributions")
+                        .HasForeignKey("ProjectEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_contributions_project_entries_project_entry_id");
+
+                    b.Navigation("ProjectEntry");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectEntry", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_entries_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectRepositoryLink", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.ProjectEntry", "ProjectEntry")
+                        .WithMany("RepositoryLinks")
+                        .HasForeignKey("ProjectEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_repository_links_project_entries_project_entry_id");
+
+                    b.HasOne("CVerify.API.Modules.SourceCode.Entities.SourceCodeRepository", "SourceCodeRepository")
+                        .WithMany()
+                        .HasForeignKey("SourceCodeRepositoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_repository_links_source_code_repositories_source_co");
+
+                    b.Navigation("ProjectEntry");
+
+                    b.Navigation("SourceCodeRepository");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectTechnology", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.ProjectEntry", "ProjectEntry")
+                        .WithMany("Technologies")
+                        .HasForeignKey("ProjectEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_technologies_project_entries_project_entry_id");
+
+                    b.Navigation("ProjectEntry");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.UserProfile", b =>
@@ -4518,6 +8091,362 @@ namespace CVerify.API.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.BusinessOutcome", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("BusinessOutcomes")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_business_outcomes_hiring_requirements_hiring_requirement_id");
+
+                    b.Navigation("HiringRequirement");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapability", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_capabilities_users_candidate_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityNode", "CapabilityNode")
+                        .WithMany()
+                        .HasForeignKey("CapabilityNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_capabilities_capability_nodes_capability_node_id");
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("CapabilityNode");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityEvidence", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapability", "CandidateCapability")
+                        .WithMany("EvidenceLinks")
+                        .HasForeignKey("CandidateCapabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_capability_evidences_candidate_capabilities_candi");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.EvidenceArtifact", "EvidenceArtifact")
+                        .WithMany()
+                        .HasForeignKey("EvidenceArtifactId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_capability_evidences_evidence_artifacts_evidence_");
+
+                    b.Navigation("CandidateCapability");
+
+                    b.Navigation("EvidenceArtifact");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityHistory", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapability", "CandidateCapability")
+                        .WithMany("Histories")
+                        .HasForeignKey("CandidateCapabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_capability_histories_candidate_capabilities_candi");
+
+                    b.Navigation("CandidateCapability");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityProjection", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithOne()
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityProjection", "CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_capability_projections_users_candidate_id");
+
+                    b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityScore", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapability", "CandidateCapability")
+                        .WithOne("Score")
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapabilityScore", "CandidateCapabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_capability_scores_candidate_capabilities_candidat");
+
+                    b.Navigation("CandidateCapability");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateDiscoveryRun", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("DiscoveryRuns")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_discovery_runs_hiring_requirements_hiring_require");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "TriggeredBy")
+                        .WithMany()
+                        .HasForeignKey("TriggeredById")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_candidate_discovery_runs_users_triggered_by_id");
+
+                    b.Navigation("HiringRequirement");
+
+                    b.Navigation("TriggeredBy");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateEvaluationSnapshot", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithOne()
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateEvaluationSnapshot", "CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_evaluation_snapshots_users_candidate_id");
+
+                    b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateMatchProjection", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithOne()
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateMatchProjection", "CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_match_projections_users_candidate_id");
+
+                    b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateRankingProjection", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithOne()
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateRankingProjection", "CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_ranking_projections_users_candidate_id");
+
+                    b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateSearchProfile", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithOne()
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateSearchProfile", "CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_search_profiles_users_candidate_id");
+
+                    b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateTrustProjection", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithOne()
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.CandidateTrustProjection", "CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_trust_projections_users_candidate_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.TrustProfile", "TrustProfile")
+                        .WithMany()
+                        .HasForeignKey("TrustProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_trust_projections_trust_profiles_trust_profile_id");
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("TrustProfile");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityAlias", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", "CanonicalCapability")
+                        .WithMany()
+                        .HasForeignKey("CanonicalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_capability_aliases_capability_registries_canonical_id");
+
+                    b.Navigation("CanonicalCapability");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityCatalogItem", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .HasConstraintName("fk_capability_catalog_items_workspaces_workspace_id");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityEdge", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityNode", "SourceNode")
+                        .WithMany("OutgoingEdges")
+                        .HasForeignKey("SourceNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_capability_edges_capability_nodes_source_node_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityNode", "TargetNode")
+                        .WithMany("IncomingEdges")
+                        .HasForeignKey("TargetNodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_capability_edges_capability_nodes_target_node_id");
+
+                    b.Navigation("SourceNode");
+
+                    b.Navigation("TargetNode");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityHierarchy", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", "Child")
+                        .WithMany()
+                        .HasForeignKey("ChildId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_capability_hierarchies_capability_registries_child_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", "Parent")
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_capability_hierarchies_capability_registries_parent_id");
+
+                    b.Navigation("Child");
+
+                    b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityRegistry", "DeprecatedBy")
+                        .WithMany()
+                        .HasForeignKey("DeprecatedById")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_capability_registries_capability_registries_deprecated_by_id");
+
+                    b.Navigation("DeprecatedBy");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvaluationRubric", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("EvaluationRubrics")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluation_rubrics_hiring_requirements_hiring_requirement_id");
+
+                    b.Navigation("HiringRequirement");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvaluationRubricSnapshot", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", "RequirementSnapshot")
+                        .WithOne("EvaluationRubricSnapshot")
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.EvaluationRubricSnapshot", "RequirementSnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluation_rubric_snapshots_requirement_snapshots_requireme");
+
+                    b.Navigation("RequirementSnapshot");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceArtifact", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.EvidenceSource", "Source")
+                        .WithMany("Artifacts")
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evidence_artifacts_evidence_sources_source_id");
+
+                    b.Navigation("Source");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceClaim", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evidence_claims_users_candidate_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.EvidenceArtifact", "EvidenceArtifact")
+                        .WithMany()
+                        .HasForeignKey("EvidenceArtifactId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evidence_claims_evidence_artifacts_evidence_artifact_id");
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("EvidenceArtifact");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceSignal", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementCapability", "RequirementCapability")
+                        .WithMany("EvidenceSignals")
+                        .HasForeignKey("RequirementCapabilityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evidence_signals_requirement_capabilities_requirement_capab");
+
+                    b.Navigation("RequirementCapability");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceVerification", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.EvidenceClaim", "EvidenceClaim")
+                        .WithMany("Verifications")
+                        .HasForeignKey("EvidenceClaimId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evidence_verifications_evidence_claims_evidence_claim_id");
+
+                    b.Navigation("EvidenceClaim");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_hiring_requirements_organizations_organization_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_hiring_requirements_workspaces_workspace_id");
+
+                    b.Navigation("Organization");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.InAppNotification", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.ActivityEvent", "ActivityEvent")
@@ -4536,6 +8465,159 @@ namespace CVerify.API.Migrations
                     b.Navigation("ActivityEvent");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.InterviewBlueprint", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("InterviewBlueprints")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_interview_blueprints_hiring_requirements_hiring_requirement");
+
+                    b.Navigation("HiringRequirement");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.InterviewBlueprintSnapshot", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", "RequirementSnapshot")
+                        .WithOne("InterviewBlueprintSnapshot")
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.InterviewBlueprintSnapshot", "RequirementSnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_interview_blueprint_snapshots_requirement_snapshots_require");
+
+                    b.Navigation("RequirementSnapshot");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobApplication", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_job_applications_users_candidate_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", "JobVacancy")
+                        .WithMany()
+                        .HasForeignKey("JobVacancyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_job_applications_job_vacancies_job_vacancy_id");
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("JobVacancy");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobInteraction", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", "JobVacancy")
+                        .WithMany()
+                        .HasForeignKey("JobVacancyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_job_interactions_job_vacancies_job_vacancy_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_job_interactions_users_user_id");
+
+                    b.Navigation("JobVacancy");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany()
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_job_vacancies_hiring_requirements_hiring_requirement_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_job_vacancies_organizations_organization_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", "RequirementSnapshot")
+                        .WithMany()
+                        .HasForeignKey("RequirementSnapshotId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_job_vacancies_requirement_snapshots_requirement_snapshot_id");
+
+                    b.Navigation("HiringRequirement");
+
+                    b.Navigation("Organization");
+
+                    b.Navigation("RequirementSnapshot");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.MatchingEvaluation", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Candidate")
+                        .WithMany()
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_matching_evaluations_users_candidate_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.JobVacancy", "JobVacancy")
+                        .WithMany()
+                        .HasForeignKey("JobVacancyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_matching_evaluations_job_vacancies_job_vacancy_id");
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("JobVacancy");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.MatchingExplanation", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.CapabilityNode", "CapabilityNode")
+                        .WithMany()
+                        .HasForeignKey("CapabilityNodeId")
+                        .HasConstraintName("fk_matching_explanations_capability_nodes_capability_node_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.MatchingEvaluation", "MatchingEvaluation")
+                        .WithMany("Explanations")
+                        .HasForeignKey("MatchingEvaluationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_matching_explanations_matching_evaluations_matching_evaluat");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.EvidenceArtifact", "SupportingArtifact")
+                        .WithMany()
+                        .HasForeignKey("SupportingArtifactId")
+                        .HasConstraintName("fk_matching_explanations_evidence_artifacts_supporting_artifac");
+
+                    b.Navigation("CapabilityNode");
+
+                    b.Navigation("MatchingEvaluation");
+
+                    b.Navigation("SupportingArtifact");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.MatchingFactor", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.MatchingEvaluation", "MatchingEvaluation")
+                        .WithMany("Factors")
+                        .HasForeignKey("MatchingEvaluationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_matching_factors_matching_evaluations_matching_evaluation_id");
+
+                    b.Navigation("MatchingEvaluation");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.NotificationPreference", b =>
@@ -4569,6 +8651,18 @@ namespace CVerify.API.Migrations
                     b.Navigation("Organization");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.OrganizationFollower", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_organization_followers_organizations_organization_id");
+
+                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.OrganizationInvitation", b =>
@@ -4653,6 +8747,98 @@ namespace CVerify.API.Migrations
                     b.Navigation("Organization");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.PendingOrganizationOwnership", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "ConsumedByUser")
+                        .WithMany()
+                        .HasForeignKey("ConsumedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_pending_organization_ownerships_users_consumed_by_user_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_pending_organization_ownerships_organizations_organization_");
+
+                    b.Navigation("ConsumedByUser");
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementArtifact", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("RequirementArtifacts")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_requirement_artifacts_hiring_requirements_hiring_requiremen");
+
+                    b.Navigation("HiringRequirement");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementArtifactSnapshot", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", "RequirementSnapshot")
+                        .WithMany("ArtifactSnapshots")
+                        .HasForeignKey("RequirementSnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_requirement_artifact_snapshots_requirement_snapshots_requir");
+
+                    b.Navigation("RequirementSnapshot");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementCapability", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("Capabilities")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_requirement_capabilities_hiring_requirements_hiring_require");
+
+                    b.Navigation("HiringRequirement");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("Snapshots")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_requirement_snapshots_hiring_requirements_hiring_requiremen");
+
+                    b.Navigation("HiringRequirement");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementVectorSnapshot", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", "RequirementSnapshot")
+                        .WithOne("RequirementVectorSnapshot")
+                        .HasForeignKey("CVerify.API.Modules.Shared.Domain.Entities.RequirementVectorSnapshot", "RequirementSnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_requirement_vector_snapshots_requirement_snapshots_requirem");
+
+                    b.Navigation("RequirementSnapshot");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Responsibility", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("Responsibilities")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_responsibilities_hiring_requirements_hiring_requirement_id");
+
+                    b.Navigation("HiringRequirement");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Role", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Role", "ParentRole")
@@ -4685,6 +8871,63 @@ namespace CVerify.API.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.TechnologyRequirement", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", "HiringRequirement")
+                        .WithMany("TechnologyRequirements")
+                        .HasForeignKey("HiringRequirementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_technology_requirements_hiring_requirements_hiring_requirem");
+
+                    b.Navigation("HiringRequirement");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.TrustCalculation", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.TrustProfile", "TrustProfile")
+                        .WithMany("Calculations")
+                        .HasForeignKey("TrustProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_trust_calculations_trust_profiles_trust_profile_id");
+
+                    b.Navigation("TrustProfile");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.TrustComponent", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.TrustProfile", "TrustProfile")
+                        .WithMany("Components")
+                        .HasForeignKey("TrustProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_trust_components_trust_profiles_trust_profile_id");
+
+                    b.Navigation("TrustProfile");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.UserFollower", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Followee")
+                        .WithMany()
+                        .HasForeignKey("FolloweeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_followers_users_followee_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Follower")
+                        .WithMany()
+                        .HasForeignKey("FollowerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_followers_users_follower_id");
+
+                    b.Navigation("Followee");
+
+                    b.Navigation("Follower");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Workspace", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
@@ -4707,34 +8950,6 @@ namespace CVerify.API.Migrations
                         .HasConstraintName("fk_workspace_archive_snapshots_workspaces_workspace_id");
                 });
 
-            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.WorkspaceInvitation", b =>
-                {
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "ConsumedByUser")
-                        .WithMany()
-                        .HasForeignKey("ConsumedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_workspace_invitations_users_consumed_by_user_id");
-
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "InvitedByUser")
-                        .WithMany()
-                        .HasForeignKey("InvitedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_workspace_invitations_users_invited_by_user_id");
-
-                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Workspace", "Workspace")
-                        .WithMany()
-                        .HasForeignKey("WorkspaceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_workspace_invitations_workspaces_workspace_id");
-
-                    b.Navigation("ConsumedByUser");
-
-                    b.Navigation("InvitedByUser");
-
-                    b.Navigation("Workspace");
-                });
-
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.WorkspaceMember", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
@@ -4754,6 +8969,27 @@ namespace CVerify.API.Migrations
                     b.Navigation("User");
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.WorkspacePost", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workspace_posts_users_created_by_user_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workspace_posts_organizations_organization_id");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Organization");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.SourceCode.Entities.AnalysisExecution", b =>
@@ -4876,6 +9112,18 @@ namespace CVerify.API.Migrations
                     b.Navigation("Task");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.SourceCode.Entities.ExternalOrganization", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Auth.Entities.AuthProvider", "AuthProvider")
+                        .WithMany()
+                        .HasForeignKey("AuthProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_external_organizations_auth_providers_auth_provider_id");
+
+                    b.Navigation("AuthProvider");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.SourceCode.Entities.SourceCodeRepository", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Auth.Entities.AuthProvider", "AuthProvider")
@@ -4885,19 +9133,15 @@ namespace CVerify.API.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_source_code_repositories_auth_providers_auth_provider_id");
 
-                    b.Navigation("AuthProvider");
-                });
-
-            modelBuilder.Entity("CVerify.API.Pipelines.Shared.Artifacts.Entities.ArtifactRegistryEntry", b =>
-                {
-                    b.HasOne("CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineJob", "Job")
+                    b.HasOne("CVerify.API.Modules.SourceCode.Entities.ExternalOrganization", "ExternalOrganization")
                         .WithMany()
-                        .HasForeignKey("JobId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_artifact_registry_pipeline_jobs_job_id");
+                        .HasForeignKey("ExternalOrganizationId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_source_code_repositories_external_organizations_external_or");
 
-                    b.Navigation("Job");
+                    b.Navigation("AuthProvider");
+
+                    b.Navigation("ExternalOrganization");
                 });
 
             modelBuilder.Entity("CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineTask", b =>
@@ -4951,6 +9195,30 @@ namespace CVerify.API.Migrations
                     b.Navigation("Messages");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", b =>
+                {
+                    b.Navigation("Artifacts");
+
+                    b.Navigation("BestFitRoles");
+
+                    b.Navigation("DomainProfiles");
+
+                    b.Navigation("IntelligenceSignals");
+
+                    b.Navigation("Skills");
+
+                    b.Navigation("StrengthsWeaknesses");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.ProjectEntry", b =>
+                {
+                    b.Navigation("Contributions");
+
+                    b.Navigation("RepositoryLinks");
+
+                    b.Navigation("Technologies");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.WorkExperienceEntry", b =>
                 {
                     b.Navigation("Achievements");
@@ -4970,6 +9238,60 @@ namespace CVerify.API.Migrations
                     b.Navigation("PreAssignedRoles");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CandidateCapability", b =>
+                {
+                    b.Navigation("EvidenceLinks");
+
+                    b.Navigation("Histories");
+
+                    b.Navigation("Score");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.CapabilityNode", b =>
+                {
+                    b.Navigation("IncomingEdges");
+
+                    b.Navigation("OutgoingEdges");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceClaim", b =>
+                {
+                    b.Navigation("Verifications");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.EvidenceSource", b =>
+                {
+                    b.Navigation("Artifacts");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.HiringRequirement", b =>
+                {
+                    b.Navigation("BusinessOutcomes");
+
+                    b.Navigation("Capabilities");
+
+                    b.Navigation("DiscoveryRuns");
+
+                    b.Navigation("EvaluationRubrics");
+
+                    b.Navigation("InterviewBlueprints");
+
+                    b.Navigation("RequirementArtifacts");
+
+                    b.Navigation("Responsibilities");
+
+                    b.Navigation("Snapshots");
+
+                    b.Navigation("TechnologyRequirements");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.MatchingEvaluation", b =>
+                {
+                    b.Navigation("Explanations");
+
+                    b.Navigation("Factors");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Organization", b =>
                 {
                     b.Navigation("Members");
@@ -4980,9 +9302,32 @@ namespace CVerify.API.Migrations
                     b.Navigation("PreAssignedRoles");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementCapability", b =>
+                {
+                    b.Navigation("EvidenceSignals");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.RequirementSnapshot", b =>
+                {
+                    b.Navigation("ArtifactSnapshots");
+
+                    b.Navigation("EvaluationRubricSnapshot");
+
+                    b.Navigation("InterviewBlueprintSnapshot");
+
+                    b.Navigation("RequirementVectorSnapshot");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.Role", b =>
                 {
                     b.Navigation("ChildRoles");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.TrustProfile", b =>
+                {
+                    b.Navigation("Calculations");
+
+                    b.Navigation("Components");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.User", b =>

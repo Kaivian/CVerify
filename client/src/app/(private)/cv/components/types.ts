@@ -4,12 +4,16 @@ import {
   type AcademicAchievementResponse,
   type WorkExperienceResponse,
   type DeclaredCareerPreference,
+  ProjectVerificationLevel,
+  ProjectVerificationStatus,
+  type ProjectRepositoryLinkResponse,
 } from "@/types/profile.types";
 
 export interface BasicInfoDraft {
   fullName: string;
   username: string;
   headline: string;
+  bio: string;
   publicEmail: string;
   phoneNumber: string;
   location: string;
@@ -20,15 +24,28 @@ export interface BasicInfoDraft {
   socialLinks: string[];
 }
 
-export interface CareerSummaryDraft {
-  bio: string;
-}
-
 export interface SkillsDraft {
   targetSkills: string[];
 }
 
-export type ProjectsDraft = Record<string, never>;
+export interface ProjectDraftItem {
+  id: string; // temp-id or DB uuid
+  name: string;
+  role: string | null;
+  description: string;
+  startDate: string | null;
+  endDate: string | null;
+  isCurrentlyWorking: boolean;
+  verificationLevel: ProjectVerificationLevel;
+  verificationStatus: ProjectVerificationStatus;
+  verifiedAt: string | null;
+  verificationMetadataJson: string | null;
+  repositoryLinks: ProjectRepositoryLinkResponse[];
+  technologies: string[];
+  contributions: string[];
+}
+
+export type ProjectsDraft = ProjectDraftItem[];
 
 export interface ExperienceDraftItem {
   id: string; // temp-id or DB uuid
@@ -44,20 +61,23 @@ export interface ExperienceDraftItem {
   technologies: string[];
   achievements: { title: string; description: string }[];
   links: { linkType: number; url: string }[];
+  isLeadership: boolean;
 }
 
 export interface EducationDraftItem {
   id: string; // temp-id or DB uuid
   label: string;
-  schoolName: string;
-  degree: string;
-  major: string;
+  school: string;
+  degree?: string | null;
+  major?: string | null;
+  description?: string | null;
+  isCurrentlyStudying: boolean;
+  period?: {
+    start: any;
+    end: any;
+  } | null;
   gpa: number | null;
   gpaScale: number | null;
-  description: string;
-  startDate: string;
-  endDate: string | null;
-  isCurrentlyStudying: boolean;
 }
 
 export interface AchievementsDraftItem {
@@ -99,7 +119,6 @@ export interface PreferencesDraft {
 
 export interface CvDraftState {
   "basic-info": BasicInfoDraft;
-  "career-summary": CareerSummaryDraft;
   "skills": { targetSkills: string[] };
   "projects": ProjectsDraft;
   "experience": ExperienceDraftItem[];

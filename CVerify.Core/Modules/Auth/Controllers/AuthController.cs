@@ -85,7 +85,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
-    [Authorize]
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Logout()
     {
@@ -496,7 +496,7 @@ public class AuthController : ControllerBase
             {
                 return BadRequest(new { message = "GitHub Client ID is not configured." });
             }
-            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org&state={state}&prompt=select_account";
+            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org%20read:user%20user:email&state={state}&prompt=select_account";
         }
         else if (canonicalName == ProviderGitLab)
         {

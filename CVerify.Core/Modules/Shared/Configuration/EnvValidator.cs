@@ -24,8 +24,19 @@ public static class EnvValidator
         }
 
         // 2. Redis
-        config.Redis.ConnectionString = configuration.GetConnectionString("Redis")?.ResolveEnvironmentVariables()
-            ?? throw new InvalidOperationException("Environment variable 'REDIS_URL' is missing or connection string 'Redis' is not configured.");
+        var redisConn = configuration.GetConnectionString("Redis")?.ResolveEnvironmentVariables();
+        if (redisConn != null)
+        {
+            if (redisConn.EndsWith(",password="))
+            {
+                redisConn = redisConn.Substring(0, redisConn.Length - ",password=".Length);
+            }
+            else if (redisConn.Contains(",password=,"))
+            {
+                redisConn = redisConn.Replace(",password=,", ",");
+            }
+        }
+        config.Redis.ConnectionString = redisConn ?? throw new InvalidOperationException("Environment variable 'REDIS_URL' is missing or connection string 'Redis' is not configured.");
 
         // 3. JWT
         config.Jwt.Key = configuration["Jwt:Key"]?.ResolveEnvironmentVariables() ?? throw new InvalidOperationException("Environment variable 'JWT_KEY' is missing.");
@@ -116,6 +127,7 @@ public static class EnvValidator
 
         config.Seeding.BusinessPassword = (configuration["Seeding:BusinessPassword"] ?? configuration["SEED_BUSINESS_PASSWORD"])?.ResolveEnvironmentVariables()?.Trim('"');
         config.Seeding.SeedDataPath = (configuration["Seeding:SeedDataPath"] ?? configuration["SEED_DATA_PATH"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.Seeding.SeedDataPath;
+        config.Seeding.PublicDemoDataPath = (configuration["Seeding:PublicDemoDataPath"] ?? configuration["PUBLIC_DEMO_DATA_PATH"])?.ResolveEnvironmentVariables()?.Trim('"') ?? config.Seeding.PublicDemoDataPath;
 
         if (config.Seeding.SeedTestAccounts)
         {

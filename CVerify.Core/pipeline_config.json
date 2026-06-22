@@ -3,50 +3,128 @@
   "stages": [
     {
       "taskType": "RepoStructure",
-      "weight": 10.0,
+      "weight": 5.0,
       "prerequisites": [],
       "providesCapabilities": [ "repo_metadata" ]
     },
     {
       "taskType": "CommitIntelligence",
-      "weight": 20.0,
+      "weight": 5.0,
       "prerequisites": [ "RepoStructure" ],
-      "providesCapabilities": [ "trust_score", "git_metrics" ]
+      "providesCapabilities": [ "git_metrics" ]
+    },
+    {
+      "taskType": "CommitDiff",
+      "weight": 5.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "diff_metrics" ]
     },
     {
       "taskType": "SkillExtraction",
-      "weight": 15.0,
+      "weight": 5.0,
       "prerequisites": [ "RepoStructure" ],
       "providesCapabilities": [ "skills" ]
     },
     {
+      "taskType": "FeatureExtraction",
+      "weight": 5.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "features" ]
+    },
+    {
       "taskType": "ArchitectureAnalysis",
-      "weight": 15.0,
+      "weight": 5.0,
       "prerequisites": [ "RepoStructure" ],
       "providesCapabilities": [ "architecture" ]
     },
     {
+      "taskType": "CommitTimeline",
+      "weight": 5.0,
+      "prerequisites": [ "CommitIntelligence" ],
+      "providesCapabilities": [ "timeline" ]
+    },
+    {
+      "taskType": "ArchitectureChange",
+      "weight": 5.0,
+      "prerequisites": [ "CommitDiff" ],
+      "providesCapabilities": [ "architecture_change" ]
+    },
+    {
+      "taskType": "CommitIntent",
+      "weight": 5.0,
+      "prerequisites": [ "CommitDiff" ],
+      "providesCapabilities": [ "intent" ]
+    },
+    {
+      "taskType": "Complexity",
+      "weight": 5.0,
+      "prerequisites": [ "CommitDiff" ],
+      "providesCapabilities": [ "complexity" ]
+    },
+    {
       "taskType": "CodeQuality",
-      "weight": 15.0,
+      "weight": 5.0,
       "prerequisites": [ "RepoStructure" ],
       "providesCapabilities": [ "testing", "observability", "cicd", "quality_findings" ]
     },
     {
+      "taskType": "GitBlame",
+      "weight": 5.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "blame" ]
+    },
+    {
+      "taskType": "CloneDetection",
+      "weight": 5.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "clones" ]
+    },
+    {
+      "taskType": "AiGeneratedCode",
+      "weight": 5.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "ai_code" ]
+    },
+    {
+      "taskType": "Ownership",
+      "weight": 5.0,
+      "prerequisites": [ "RepoStructure" ],
+      "providesCapabilities": [ "ownership" ]
+    },
+    {
+      "taskType": "SkillGraph",
+      "weight": 5.0,
+      "prerequisites": [ "CommitDiff", "Ownership", "SkillExtraction" ],
+      "providesCapabilities": [ "skill_graph" ]
+    },
+    {
+      "taskType": "TrustScore",
+      "weight": 5.0,
+      "prerequisites": [ "Ownership", "CodeQuality", "Complexity", "CommitTimeline", "CloneDetection", "AiGeneratedCode", "CommitIntent" ],
+      "providesCapabilities": [ "trust_score" ]
+    },
+    {
+      "taskType": "RepoIntelligenceReport",
+      "weight": 5.0,
+      "prerequisites": [ "CommitDiff", "ArchitectureAnalysis", "SkillGraph", "TrustScore" ],
+      "providesCapabilities": [ "repo_intelligence" ]
+    },
+    {
       "taskType": "SecurityAnalysis",
-      "weight": 10.0,
+      "weight": 5.0,
       "prerequisites": [ "RepoStructure" ],
       "providesCapabilities": [ "security_findings" ]
     },
     {
       "taskType": "RepositoryClassification",
-      "weight": 10.0,
+      "weight": 5.0,
       "prerequisites": [ "RepoStructure" ],
       "providesCapabilities": [ "classification" ]
     },
     {
       "taskType": "RepositorySummary",
       "weight": 5.0,
-      "prerequisites": [ "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "RepositoryClassification" ],
+      "prerequisites": [ "RepoIntelligenceReport", "RepositoryClassification" ],
       "providesCapabilities": [ "narrative_summary", "recommendations" ]
     },
     {

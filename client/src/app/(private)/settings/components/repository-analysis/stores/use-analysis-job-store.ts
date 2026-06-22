@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toast } from "@heroui/react";
 import { repositoryAnalysisApi } from "@/services/repository-analysis.service";
 import type { AnalysisStatus, RepositoryAnalysis, AnalysisTaskEvent } from "@/types/repository-analysis.types";
 
@@ -173,6 +174,7 @@ interface AnalysisJobStore {
   checkActiveJobs: () => Promise<void>;
   loadLatestReport: (repoId: string) => Promise<void>;
   updateJobStateDirectly: (repoId: string, updates: Partial<RepoJobState>) => void;
+  resetRepositoryAnalysis: (repoId: string) => Promise<void>;
 }
 
 // Map to track active EventSources in the module scope
@@ -401,6 +403,26 @@ export const useAnalysisJobStore = create<AnalysisJobStore>((set, get) => {
             if (activeEventSources[repoId] === eventSource) {
               delete activeEventSources[repoId];
             }
+
+            if (["Failed", "error", "TimedOut"].includes(payload.status || "")) {
+              const errMsg = payload.message || payload.errorMessage || "";
+              const isConnectionFailure = payload.errorCode === "CONNECTION_FAILURE" || 
+                errMsg.toUpperCase().includes("CONNECTION") ||
+                errMsg.toUpperCase().includes("REFUSED") ||
+                errMsg.toUpperCase().includes("UNREACHABLE") ||
+                errMsg.toUpperCase().includes("AI TASK SERVICE") ||
+                errMsg.toUpperCase().includes("FASTAPI");
+
+              if (isConnectionFailure) {
+                toast.danger("AI Service Connection Failed", {
+                  description: "Cannot connect to the AI microservice. The analysis has been stopped.",
+                });
+              } else {
+                toast.danger("Analysis Failed", {
+                  description: errMsg || "An unexpected error occurred during analysis.",
+                });
+              }
+            }
           }
         }
       } catch (err) {
@@ -424,13 +446,15 @@ export const useAnalysisJobStore = create<AnalysisJobStore>((set, get) => {
       set((state) => {
         const newRepoStates = { ...state.repoStates };
         repos.forEach((repo) => {
-          if (!newRepoStates[repo.id]) {
-            let status: AnalysisStatus = "idle";
-            if (repo.latestAnalysisStatus === "Completed") status = "COMPLETED";
-            else if (repo.latestAnalysisStatus === "Failed") status = "FAILED";
-            else if (repo.latestAnalysisStatus === "Pending") status = "QUEUED";
-            else if (repo.latestAnalysisStatus === "Cancelled") status = "CANCELLED";
+          let status: AnalysisStatus = "idle";
+          if (repo.latestAnalysisStatus === "Completed") status = "COMPLETED";
+          else if (repo.latestAnalysisStatus === "Failed") status = "FAILED";
+          else if (repo.latestAnalysisStatus === "Pending") status = "QUEUED";
+          else if (repo.latestAnalysisStatus === "Cancelled") status = "CANCELLED";
 
+          const existing = newRepoStates[repo.id];
+
+          if (!existing) {
             newRepoStates[repo.id] = {
               repoId: repo.id,
               jobId: null,
@@ -443,6 +467,23 @@ export const useAnalysisJobStore = create<AnalysisJobStore>((set, get) => {
               partialSnapshot: null,
               lastUpdated: Date.now(),
             };
+          } else if (!activeEventSources[repo.id]) {
+            existing.status = status;
+            if (status === "COMPLETED") {
+              existing.progress = 100;
+              existing.currentStep = "Completed";
+            } else if (status === "FAILED") {
+              existing.currentStep = "Analysis failed";
+            } else if (status === "CANCELLED") {
+              existing.currentStep = "Cancelled";
+            } else if (status === "QUEUED") {
+              existing.progress = 0;
+              existing.currentStep = "Queued for analysis...";
+            } else {
+              existing.progress = 0;
+              existing.currentStep = "Never Analyzed";
+            }
+            existing.lastUpdated = Date.now();
           }
         });
         return { repoStates: newRepoStates };
@@ -645,6 +686,37 @@ export const useAnalysisJobStore = create<AnalysisJobStore>((set, get) => {
           },
         },
       }));
+    },
+
+    resetRepositoryAnalysis: async (repoId) => {
+      if (activeEventSources[repoId]) {
+        activeEventSources[repoId].close();
+        delete activeEventSources[repoId];
+      }
+
+      try {
+        await repositoryAnalysisApi.resetAnalysis(repoId);
+        set((state) => ({
+          repoStates: {
+            ...state.repoStates,
+            [repoId]: {
+              repoId,
+              jobId: null,
+              status: "idle",
+              progress: 0,
+              currentStep: "Never Analyzed",
+              logs: [],
+              taskEvents: [],
+              latestReport: null,
+              partialSnapshot: null,
+              lastUpdated: Date.now(),
+            },
+          },
+        }));
+      } catch (err) {
+        console.error(`Failed to reset repository analysis for ${repoId}:`, err);
+        throw err;
+      }
     },
   };
 });

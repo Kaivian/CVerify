@@ -5,6 +5,56 @@ import { usePathname, useRouter } from "next/navigation";
 import { Breadcrumbs } from "@heroui/react";
 import { getRouteMetadata, getDynamicSegmentLabel } from "../../config/routes";
 import { useAuth } from "../../features/auth/hooks/use-auth";
+import { RESERVED_USERNAMES } from "../../lib/navigation-utils";
+
+/**
+ * Checks if a generated breadcrumb URL corresponds to a valid existing page route.
+ */
+const isRouteExist = (href: string): boolean => {
+  const path = href.replace(/\/+/g, "/");
+
+  if (path === "/") {
+    return true;
+  }
+
+  // Dynamic candidate profiles validation
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length === 1 && !RESERVED_USERNAMES.has(segments[0].toLowerCase())) {
+    return true;
+  }
+
+  // 1. Workspace routes checking
+  // Matches exact valid pages. Intermediate paths like /workspace/[org]/recruitment or /workspace/[org]/recruitment/jd/[id] are NOT valid.
+  const workspaceRegex = /^\/workspace\/([^/]+)(?:\/(billing|information|members|roles|settings|jobs|people|posts|intelligence))?$/i;
+  
+  if (workspaceRegex.test(path)) {
+    return true;
+  }
+
+  // Check for candidate detail in intelligence: /workspace/[org]/intelligence/[id]
+  const intelligenceDetailRegex = /^\/workspace\/[^/]+\/intelligence\/[^/]+$/i;
+  if (intelligenceDetailRegex.test(path)) {
+    return true;
+  }
+
+  // Check for recruitment sub-routes:
+  // - /workspace/[org]/recruitment/dashboard
+  // - /workspace/[org]/recruitment/jd
+  // - /workspace/[org]/recruitment/jd/[id]/review
+  const recruitmentDashboardOrJdRegex = /^\/workspace\/[^/]+\/recruitment\/(dashboard|jd)$/i;
+  if (recruitmentDashboardOrJdRegex.test(path)) {
+    return true;
+  }
+
+  const jdReviewRegex = /^\/workspace\/[^/]+\/recruitment\/jd\/[^/]+\/review$/i;
+  if (jdReviewRegex.test(path)) {
+    return true;
+  }
+
+  // 2. Validate dynamically against centralized route registry
+  const metadata = getRouteMetadata(path);
+  return metadata !== null;
+};
 
 export const AppBreadcrumbs: React.FC = () => {
   const pathname = usePathname();
@@ -52,16 +102,23 @@ export const AppBreadcrumbs: React.FC = () => {
     });
   }
 
+  // Filter breadcrumb items to only include existing routes
+  const filteredBreadcrumbItems = breadcrumbItems.filter((item) => isRouteExist(item.href));
+
   // Set the isLast property for the final item
-  if (breadcrumbItems.length > 0) {
-    breadcrumbItems[breadcrumbItems.length - 1].isLast = true;
+  if (filteredBreadcrumbItems.length > 0) {
+    filteredBreadcrumbItems[filteredBreadcrumbItems.length - 1].isLast = true;
+  }
+
+  if (filteredBreadcrumbItems.length === 0) {
+    return null;
   }
 
   return (
     <nav aria-label="Breadcrumbs Navigation" className="hidden md:flex">
       <Breadcrumbs>
         {/* Dynamic Nodes */}
-        {breadcrumbItems.map((item) => (
+        {filteredBreadcrumbItems.map((item) => (
           <Breadcrumbs.Item
             key={item.href}
             href={item.href}

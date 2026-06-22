@@ -81,6 +81,11 @@
       "business": "Business"
     },
     "jobBoard": "Job Board",
+    "ranking": "Leaderboard",
+    "exploreJobs": "Explore",
+    "recommendedJobs": "Recommended",
+    "savedJobs": "Saved",
+    "appliedJobs": "Applied",
     "cv": "My CV",
     "candidateDashboard": "Candidate Dashboard",
     "businessDashboard": "Business Dashboard"
@@ -92,6 +97,7 @@
     "auditTrail": "Audit Trail"
   },
   "cvManagement": {
+    "overview": "Overview",
     "title": "CV Management",
     "subtitle": "Build and share your professional career profile",
     "description": "Manage and update your professional CV profile. All changes sync with your Account Settings.",

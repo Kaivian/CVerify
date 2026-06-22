@@ -563,7 +563,14 @@ public class AuthService : IAuthService
         // Redis Distributed Lock to avoid concurrent rotation race conditions
         var lockKey = $"lock:token:rotate:{refreshTokenStr}";
         var lockValue = Guid.NewGuid().ToString("N");
-        var acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
+        bool acquired = false;
+        for (int i = 0; i < 5; i++)
+        {
+            acquired = await _cacheService.AcquireLockAsync(lockKey, lockValue, TimeSpan.FromSeconds(10));
+            if (acquired) break;
+            await Task.Delay(200);
+        }
+
         var maskedToken = refreshTokenStr.Length > 8 ? $"{refreshTokenStr[..4]}...{refreshTokenStr[^4..]}" : "***MASKED***";
         if (!acquired)
         {
@@ -584,7 +591,13 @@ public class AuthService : IAuthService
             var lockTargetId = storedToken.UserId ?? storedToken.OrganizationId;
             var userLockKey = $"lock:user:sessions:{lockTargetId}";
             var userLockValue = Guid.NewGuid().ToString("N");
-            var userLockAcquired = await _cacheService.AcquireLockAsync(userLockKey, userLockValue, TimeSpan.FromSeconds(10));
+            bool userLockAcquired = false;
+            for (int i = 0; i < 5; i++)
+            {
+                userLockAcquired = await _cacheService.AcquireLockAsync(userLockKey, userLockValue, TimeSpan.FromSeconds(10));
+                if (userLockAcquired) break;
+                await Task.Delay(200);
+            }
             if (!userLockAcquired)
             {
                 throw new AuthException(AuthErrorCodes.InvalidToken, "Concurrent session operations detected.");
@@ -1871,7 +1884,7 @@ public class AuthService : IAuthService
         if (canonicalName == "github")
         {
             var clientId = _envConfig.Auth.GithubClientId;
-            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org&state={combinedState}&prompt=consent";
+            redirectUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}&redirect_uri={Uri.EscapeDataString(callbackUri)}&scope=repo%20read:org%20read:user%20user:email&state={combinedState}&prompt=consent";
         }
         else if (canonicalName == "gitlab")
         {
@@ -3367,14 +3380,79 @@ public class AuthService : IAuthService
                 throw new BusinessRuleException("PROVIDER_LIMIT_REACHED", $"Maximum limit of 3 linked accounts reached for provider {pending.ProviderName}.");
             }
 
-            // Check if provider account is already linked to someone else
+            // Check if provider account is already linked to someone else (must check active links only)
             var duplicateProvider = await _context.AuthProviders
+                .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(ap => ap.ProviderName.ToLower() == pending.ProviderName.ToLower() && ap.ProviderKey == pending.ProviderKey && ap.UserId != userId && ap.DeletedAt == null);
 
             if (duplicateProvider != null)
             {
                 await LogAuditEventAsync(userId, "PROVIDER_LINK_CONFLICT", $"Provider account {pending.ProviderAccountId} is already linked to another user profile.");
                 throw new AuthException(AuthErrorCodes.AccountConflict, "This provider account is already linked to another CVerify profile.");
+            }
+
+            // Find if there is an existing provider connection (active or soft-deleted) for the same user
+            var existingProvider = await _context.AuthProviders
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(ap => ap.UserId == userId && ap.ProviderName.ToLower() == pending.ProviderName.ToLower() && ap.ProviderKey == pending.ProviderKey);
+
+            if (existingProvider != null)
+            {
+                var wasSoftDeleted = existingProvider.DeletedAt != null;
+                
+                existingProvider.DeletedAt = null; // Reactivate if soft-deleted
+                existingProvider.ProviderAccountId = pending.ProviderAccountId;
+                existingProvider.ProviderUsername = pending.ProviderUsername;
+                existingProvider.ProviderDisplayName = pending.ProviderDisplayName;
+                existingProvider.ProviderAvatarUrl = pending.ProviderAvatarUrl;
+                existingProvider.ProviderProfileUrl = pending.ProviderProfileUrl;
+                
+                // Update credentials
+                existingProvider.EncryptedAccessToken = pending.EncryptedAccessToken;
+                existingProvider.EncryptedRefreshToken = pending.EncryptedRefreshToken;
+                existingProvider.ExpiresAt = null;
+                existingProvider.TokenUpdatedAt = _timeProvider.GetUtcNow();
+                
+                // Reset sync/validation status cleanly
+                existingProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
+                existingProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                existingProvider.LastProviderSyncAt = _timeProvider.GetUtcNow();
+                existingProvider.LastSuccessfulRefreshAt = _timeProvider.GetUtcNow();
+                existingProvider.SyncStatus = "Pending";
+                existingProvider.SyncError = null;
+                existingProvider.RefreshFailureCount = 0;
+
+                _context.PendingAuthProviders.Remove(pending);
+
+                // Link repositories back together (restore access/visibility)
+                var repositories = await _context.SourceCodeRepositories
+                    .IgnoreQueryFilters()
+                    .Where(r => r.AuthProviderId == existingProvider.Id)
+                    .ToListAsync();
+                foreach (var repo in repositories)
+                {
+                    repo.IsAccessible = true;
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                var user = await _context.Users.FindAsync(userId);
+                if (user != null)
+                {
+                    await _identityStateResolver.InvalidateCacheAsync(user.Email);
+                }
+
+                if (wasSoftDeleted)
+                {
+                    await LogAuditEventAsync(userId, "PROVIDER_LINK_REACTIVATED", $"Reactivated and updated soft-deleted {pending.ProviderName} provider connection (ID: {existingProvider.Id}).");
+                }
+                else
+                {
+                    await LogAuditEventAsync(userId, "PROVIDER_LINK_CONFIRMED", $"Successfully reconnected/linked {pending.ProviderName} account {pending.ProviderAccountId} (ID: {existingProvider.Id}).");
+                }
+
+                return true;
             }
 
             var newProvider = new AuthProvider
@@ -3405,10 +3483,10 @@ public class AuthService : IAuthService
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            var user = await _context.Users.FindAsync(userId);
-            if (user != null)
+            var parentUser = await _context.Users.FindAsync(userId);
+            if (parentUser != null)
             {
-                await _identityStateResolver.InvalidateCacheAsync(user.Email);
+                await _identityStateResolver.InvalidateCacheAsync(parentUser.Email);
             }
             await LogAuditEventAsync(userId, "PROVIDER_LINK_CONFIRMED", $"Successfully linked {pending.ProviderName} account {pending.ProviderAccountId} (ID: {newProvider.Id}).");
 
@@ -3499,6 +3577,15 @@ public class AuthService : IAuthService
         {
             matchedProvider.DeletedAt = _timeProvider.GetUtcNow();
 
+            // Hide all user repositories associated with the unlinked provider
+            var repositories = await _context.SourceCodeRepositories
+                .Where(r => r.AuthProviderId == matchedProvider.Id && r.IsAccessible)
+                .ToListAsync();
+            foreach (var repo in repositories)
+            {
+                repo.IsAccessible = false;
+            }
+
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
@@ -3543,6 +3630,22 @@ public class AuthService : IAuthService
         return await UnlinkProviderConnectionAsync(matchedProvider.Id);
     }
 
+    private async Task HideProviderRepositoriesAsync(Guid providerId)
+    {
+        var repositories = await _context.SourceCodeRepositories
+            .Where(r => r.AuthProviderId == providerId && r.IsAccessible)
+            .ToListAsync();
+
+        if (repositories.Any())
+        {
+            _logger.LogInformation("Hiding {Count} repositories for provider {ProviderId} because reconnection is required.", repositories.Count, providerId);
+            foreach (var repo in repositories)
+            {
+                repo.IsAccessible = false;
+            }
+        }
+    }
+
     public async Task<bool> ValidateProviderScopesAsync(string providerName)
     {
         var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier);
@@ -3577,6 +3680,7 @@ public class AuthService : IAuthService
         {
             matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
             matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+            await HideProviderRepositoriesAsync(matchedProvider.Id);
             await _context.SaveChangesAsync();
             return false;
         }
@@ -3591,6 +3695,7 @@ public class AuthService : IAuthService
             _logger.LogError(ex, "Failed to decrypt access token for provider {ProviderName} during scope validation.", canonicalName);
             matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
             matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+            await HideProviderRepositoriesAsync(matchedProvider.Id);
             await _context.SaveChangesAsync();
             return false;
         }
@@ -3628,11 +3733,13 @@ public class AuthService : IAuthService
                 {
                     matchedProvider.ScopeValidationStatus = ProviderScopeStatus.Revoked;
                     matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                    await HideProviderRepositoriesAsync(matchedProvider.Id);
                 }
                 else
                 {
                     matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
                     matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                    await HideProviderRepositoriesAsync(matchedProvider.Id);
                 }
             }
             catch (Exception ex)
@@ -3640,6 +3747,7 @@ public class AuthService : IAuthService
                 _logger.LogWarning(ex, "Error occurred validating GitHub token scopes.");
                 matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
                 matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                await HideProviderRepositoriesAsync(matchedProvider.Id);
             }
         }
         else if (string.Equals(canonicalName, "gitlab", StringComparison.OrdinalIgnoreCase))
@@ -3660,11 +3768,13 @@ public class AuthService : IAuthService
                 {
                     matchedProvider.ScopeValidationStatus = ProviderScopeStatus.Revoked;
                     matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                    await HideProviderRepositoriesAsync(matchedProvider.Id);
                 }
                 else
                 {
                     matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
                     matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                    await HideProviderRepositoriesAsync(matchedProvider.Id);
                 }
             }
             catch (Exception ex)
@@ -3672,6 +3782,7 @@ public class AuthService : IAuthService
                 _logger.LogWarning(ex, "Error occurred validating GitLab token scopes.");
                 matchedProvider.ScopeValidationStatus = ProviderScopeStatus.ReconnectRequired;
                 matchedProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();
+                await HideProviderRepositoriesAsync(matchedProvider.Id);
             }
         }
 

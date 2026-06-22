@@ -16,6 +16,7 @@ export interface SourceCodeProvider {
 export interface SourceCodeRepository {
   id: string;
   authProviderId: string;
+  externalOrganizationId: string | null;
   externalRepositoryId: string;
   name: string;
   owner: string;
@@ -50,6 +51,19 @@ export interface SourceCodeRepository {
   lastSyncedAt: string;
 }
 
+export interface ExternalOrganization {
+  id: string;
+  authProviderId: string;
+  externalId: string;
+  name: string;
+  login: string;
+  type: string;
+  avatarUrl: string | null;
+  htmlUrl: string | null;
+  description: string | null;
+  isActive: boolean;
+}
+
 export interface RepositorySyncJobStatus {
   jobId: string;
   userId: string;
@@ -57,6 +71,10 @@ export interface RepositorySyncJobStatus {
   status: 'Pending' | 'Syncing' | 'Completed' | 'Failed';
   progress: number;
   error: string | null;
+  maxPages: number;
+  pageSize: number;
+  totalSyncedCount: number;
+  isPartial: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +86,9 @@ export interface RepositoryFilterParams {
   language?: string;
   sort?: string;
   category?: string;
+  ownerType?: string;
+  organizationId?: string;
+  mode?: 'all' | 'cv_linked';
   page?: number;
   pageSize?: number;
 }

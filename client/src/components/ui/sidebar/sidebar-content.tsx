@@ -32,7 +32,8 @@ import {
   Briefcase,
   FileText,
   Info,
-  CreditCard
+  CreditCard,
+  UserCheck
 } from "lucide-react";
 import { type NavigationNode } from "../../../types/navigation.types";
 
@@ -76,17 +77,33 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   // Memoize filtered navigation nodes to optimize performance and prevent redundant re-renders
   const filteredNodes = useMemo(() => {
-    return filterNavigationNodes(navigationConfig, userRole, hasPermission);
-  }, [userRole, hasPermission]);
+    const nodes = filterNavigationNodes(navigationConfig, userRole, hasPermission);
+    return nodes.map((node) => {
+      if (node.type === "section" && node.children) {
+        return {
+          ...node,
+          children: node.children.map((child) => {
+            if (child.id === "candidate-profile") {
+              return {
+                ...child,
+                href: user?.username ? `/${user.username.toLowerCase()}` : `/${user?.username || ""}`,
+              };
+            }
+            return child;
+          }),
+        };
+      }
+      return node;
+    });
+  }, [userRole, hasPermission, user?.username]);
 
   const pathname = usePathname();
 
-  // Resolve current organization slug:
-  // If the path is /workspace/slug/..., use slug.
-  // Otherwise, if myOrganizations exists and has entries, default to the first organization's slug.
   const currentOrgSlug = useMemo(() => {
     if (pathname?.startsWith("/workspace/")) {
-      return pathname.split("/workspace/")[1]?.split("/")[0] || "";
+      const slug = pathname.split("/workspace/")[1]?.split("/")[0] || "";
+      if (slug === "organizations") return "";
+      return slug;
     }
     return myOrganizations && myOrganizations.length > 0 ? myOrganizations[0].slug : "";
   }, [pathname, myOrganizations]);
@@ -203,6 +220,13 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
                 href: `/workspace/${currentOrgSlug}/recruitment/jd`,
                 icon: FileText,
               },
+              {
+                id: "org-recruitment-intelligence",
+                type: "item" as const,
+                label: "Talent Intelligence",
+                href: `/workspace/${currentOrgSlug}/intelligence`,
+                icon: UserCheck,
+              },
             ],
           },
         ]
@@ -212,7 +236,11 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   // Dynamically inject workspace links based on role sections
   const combinedNodes = useMemo(() => {
-    const isInsideWorkspace = pathname?.startsWith("/workspace/");
+    const isInsideWorkspace =
+      pathname?.startsWith("/workspace/") &&
+      currentOrgSlug !== "" &&
+      workspaceDetails?.userRole !== null &&
+      workspaceDetails?.userRole !== undefined;
 
     if (isInsideWorkspace && currentOrgSlug) {
       const backNode: NavigationNode = {
@@ -223,9 +251,12 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         icon: ArrowLeft,
       };
 
-      // Filter out candidate and business dashboards to focus purely on the workspace
       const baseNodes = filteredNodes.filter(
-        (node) => node.id !== "candidate-section" && node.id !== "business-section"
+        (node) =>
+          node.id !== "candidate-section" &&
+          node.id !== "business-section" &&
+          node.id !== "intelligence-section" &&
+          node.id !== "jobs-section"
       );
 
       return [
@@ -258,7 +289,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     });
 
     return mappedNodes;
-  }, [filteredNodes, myOrganizations, orgNodes, pathname, currentOrgSlug, backHref, backLabel]);
+  }, [filteredNodes, myOrganizations, orgNodes, pathname, currentOrgSlug, backHref, backLabel, workspaceDetails]);
 
   // Dedicated specialized components workspace navigation sections
   const componentSections = useMemo(() => [

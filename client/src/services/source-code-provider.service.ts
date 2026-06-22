@@ -4,7 +4,8 @@ import type {
   SourceCodeProvider,
   SourceCodeRepository,
   RepositorySyncJobStatus,
-  RepositoryFilterParams
+  RepositoryFilterParams,
+  ExternalOrganization
 } from '../types/source-code-provider.types';
 
 export const sourceCodeProviderApi = {
@@ -37,6 +38,11 @@ export const sourceCodeProviderApi = {
 
   fetchCategories: async (): Promise<string[]> => {
     const response = await axiosClient.get<string[]>('/source-code-providers/repositories/categories');
+    return response.data;
+  },
+
+  fetchOrganizations: async (): Promise<ExternalOrganization[]> => {
+    const response = await axiosClient.get<ExternalOrganization[]>('/source-code-providers/organizations');
     return response.data;
   }
 };

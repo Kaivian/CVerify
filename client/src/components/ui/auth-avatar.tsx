@@ -31,9 +31,7 @@ export function AuthAvatar() {
   const router = useRouter();
   const { theme, setTheme } = useThemeStore();
 
-  React.useEffect(() => {
-    console.log("[Navbar Avatar Render Diagnostics] user.avatarUrl:", user?.avatarUrl);
-  }, [user?.avatarUrl]);
+
 
   React.useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -68,6 +66,9 @@ export function AuthAvatar() {
       case "dashboard":
         const role = user.role?.toLowerCase() || "user";
         router.push(`/${role}`);
+        break;
+      case "profile":
+        router.push(user?.username ? `/${user.username.toLowerCase()}` : "/user/profile");
         break;
       case "settings":
         router.push("/settings");
@@ -104,8 +105,10 @@ export function AuthAvatar() {
 
   return (
     <Dropdown>
-      <Dropdown.Trigger className="w-full flex gap-2 items-center bg-transparent hover:bg-transparent border-none p-0 cursor-pointer outline-hidden">
-        <>
+      <Dropdown.Trigger>
+        <span
+          className="w-full flex gap-2 items-center bg-transparent hover:bg-transparent border-none p-0 cursor-pointer outline-hidden text-left"
+        >
           <Avatar key={user.avatarUrl || "default"}>
             {user.avatarUrl && (
               <Avatar.Image src={user.avatarUrl} alt={user.fullName} referrerPolicy="no-referrer" />
@@ -123,7 +126,7 @@ export function AuthAvatar() {
           <Chip className="-mr-2 text-[10px]" color="accent" variant="soft">
             {user.role}
           </Chip>
-        </>
+        </span>
       </Dropdown.Trigger>
       <Dropdown.Popover className="min-w-[240px] rounded-xl p-1 z-9999 bg-background border-2">
         <Dropdown.Menu onAction={handleAction} className="outline-hidden">

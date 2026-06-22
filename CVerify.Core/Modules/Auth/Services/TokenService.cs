@@ -38,6 +38,8 @@ public class TokenService : ITokenService
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Name, user.FullName),
+            new("username", user.Username ?? ""),
+            new("avatarUrl", user.AvatarUrl ?? ""),
             new("isEmailVerified", (user.EmailVerifiedAt.HasValue || user.Status == UserStatus.ACTIVE).ToString().ToLowerInvariant()),
             new("status", user.Status.ToString()),
             new("session_version", user.SessionVersion.ToString()),

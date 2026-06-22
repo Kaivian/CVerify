@@ -5,7 +5,9 @@ import {
   Users, 
   Shield, 
   FileText,
-  Briefcase 
+  Briefcase,
+  Trophy,
+  Sparkles
 } from 'lucide-react';
 import { type NavigationNode } from '@/types/navigation.types';
 
@@ -23,6 +25,33 @@ export const navigationConfig: NavigationNode[] = [
         translationKey: 'common:dashboard.jobBoard',
         href: '/jobs',
         icon: Briefcase,
+      },
+      {
+        id: 'ranking-group',
+        type: 'group',
+        label: 'Leaderboard',
+        translationKey: 'common:dashboard.rankingGroup',
+        href: '/ranking/insights',
+        icon: Trophy,
+        children: [
+          {
+            id: 'ranking-insights',
+            type: 'item',
+            label: 'Insights',
+            translationKey: 'common:dashboard.rankingInsights',
+            href: '/ranking/insights',
+            icon: Sparkles,
+          },
+          {
+            id: 'ranking-candidates',
+            type: 'item',
+            label: 'Rankings',
+            translationKey: 'common:dashboard.ranking',
+            href: '/ranking',
+            icon: Trophy,
+            exactMatch: true,
+          },
+        ],
       },
     ],
   },

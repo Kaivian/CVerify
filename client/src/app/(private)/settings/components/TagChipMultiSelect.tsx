@@ -10,6 +10,7 @@ interface TagChipMultiSelectProps {
   value: string[];
   onChange: (value: string[]) => void;
   error?: string;
+  allowCustom?: boolean;
 }
 
 export const TagChipMultiSelect: React.FC<TagChipMultiSelectProps> = ({
@@ -19,6 +20,7 @@ export const TagChipMultiSelect: React.FC<TagChipMultiSelectProps> = ({
   value = [],
   onChange,
   error,
+  allowCustom = true,
 }) => {
   const [inputValue, setInputValue] = useState("");
 
@@ -65,27 +67,29 @@ export const TagChipMultiSelect: React.FC<TagChipMultiSelectProps> = ({
           </Tag>
         ))}
       </TagGroup.List>
-      <div className="mt-2.5 flex items-center gap-2 max-w-sm">
-        <Input
-          placeholder="Add custom option..."
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          aria-label={label ? `Add custom ${label}` : "Add custom option"}
-        />
-        <Button
-          size="md"
-          onPress={handleAddCustomTag}
-          className={
-            !inputValue.trim()
-              ? "bg-white dark:bg-surface border border-border text-muted font-bold shrink-0 opacity-60 cursor-not-allowed disabled:bg-white dark:disabled:bg-surface data-[disabled=true]:bg-white dark:data-[disabled=true]:bg-surface data-[disabled=true]:text-muted data-[disabled=true]:border-border data-[disabled=true]:opacity-60"
-              : "bg-accent text-accent-foreground font-bold shrink-0 hover:bg-accent/90 cursor-pointer"
-          }
-          isDisabled={!inputValue.trim()}
-        >
-          Add
-        </Button>
-      </div>
+      {allowCustom && (
+        <div className="mt-2.5 flex items-center gap-2 max-w-sm">
+          <Input
+            placeholder="Add custom option..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            aria-label={label ? `Add custom ${label}` : "Add custom option"}
+          />
+          <Button
+            size="md"
+            onPress={handleAddCustomTag}
+            className={
+              !inputValue.trim()
+                ? "bg-white dark:bg-surface border border-border text-muted font-bold shrink-0 opacity-60 cursor-not-allowed disabled:bg-white dark:disabled:bg-surface data-[disabled=true]:bg-white dark:data-[disabled=true]:bg-surface data-[disabled=true]:text-muted data-[disabled=true]:border-border data-[disabled=true]:opacity-60"
+                : "bg-accent text-accent-foreground font-bold shrink-0 hover:bg-accent/90 cursor-pointer"
+            }
+            isDisabled={!inputValue.trim()}
+          >
+            Add
+          </Button>
+        </div>
+      )}
       {description && <Description className="text-muted max-w-xl text-xs mt-1.5">{description}</Description>}
       {error && (
         <ErrorMessage className="text-danger pl-1 font-semibold block text-xs mt-1" role="alert">

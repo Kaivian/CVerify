@@ -465,5 +465,109 @@ class TestExtractors(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(callable(ImageTextExtractor))
 
 
+
+# =============================================================================
+# 6. Decoupled Vetting Scoring & Cohort Normalisation
+# =============================================================================
+class TestDecoupledVettingScoring(unittest.TestCase):
+    """
+    Validates standalone scoring engine behaviors including open-ended logarithmic
+    growth, cohort percentile mapping, aggregation ceilings, and dynamic uncertainty.
+    """
+
+    def setUp(self):
+        from app.pipelines.candidate import scoring_engine
+        self.engine = scoring_engine
+        self.policy = {
+            "dimensions": {
+                "skillDepth": {"weight": 0.35, "scale_A": 22.0, "scale_B": 0.05},
+                "ownership": {"weight": 0.25, "scale_A": 22.0, "scale_B": 0.2},
+                "architecture": {"weight": 0.20, "scale_A": 22.0, "scale_B": 0.05},
+                "problemSolving": {"weight": 0.12, "scale_A": 22.0, "scale_B": 0.1},
+                "impact": {"weight": 0.08, "scale_A": 20.0, "scale_B": 1.0}
+            }
+        }
+        self.snapshot_path = os.path.join(
+            os.path.dirname(__file__), "..", "app", "pipelines", "candidate", "cohort_snapshot_v1.json"
+        )
+
+    def test_unbounded_dimension_log_growth(self):
+        """Verifies that logarithmic curve grows past 100 on extremely high input without clamp."""
+        cv_skills = [f"Skill_{i}" for i in range(100)]
+        skill_profs = [{"skill": s, "proficiencyLevel": 4.0} for s in cv_skills]
+        repo_assessments = [{
+            "repositoryId": "repo-1",
+            "repositoryName": "main-repo",
+            "capabilities": [{"name": "Auth", "difficultyScore": 8.0, "maturity": "Advanced", "category": "security"}],
+            "skillAttributions": [{"skillName": s, "confidence": 0.90, "contributionWeight": 0.90} for s in cv_skills]
+        }]
+        
+        verified = self.engine.calculate_verified_score(
+            repository_assessments=repo_assessments,
+            cv={"skills": cv_skills},
+            cv_skills=cv_skills,
+            skill_proficiencies=skill_profs,
+            policy=self.policy
+        )
+        
+        self.assertGreater(verified["skillDepth"], 120)
+        self.assertLess(verified["skillDepth"], 150)
+
+    def test_aggregate_scores_pure_self_declared_ceiling(self):
+        """Purely self-declared candidate scores must be capped under a 0.40 scaling ceiling."""
+        verified = {"skillDepth": 0, "ownership": 0, "architecture": 0, "problemSolving": 0, "impact": 0}
+        self_declared = {"skillDepth": 80, "ownership": 70, "architecture": 60, "problemSolving": 50, "impact": 40}
+        
+        combined = self.engine.aggregate_scores(
+            verified=verified,
+            self_declared=self_declared,
+            has_verified_repos=False,
+            policy=self.policy
+        )
+        
+        raw_weighted = (
+            80 * 0.35 +
+            70 * 0.25 +
+            60 * 0.20 +
+            50 * 0.12 +
+            40 * 0.08
+        )
+        self.assertAlmostEqual(combined["score"], raw_weighted * 0.40, places=3)
+        self.assertEqual(combined["skillDepth"], 80 * 0.40)
+
+    def test_cohort_percentile_linear_interpolation(self):
+        """Tests linear interpolation on empirical cohort snapshot."""
+        p, v = self.engine.normalize_score_to_cohort(35.0, self.snapshot_path)
+        self.assertEqual(p, 39.0)
+        self.assertEqual(v, "v1.0.0")
+
+    def test_uncertainty_margin_range(self):
+        """Verifies uncertainty band scales dynamically from 5% to 20%."""
+        band_verified = self.engine.calculate_uncertainty_band(combined_score=100.0, self_declared_score=0.0, cohort_percentile=50.0)
+        self.assertEqual(band_verified["margin"], 5.0)
+        self.assertEqual(band_verified["min"], 45.0)
+        self.assertEqual(band_verified["max"], 55.0)
+
+        band_mixed = self.engine.calculate_uncertainty_band(combined_score=100.0, self_declared_score=50.0, cohort_percentile=50.0)
+        self.assertEqual(band_mixed["margin"], 12.5)
+        self.assertEqual(band_mixed["min"], 37.5)
+        self.assertEqual(band_mixed["max"], 62.5)
+
+
+class TestSkillTaxonomyNormalizationAndMatching(unittest.TestCase):
+    def test_get_normalized_name(self):
+        from app.pipelines.candidate.orchestrator import _get_normalized_name
+        self.assertEqual(_get_normalized_name("NextJS"), "next.js")
+        self.assertEqual(_get_normalized_name("Next.js"), "next.js")
+        self.assertEqual(_get_normalized_name("NodeJS"), "node.js")
+        self.assertEqual(_get_normalized_name("Node.js"), "node.js")
+        self.assertEqual(_get_normalized_name("C#"), "c#")
+        self.assertEqual(_get_normalized_name("csharp"), "c#")
+        self.assertEqual(_get_normalized_name("mongodb"), "mongodb")
+        self.assertEqual(_get_normalized_name("mongo"), "mongodb")
+        self.assertEqual(_get_normalized_name("mongodb & mongoose"), "mongodb")
+        self.assertEqual(_get_normalized_name("mongoose"), "mongodb")
+
+
 if __name__ == "__main__":
     unittest.main()

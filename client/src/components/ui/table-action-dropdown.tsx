@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { MoreHorizontal, type LucideIcon } from 'lucide-react';
-import { Dropdown, Label, Typography } from '@heroui/react';
+import { Dropdown, Label, Typography, Button as HeroButton } from '@heroui/react';
 import { Button } from './button';
 import { DialogModal } from './dialog-modal';
 
@@ -44,7 +44,7 @@ export const TableActionDropdown: React.FC<TableActionDropdownProps> = ({
     if (action.requiresConfirmation) {
       setPendingAction(action);
       setConfirmOpen(false); // Make sure to close trigger / dropdown state cleanly
-      
+
       // Delay opening confirmation modal to allow smooth dropdown closing animation
       setTimeout(() => {
         setConfirmOpen(true);
@@ -69,17 +69,19 @@ export const TableActionDropdown: React.FC<TableActionDropdownProps> = ({
   return (
     <>
       <Dropdown>
-        <Button
-          ref={triggerRef}
-          isIconOnly
-          variant="light"
-          size="sm"
-          aria-label={triggerAriaLabel}
-          className="h-8 w-8 min-w-8 rounded-lg bg-transparent hover:bg-surface-secondary/60 text-muted hover:text-foreground cursor-pointer focus-ring transition-all duration-150 flex items-center justify-center"
-        >
-          <MoreHorizontal size={15} />
-        </Button>
-        <Dropdown.Popover 
+        <Dropdown.Trigger>
+          <HeroButton
+            ref={triggerRef}
+            isIconOnly
+            variant="outline"
+            size="sm"
+            aria-label={triggerAriaLabel}
+            className="h-8 w-8 min-w-8 rounded-lg bg-transparent hover:bg-surface-secondary/60 text-muted hover:text-foreground cursor-pointer focus-ring transition-all duration-150 flex items-center justify-center"
+          >
+            <MoreHorizontal size={15} />
+          </HeroButton>
+        </Dropdown.Trigger>
+        <Dropdown.Popover
           placement={align === 'end' ? 'bottom end' : 'bottom start'}
           className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] outline-hidden animate-in fade-in duration-100 z-50 font-outfit"
         >
@@ -95,8 +97,8 @@ export const TableActionDropdown: React.FC<TableActionDropdownProps> = ({
                   variant={isDanger ? 'danger' : 'default'}
                   className={[
                     "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-hidden select-none transition-colors duration-150",
-                    isDanger 
-                      ? "text-danger hover:bg-danger/10 focus:bg-danger/10" 
+                    isDanger
+                      ? "text-danger hover:bg-danger/10 focus:bg-danger/10"
                       : "text-foreground hover:bg-surface-secondary focus:bg-surface-secondary",
                     action.isDisabled ? "opacity-35 cursor-not-allowed pointer-events-none" : ""
                   ].join(' ')}

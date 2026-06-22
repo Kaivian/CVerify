@@ -199,6 +199,16 @@ public class CareerService : ICareerService
             career.EmploymentPreferences = employmentPreferences;
         }
 
+        if (request.TargetSkills != null || request.Skills != null)
+        {
+            var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+            if (profile != null)
+            {
+                profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+                profile.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
@@ -279,6 +289,17 @@ public class CareerService : ICareerService
         if (updated)
         {
             career.UpdatedAt = DateTimeOffset.UtcNow;
+            
+            if (request.AcceptSkills && inferred.InferredSkills != null && inferred.InferredSkills.Any())
+            {
+                var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+                if (profile != null)
+                {
+                    profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+                    profile.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+            }
+
             try
             {
                 await _context.SaveChangesAsync(cancellationToken);

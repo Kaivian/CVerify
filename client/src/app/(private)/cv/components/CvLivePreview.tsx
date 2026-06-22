@@ -14,31 +14,6 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
   const previewRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [contentHeight, setContentHeight] = useState(1123);
-  const [repositories, setRepositories] = useState<SourceCodeRepository[]>([]);
-
-  // Fetch user's verified repositories to display as projects
-  useEffect(() => {
-    let active = true;
-    const fetchRepos = async () => {
-      try {
-        const result = await sourceCodeProviderApi.fetchRepositories({
-          page: 1,
-          pageSize: 100,
-        });
-        if (active) {
-          // Filter to only display repositories that are verified or analyzed successfully
-          const verifiedRepos = result.items.filter(r => r.isVerified || r.latestAnalysisStatus === "Completed");
-          setRepositories(verifiedRepos);
-        }
-      } catch (err) {
-        console.error("Failed to load repositories for live preview:", err);
-      }
-    };
-    fetchRepos();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   // Handle dynamic visual scaling to fit parent container width and height compensation
   useEffect(() => {
@@ -54,14 +29,11 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
       const targetWidth = 794; // Standard A4 width in pixels at 96 DPI
       const targetHeight = 1123; // Standard A4 height in pixels at 96 DPI
 
-      // Calculate scale to fit both width and height of the container
+      // Calculate scale to fit the width of the container, allowing vertical scrolling
       const scaleX = parentWidth > 0 ? parentWidth / targetWidth : 1;
-      const scaleY = parentHeight > 0 ? parentHeight / targetHeight : 1;
 
-      const computedScale = Math.min(scaleX, scaleY);
-
-      // Clamp scale to reasonable limits to fit shorter/narrower viewports
-      const clampedScale = Math.max(0.2, Math.min(1.0, computedScale));
+      // Clamp scale to reasonable limits (max 1.0 to prevent upscaling blur)
+      const clampedScale = Math.max(0.2, Math.min(1.0, scaleX));
       setScale(clampedScale);
 
       // Measure raw unscaled height of the preview content
@@ -82,10 +54,10 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
     return () => {
       observer.disconnect();
     };
-  }, [drafts, repositories]);
+  }, [drafts]);
 
   const basic = drafts["basic-info"];
-  const summary = drafts["career-summary"];
+  const summary = { bio: drafts["basic-info"].bio };
   const skills = drafts["skills"];
   const experience = drafts["experience"];
   const education = drafts["education"];
@@ -128,7 +100,7 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts }) => {
             education={education}
             achievements={achievements}
             preferences={preferences}
-            projects={repositories}
+            projects={drafts["projects"]}
           />
         </div>
       </div>

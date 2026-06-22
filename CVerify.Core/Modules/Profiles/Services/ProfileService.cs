@@ -17,6 +17,7 @@ using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Shared.Storage.Enums;
 using CVerify.API.Modules.Shared.Storage.Interfaces;
 using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.SourceCode.Entities;
 
 namespace CVerify.API.Modules.Profiles.Services;
@@ -29,6 +30,8 @@ public class ProfileService : IProfileService
     private readonly IUsernameService _usernameService;
     private readonly TimeProvider _timeProvider;
     private readonly IAppLogger _logger;
+    private readonly IProjectService _projectService;
+    private readonly ICvRepositoryIndexer _cvRepositoryIndexer;
 
     public ProfileService(
         ApplicationDbContext context,
@@ -36,7 +39,9 @@ public class ProfileService : IProfileService
         IStorageService storageService,
         IUsernameService usernameService,
         TimeProvider timeProvider,
-        IAppLogger logger)
+        IAppLogger logger,
+        IProjectService projectService,
+        ICvRepositoryIndexer cvRepositoryIndexer)
     {
         _context = context;
         _cacheService = cacheService;
@@ -44,6 +49,8 @@ public class ProfileService : IProfileService
         _usernameService = usernameService;
         _timeProvider = timeProvider;
         _logger = logger;
+        _projectService = projectService;
+        _cvRepositoryIndexer = cvRepositoryIndexer;
     }
 
     public async Task<ProfileResponse> GetProfileByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -126,6 +133,7 @@ public class ProfileService : IProfileService
         profile.RecruiterVisibility = request.RecruiterVisibility;
         profile.AiTalentDiscovery = request.AiTalentDiscovery;
         profile.UpdatedAt = DateTimeOffset.UtcNow;
+        profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
 
         var newSocialUrls = new List<string>();
         if (request.SocialLinks != null)
@@ -162,6 +170,15 @@ public class ProfileService : IProfileService
         catch (DbUpdateConcurrencyException ex)
         {
             throw new ProfileException(ProfileErrorCodes.ProfileConcurrencyConflict, "A concurrency conflict occurred. Please try again.", ex);
+        }
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.Log(LogLevel.Warning, "Profile", $"Failed to index CV repositories during profile update for user {userId}.", ex);
         }
 
         return MapToResponse(profile, newSocialUrls);
@@ -315,14 +332,23 @@ public class ProfileService : IProfileService
                   AND r.latest_analysis_status = 'Completed'
                   AND r.is_private = FALSE
                   AND r.is_enabled = TRUE
+                  AND r.is_accessible = TRUE
                 ORDER BY r.latest_analysis_completed_at_utc DESC", 
                 profile.UserId)
             .ToListAsync(cancellationToken);
 
+        var latestAssessment = await _context.CandidateAssessments
+            .Where(ca => ca.UserId == profile.UserId && ca.Status == "Completed")
+            .OrderByDescending(ca => ca.CompletedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        bool hasCompletedAssessment = latestAssessment != null;
+        DateTimeOffset? lastAssessmentDate = latestAssessment?.CompletedAtUtc;
+
         double? avgTrustScore = null;
-        if (publicRepos.Any())
+        if (hasCompletedAssessment && latestAssessment != null)
         {
-            avgTrustScore = publicRepos.Average(r => r.TrustScore);
+            avgTrustScore = latestAssessment.OverallScore;
         }
 
         var publicRepoDtos = publicRepos.Select(r => new PublicRepositoryDto(
@@ -338,6 +364,210 @@ public class ProfileService : IProfileService
             r.LatestAnalysisCompletedAtUtc
         )).ToList();
 
+        await _projectService.UpgradeRepositoryLinkedProjectsAsync(profile.UserId, cancellationToken);
+
+        var projects = await _context.ProjectEntries
+            .Include(p => p.RepositoryLinks)
+                .ThenInclude(l => l.SourceCodeRepository)
+            .Include(p => p.Technologies)
+            .Include(p => p.Contributions)
+            .Where(p => p.UserId == profile.UserId)
+            .OrderBy(p => p.DisplayOrder)
+            .ToListAsync(cancellationToken);
+
+        var publicProjectDtos = projects.Select(p => new PublicProjectDto(
+            p.Id,
+            p.Name,
+            p.Role,
+            p.Description,
+            p.StartDate,
+            p.EndDate,
+            p.IsCurrentlyWorking,
+            p.VerificationLevel,
+            p.VerificationStatus,
+            p.VerifiedAt,
+            p.VerificationMetadataJson,
+            p.DisplayOrder,
+            p.RepositoryLinks.Select(l => new PublicProjectRepositoryLinkDto(
+                l.Id,
+                l.SourceCodeRepositoryId,
+                l.SourceCodeRepository?.Name ?? string.Empty,
+                l.SourceCodeRepository?.Owner ?? string.Empty,
+                l.SourceCodeRepository?.HtmlUrl
+            )).ToList(),
+            p.Technologies.Select(t => t.Name).ToList(),
+            p.Contributions.Select(c => c.Content).ToList()
+        )).ToList();
+
+        // Retrieve Experiences (optimized N+1 query)
+        var experiences = await _context.WorkExperiences
+            .Include(we => we.Achievements)
+            .Include(we => we.Technologies)
+            .Include(we => we.Links)
+            .Where(we => we.UserId == profile.UserId && we.DeletedAt == null)
+            .OrderBy(we => we.DisplayOrder)
+            .ThenByDescending(we => we.StartDate)
+            .ToListAsync(cancellationToken);
+
+        var experienceResponses = experiences.Select(we => new WorkExperienceResponse(
+            we.Id,
+            we.UserId,
+            we.JobTitle,
+            we.Company,
+            (int)we.ExperienceCategory,
+            (int)we.EmploymentType,
+            we.Location,
+            we.StartDate,
+            we.EndDate,
+            we.IsCurrentlyWorking,
+            we.Description,
+            we.DisplayOrder,
+            we.Achievements.Select(a => new WorkExperienceAchievementDto(a.Title, a.Description)).ToList(),
+            we.Technologies.Select(t => t.Name).ToList(),
+            we.Links.Select(l => new WorkExperienceLinkDto((int)l.LinkType, l.Url)).ToList(),
+            we.IsLeadership
+        )).ToList();
+
+        // Retrieve Educations
+        var educations = await _context.EducationEntries
+            .Where(ee => ee.UserId == profile.UserId && ee.DeletedAt == null)
+            .OrderBy(ee => ee.DisplayOrder)
+            .ThenByDescending(ee => ee.StartDate)
+            .ToListAsync(cancellationToken);
+
+        var educationResponses = educations.Select(ee => new EducationEntryResponse(
+            ee.Id,
+            ee.UserId,
+            ee.Label,
+            ee.SchoolName,
+            ee.Degree,
+            ee.Major,
+            ee.GPA,
+            ee.GPAScale,
+            ee.Description,
+            ee.StartDate,
+            ee.EndDate,
+            ee.IsCurrentlyStudying,
+            ee.DisplayOrder
+        )).ToList();
+
+        // Retrieve AcademicAchievements & related ProfileAttachments (optimized batch query)
+        var achievements = await _context.AcademicAchievements
+            .Where(aa => aa.UserId == profile.UserId && aa.DeletedAt == null)
+            .OrderBy(aa => aa.DisplayOrder)
+            .ThenByDescending(aa => aa.IssueDate)
+            .ToListAsync(cancellationToken);
+
+        var achievementIds = achievements.Select(aa => aa.Id).ToList();
+
+        var attachments = await _context.ProfileAttachments
+            .Where(pa => pa.UserId == profile.UserId && pa.EntityType == "AcademicAchievement" && pa.EntityId.HasValue && achievementIds.Contains(pa.EntityId.Value) && pa.DeletedAt == null)
+            .ToListAsync(cancellationToken);
+
+        var achievementResponses = new List<AcademicAchievementResponse>();
+        foreach (var aa in achievements)
+        {
+            var att = attachments.FirstOrDefault(pa => pa.EntityId == aa.Id);
+            AttachmentResponse? attResponse = null;
+
+            if (att != null)
+            {
+                string signedUrl;
+                try
+                {
+                    signedUrl = await _storageService.GetSignedUrlAsync(att.FilePath, TimeSpan.FromHours(1), cancellationToken);
+                }
+                catch
+                {
+                    signedUrl = string.Empty;
+                }
+
+                attResponse = new AttachmentResponse(
+                    att.Id,
+                    att.FileName,
+                    att.FileSize,
+                    att.FileType,
+                    signedUrl,
+                    att.CreatedAt
+                );
+            }
+
+            achievementResponses.Add(new AcademicAchievementResponse(
+                aa.Id,
+                aa.UserId,
+                aa.Title,
+                aa.Issuer,
+                aa.IssueDate,
+                aa.Description,
+                aa.CredentialUrl,
+                aa.DisplayOrder,
+                attResponse
+            ));
+        }
+
+        // Retrieve published jobs for the recruiter's organizations
+        var organizationIds = await _context.OrganizationMemberships
+            .Where(om => om.UserId == profile.UserId && om.Status == "active")
+            .Select(om => om.OrganizationId)
+            .ToListAsync(cancellationToken);
+
+        var publishedVacancies = new List<JobVacancyDto>();
+        if (organizationIds.Any())
+        {
+            var vacancies = await _context.JobVacancies
+                .Include(jv => jv.Organization)
+                .Where(jv => organizationIds.Contains(jv.OrganizationId) && jv.IsActive && jv.Status == "Published")
+                .OrderByDescending(jv => jv.CreatedAt)
+                .ToListAsync(cancellationToken);
+
+            foreach (var jv in vacancies)
+            {
+                var signedCoverUrl = await GetSignedVacancyUrlAsync(jv.CoverUrl, cancellationToken) ?? jv.CoverUrl;
+                var signedImages = new List<string>();
+                if (jv.Images != null)
+                {
+                    foreach (var img in jv.Images)
+                    {
+                        var signedImg = await GetSignedVacancyUrlAsync(img, cancellationToken);
+                        if (signedImg != null) signedImages.Add(signedImg);
+                    }
+                }
+
+                publishedVacancies.Add(new JobVacancyDto(
+                    jv.Id,
+                    jv.OrganizationId,
+                    jv.Title,
+                    jv.Department,
+                    jv.WorkplaceType,
+                    jv.City,
+                    jv.Type,
+                    jv.Salary,
+                    jv.SalaryMinMax,
+                    jv.Headcount,
+                    jv.Gender,
+                    jv.Experience,
+                    jv.Degree,
+                    jv.Category,
+                    jv.Description,
+                    jv.Requirements,
+                    jv.Benefits,
+                    jv.Tags,
+                    jv.Skills,
+                    signedCoverUrl,
+                    signedImages,
+                    jv.IsActive,
+                    jv.CreatedAt,
+                    jv.UpdatedAt,
+                    jv.Status,
+                    jv.AcquisitionStrategy,
+                    jv.DiscoveryProfileJson,
+                    jv.RequirementSnapshotId,
+                    jv.HiringRequirementId,
+                    jv.Organization?.Username
+                ));
+            }
+        }
+
         return new PublicProfileResponse(
             profile.UserId,
             profile.Username ?? profile.User?.Username ?? string.Empty,
@@ -350,8 +580,38 @@ public class ProfileService : IProfileService
             socialLinks,
             publicCareerPreference,
             avgTrustScore,
-            publicRepoDtos
+            publicRepoDtos,
+            publicProjectDtos,
+            experienceResponses,
+            educationResponses,
+            achievementResponses,
+            hasCompletedAssessment,
+            lastAssessmentDate,
+            publishedVacancies
         );
+    }
+
+    private async Task<string?> GetSignedVacancyUrlAsync(string? url, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return null;
+        }
+
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return url;
+        }
+
+        try
+        {
+            return await _storageService.GetSignedUrlAsync(url, TimeSpan.FromHours(24), cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task<string?> GetSignedAvatarUrlAsync(string? avatarUrl, CancellationToken cancellationToken)
@@ -591,5 +851,471 @@ public class ProfileService : IProfileService
             Console.WriteLine($"[JSON Deserialization Warning] Failed to deserialize career preference field '{fieldName}': {ex.Message}. Falling back to empty list.");
             return new List<string>();
         }
+    }
+
+    public async Task<PaginatedResultDto<RankingResponseItemDto>> GetRankingAsync(
+        Guid? currentUserId, 
+        RankingQueryDto query, 
+        CancellationToken cancellationToken = default)
+    {
+        var dbQuery = _context.CandidateRankingProjections.AsQueryable();
+
+        // 1. Apply search filter
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var searchLower = query.Search.ToLower();
+            dbQuery = dbQuery.Where(p => 
+                p.FullName.ToLower().Contains(searchLower) ||
+                (p.Username != null && p.Username.ToLower().Contains(searchLower)) ||
+                (p.Headline != null && p.Headline.ToLower().Contains(searchLower)) ||
+                (p.Bio != null && p.Bio.ToLower().Contains(searchLower)));
+        }
+
+        // 2. Apply location filter
+        if (!string.IsNullOrWhiteSpace(query.Location))
+        {
+            var locLower = query.Location.ToLower();
+            dbQuery = dbQuery.Where(p => p.Location != null && p.Location.ToLower().Contains(locLower));
+        }
+
+        // 3. Apply AvailableForHire filter
+        if (query.AvailableForHire.HasValue)
+        {
+            dbQuery = dbQuery.Where(p => p.AvailableForHire == query.AvailableForHire.Value);
+        }
+
+        // 4. Apply ExperienceLevels filter
+        if (query.ExperienceLevels != null && query.ExperienceLevels.Any())
+        {
+            var expLower = query.ExperienceLevels.Select(l => l.ToLower()).ToList();
+            dbQuery = dbQuery.Where(p => p.CareerLevelLabel != null && expLower.Contains(p.CareerLevelLabel.ToLower()));
+        }
+
+        // 5. Apply TrustTiers filter
+        if (query.TrustTiers != null && query.TrustTiers.Any())
+        {
+            dbQuery = dbQuery.Where(p => 
+                (query.TrustTiers.Contains("HighTrust") && p.TrustScore >= 85) ||
+                (query.TrustTiers.Contains("EvidenceVerified") && p.TrustScore >= 60 && p.TrustScore < 85) ||
+                (query.TrustTiers.Contains("BasicVerified") && p.TrustScore >= 30 && p.TrustScore < 60) ||
+                (query.TrustTiers.Contains("Unverified") && p.TrustScore < 30)
+            );
+        }
+
+        // 6. Apply Skills filter (matches in TopCapabilitiesJson)
+        if (query.Skills != null && query.Skills.Any())
+        {
+            foreach (var skill in query.Skills)
+            {
+                var skillLower = skill.ToLower();
+                dbQuery = dbQuery.Where(p => p.TopCapabilitiesJson != null && p.TopCapabilitiesJson.ToLower().Contains(skillLower));
+            }
+        }
+
+        // Fetch all matching projections
+        var items = await dbQuery.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        // 7. Dynamic follows state for current user
+        var followedUserIds = new HashSet<Guid>();
+        if (currentUserId.HasValue)
+        {
+            var follows = await _context.UserFollowers
+                .Where(uf => uf.FollowerId == currentUserId.Value)
+                .Select(uf => uf.FolloweeId)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            followedUserIds = new HashSet<Guid>(follows);
+        }
+
+        // 8. Dynamic assessment completion dates for Trending category
+        var assessmentDates = new Dictionary<Guid, DateTimeOffset>();
+        if (string.Equals(query.Category, "Trending", StringComparison.OrdinalIgnoreCase))
+        {
+            var userIds = items.Select(i => i.CandidateId).ToList();
+            var dates = await _context.CandidateAssessments
+                .Where(ca => userIds.Contains(ca.UserId) && ca.Status == "Completed")
+                .GroupBy(ca => ca.UserId)
+                .Select(g => new { UserId = g.Key, CompletedAtUtc = g.Max(ca => ca.CompletedAtUtc) })
+                .ToDictionaryAsync(x => x.UserId, x => x.CompletedAtUtc ?? DateTimeOffset.UtcNow.AddDays(-30), cancellationToken)
+                .ConfigureAwait(false);
+            assessmentDates = dates;
+        }
+
+        // 9. Sort results in memory
+        IEnumerable<CandidateRankingProjection> sortedItems;
+        switch (query.Category?.ToLowerInvariant())
+        {
+            case "trending":
+                sortedItems = items.OrderByDescending(p =>
+                {
+                    var lastDate = assessmentDates.TryGetValue(p.CandidateId, out var dt) ? dt : DateTimeOffset.UtcNow.AddDays(-30);
+                    var days = Math.Max(1.0, (DateTimeOffset.UtcNow - lastDate).TotalDays);
+                    return (p.CompositeScore * 0.70) + (p.FollowersCount * 2.0) + (100.0 / days);
+                });
+                break;
+            case "topcontributors":
+                sortedItems = items
+                    .OrderByDescending(p => p.EvidenceTrustScore)
+                    .ThenByDescending(p => p.TotalStarsCount)
+                    .ThenByDescending(p => p.CompositeScore);
+                break;
+            case "topverified":
+                sortedItems = items.OrderByDescending(p =>
+                {
+                    var tierVal = p.TrustScore switch
+                    {
+                        >= 85 => 4,
+                        >= 60 => 3,
+                        >= 30 => 2,
+                        _ => 1
+                    };
+                    return tierVal;
+                }).ThenByDescending(p => p.TrustScore);
+                break;
+            case "mostfollowed":
+                sortedItems = items.OrderByDescending(p => p.FollowersCount);
+                break;
+            case "highesttrust":
+                sortedItems = items.OrderByDescending(p => p.TrustScore);
+                break;
+            case "topai":
+                sortedItems = items.OrderByDescending(p => p.AiScore);
+                break;
+            case "global":
+            default:
+                sortedItems = items.OrderBy(p => p.GlobalRankPosition == 0 ? int.MaxValue : p.GlobalRankPosition);
+                break;
+        }
+
+        var sortedList = sortedItems.ToList();
+        int totalCount = sortedList.Count;
+
+        // Paginate
+        var pageItems = sortedList
+            .Skip((query.Page - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToList();
+
+        // 10. Map to DTOs & sign avatars
+        var responseItems = new List<RankingResponseItemDto>();
+        foreach (var item in pageItems)
+        {
+            var signedAvatarUrl = await GetSignedAvatarUrlAsync(item.AvatarUrl, cancellationToken).ConfigureAwait(false);
+            
+            // Deserialize capabilities list
+            var capabilities = new List<CapabilityDto>();
+            if (!string.IsNullOrEmpty(item.TopCapabilitiesJson))
+            {
+                try
+                {
+                    capabilities = JsonSerializer.Deserialize<List<CapabilityDto>>(item.TopCapabilitiesJson) ?? new List<CapabilityDto>();
+                }
+                catch
+                {
+                    // Fallback to empty list
+                }
+            }
+
+            responseItems.Add(new RankingResponseItemDto(
+                item.CandidateId,
+                item.FullName,
+                item.Username,
+                item.Bio,
+                item.Headline,
+                item.Location,
+                signedAvatarUrl,
+                item.CompositeScore,
+                item.AiScore,
+                item.TrustScore,
+                item.ProfileCompleteness,
+                item.EvidenceTrustScore,
+                item.VerifiedRepoCount,
+                item.TotalStarsCount,
+                item.TotalForksCount,
+                item.VerifiedContributionCount,
+                capabilities,
+                item.PrimaryDomain,
+                item.CareerLevelLabel,
+                item.FollowersCount,
+                item.FollowingCount,
+                item.AvailableForHire,
+                item.OpenToWorkStatus,
+                item.GlobalRankPosition,
+                item.PreviousGlobalRankPosition,
+                followedUserIds.Contains(item.CandidateId),
+                item.LastUpdatedAt
+            ));
+        }
+
+        return new PaginatedResultDto<RankingResponseItemDto>(
+            responseItems,
+            totalCount,
+            query.Page,
+            query.PageSize
+        );
+    }
+
+    public async Task FollowUserAsync(
+        Guid followerId, 
+        string usernameToFollow, 
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(usernameToFollow))
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "Candidate to follow not found.");
+        }
+
+        var normalizedUsername = _usernameService.Normalize(usernameToFollow);
+
+        var followee = await _context.Users
+            .FirstOrDefaultAsync(u => u.Username == normalizedUsername && u.DeletedAt == null, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (followee == null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "Candidate to follow not found.");
+        }
+
+        if (followee.Id == followerId)
+        {
+            throw new BusinessRuleException("SELF_FOLLOW_NOT_ALLOWED", "You cannot follow your own profile.");
+        }
+
+        // Check if already followed
+        var alreadyFollowing = await _context.UserFollowers
+            .AnyAsync(uf => uf.FollowerId == followerId && uf.FolloweeId == followee.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (alreadyFollowing)
+        {
+            return; // Idempotent success
+        }
+
+        var follower = await _context.Users.FindAsync(new object[] { followerId }, cancellationToken).ConfigureAwait(false);
+        if (follower == null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "Follower user not found.");
+        }
+
+        var followRecord = new UserFollower
+        {
+            FollowerId = followerId,
+            FolloweeId = followee.Id,
+            FollowedAt = DateTimeOffset.UtcNow
+        };
+
+        _context.UserFollowers.Add(followRecord);
+
+        // Responsive increment: Update the projection cache immediately
+        var followeeProj = await _context.CandidateRankingProjections
+            .FirstOrDefaultAsync(p => p.CandidateId == followee.Id, cancellationToken)
+            .ConfigureAwait(false);
+        if (followeeProj != null)
+        {
+            followeeProj.FollowersCount++;
+        }
+
+        var followerProj = await _context.CandidateRankingProjections
+            .FirstOrDefaultAsync(p => p.CandidateId == followerId, cancellationToken)
+            .ConfigureAwait(false);
+        if (followerProj != null)
+        {
+            followerProj.FollowingCount++;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UnfollowUserAsync(
+        Guid followerId, 
+        string usernameToUnfollow, 
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(usernameToUnfollow))
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "Candidate to unfollow not found.");
+        }
+
+        var normalizedUsername = _usernameService.Normalize(usernameToUnfollow);
+
+        var followee = await _context.Users
+            .FirstOrDefaultAsync(u => u.Username == normalizedUsername && u.DeletedAt == null, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (followee == null)
+        {
+            throw new ResourceNotFoundException("USER_NOT_FOUND", "Candidate to unfollow not found.");
+        }
+
+        var followRecord = await _context.UserFollowers
+            .FirstOrDefaultAsync(uf => uf.FollowerId == followerId && uf.FolloweeId == followee.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (followRecord == null)
+        {
+            return; // Idempotent success
+        }
+
+        _context.UserFollowers.Remove(followRecord);
+
+        // Responsive decrement: Update the projection cache immediately
+        var followeeProj = await _context.CandidateRankingProjections
+            .FirstOrDefaultAsync(p => p.CandidateId == followee.Id, cancellationToken)
+            .ConfigureAwait(false);
+        if (followeeProj != null && followeeProj.FollowersCount > 0)
+        {
+            followeeProj.FollowersCount--;
+        }
+
+        var followerProj = await _context.CandidateRankingProjections
+            .FirstOrDefaultAsync(p => p.CandidateId == followerId, cancellationToken)
+            .ConfigureAwait(false);
+        if (followerProj != null && followerProj.FollowingCount > 0)
+        {
+            followerProj.FollowingCount--;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<RankingStatsDto> GetRankingStatsAsync(CancellationToken cancellationToken = default)
+    {
+        // 1. Total talents count
+        var totalTalents = await _context.CandidateRankingProjections.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // 2. Sum of verified repositories (SourceCodeRepositories count that are verified)
+        var totalRepositories = await _context.SourceCodeRepositories.CountAsync(r => r.IsVerified, cancellationToken).ConfigureAwait(false);
+
+        // 3. Country/Geography count (unique geographies represented)
+        var totalCountries = await _context.CandidateRankingProjections
+            .Where(p => p.Location != null && p.Location != "")
+            .Select(p => p.Location)
+            .Distinct()
+            .CountAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // 4. Top Technologies (from candidate capabilities, fallback to .NET, TypeScript, Java, Python, Go)
+        var topTechs = await _context.CandidateCapabilities
+            .Include(cc => cc.CapabilityNode)
+            .Where(cc => cc.CapabilityNode.Category == "Language" || cc.CapabilityNode.Category == "Framework" || cc.CapabilityNode.Category == "Library")
+            .GroupBy(cc => cc.CapabilityNode.Name)
+            .OrderByDescending(g => g.Count())
+            .Select(g => g.Key)
+            .Take(5)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+
+
+        // 5. Fastest Rising Skills (from recently evaluated capability scores, fallback to AI Engineering, Agent Systems, Cloud Architecture, DevOps, MLOps)
+        var risingSkills = await _context.CandidateCapabilities
+            .Include(cc => cc.Score)
+            .Include(cc => cc.CapabilityNode)
+            .Where(cc => cc.Score != null && cc.Score.CalculatedAt >= DateTimeOffset.UtcNow.AddDays(-30))
+            .GroupBy(cc => cc.CapabilityNode.Name)
+            .OrderByDescending(g => g.Average(cc => cc.Score!.ProficiencyScore))
+            .Select(g => g.Key)
+            .Take(5)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+
+
+        // 6. Trending Engineers (highest positive rank delta: PreviousGlobalRankPosition - GlobalRankPosition)
+        var trendingCandidates = await _context.CandidateRankingProjections
+            .Where(p => p.PreviousGlobalRankPosition > 0 && p.GlobalRankPosition > 0)
+            .Select(p => new {
+                Projection = p,
+                Delta = p.PreviousGlobalRankPosition - p.GlobalRankPosition
+            })
+            .Where(x => x.Delta > 0)
+            .OrderByDescending(x => x.Delta)
+            .ThenByDescending(x => x.Projection.CompositeScore)
+            .Select(x => x.Projection)
+            .Take(5)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (trendingCandidates.Count < 5)
+        {
+            var existingIds = trendingCandidates.Select(t => t.CandidateId).ToList();
+            var fallbackCandidates = await _context.CandidateRankingProjections
+                .Where(p => !existingIds.Contains(p.CandidateId))
+                .OrderByDescending(p => p.CompositeScore)
+                .Take(5 - trendingCandidates.Count)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            trendingCandidates.AddRange(fallbackCandidates);
+        }
+
+        var trendingDtos = new List<TrendingEngineerDto>();
+        foreach (var tc in trendingCandidates)
+        {
+            var signedAvatarUrl = await GetSignedAvatarUrlAsync(tc.AvatarUrl, cancellationToken).ConfigureAwait(false);
+            var delta = tc.PreviousGlobalRankPosition > 0 ? tc.PreviousGlobalRankPosition - tc.GlobalRankPosition : 0;
+            trendingDtos.Add(new TrendingEngineerDto(
+                tc.CandidateId,
+                tc.FullName,
+                tc.Username,
+                signedAvatarUrl,
+                tc.CompositeScore,
+                tc.GlobalRankPosition,
+                tc.PreviousGlobalRankPosition,
+                delta
+            ));
+        }
+
+        var averageTrustScore = await _context.CandidateRankingProjections.AnyAsync(cancellationToken).ConfigureAwait(false)
+            ? await _context.CandidateRankingProjections.AverageAsync(p => p.TrustScore, cancellationToken).ConfigureAwait(false)
+            : 0.0;
+        averageTrustScore = Math.Round(averageTrustScore, 1);
+
+        var averageCapabilityScore = await _context.CandidateRankingProjections.AnyAsync(cancellationToken).ConfigureAwait(false)
+            ? await _context.CandidateRankingProjections.AverageAsync(p => p.AiScore, cancellationToken).ConfigureAwait(false)
+            : 0.0;
+        averageCapabilityScore = Math.Round(averageCapabilityScore, 1);
+
+        var reposData = await _context.CandidateRankingProjections
+            .Select(p => new { p.TotalStarsCount, p.TotalForksCount, p.VerifiedRepoCount })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        double averageRepositoryImpact = 0.0;
+        if (reposData.Any())
+        {
+            averageRepositoryImpact = reposData.Average(p => 
+                CVerify.API.Modules.Intelligence.Services.CandidateRankingCalculator.CalculateRepositoryImpactScore(
+                    p.TotalStarsCount, p.TotalForksCount, p.VerifiedRepoCount));
+        }
+        averageRepositoryImpact = Math.Round(averageRepositoryImpact, 1);
+
+        var totalActiveProfiles = await _context.UserProfiles
+            .CountAsync(up => up.DeletedAt == null &&
+                              up.User.DeletedAt == null &&
+                              up.User.Status == UserStatus.ACTIVE, cancellationToken)
+            .ConfigureAwait(false);
+
+        var verificationRate = totalActiveProfiles > 0
+            ? Math.Round((double)totalTalents / totalActiveProfiles * 100.0, 1)
+            : 0.0;
+
+        var averageCompositeScore = await _context.CandidateRankingProjections.AnyAsync(cancellationToken).ConfigureAwait(false)
+            ? await _context.CandidateRankingProjections.AverageAsync(p => p.CompositeScore, cancellationToken).ConfigureAwait(false)
+            : 0.0;
+        averageCompositeScore = Math.Round(averageCompositeScore, 1);
+
+        return new RankingStatsDto(
+            totalTalents,
+            totalRepositories,
+            totalCountries,
+            topTechs,
+            risingSkills,
+            trendingDtos,
+            averageTrustScore,
+            averageCapabilityScore,
+            averageRepositoryImpact,
+            verificationRate,
+            averageCompositeScore
+        );
     }
 }

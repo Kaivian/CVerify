@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Input, Button, TextArea, Spinner } from "@heroui/react";
+import { Input, Button, TextArea, Spinner, DatePicker, DateField, Calendar } from "@heroui/react";
+import { parseDate } from "@internationalized/date";
 import { Card } from "@/components/ui/card";
 import { PlusCircle, Trash2, Edit2, X } from "lucide-react";
 import { type AchievementsDraftItem } from "./types";
@@ -24,6 +25,16 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
 }) => {
   const [editingItem, setEditingItem] = useState<AchievementsDraftItem | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const issueDateString = editingItem?.issueDate ? editingItem.issueDate.split("T")[0] : "";
+  let issueDateValue = null;
+  if (issueDateString) {
+    try {
+      issueDateValue = parseDate(issueDateString);
+    } catch (e) {
+      console.error("Failed to parse issueDate:", e);
+    }
+  }
 
   const handleEdit = (item: AchievementsDraftItem) => {
     setEditingItem({ ...item });
@@ -119,8 +130,16 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
                 placeholder="AWS Certified Solutions Architect"
                 aria-label="Certificate or Achievement name"
+                maxLength={150}
               />
-              {errors.title && <span className="text-[10px] text-danger">{errors.title}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.title ? (
+                  <span className="text-danger">{errors.title}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.title || "").length}/150 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -130,18 +149,66 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, issuer: e.target.value })}
                 placeholder="Amazon Web Services (AWS)"
                 aria-label="Issuer"
+                maxLength={100}
               />
-              {errors.issuer && <span className="text-[10px] text-danger">{errors.issuer}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.issuer ? (
+                  <span className="text-danger">{errors.issuer}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.issuer || "").length}/100 characters</span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">Issue Date *</label>
-              <input
-                type="date"
-                className="flex h-10 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
-                value={editingItem.issueDate ? editingItem.issueDate.split("T")[0] : ""}
-                onChange={(e) => setEditingItem({ ...editingItem, issueDate: e.target.value })}
-              />
+              <DatePicker
+                value={issueDateValue}
+                onChange={(val) => {
+                  if (editingItem) {
+                    setEditingItem({ ...editingItem, issueDate: val ? val.toString() : "" });
+                  }
+                }}
+                className="flex flex-col gap-1 w-full"
+                aria-label="Issue Date"
+              >
+                <DateField.Group fullWidth>
+                  <DateField.Input>
+                    {(segment) => <DateField.Segment segment={segment} />}
+                  </DateField.Input>
+                  <DateField.Suffix>
+                    <DatePicker.Trigger>
+                      <DatePicker.TriggerIndicator />
+                    </DatePicker.Trigger>
+                  </DateField.Suffix>
+                </DateField.Group>
+                <DatePicker.Popover>
+                  <Calendar aria-label="Issue Date">
+                    <Calendar.Header>
+                      <Calendar.YearPickerTrigger>
+                        <Calendar.YearPickerTriggerHeading />
+                        <Calendar.YearPickerTriggerIndicator />
+                      </Calendar.YearPickerTrigger>
+                      <Calendar.NavButton slot="previous" />
+                      <Calendar.NavButton slot="next" />
+                    </Calendar.Header>
+                    <Calendar.Grid>
+                      <Calendar.GridHeader>
+                        {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                      </Calendar.GridHeader>
+                      <Calendar.GridBody>
+                        {(date) => <Calendar.Cell date={date} />}
+                      </Calendar.GridBody>
+                    </Calendar.Grid>
+                    <Calendar.YearPickerGrid>
+                      <Calendar.YearPickerGridBody>
+                        {({ year }) => <Calendar.YearPickerCell year={year} />}
+                      </Calendar.YearPickerGridBody>
+                    </Calendar.YearPickerGrid>
+                  </Calendar>
+                </DatePicker.Popover>
+              </DatePicker>
             </div>
 
             <div className="flex flex-col gap-1.5 md:col-span-2">
@@ -151,8 +218,16 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
                 onChange={(e) => setEditingItem({ ...editingItem, credentialUrl: e.target.value })}
                 placeholder="https://aws.amazon.com/verify/..."
                 aria-label="Credential URL"
+                maxLength={250}
               />
-              {errors.credentialUrl && <span className="text-[10px] text-danger">{errors.credentialUrl}</span>}
+              <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+                {errors.credentialUrl ? (
+                  <span className="text-danger">{errors.credentialUrl}</span>
+                ) : (
+                  <span />
+                )}
+                <span>{(editingItem.credentialUrl || "").length}/250 characters</span>
+              </div>
             </div>
           </div>
 
@@ -164,7 +239,11 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
               placeholder="Provide a brief description of the achievement..."
               rows={3}
               aria-label="Achievement description"
+              maxLength={500}
             />
+            <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+              <span>{(editingItem.description || "").length}/500 characters</span>
+            </div>
           </div>
 
           <Button size="sm" className="bg-accent text-accent-foreground font-bold rounded-xl border-none mt-2 h-9" onPress={handleSaveItem}>
@@ -194,36 +273,38 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
               </div>
             ) : (
               draft.map((item) => (
-                <Card key={item.id} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface flex flex-row justify-between items-center gap-4">
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <span className="font-bold text-foreground text-xs truncate">
-                      {item.title}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      {item.issuer} ({item.issueDate})
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl border border-border/30 h-8 w-8"
-                      onPress={() => handleEdit(item)}
-                      aria-label={`Edit achievement ${item.title}`}
-                    >
-                      <Edit2 className="size-3.5" />
-                    </Button>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl border border-border/30 h-8 w-8 text-danger"
-                      onPress={() => handleRemove(item.id)}
-                      aria-label={`Remove achievement ${item.title}`}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                <Card key={item.id} rounded="xl" glow={false} className="p-4 border border-border/40 bg-surface text-left">
+                  <div className="flex flex-row justify-between items-center gap-4 w-full">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="font-bold text-foreground text-xs truncate">
+                        {item.title}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium">
+                        {item.issuer} ({item.issueDate})
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-xl border border-border/30 h-8 w-8"
+                        onPress={() => handleEdit(item)}
+                        aria-label={`Edit achievement ${item.title}`}
+                      >
+                        <Edit2 className="size-3.5" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-xl border border-border/30 h-8 w-8 text-danger"
+                        onPress={() => handleRemove(item.id)}
+                        aria-label={`Remove achievement ${item.title}`}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               ))

@@ -11,13 +11,39 @@ import { NotificationHub } from "../infrastructure/notifications/orchestrator";
 import { HeroUIToastRenderer } from "../infrastructure/notifications/renderers/heroui-toast-renderer";
 import { SignalRProvider } from "../providers/signalr-provider";
 
+import { useAuthStore } from "../features/auth/store/use-auth-store";
+import { type User } from "../types/auth.types";
+import { useRef } from "react";
+
 export function Providers({
   children,
   locale,
+  initialUser,
 }: {
   children: React.ReactNode;
   locale: string;
+  initialUser: User | null;
 }) {
+  const initializedRef = useRef(false);
+  if (!initializedRef.current) {
+    if (initialUser) {
+      useAuthStore.setState({
+        isAuthenticated: true,
+        user: initialUser,
+        bootstrapState: "READY",
+        isInitialized: true,
+      });
+    } else {
+      useAuthStore.setState({
+        isAuthenticated: false,
+        user: null,
+        bootstrapState: "IDLE",
+        isInitialized: true,
+      });
+    }
+    initializedRef.current = true;
+  }
+
   const { initializeSession } = useAuth();
   const initializeTheme = useThemeStore((state) => state.initializeTheme);
   const initializeCollapsed = useSidebarStore(
@@ -32,9 +58,10 @@ export function Providers({
   }, [initializeTheme, initializeCollapsed]);
 
   // Run secure session hydration immediately on app boots
-  // Includes resilience against BFCache restoration and browser history navigation freezes
+  // Uses forceRevalidate to silently refresh the profile from auth/me even when
+  // SSR provides initialUser, ensuring signed avatar URLs and fresh data.
   useEffect(() => {
-    initializeSession();
+    initializeSession(true);
 
     // Revalidate on visibility change (e.g. user returns to the tab)
     const handleVisibilityChange = () => {

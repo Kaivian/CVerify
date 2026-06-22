@@ -15,10 +15,12 @@ namespace CVerify.API.Modules.Profiles.Services;
 public class WorkExperienceService : IWorkExperienceService
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICvRepositoryIndexer _cvRepositoryIndexer;
 
-    public WorkExperienceService(ApplicationDbContext context)
+    public WorkExperienceService(ApplicationDbContext context, ICvRepositoryIndexer cvRepositoryIndexer)
     {
         _context = context;
+        _cvRepositoryIndexer = cvRepositoryIndexer;
     }
 
     public async Task<List<WorkExperienceResponse>> GetWorkExperiencesAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -60,6 +62,7 @@ public class WorkExperienceService : IWorkExperienceService
             StartDate = request.StartDate,
             EndDate = request.IsCurrentlyWorking ? null : request.EndDate,
             IsCurrentlyWorking = request.IsCurrentlyWorking,
+            IsLeadership = request.IsLeadership,
             Description = request.Description.Trim(),
             DisplayOrder = maxOrder + 1,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -91,7 +94,24 @@ public class WorkExperienceService : IWorkExperienceService
         };
 
         _context.WorkExperiences.Add(entry);
+
+        var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+        if (profile != null)
+        {
+            profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail the work experience operation if indexing throws
+        }
 
         return MapToResponse(entry);
     }
@@ -123,6 +143,7 @@ public class WorkExperienceService : IWorkExperienceService
         entry.StartDate = request.StartDate;
         entry.EndDate = request.IsCurrentlyWorking ? null : request.EndDate;
         entry.IsCurrentlyWorking = request.IsCurrentlyWorking;
+        entry.IsLeadership = request.IsLeadership;
         entry.Description = request.Description.Trim();
         entry.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -159,7 +180,23 @@ public class WorkExperienceService : IWorkExperienceService
             CreatedAt = DateTimeOffset.UtcNow
         }).ToList() ?? new List<WorkExperienceLink>();
 
+        var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+        if (profile != null)
+        {
+            profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail the work experience operation if indexing throws
+        }
 
         return MapToResponse(entry);
     }
@@ -176,7 +213,24 @@ public class WorkExperienceService : IWorkExperienceService
 
         entry.DeletedAt = DateTimeOffset.UtcNow;
         entry.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+        if (profile != null)
+        {
+            profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail the work experience operation if indexing throws
+        }
     }
 
     public async Task ReorderWorkExperiencesAsync(Guid userId, List<Guid> orderedIds, CancellationToken cancellationToken = default)
@@ -205,7 +259,23 @@ public class WorkExperienceService : IWorkExperienceService
             }
         }
 
+        var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
+        if (profile != null)
+        {
+            profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _context.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _cvRepositoryIndexer.IndexUserCvRepositoriesAsync(userId, cancellationToken);
+        }
+        catch
+        {
+            // Do not fail the work experience operation if indexing throws
+        }
     }
 
     private static void ValidateDateConstraints(WorkExperienceRequest request)
@@ -248,7 +318,8 @@ public class WorkExperienceService : IWorkExperienceService
             entry.DisplayOrder,
             entry.Achievements.Select(a => new WorkExperienceAchievementDto(a.Title, a.Description)).ToList(),
             entry.Technologies.Select(t => t.Name).ToList(),
-            entry.Links.Select(l => new WorkExperienceLinkDto((int)l.LinkType, l.Url)).ToList()
+            entry.Links.Select(l => new WorkExperienceLinkDto((int)l.LinkType, l.Url)).ToList(),
+            entry.IsLeadership
         );
     }
 }

@@ -43,6 +43,8 @@ public class WorkExperienceEntry
 
     public bool IsCurrentlyWorking { get; set; } = false;
 
+    public bool IsLeadership { get; set; } = false;
+
     [Required]
     [MaxLength(2000)]
     public string Description { get; set; } = null!;

@@ -68,6 +68,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -112,6 +113,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -163,6 +165,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -194,6 +197,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -323,6 +327,7 @@ export const useAuth = () => {
         const user: User = {
           id: response.id,
           email: response.email,
+          username: response.username,
           fullName: response.fullName,
           avatarUrl: response.avatarUrl,
           role: normalizeRole(response.roles),
@@ -377,9 +382,8 @@ export const useAuth = () => {
           console.warn('[Auth System] Session validation connection offline or backend restarting. Preserving session.', error);
           resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
         } else {
-          console.warn('[Auth System] Session validation failed. Cleaning local session.', error);
-          stateStore.logout(false);
-          resolve({ authenticated: false, user: null });
+          console.warn('[Auth System] Session validation failed. Preserving local session.', error);
+          resolve({ authenticated: stateStore.isAuthenticated, user: stateStore.user });
         }
       } finally {
         // Clean up the abort controller if it's the current one
@@ -471,6 +475,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),
@@ -547,6 +552,7 @@ export const useAuth = () => {
       const user: User = {
         id: response.id,
         email: response.email,
+        username: response.username,
         fullName: response.fullName,
         avatarUrl: response.avatarUrl,
         role: normalizeRole(response.roles),

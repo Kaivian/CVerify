@@ -7,7 +7,16 @@ public record MemberDto(
     string Name,
     string Email,
     string Role,
-    string Status
+    string Status,
+    string? Headline = null,
+    string? Username = null,
+    string? AvatarUrl = null
+);
+
+public record MemberProfileDataDto(
+    Guid UserId,
+    string? Headline,
+    string? Username
 );
 
 public record LinkedOrganizationDto(
@@ -34,7 +43,57 @@ public record WorkspaceDetailsDto(
     List<string> Permissions,
     List<WorkspaceDto> Workspaces,
     string? BannerUrl = null,
-    string? LogoUrl = null
+    string? LogoUrl = null,
+    string? CompanyType = null,
+    string? CompanySize = null,
+    int BranchCount = 0,
+    List<string>? IndustryTags = null,
+    string? Description = null,
+    List<string>? BenefitTags = null,
+    List<string>? GalleryUrls = null,
+    string? ContactName = null,
+    string? ContactPhone = null,
+    string? ContactEmail = null,
+    string? City = null,
+    string? DetailAddress = null,
+    string? GoogleMapsEmbedUrl = null,
+    string? LinkedinUrl = null,
+    string? FacebookUrl = null,
+    string? TwitterUrl = null,
+    string? Website = null,
+    string? TaxCode = null,
+    string? Mission = null,
+    string? Vision = null,
+    string? CoreValues = null,
+    string? Founded = null,
+    int FollowerCount = 0,
+    bool IsFollowing = false,
+    bool IsVerified = false,
+    int VerificationLevel = 0
+);
+
+
+public record UpdateWorkspaceDetailsRequestDto(
+    string? Description,
+    string? CompanyType,
+    string? CompanySize,
+    int BranchCount,
+    List<string> IndustryTags,
+    List<string> BenefitTags,
+    string? ContactName,
+    string? ContactPhone,
+    string? ContactEmail,
+    string? City,
+    string? DetailAddress,
+    string? GoogleMapsEmbedUrl,
+    string? LinkedinUrl,
+    string? FacebookUrl,
+    string? TwitterUrl,
+    string? Website,
+    string? Mission,
+    string? Vision,
+    string? CoreValues,
+    string? Founded
 );
 
 public record PaginatedMembersResponseDto(
@@ -43,3 +102,93 @@ public record PaginatedMembersResponseDto(
     int Page,
     int PageSize
 );
+
+public record FollowToggleResponseDto(
+    int FollowerCount,
+    bool IsFollowing
+);
+
+public record WorkspacePostDto(
+    Guid Id,
+    string Category,
+    string Content,
+    List<string> Images,
+    int Likes,
+    int SharesCount,
+    DateTimeOffset CreatedAt,
+    string? AuthorName = null,
+    string? AuthorAvatar = null,
+    string? AuthorRole = null
+);
+
+public record CreateWorkspacePostRequestDto(
+    string Category,
+    string Content,
+    List<string>? Images = null,
+    List<string>? ImageUrls = null
+);
+
+
+public record CreateJobRequestDto(
+    string Title,
+    string Department,
+    string WorkplaceType,
+    string City,
+    string Type,
+    string Salary,
+    string SalaryMinMax,
+    int Headcount,
+    string Gender,
+    string Experience,
+    string Degree,
+    string Category,
+    List<string> Description,
+    List<string> Requirements,
+    List<string> Benefits,
+    List<string> Tags,
+    List<string> Skills,
+    string CoverUrl,
+    List<string>? Images = null,
+    List<string>? ImageUrls = null,
+    string? Metadata = null
+);
+
+public record OrganizationListDto(
+    Guid OrganizationId,
+    string OrganizationName,
+    string OrganizationSlug,
+    string? LogoUrl,
+    string? BannerUrl,
+    string? Description,
+    string? CompanyType,
+    string? CompanySize,
+    string? City,
+    string? Website,
+    List<string> IndustryTags,
+    bool IsVerified,
+    int VerificationLevel,
+    int MemberCount,
+    int OpenPositionsCount,
+    int RepositoryCount,
+    int VerifiedRepositoryCount,
+    double AverageTrustScore,
+    int FollowerCount,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt
+);
+
+public record OrganizationStatsDto(
+    int TotalOrganizations,
+    int VerifiedOrganizations,
+    int OpenOpportunities,
+    int VerifiedRepositories,
+    int TotalMembers
+);
+
+public record PaginatedOrganizationsResponseDto(
+    List<OrganizationListDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize
+);
+

@@ -172,15 +172,90 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
     );
   };
 
+  // Helper to render verification badge
+  const renderVerificationBadge = (level: any, status: any) => {
+    const numLevel = typeof level === 'string'
+      ? (level === 'AiAnalyzed' ? 1 : level === 'RepositoryLinked' ? 2 : 3)
+      : level;
+    const numStatus = typeof status === 'string'
+      ? (status === 'Verified' ? 1 : status === 'Outdated' ? 2 : status === 'Disconnected' ? 3 : 4)
+      : status;
+
+    if (numLevel === 1) { // AI Analyzed
+      if (status === 2) {
+        return (
+          <span className="text-[8px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+            AI Audited • Outdated
+          </span>
+        );
+      }
+      if (status === 3) {
+        return (
+          <span className="text-[8px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+            AI Audited • Disconnected
+          </span>
+        );
+      }
+      return (
+        <span className="text-[8px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+          AI Audited
+        </span>
+      );
+    }
+    if (level === 2) { // Repo Linked
+      if (status === 3) {
+        return (
+          <span className="text-[8px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+            Repo Linked • Disconnected
+          </span>
+        );
+      }
+      return (
+        <span className="text-[8px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+          Repo Linked
+        </span>
+      );
+    }
+    // Independent
+    return (
+      <span className="text-[8px] font-extrabold text-neutral-600 bg-neutral-50 px-1.5 py-0.5 rounded border border-neutral-200 mt-0.5 inline-block w-max select-none uppercase tracking-wide">
+        Self Declared
+      </span>
+    );
+  };
+
   // Normalize project inputs (real repos vs sample data)
   const normalizedProjects = projects.map((p: any) => {
-    const isRealRepo = p.createdAtUtc !== undefined;
+    // If it's a new unified project portfolio item:
+    if (p.verificationLevel !== undefined) {
+      const start = formatMonthYear(p.startDate);
+      const end = p.isCurrentlyWorking ? "Present" : formatMonthYear(p.endDate);
+      const numLevel = typeof p.verificationLevel === 'string'
+        ? (p.verificationLevel === 'AiAnalyzed' ? 1 : p.verificationLevel === 'RepositoryLinked' ? 2 : 3)
+        : p.verificationLevel;
+      const numStatus = typeof p.verificationStatus === 'string'
+        ? (p.verificationStatus === 'Verified' ? 1 : p.verificationStatus === 'Outdated' ? 2 : p.verificationStatus === 'Disconnected' ? 3 : 4)
+        : p.verificationStatus;
+      return {
+        id: p.id || p.name,
+        name: p.name,
+        dateRange: start && end ? `${start} - ${end}` : (start || end || "N/A"),
+        description: p.description || "",
+        technologies: p.technologies || [],
+        role: p.role || "",
+        contributions: p.contributions || [],
+        verificationLevel: numLevel,
+        verificationStatus: numStatus,
+      };
+    }
 
+    // Fallback for old/legacy model or sample data:
+    const isRealRepo = p.createdAtUtc !== undefined;
     if (isRealRepo) {
       const start = formatMonthYear(p.createdAtUtc);
       const end = p.lastCommitAt ? formatMonthYear(p.lastCommitAt) : "Present";
       const techList = p.primaryLanguage ? [p.primaryLanguage] : (p.cvSynthesis?.skills || []);
-      const highlightsList = p.cvSynthesis?.highlights?.map((h: any) => `${h.signal}: ${h.impact}`) || [];
+      const highlightsList = p.cvSynthesis?.highlights?.map((h: any) => h.impact ? `${h.signal}: ${h.impact}` : h.signal) || [];
 
       return {
         id: p.id,
@@ -190,8 +265,8 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
         technologies: techList,
         role: p.cvSynthesis?.ownershipProfile || "Contributor",
         contributions: highlightsList,
-        trustScore: p.trustScore,
-        latestAnalysisStatus: p.latestAnalysisStatus,
+        verificationLevel: 1, // AI Analyzed
+        verificationStatus: 1, // Verified
       };
     } else {
       const start = formatMonthYear(p.startDate);
@@ -204,8 +279,8 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
         technologies: p.technologies || [],
         role: p.role || "Developer",
         contributions: p.contributions || [],
-        trustScore: null,
-        latestAnalysisStatus: null,
+        verificationLevel: 3, // Independent
+        verificationStatus: 4, // Unverified
       };
     }
   });
@@ -227,12 +302,13 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
       <style>{`
         @page {
           size: A4;
+          /* Zero page margin so the browser does NOT inject its own date/URL/page
+             headers & footers into the margin area. The 20mm CV inset is instead
+             applied via padding on .cv-print-area below, so the printed sheet looks
+             exactly like the clean on-screen CV preview. */
           margin: 0;
         }
         @media print {
-          html {
-            counter-reset: page 0;
-          }
           html, body {
             background: white !important;
             color: black !important;
@@ -241,25 +317,29 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
             height: auto !important;
             min-height: auto !important;
             overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          
-          /* Hide all screen layout elements by setting visibility: hidden */
+
+          /* Hide all screen UI; the CV area overrides this below */
           body * {
             visibility: hidden !important;
           }
-          
-          /* Make sure the CV preview area and all its descendants are visible */
+
           .cv-print-area,
           .cv-print-area * {
             visibility: visible !important;
           }
-          
-          /* Position the cv-print-area absolutely at the top-left of page 1 */
+
+          /* With @page margin set to 0 (to suppress browser headers/footers), the
+             20mm inset is applied here as padding so every printed page keeps the
+             same uniform border as the on-screen preview. */
           .cv-print-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 210mm !important;
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
             min-height: auto !important;
             height: auto !important;
             margin: 0 !important;
@@ -268,10 +348,11 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
             border: none !important;
             background: white !important;
             box-sizing: border-box !important;
-            z-index: 99999 !important;
+            display: block !important;
+            z-index: auto !important;
           }
-          
-          /* Reset viewport height and overflow constraints on all parent containers so multi-page printing works */
+
+          /* Reset viewport-locked containers so multi-page flow works */
           .min-h-screen,
           .h-screen,
           .overflow-hidden,
@@ -284,7 +365,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
             overflow: visible !important;
           }
 
-          /* Clear modal alignment, backgrounds, shadows, and paddings during print to prevent pushing layout down */
+          /* Flatten modal / overlay wrappers */
           .cv-preview-overlay {
             position: static !important;
             display: block !important;
@@ -315,14 +396,23 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
             background: transparent !important;
             overflow: visible !important;
           }
+          .cv-preview-scale-wrapper {
+            width: 100% !important;
+            height: auto !important;
+            position: static !important;
+            flex-shrink: unset !important;
+          }
           .cv-preview-box {
             display: block !important;
             border: none !important;
             box-shadow: none !important;
             overflow: visible !important;
+            transform: none !important;
+            position: static !important;
+            width: 100% !important;
           }
-          
-          /* Completely hide specific interactive and navigational elements to avoid empty spaces */
+
+          /* Remove non-CV chrome */
           header,
           footer,
           nav,
@@ -333,34 +423,37 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
           .no-print {
             display: none !important;
           }
-          
+
+          /* Print footer: in-flow at the end of CV content */
           .cv-footer-print {
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 20mm !important;
-            right: 20mm !important;
             display: flex !important;
+            position: static !important;
             justify-content: space-between !important;
             align-items: center !important;
-            border-top: 1px solid var(--border) !important;
-            padding-top: 4px !important;
-            height: 30px !important;
-            font-size: 8px !important;
-            color: var(--muted) !important;
+            border-top: 0.5px solid #d1d5db !important;
+            padding-top: 2mm !important;
+            margin-top: 6mm !important;
+            font-size: 7pt !important;
+            color: #9ca3af !important;
             background: white !important;
             visibility: visible !important;
           }
-          
+
           .cv-footer-print .page-num-print::after {
             counter-increment: page;
             content: "Page " counter(page);
           }
-          
+
           .cv-page-content-wrapper {
-            margin-bottom: 35px !important;
+            margin-bottom: 0 !important;
+          }
+
+          /* Screen-only footer is not needed in print */
+          .cv-footer-screen {
+            display: none !important;
           }
         }
-        
+
         .cv-footer-print {
           display: none;
         }
@@ -519,20 +612,23 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
             <div className="border-b border-neutral-300 w-full my-0.5" />
             <div className="flex flex-col gap-3 mt-1">
               {education.map((edu) => {
-                const start = formatMonthYear(edu.startDate);
-                const end = edu.isCurrentlyStudying ? "Present" : formatMonthYear(edu.endDate);
+                const schoolName = edu.schoolName || edu.school || "";
+                const startDate = edu.startDate || edu.period?.start?.toString() || "";
+                const endDate = edu.endDate || edu.period?.end?.toString() || "";
+                const start = formatMonthYear(startDate);
+                const end = edu.isCurrentlyStudying ? "Present" : formatMonthYear(endDate);
 
                 return (
                   <div key={edu.id} className="flex flex-col gap-0.5 cv-item-avoid-break">
                     <div className="flex items-start justify-between font-bold text-neutral-900 text-[11px]">
-                      <span>{edu.schoolName}</span>
+                      <span>{schoolName}{edu.label ? ` - ${edu.label}` : ""}</span>
                       <span className="text-[10px] text-neutral-600 font-normal shrink-0 pl-4">
-                        {start} to {end}
+                        {start && end ? `${start} to ${end}` : (start || end || "")}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-neutral-700 text-[10.5px]">
                       <span>
-                        {edu.label} {edu.degree ? `(${edu.degree})` : ""}{edu.major ? ` - ${edu.major}` : ""}
+                        {edu.degree || ""}{edu.major ? `${edu.degree ? " - " : ""}${edu.major}` : ""}
                       </span>
                       {edu.gpa && (
                         <span className="font-bold shrink-0 pl-4">
@@ -559,13 +655,9 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
               {normalizedProjects.map((proj) => (
                 <div key={proj.id} className="flex flex-col gap-0.5 cv-item-avoid-break">
                   <div className="flex items-start justify-between font-bold text-neutral-900 text-[11px]">
-                    <div className="flex flex-col">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span>{proj.name}</span>
-                      {proj.latestAnalysisStatus === "Completed" && proj.trustScore !== null && proj.trustScore !== undefined && (
-                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5 inline-block w-max select-none no-print">
-                          AI Audited • Trust Score: {formatScore(proj.trustScore)}
-                        </span>
-                      )}
+                      {renderVerificationBadge(proj.verificationLevel, proj.verificationStatus)}
                     </div>
                     <span className="text-[10px] text-neutral-600 font-normal shrink-0 pl-4">
                       {proj.dateRange}
@@ -676,7 +768,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
           </h2>
           <div className="border-b border-neutral-300 w-full my-0.5" />
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 mt-1 text-[10.5px] text-neutral-700">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 mt-1 text-[10.5px] text-neutral-700">
             {preferences.openToWorkStatus && (
               <div>
                 <span className="font-bold text-neutral-900">Job Search Status:</span>{" "}
@@ -724,7 +816,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
               </div>
             )}
             {preferences.workPreferenceNotes && (
-              <div className="col-span-1 md:col-span-2 mt-0.5">
+              <div className="col-span-2 mt-0.5">
                 <span className="font-bold text-neutral-900">Additional Work Preference Notes:</span>{" "}
                 <span className="italic">{preferences.workPreferenceNotes}</span>
               </div>
@@ -735,7 +827,7 @@ export const CVPreview: React.FC<CVPreviewProps> = ({
       </div>
 
       {/* Subtle Authentication Footer (Visible on screen and repeated on each print page via fixed css) */}
-      <div className="cv-footer-print mt-6 border-t border-neutral-300 pt-2 flex justify-between items-center text-[8.5px] text-neutral-500 font-sans select-none no-print print-only">
+      <div className="cv-footer-print mt-6 border-t border-neutral-300 pt-2 flex justify-between items-center text-[8.5px] text-neutral-500 font-sans select-none">
         <span>Verified by CVerify • AI-assisted candidate profile authentication</span>
         <span className="page-num-print" />
       </div>
