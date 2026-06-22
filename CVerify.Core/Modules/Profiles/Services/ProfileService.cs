@@ -84,7 +84,21 @@ public class ProfileService : IProfileService
             profile.User = user;
         }
 
-        return MapToResponse(profile, profile.SocialLinks);
+        var cvSetting = await _context.UserCvSettings
+            .FirstOrDefaultAsync(ucs => ucs.UserId == userId, cancellationToken);
+        if (cvSetting == null)
+        {
+            cvSetting = new UserCvSetting
+            {
+                UserId = userId,
+                CvTemplateId = "professional",
+                IsCvPublished = true
+            };
+            _context.UserCvSettings.Add(cvSetting);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        return MapToResponse(profile, profile.SocialLinks, cvSetting);
     }
 
     public async Task<ProfileResponse> UpdateProfileAsync(
@@ -109,8 +123,21 @@ public class ProfileService : IProfileService
             throw new ProfileException(ProfileErrorCodes.ProfileConcurrencyConflict, "This profile has been modified by another process. Please reload and try again.");
         }
 
+        var cvSetting = await _context.UserCvSettings
+            .FirstOrDefaultAsync(ucs => ucs.UserId == userId, cancellationToken);
+        if (cvSetting == null)
+        {
+            cvSetting = new UserCvSetting
+            {
+                UserId = userId,
+                CvTemplateId = "professional",
+                IsCvPublished = true
+            };
+            _context.UserCvSettings.Add(cvSetting);
+        }
+
         // Keep old state for activity logging
-        var oldStateJson = JsonSerializer.Serialize(MapToResponse(profile, new List<string>()));
+        var oldStateJson = JsonSerializer.Serialize(MapToResponse(profile, new List<string>(), cvSetting));
 
         // Update associated User properties
         if (!string.IsNullOrWhiteSpace(request.FullName))
@@ -136,6 +163,19 @@ public class ProfileService : IProfileService
         profile.UpdatedAt = DateTimeOffset.UtcNow;
         profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
 
+        // Update CV configurations
+        if (request.CvTemplateId != null)
+        {
+            cvSetting.CvTemplateId = request.CvTemplateId;
+        }
+        cvSetting.CvThemeColor = request.CvThemeColor;
+        if (request.IsCvPublished.HasValue)
+        {
+            cvSetting.IsCvPublished = request.IsCvPublished.Value;
+        }
+        cvSetting.CvLayoutConfigJson = request.CvLayoutConfigJson;
+        cvSetting.UpdatedAt = DateTimeOffset.UtcNow;
+
         var newSocialUrls = new List<string>();
         if (request.SocialLinks != null)
         {
@@ -147,7 +187,7 @@ public class ProfileService : IProfileService
         profile.SocialLinks = newSocialUrls;
 
         // Log the state transition
-        var logResponse = MapToResponse(profile, newSocialUrls);
+        var logResponse = MapToResponse(profile, newSocialUrls, cvSetting);
         var newStateJson = JsonSerializer.Serialize(logResponse);
 
         var log = new AuditLog
@@ -182,7 +222,7 @@ public class ProfileService : IProfileService
             _logger.Log(LogLevel.Warning, "Profile", $"Failed to index CV repositories during profile update for user {userId}.", ex);
         }
 
-        return MapToResponse(profile, newSocialUrls);
+        return MapToResponse(profile, newSocialUrls, cvSetting);
     }
 
     public async Task UpdateUsernameAsync(
@@ -304,6 +344,9 @@ public class ProfileService : IProfileService
 
         var signedAvatarUrl = await GetSignedAvatarUrlAsync(profile.User?.AvatarUrl, cancellationToken);
 
+        var cvSetting = await _context.UserCvSettings
+            .FirstOrDefaultAsync(ucs => ucs.UserId == profile.UserId, cancellationToken);
+
         var careerPreference = await _context.CareerPreferences
             .FirstOrDefaultAsync(cp => cp.UserId == profile.UserId, cancellationToken);
 
@@ -338,7 +381,14 @@ public class ProfileService : IProfileService
                 expectedSalaryType,
                 careerPreference.ExpectedSalaryNegotiable,
                 careerPreference.IsExpectedSalaryVisible,
-                careerPreference.WorkPreferenceNotes
+                careerPreference.WorkPreferenceNotes,
+                careerPreference.TargetSkills ?? new List<string>(),
+                careerPreference.OpenToWorkStatus ?? "casual",
+                careerPreference.RemotePreference ?? "any",
+                careerPreference.OpenToRelocation,
+                careerPreference.LeadershipTrack ?? "undecided",
+                careerPreference.CompanyStagePreferences ?? new List<string>(),
+                careerPreference.PreferredIndustries ?? new List<string>()
             );
         }
 
@@ -607,7 +657,12 @@ public class ProfileService : IProfileService
             achievementResponses,
             hasCompletedAssessment,
             lastAssessmentDate,
-            publishedVacancies
+            publishedVacancies,
+            cvSetting?.CvTemplateId ?? "professional",
+            cvSetting?.CvThemeColor,
+            cvSetting?.IsCvPublished ?? true,
+            cvSetting?.CvLayoutConfigJson,
+            profile.AiSuggestionsJson
         );
     }
 
@@ -658,7 +713,7 @@ public class ProfileService : IProfileService
         }
     }
 
-    private static ProfileResponse MapToResponse(UserProfile profile, List<string> socialLinks)
+    private static ProfileResponse MapToResponse(UserProfile profile, List<string> socialLinks, UserCvSetting? cvSetting)
     {
         return new ProfileResponse(
             profile.UserId,
@@ -680,7 +735,11 @@ public class ProfileService : IProfileService
             profile.UpdatedAt,
             profile.Version,
             profile.AiSuggestionsJson,
-            socialLinks
+            socialLinks,
+            cvSetting?.CvTemplateId ?? "professional",
+            cvSetting?.CvThemeColor,
+            cvSetting?.IsCvPublished ?? true,
+            cvSetting?.CvLayoutConfigJson
         );
     }
 

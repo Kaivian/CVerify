@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { CVPreview } from "./CVPreview";
 import { type CvDraftState } from "./types";
+import { mapDraftStateToCvProps } from "../utils/cvMapper";
 
 interface CvLivePreviewProps {
   drafts: CvDraftState;
@@ -50,13 +51,7 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts, templateId
     return () => observer.disconnect();
   }, []);
 
-  const basic = drafts["basic-info"];
-  const summary = { bio: drafts["basic-info"].bio };
-  const skills = drafts["skills"];
-  const experience = drafts["experience"];
-  const education = drafts["education"];
-  const achievements = drafts["achievements"];
-  const preferences = drafts["preferences"];
+  const cvProps = mapDraftStateToCvProps(drafts, avatarUrl, templateId);
 
   return (
     <div
@@ -85,18 +80,7 @@ export const CvLivePreview: React.FC<CvLivePreviewProps> = ({ drafts, templateId
             top: 0,
           }}
         >
-          <CVPreview
-            basic={basic}
-            summary={summary}
-            skills={skills}
-            experience={experience}
-            education={education}
-            achievements={achievements}
-            preferences={preferences}
-            projects={drafts["projects"]}
-            templateId={templateId}
-            avatarUrl={avatarUrl}
-          />
+          <CVPreview {...cvProps} />
         </div>
       </div>
     </div>
