@@ -20,59 +20,92 @@ import {
   User,
   GraduationCap,
   Award,
-  Trophy
+  Trophy,
+  CreditCard,
+  Settings,
+  TrendingUp,
+  HandCoins,
+  Globe,
+  BarChart3
 } from 'lucide-react';
 import { type NavigationNode } from '../types/navigation.types';
 
 export const navigationConfig: NavigationNode[] = [
+  // 1. BUSINESS SECTION (Workspace-specific operations)
   {
-    id: 'general-section',
+    id: 'business-section',
     type: 'section',
-    label: 'General',
-    translationKey: 'common:dashboard.sections.general',
+    label: 'Business',
+    translationKey: 'common:dashboard.sections.business',
+    requiredRoles: ['BUSINESS', 'ADMIN'],
     children: [
       {
-        id: 'job-board-group',
-        type: 'group',
+        id: 'workspace-dashboard',
+        type: 'item',
+        label: 'Dashboard',
+        translationKey: 'common:dashboard.businessDashboard',
+        href: '/workspace/[slug]/dashboard',
+        icon: LayoutDashboard,
+        exactMatch: true,
+      },
+      {
+        id: 'workspace-listings',
+        type: 'item',
+        label: 'Listings',
+        translationKey: 'common:dashboard.listings',
+        href: '/workspace/[slug]/listings',
+        icon: Globe,
+      },
+      {
+        id: 'workspace-bookings',
+        type: 'item',
+        label: 'Bookings',
+        translationKey: 'common:dashboard.bookings',
+        href: '/workspace/[slug]/bookings',
+        icon: TrendingUp,
+      },
+      {
+        id: 'workspace-revenue',
+        type: 'item',
+        label: 'Revenue',
+        translationKey: 'common:dashboard.revenue',
+        href: '/workspace/[slug]/revenue',
+        icon: HandCoins,
+        requiredWorkspacePermissions: ['billing:invoice:view', 'billing:subscription:manage'],
+      },
+      {
+        id: 'workspace-customers',
+        type: 'item',
+        label: 'Customers',
+        translationKey: 'common:dashboard.customers',
+        href: '/workspace/[slug]/customers',
+        icon: Users,
+      },
+      {
+        id: 'workspace-analytics',
+        type: 'item',
+        label: 'Analytics',
+        translationKey: 'common:dashboard.analytics',
+        href: '/workspace/[slug]/analytics',
+        icon: BarChart3,
+      },
+    ],
+  },
+
+  // 2. PLATFORM SECTION (Global platform-level pages)
+  {
+    id: 'platform-section',
+    type: 'section',
+    label: 'Platform',
+    translationKey: 'common:dashboard.sections.platform',
+    children: [
+      {
+        id: 'job-board',
+        type: 'item',
         label: 'Job Board',
         translationKey: 'common:dashboard.jobBoard',
         href: '/jobs',
         icon: Briefcase,
-        children: [
-          {
-            id: 'jobs-explore',
-            type: 'item',
-            label: 'Explore',
-            translationKey: 'common:dashboard.exploreJobs',
-            href: '/jobs',
-            icon: Compass,
-            exactMatch: true,
-          },
-          {
-            id: 'jobs-recommended',
-            type: 'item',
-            label: 'Recommended',
-            translationKey: 'common:dashboard.recommendedJobs',
-            href: '/jobs?tab=recommended',
-            icon: Target,
-          },
-          {
-            id: 'jobs-saved',
-            type: 'item',
-            label: 'Saved',
-            translationKey: 'common:dashboard.savedJobs',
-            href: '/jobs?tab=saved',
-            icon: Bookmark,
-          },
-          {
-            id: 'jobs-applied',
-            type: 'item',
-            label: 'Applied',
-            translationKey: 'common:dashboard.appliedJobs',
-            href: '/jobs?tab=applied',
-            icon: Inbox,
-          },
-        ],
       },
       {
         id: 'forum',
@@ -91,34 +124,63 @@ export const navigationConfig: NavigationNode[] = [
         icon: Building2,
       },
       {
-        id: 'ranking-group',
-        type: 'group',
+        id: 'leaderboard',
+        type: 'item',
         label: 'Leaderboard',
-        translationKey: 'common:dashboard.rankingGroup',
-        href: '/ranking/insights',
+        translationKey: 'common:dashboard.ranking',
+        href: '/ranking',
         icon: Trophy,
-        children: [
-          {
-            id: 'ranking-insights',
-            type: 'item',
-            label: 'Insights',
-            translationKey: 'common:dashboard.rankingInsights',
-            href: '/ranking/insights',
-            icon: Sparkles,
-          },
-          {
-            id: 'ranking-candidates',
-            type: 'item',
-            label: 'Rankings',
-            translationKey: 'common:dashboard.ranking',
-            href: '/ranking',
-            icon: Trophy,
-            exactMatch: true,
-          },
-        ],
       },
     ],
   },
+
+  // 3. MANAGEMENT SECTION (Workspace management and settings)
+  {
+    id: 'management-section',
+    type: 'section',
+    label: 'Management',
+    translationKey: 'common:dashboard.sections.management',
+    requiredRoles: ['BUSINESS', 'ADMIN'],
+    children: [
+      {
+        id: 'workspace-members',
+        type: 'item',
+        label: 'Members',
+        translationKey: 'common:dashboard.members',
+        href: '/workspace/[slug]/members',
+        icon: Users,
+      },
+      {
+        id: 'workspace-roles',
+        type: 'item',
+        label: 'Roles',
+        translationKey: 'common:dashboard.roles',
+        href: '/workspace/[slug]/roles',
+        icon: Shield,
+        requiredWorkspacePermissions: ['organization:roles:view', 'organization:roles:manage'],
+      },
+      {
+        id: 'workspace-billing',
+        type: 'item',
+        label: 'Billing',
+        translationKey: 'common:dashboard.billing',
+        href: '/workspace/[slug]/billing',
+        icon: CreditCard,
+        requiredWorkspacePermissions: ['billing:invoice:view', 'billing:subscription:manage'],
+      },
+      {
+        id: 'workspace-settings',
+        type: 'item',
+        label: 'Settings',
+        translationKey: 'common:dashboard.settings',
+        href: '/workspace/[slug]/settings',
+        icon: Settings,
+        requiredWorkspacePermissions: ['organization:settings:edit', 'organization:profile:edit'],
+      },
+    ],
+  },
+
+  // 4. CANDIDATE SECTION (Personal developer dashboard - visible to USER/ADMIN roles)
   {
     id: 'candidate-section',
     type: 'section',
@@ -219,6 +281,8 @@ export const navigationConfig: NavigationNode[] = [
       },
     ],
   },
+
+  // 5. INTELLIGENCE SECTION (Talent analysis tools)
   {
     id: 'intelligence-section',
     type: 'section',
@@ -260,23 +324,8 @@ export const navigationConfig: NavigationNode[] = [
       },
     ],
   },
-  {
-    id: 'business-section',
-    type: 'section',
-    label: 'Business',
-    translationKey: 'common:dashboard.sections.business',
-    requiredRoles: ['BUSINESS', 'ADMIN'],
-    children: [
-      {
-        id: 'business-dashboard',
-        type: 'item',
-        label: 'Dashboard',
-        translationKey: 'common:dashboard.businessDashboard',
-        href: '/business',
-        icon: Building2,
-      },
-    ],
-  },
+
+  // 6. SYSTEM ADMINISTRATION SECTION
   {
     id: 'admin-section',
     type: 'section',

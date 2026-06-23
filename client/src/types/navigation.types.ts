@@ -10,6 +10,8 @@ export interface BaseNavigationNode {
   translationKey?: string;
   requiredPermissions?: ResourceActionPermission[];
   requiredRoles?: UserRole[];
+  requiredWorkspacePermissions?: string[];
+  requiredWorkspaceRoles?: string[];
   tooltip?: string;
 }
 

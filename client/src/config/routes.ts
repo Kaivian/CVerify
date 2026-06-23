@@ -128,6 +128,56 @@ export const routesConfig: Record<string, RouteMetadata> = {
     icon: FileText,
     parentPath: '/admin',
   },
+  '/workspace/[organizationSlug]/dashboard': {
+    path: '/workspace/[organizationSlug]/dashboard',
+    translationKey: 'common:dashboard.businessDashboard',
+    fallbackLabel: 'Dashboard',
+  },
+  '/workspace/[organizationSlug]/listings': {
+    path: '/workspace/[organizationSlug]/listings',
+    translationKey: 'common:dashboard.listings',
+    fallbackLabel: 'Listings',
+  },
+  '/workspace/[organizationSlug]/bookings': {
+    path: '/workspace/[organizationSlug]/bookings',
+    translationKey: 'common:dashboard.bookings',
+    fallbackLabel: 'Bookings',
+  },
+  '/workspace/[organizationSlug]/revenue': {
+    path: '/workspace/[organizationSlug]/revenue',
+    translationKey: 'common:dashboard.revenue',
+    fallbackLabel: 'Revenue',
+  },
+  '/workspace/[organizationSlug]/customers': {
+    path: '/workspace/[organizationSlug]/customers',
+    translationKey: 'common:dashboard.customers',
+    fallbackLabel: 'Customers',
+  },
+  '/workspace/[organizationSlug]/analytics': {
+    path: '/workspace/[organizationSlug]/analytics',
+    translationKey: 'common:dashboard.analytics',
+    fallbackLabel: 'Analytics',
+  },
+  '/workspace/[organizationSlug]/members': {
+    path: '/workspace/[organizationSlug]/members',
+    translationKey: 'common:dashboard.members',
+    fallbackLabel: 'Team Members',
+  },
+  '/workspace/[organizationSlug]/roles': {
+    path: '/workspace/[organizationSlug]/roles',
+    translationKey: 'common:dashboard.roles',
+    fallbackLabel: 'Access Control',
+  },
+  '/workspace/[organizationSlug]/billing': {
+    path: '/workspace/[organizationSlug]/billing',
+    translationKey: 'common:dashboard.billing',
+    fallbackLabel: 'Billing & Subscription',
+  },
+  '/workspace/[organizationSlug]/settings': {
+    path: '/workspace/[organizationSlug]/settings',
+    translationKey: 'common:dashboard.settings',
+    fallbackLabel: 'Workspace Settings',
+  },
 };
 
 /**
