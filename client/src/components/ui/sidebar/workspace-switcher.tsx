@@ -37,8 +37,8 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
 
   // Derive active organization slug directly from URL segment
   const activeWorkspaceSlug = useMemo(() => {
-    if (pathname?.startsWith("/workspace/")) {
-      const slug = pathname.split("/workspace/")[1]?.split("/")[0] || "";
+    if (pathname?.startsWith("/business/")) {
+      const slug = pathname.split("/business/")[1]?.split("/")[0] || "";
       if (slug === "organizations") return "";
       return slug;
     }
@@ -99,7 +99,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
     setActiveWorkspaceId(id);
     
     // Redirect to recruitment dashboard for the selected workspace context
-    router.push(`/workspace/${activeWorkspaceSlug}/recruitment/dashboard`);
+    router.push(`/business/${activeWorkspaceSlug}/recruitment/dashboard`);
   };
 
   const handleCreateWorkspace = () => {

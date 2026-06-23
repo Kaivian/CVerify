@@ -240,7 +240,7 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
                 {myOrganizations.map((org) => (
                   <button
                     key={org.slug}
-                    onClick={() => router.push(`/workspace/${org.slug}/information`)}
+                    onClick={() => router.push(`/business/${org.slug}/information`)}
                     className="flex items-center gap-3 w-full p-3.5 rounded-xl border border-border bg-surface-secondary/40 hover:bg-surface-secondary hover:border-accent/30 text-left transition-colors duration-200 group cursor-pointer"
                   >
                     <div className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center group-hover:bg-accent group-hover:text-background transition-colors duration-200">

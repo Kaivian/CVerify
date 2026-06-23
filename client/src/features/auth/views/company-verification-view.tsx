@@ -594,7 +594,7 @@ export function CompanyVerificationView() {
                   {recoveryInfo.organizationDisplayName}
                 </span>
                 <span className="text-xs text-muted font-mono block mt-1">
-                  cverify.com/workspace/{recoveryInfo.organizationSlug}
+                  cverify.com/business/{recoveryInfo.organizationSlug}
                 </span>
               </div>
 
@@ -1228,7 +1228,7 @@ export function CompanyVerificationView() {
                 >
                   <Label>Business Handle (URL)</Label>
                   <InputGroup>
-                    <InputGroup.Prefix>cverify.com/workspace/</InputGroup.Prefix>
+                    <InputGroup.Prefix>cverify.com/business/</InputGroup.Prefix>
                     <Input
                       placeholder="fpt-software"
                       className="rounded-r-xl rounded-l-none w-full"
@@ -1248,7 +1248,7 @@ export function CompanyVerificationView() {
                       <Check className="size-3 text-success" />
                       Business handle available:{" "}
                       <span className="font-mono text-foreground/80 font-bold">
-                        cverify.com/workspace/{organizationUsername}
+                        cverify.com/business/{organizationUsername}
                       </span>
                     </div>
                   )}

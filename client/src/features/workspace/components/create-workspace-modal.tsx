@@ -159,7 +159,7 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
             className="w-full text-xs font-semibold rounded-xl border border-border font-mono"
           />
           <span className="text-[10px] text-muted-foreground block mt-1">
-            This will be used in your workspace URL, e.g. cverify.com/workspace/{organizationSlug}/{slug || 'your-slug'}
+            This will be used in your workspace URL, e.g. cverify.com/business/{organizationSlug}/{slug || 'your-slug'}
           </span>
         </div>
       </form>

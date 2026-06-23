@@ -72,8 +72,8 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   // Derive active workspace slug directly from URL path segment
   const activeWorkspaceSlug = useMemo(() => {
-    if (pathname?.startsWith("/workspace/")) {
-      const slug = pathname.split("/workspace/")[1]?.split("/")[0] || "";
+    if (pathname?.startsWith("/business/")) {
+      const slug = pathname.split("/business/")[1]?.split("/")[0] || "";
       if (slug === "organizations") return "";
       return slug;
     }
@@ -351,7 +351,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         {sidebarMode === "WORKSPACE" && (
           <div className="flex flex-col gap-2 pb-2 border-b border-border/40 mb-1 select-none">
             <Link
-              href={`/workspace/${currentOrgSlug}/dashboard`}
+              href={`/business/${currentOrgSlug}/dashboard`}
               className={[
                 "flex items-center gap-2 w-full rounded-xl transition-all duration-200 text-muted hover:bg-accent/10 hover:text-accent font-semibold cursor-pointer border-0 bg-transparent text-left",
                 isMobile ? "h-12 text-base px-3.5" : "h-10 text-sm px-3",
@@ -430,7 +430,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         {sidebarMode === "COMPANY" && activeWorkspaceObj && !collapsed && (
           <div className="px-1.5 mb-1.5 select-none">
             <Link
-              href={`/workspace/${currentOrgSlug}/recruitment/dashboard`}
+              href={`/business/${currentOrgSlug}/recruitment/dashboard`}
               className="flex items-center justify-between p-2 rounded-xl border border-accent/20 bg-accent/5 hover:bg-accent/10 transition-colors duration-200 cursor-pointer"
             >
               <div className="flex flex-col min-w-0">

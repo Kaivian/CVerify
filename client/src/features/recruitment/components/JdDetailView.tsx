@@ -381,7 +381,7 @@ export default function JdDetailView({
       const draft = await hiringRequirementService.createJobPostingDraft(requirementId);
       toast.success("Job posting draft created successfully!");
       setJobPosting(draft);
-      router.push(`/workspace/${params.organizationSlug}/recruitment/jd/${requirementId}/review`);
+      router.push(`/business/${params.organizationSlug}/recruitment/jd/${requirementId}/review`);
     } catch (err: any) {
       toast.danger(err.response?.data?.message || err.message || "Failed to create job posting draft.");
     } finally {
@@ -693,7 +693,7 @@ export default function JdDetailView({
               {hasGenerated && (
                 jobPosting ? (
                   <Button
-                    onClick={() => router.push(`/workspace/${params.organizationSlug}/recruitment/jd/${requirementId}/review`)}
+                    onClick={() => router.push(`/business/${params.organizationSlug}/recruitment/jd/${requirementId}/review`)}
                     className="bg-accent text-accent-foreground font-bold text-xs h-10 px-4 rounded-xl cursor-pointer flex items-center gap-1.5 hover:opacity-90 animate-none"
                   >
                     <ExternalLink size={14} /> Review Job Posting

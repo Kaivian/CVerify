@@ -872,7 +872,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
 
                           <div className="shrink-0 pt-2 md:pt-0 w-full md:w-auto">
                             <Link
-                              href={`/workspace/${orgSlug}/jobs`}
+                              href={`/business/${orgSlug}/jobs`}
                               className="inline-block text-xs font-bold px-6 py-2 rounded-lg transition-colors border-none text-center bg-accent text-background hover:bg-accent/90 w-full md:w-auto hover:opacity-95"
                             >
                               Apply Now
