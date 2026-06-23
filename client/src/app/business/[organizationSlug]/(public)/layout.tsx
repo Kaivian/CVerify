@@ -232,6 +232,7 @@ export default function PublicWorkspaceLayout({
       }
       guestMainClassName="max-w-6xl mx-auto px-4 md:px-6 pt-6 relative z-10 space-y-6 w-full flex-1"
     >
+      <div className="flex flex-col gap-6 w-full">
         {/* Link to Private Management Dashboard (Top Left) */}
         {canManageProfile && (
           <div className="flex justify-start select-none">
@@ -443,6 +444,7 @@ export default function PublicWorkspaceLayout({
         <main className="min-w-0">
           {children}
         </main>
+      </div>
 
       {/* Hidden file inputs for uploads */}
       <input

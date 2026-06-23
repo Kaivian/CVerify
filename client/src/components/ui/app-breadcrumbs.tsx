@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Breadcrumbs } from "@heroui/react";
 import { getRouteMetadata, getDynamicSegmentLabel } from "../../config/routes";
 import { useAuth } from "../../features/auth/hooks/use-auth";
+import { useWorkspaceStore } from "../../features/workspace/store/use-workspace-store";
 import { RESERVED_USERNAMES } from "../../lib/navigation-utils";
 
 /**
@@ -60,6 +61,7 @@ export const AppBreadcrumbs: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
+  const workspacesStore = useWorkspaceStore((s) => s.workspaces);
 
   if (!pathname) return null;
 
@@ -79,11 +81,27 @@ export const AppBreadcrumbs: React.FC = () => {
     
     // Skip "business" segment
     if (segment === "business") {
+      if (user?.role === "USER") {
+        breadcrumbItems.push({
+          href: "/workspace/organizations",
+          label: "Organizations",
+          isLast: false,
+        });
+      }
       continue;
     }
     
     // Skip the dynamic organization slug that follows "business"
     if (index > 0 && segments[index - 1] === "business") {
+      if (user?.role === "USER") {
+        const orgDetails = workspacesStore[segment];
+        const label = orgDetails?.organizationName || getDynamicSegmentLabel(segment);
+        breadcrumbItems.push({
+          href: `/business/${segment}`,
+          label,
+          isLast: false,
+        });
+      }
       continue;
     }
 
