@@ -186,7 +186,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 _context.AnalysisTaskResults,
                 task => task.Id,
                 res => res.TaskId,
-                (task, results) => new { task, result = results.FirstOrDefault() }
+                (task, results) => new { task, result = results.OrderBy(r => r.TaskId).FirstOrDefault() }
             )
             .Where(x => x.task.JobId == jobId)
             .ToListAsync();
