@@ -64,6 +64,10 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
 
   // Close mobile drawer and navigate when link is clicked
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (item.openInNewTab) {
+      setMobileOpen(false);
+      return;
+    }
     e.preventDefault();
     setMobileOpen(false);
     router.push(item.href);
@@ -74,6 +78,8 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
     <a
       href={item.href}
       onClick={handleLinkClick}
+      target={item.openInNewTab ? "_blank" : undefined}
+      rel={item.openInNewTab ? "noopener noreferrer" : undefined}
       aria-label={label}
       aria-current={active ? "page" : undefined}
       style={{
