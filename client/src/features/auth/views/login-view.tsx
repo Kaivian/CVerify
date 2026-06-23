@@ -598,15 +598,15 @@ function LoginContent() {
                       <FieldError />
                     </TextField>
 
-                    <div className="flex items-center justify-between">
-                      <Checkbox id="remember-me">
+                    <div className="flex justify-between">
+                      <Checkbox id="remember-me" className="flex flex-row">
                         <Checkbox.Control>
                           <Checkbox.Indicator />
                         </Checkbox.Control>
                         <Checkbox.Content>
                           <Label
                             htmlFor="remember-me"
-                            className="text-muted cursor-pointer text-xs"
+                            className="text-muted cursor-pointer text-xs pt-px"
                           >
                             Remember me
                           </Label>

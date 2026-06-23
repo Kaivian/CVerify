@@ -194,6 +194,7 @@ public record PaginatedOrganizationsResponseDto(
 
 public record CreateWorkspaceRequestDto(
     string DisplayName,
-    string Slug
+    string Slug,
+    string? Description = null
 );
 

@@ -532,14 +532,18 @@ CREATE TABLE IF NOT EXISTS workspaces (
     organization_id UUID NOT NULL,
     display_name VARCHAR(255) NOT NULL,
     slug VARCHAR(100) NOT NULL,
+    description VARCHAR(1000),
     branding TEXT,
     status VARCHAR(50) NOT NULL DEFAULT 'active',
+    owner_id UUID NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE,
-    CONSTRAINT fk_workspaces_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    CONSTRAINT fk_workspaces_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_workspaces_users_owner_id FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_slug_active ON workspaces(slug) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS ix_workspaces_owner_id ON workspaces(owner_id);
 
 CREATE TABLE IF NOT EXISTS workspace_members (
     id UUID PRIMARY KEY,
@@ -576,15 +580,26 @@ INSERT INTO organization_authorities (id, organization_id, user_id, role)
 SELECT '01900000-0000-0000-0000-000000000003'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'organization_owner'
 WHERE NOT EXISTS (SELECT 1 FROM organization_authorities WHERE organization_id = '01900000-0000-0000-0000-000000000001'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
 
+
 -- Seed Tier 1 Workspace
-INSERT INTO workspaces (id, organization_id, display_name, slug, status)
-SELECT '01900000-0000-0000-0000-000000000004'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, 'Tier 1 Default Workspace', 'tier1-workspace', 'active'
+INSERT INTO workspaces (id, organization_id, display_name, slug, status, owner_id)
+SELECT '01900000-0000-0000-0000-000000000004'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, 'Tier 1 Default Workspace', 'tier1-workspace', 'active', '01900000-0000-0000-0000-000000000002'::uuid
 WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE slug = 'tier1-workspace');
 
 -- Seed Tier 1 Workspace Member
 INSERT INTO workspace_members (id, workspace_id, user_id, role)
 SELECT '01900000-0000-0000-0000-000000000005'::uuid, '01900000-0000-0000-0000-000000000004'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'workspace_admin'
 WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000004'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
+
+-- Seed Tier 1 Secondary Workspace
+INSERT INTO workspaces (id, organization_id, display_name, slug, status, owner_id)
+SELECT '01900000-0000-0000-0000-00000000000c'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, 'Tier 1 Secondary Workspace', 'tier1-secondary-workspace', 'active', '01900000-0000-0000-0000-000000000002'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE slug = 'tier1-secondary-workspace');
+
+-- Seed Tier 1 Secondary Workspace Member
+INSERT INTO workspace_members (id, workspace_id, user_id, role)
+SELECT '01900000-0000-0000-0000-00000000000d'::uuid, '01900000-0000-0000-0000-00000000000c'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'workspace_admin'
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-00000000000c'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
 
 -- Seed Tier 2 Organization
 INSERT INTO organizations (id, name, tax_code, email, username, is_verified, verification_level, status)
@@ -607,14 +622,24 @@ SELECT '01900000-0000-0000-0000-000000000013'::uuid, '01900000-0000-0000-0000-00
 WHERE NOT EXISTS (SELECT 1 FROM organization_authorities WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
 
 -- Seed Tier 2 Workspace
-INSERT INTO workspaces (id, organization_id, display_name, slug, status)
-SELECT '01900000-0000-0000-0000-000000000014'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, 'Tier 2 Default Workspace', 'tier2-workspace', 'active'
+INSERT INTO workspaces (id, organization_id, display_name, slug, status, owner_id)
+SELECT '01900000-0000-0000-0000-000000000014'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, 'Tier 2 Default Workspace', 'tier2-workspace', 'active', '01900000-0000-0000-0000-000000000012'::uuid
 WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE slug = 'tier2-workspace');
 
 -- Seed Tier 2 Workspace Member
 INSERT INTO workspace_members (id, workspace_id, user_id, role)
 SELECT '01900000-0000-0000-0000-000000000015'::uuid, '01900000-0000-0000-0000-000000000014'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'workspace_admin'
 WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000014'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
+
+-- Seed Tier 2 Secondary Workspace
+INSERT INTO workspaces (id, organization_id, display_name, slug, status, owner_id)
+SELECT '01900000-0000-0000-0000-00000000001c'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, 'Tier 2 Secondary Workspace', 'tier2-secondary-workspace', 'active', '01900000-0000-0000-0000-000000000012'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM workspaces WHERE slug = 'tier2-secondary-workspace');
+
+-- Seed Tier 2 Secondary Workspace Member
+INSERT INTO workspace_members (id, workspace_id, user_id, role)
+SELECT '01900000-0000-0000-0000-00000000001d'::uuid, '01900000-0000-0000-0000-00000000001c'::uuid, '01900000-0000-0000-0000-000000000012'::uuid, 'workspace_admin'
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-00000000001c'::uuid AND user_id = '01900000-0000-0000-0000-000000000012'::uuid);
 
 -- Seed Tier 1 Organization Membership (Owner)
 INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
@@ -626,6 +651,11 @@ INSERT INTO users (id, email, password_hash, full_name, status, email_verified_a
 SELECT '01900000-0000-0000-0000-000000000007'::uuid, 'hr1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 HR Manager', 'ACTIVE', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'hr1@testbusiness.com');
 
+-- Seed Tier 1 HR User-Role
+INSERT INTO user_roles (user_id, role_id)
+SELECT '01900000-0000-0000-0000-000000000007'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-000000000007'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
+
 -- Seed Tier 1 HR Organization Membership
 INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
 SELECT '01900000-0000-0000-0000-000000000008'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000007'::uuid, 'HR', 'active'
@@ -636,6 +666,11 @@ INSERT INTO users (id, email, password_hash, full_name, status, email_verified_a
 SELECT '01900000-0000-0000-0000-000000000009'::uuid, 'rep1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Representative', 'ACTIVE', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'rep1@testbusiness.com');
 
+-- Seed Tier 1 Representative User-Role
+INSERT INTO user_roles (user_id, role_id)
+SELECT '01900000-0000-0000-0000-000000000009'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-000000000009'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
+
 -- Seed Tier 1 Representative Organization Membership
 INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
 SELECT '01900000-0000-0000-0000-00000000001a'::uuid, '01900000-0000-0000-0000-000000000001'::uuid, '01900000-0000-0000-0000-000000000009'::uuid, 'REPRESENTATIVE', 'active'
@@ -645,6 +680,11 @@ WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id =
 INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
 SELECT '01900000-0000-0000-0000-00000000001b'::uuid, 'member1@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 1 Staff Member', 'ACTIVE', NOW()
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'member1@testbusiness.com');
+
+-- Seed Tier 1 Standard Member User-Role
+INSERT INTO user_roles (user_id, role_id)
+SELECT '01900000-0000-0000-0000-00000000001b'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-00000000001b'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
 
 -- Seed Tier 1 Standard Member Organization Membership
 INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
@@ -660,3 +700,58 @@ WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id =
 INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
 SELECT '01900000-0000-0000-0000-00000000001d'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000002'::uuid, 'MEMBER', 'active'
 WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000002'::uuid);
+
+-- Seed Tier 2 HR User
+INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
+SELECT '01900000-0000-0000-0000-000000000022'::uuid, 'hr2@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 2 HR Manager', 'ACTIVE', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'hr2@testbusiness.com');
+
+-- Seed Tier 2 HR User-Role
+INSERT INTO user_roles (user_id, role_id)
+SELECT '01900000-0000-0000-0000-000000000022'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-000000000022'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
+
+-- Seed Tier 2 HR Organization Membership
+INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+SELECT '01900000-0000-0000-0000-000000000023'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000022'::uuid, 'HR', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000022'::uuid);
+
+-- Seed Tier 2 Standard Member User (member2)
+INSERT INTO users (id, email, password_hash, full_name, status, email_verified_at)
+SELECT '01900000-0000-0000-0000-000000000024'::uuid, 'member2@testbusiness.com', crypt('TestPassword123', gen_salt('bf', 10)), 'Tier 2 Staff Member', 'ACTIVE', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'member2@testbusiness.com');
+
+-- Seed Tier 2 Standard Member User-Role
+INSERT INTO user_roles (user_id, role_id)
+SELECT '01900000-0000-0000-0000-000000000024'::uuid, '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid
+WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = '01900000-0000-0000-0000-000000000024'::uuid AND role_id = '018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid);
+
+-- Seed Tier 2 Standard Member Organization Membership
+INSERT INTO organization_memberships (id, organization_id, user_id, role, status)
+SELECT '01900000-0000-0000-0000-000000000025'::uuid, '01900000-0000-0000-0000-000000000011'::uuid, '01900000-0000-0000-0000-000000000024'::uuid, 'MEMBER', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM organization_memberships WHERE organization_id = '01900000-0000-0000-0000-000000000011'::uuid AND user_id = '01900000-0000-0000-0000-000000000024'::uuid);
+
+-- Seed Tier 1 Default Workspace Member (hr1 as manager)
+INSERT INTO workspace_members (id, workspace_id, user_id, role)
+SELECT '01900000-0000-0000-0000-00000000000e'::uuid, '01900000-0000-0000-0000-000000000004'::uuid, '01900000-0000-0000-0000-000000000007'::uuid, 'manager'
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000004'::uuid AND user_id = '01900000-0000-0000-0000-000000000007'::uuid);
+
+-- Seed Tier 1 Secondary Workspace Member (rep1 as workspace_admin)
+INSERT INTO workspace_members (id, workspace_id, user_id, role)
+SELECT '01900000-0000-0000-0000-00000000000f'::uuid, '01900000-0000-0000-0000-00000000000c'::uuid, '01900000-0000-0000-0000-000000000009'::uuid, 'workspace_admin'
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-00000000000c'::uuid AND user_id = '01900000-0000-0000-0000-000000000009'::uuid);
+
+-- Seed Tier 1 Secondary Workspace Member (member1 as viewer)
+INSERT INTO workspace_members (id, workspace_id, user_id, role)
+SELECT '01900000-0000-0000-0000-00000000000a'::uuid, '01900000-0000-0000-0000-00000000000c'::uuid, '01900000-0000-0000-0000-00000000001b'::uuid, 'viewer'
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-00000000000c'::uuid AND user_id = '01900000-0000-0000-0000-00000000001b'::uuid);
+
+-- Seed Tier 2 Default Workspace Member (hr2 as manager)
+INSERT INTO workspace_members (id, workspace_id, user_id, role)
+SELECT '01900000-0000-0000-0000-000000000020'::uuid, '01900000-0000-0000-0000-000000000014'::uuid, '01900000-0000-0000-0000-000000000022'::uuid, 'manager'
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-000000000014'::uuid AND user_id = '01900000-0000-0000-0000-000000000022'::uuid);
+
+-- Seed Tier 2 Secondary Workspace Member (member2 as viewer)
+INSERT INTO workspace_members (id, workspace_id, user_id, role)
+SELECT '01900000-0000-0000-0000-000000000021'::uuid, '01900000-0000-0000-0000-00000000001c'::uuid, '01900000-0000-0000-0000-000000000024'::uuid, 'viewer'
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = '01900000-0000-0000-0000-00000000001c'::uuid AND user_id = '01900000-0000-0000-0000-000000000024'::uuid);

@@ -52,6 +52,7 @@ export const companyNavigationConfig: NavigationNode[] = [
         href: '/business/[slug]/workspaces',
         icon: Building2,
         exactMatch: true,
+        requiredWorkspacePermissions: ['organization:workspaces:view'],
       },
       {
         id: 'company-public-page',
@@ -219,6 +220,7 @@ export const workspaceNavigationConfig: NavigationNode[] = [
         label: 'Members',
         href: '/business/[slug]/workspace/members',
         icon: Users,
+        requiredWorkspacePermissions: ['workspace:members:manage'],
       },
       {
         id: 'workspace-settings',
@@ -226,6 +228,7 @@ export const workspaceNavigationConfig: NavigationNode[] = [
         label: 'Settings',
         href: '/business/[slug]/workspace/settings',
         icon: Settings,
+        requiredWorkspacePermissions: ['workspace:settings:update'],
       },
     ],
   },

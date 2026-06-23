@@ -30,6 +30,15 @@ public class Workspace
     [MaxLength(50)]
     public string Status { get; set; } = "active"; // "active", "recovery_pending", "frozen", "disputed", "disputed_archived", "archived", "superseded", "fraudulent"
 
+    [MaxLength(1000)]
+    public string? Description { get; set; }
+
+    [Required]
+    public Guid OwnerId { get; set; }
+
+    [ForeignKey(nameof(OwnerId))]
+    public virtual User Owner { get; set; } = null!;
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
