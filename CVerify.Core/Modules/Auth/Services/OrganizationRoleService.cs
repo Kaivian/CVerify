@@ -13,18 +13,18 @@ using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.Modules.Auth.Services;
 
-public class BusinessRoleService : IBusinessRoleService
+public class OrganizationRoleService : IOrganizationRoleService
 {
     private readonly ApplicationDbContext _context;
     private readonly ICacheService _cacheService;
 
-    public BusinessRoleService(ApplicationDbContext context, ICacheService cacheService)
+    public OrganizationRoleService(ApplicationDbContext context, ICacheService cacheService)
     {
         _context = context;
         _cacheService = cacheService;
     }
 
-    public async Task<List<BusinessRoleDetailsDto>> GetRolesAsync(Guid orgId, CancellationToken cancellationToken)
+    public async Task<List<OrganizationRoleDetailsDto>> GetRolesAsync(Guid orgId, CancellationToken cancellationToken)
     {
         var roles = await _context.Roles
             .Where(r => r.TenantId == orgId && r.Domain == "TENANT" && r.IsActive)
@@ -40,7 +40,7 @@ public class BusinessRoleService : IBusinessRoleService
 
         var memberCounts = assignments.ToDictionary(a => a.RoleId, a => a.Count);
 
-        return roles.Select(r => new BusinessRoleDetailsDto(
+        return roles.Select(r => new OrganizationRoleDetailsDto(
             r.Id,
             r.Name,
             r.DisplayName,
@@ -55,7 +55,7 @@ public class BusinessRoleService : IBusinessRoleService
         )).ToList();
     }
 
-    public async Task<Guid> CreateRoleAsync(Guid orgId, Guid? actorUserId, CreateBusinessRoleDto dto, CancellationToken cancellationToken)
+    public async Task<Guid> CreateRoleAsync(Guid orgId, Guid? actorUserId, CreateOrganizationRoleDto dto, CancellationToken cancellationToken)
     {
         var cleanName = dto.Name.Trim().ToLowerInvariant();
         
@@ -64,7 +64,7 @@ public class BusinessRoleService : IBusinessRoleService
 
         if (nameExists)
         {
-            throw new ValidationException($"A business role with the identifier '{cleanName}' already exists in this organization.");
+            throw new ValidationException($"An organization role with the identifier '{cleanName}' already exists in this organization.");
         }
 
         if (dto.ParentRoleId.HasValue)
@@ -105,7 +105,7 @@ public class BusinessRoleService : IBusinessRoleService
         return newRole.Id;
     }
 
-    public async Task UpdateRoleAsync(Guid orgId, Guid? actorUserId, Guid roleId, CreateBusinessRoleDto dto, CancellationToken cancellationToken)
+    public async Task UpdateRoleAsync(Guid orgId, Guid? actorUserId, Guid roleId, CreateOrganizationRoleDto dto, CancellationToken cancellationToken)
     {
         var role = await _context.Roles
             .Include(r => r.Permissions)
@@ -113,12 +113,12 @@ public class BusinessRoleService : IBusinessRoleService
 
         if (role == null)
         {
-            throw new ValidationException("Target business role not found.");
+            throw new ValidationException("Target organization role not found.");
         }
 
         if (role.IsSystem)
         {
-            throw new ValidationException("System default business roles cannot be modified.");
+            throw new ValidationException("System default organization roles cannot be modified.");
         }
 
         if (dto.ParentRoleId.HasValue)
@@ -157,12 +157,12 @@ public class BusinessRoleService : IBusinessRoleService
 
         if (role == null)
         {
-            throw new ValidationException("Target business role not found.");
+            throw new ValidationException("Target organization role not found.");
         }
 
         if (role.IsSystem)
         {
-            throw new ValidationException("System default business roles cannot be deleted.");
+            throw new ValidationException("System default organization roles cannot be deleted.");
         }
 
         // Check active assignments
@@ -180,7 +180,7 @@ public class BusinessRoleService : IBusinessRoleService
 
         if (isParent)
         {
-            throw new ValidationException("Cannot delete role because other business roles inherit from it.");
+            throw new ValidationException("Cannot delete role because other organization roles inherit from it.");
         }
 
         _context.Roles.Remove(role);
@@ -249,7 +249,7 @@ public class BusinessRoleService : IBusinessRoleService
 
         if (role == null)
         {
-            throw new ValidationException("Selected business role was not found.");
+            throw new ValidationException("Selected organization role was not found.");
         }
 
         // Validate target member exists in org
@@ -345,7 +345,7 @@ public class BusinessRoleService : IBusinessRoleService
             .Select(al => new RoleAuditLogDto(
                 al.Id,
                 al.ActorUserId,
-                al.ActorUser != null ? al.ActorUser.FullName : "Business System",
+                al.ActorUser != null ? al.ActorUser.FullName : "Organization System",
                 al.EventType,
                 al.TargetRoleName,
                 al.TargetUserId,
@@ -382,7 +382,7 @@ public class BusinessRoleService : IBusinessRoleService
         if (!parentRoleId.HasValue) return;
         if (roleId == parentRoleId.Value)
         {
-            throw new ValidationException("A business role cannot inherit from itself.");
+            throw new ValidationException("An organization role cannot inherit from itself.");
         }
 
         var currentParentId = parentRoleId;
@@ -392,7 +392,7 @@ public class BusinessRoleService : IBusinessRoleService
         {
             if (visited.Contains(currentParentId.Value))
             {
-                throw new ValidationException("Circular inheritance dependency detected in custom business roles.");
+                throw new ValidationException("Circular inheritance dependency detected in custom organization roles.");
             }
             visited.Add(currentParentId.Value);
 
@@ -422,7 +422,7 @@ public class BusinessRoleService : IBusinessRoleService
             ActorUserId = actorUserId,
             UserId = actorUserId,
             EventType = action,
-            Description = $"Business role action {action} performed.",
+            Description = $"Organization role action {action} performed.",
             TargetRoleName = targetRoleName,
             TargetUserId = targetUserId,
             ScopeType = scopeType,
@@ -451,5 +451,13 @@ public class BusinessRoleService : IBusinessRoleService
         {
             await InvalidatePermissionsCacheAsync(orgId, uId);
         }
+    }
+}
+
+[Obsolete("Use OrganizationRoleService instead")]
+public class BusinessRoleService : OrganizationRoleService, IBusinessRoleService
+{
+    public BusinessRoleService(ApplicationDbContext context, ICacheService cacheService) : base(context, cacheService)
+    {
     }
 }

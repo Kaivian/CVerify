@@ -101,6 +101,15 @@ export const registerCompanySchema = z.object({
   }),
 });
 
+export const registerOrganizationSchema = z.object({
+  organizationName: z.string().min(2, { message: 'Organization name must be at least 2 characters' }),
+  taxCode: z.string().regex(/^\d{10}$/, { message: 'Tax code must be exactly 10 digits' }),
+  organizationEmail: z.string().email({ message: 'Invalid organization email address' }),
+  agreeTerms: z.boolean().refine((val) => val === true, {
+    message: 'You must agree to the terms',
+  }),
+});
+
 export const setupWorkspaceSchema = z
   .object({
     verificationToken: z.string(),
@@ -116,7 +125,27 @@ export const setupWorkspaceSchema = z
     path: ['confirmPassword'],
   });
 
+export const setupOrganizationWorkspaceSchema = z
+  .object({
+    verificationToken: z.string(),
+    organizationEmail: z.string().email(),
+    organizationUsername: z.string().regex(/^[a-z0-9_]{3,30}$/, {
+      message: 'Workspace name must be 3-30 characters, lowercase alphanumeric or underscore',
+    }),
+    password: passwordValidation,
+    confirmPassword: z.string().min(1, { message: 'Confirm password is required.' }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match.',
+    path: ['confirmPassword'],
+  });
+
 export const companyLoginSchema = z.object({
+  organizationUsername: z.string().min(1, { message: 'Workspace name is required' }),
+  password: z.string().min(1, { message: 'Password is required' }),
+});
+
+export const organizationLoginSchema = z.object({
   organizationUsername: z.string().min(1, { message: 'Workspace name is required' }),
   password: z.string().min(1, { message: 'Password is required' }),
 });

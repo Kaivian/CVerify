@@ -58,7 +58,7 @@ i18n
       'navbar',
       'sidebar',
       'dashboard-user',
-      'dashboard-business',
+      'dashboard-organization',
       'dashboard-admin',
       'chat-verification',
       'bookings',

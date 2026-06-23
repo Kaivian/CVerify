@@ -39,7 +39,10 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
             var nameIdentifierClaim = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             var orgIdClaim = user?.FindFirst("org_id")?.Value;
 
-            if (string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) &&
+            bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+
+            if (isBusinessOrOrg &&
                 Guid.TryParse(nameIdentifierClaim, out var tokenUserId) &&
                 Guid.TryParse(orgIdClaim, out var tokenOrgId))
             {

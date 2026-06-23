@@ -6,6 +6,7 @@ import {
   type SendOtpResponseData,
   type VerifyOtpResponseData,
   type VerifyCompanyLinkResponseData,
+  type VerifyOrganizationLinkResponseData,
   type SessionInfoData,
   type ResolveEmailAuthStateResponseData,
   type OtpSessionResponseData,
@@ -26,8 +27,11 @@ import {
   type resetPasswordSchema,
   type createPasswordSchema,
   type registerCompanySchema,
+  type registerOrganizationSchema,
   type setupWorkspaceSchema,
+  type setupOrganizationWorkspaceSchema,
   type companyLoginSchema,
+  type organizationLoginSchema,
 } from '../validators/auth.validator';
 
 // Derive request payloads from schemas using Zod's infer capabilities
@@ -37,8 +41,11 @@ export type ForgotPasswordPayload = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordPayload = z.infer<typeof resetPasswordSchema> & { token: string };
 export type CreatePasswordPayload = z.infer<typeof createPasswordSchema>;
 export type RegisterCompanyPayload = z.infer<typeof registerCompanySchema>;
+export type RegisterOrganizationPayload = z.infer<typeof registerOrganizationSchema>;
 export type SetupWorkspacePayload = z.infer<typeof setupWorkspaceSchema>;
+export type SetupOrganizationWorkspacePayload = z.infer<typeof setupOrganizationWorkspaceSchema>;
 export type CompanyLoginPayload = z.infer<typeof companyLoginSchema>;
+export type OrganizationLoginPayload = z.infer<typeof organizationLoginSchema>;
 
 export const authApi = {
   /**
@@ -193,10 +200,30 @@ export const authApi = {
   },
 
   /**
+   * Register an organization and tax information
+   */
+  registerOrganization: async (payload: RegisterOrganizationPayload): Promise<{ success: boolean }> => {
+    const response = await axiosClient.post<{ success: boolean }>('/auth/register-organization', {
+      organizationName: payload.organizationName,
+      taxCode: payload.taxCode,
+      organizationEmail: payload.organizationEmail,
+    });
+    return response.data;
+  },
+
+  /**
    * Verify company email onboarding link
    */
   verifyCompanyLink: async (token: string): Promise<VerifyCompanyLinkResponseData> => {
     const response = await axiosClient.post<VerifyCompanyLinkResponseData>('/auth/verify-company-link', { token });
+    return response.data;
+  },
+
+  /**
+   * Verify organization email onboarding link
+   */
+  verifyOrganizationLink: async (token: string): Promise<VerifyOrganizationLinkResponseData> => {
+    const response = await axiosClient.post<VerifyOrganizationLinkResponseData>('/auth/verify-organization-link', { token });
     return response.data;
   },
 
@@ -209,10 +236,32 @@ export const authApi = {
   },
 
   /**
+   * Finalize organization workspace and owner password
+   */
+  setupOrganizationWorkspace: async (payload: SetupOrganizationWorkspacePayload): Promise<SetupWorkspaceResponseData> => {
+    const response = await axiosClient.post<SetupWorkspaceResponseData>('/auth/setup-workspace', {
+      verificationToken: payload.verificationToken,
+      organizationEmail: payload.organizationEmail,
+      organizationUsername: payload.organizationUsername,
+      password: payload.password,
+      confirmPassword: payload.confirmPassword,
+    });
+    return response.data;
+  },
+
+  /**
    * Authenticate business owner into workspace
    */
   companyLogin: async (payload: CompanyLoginPayload): Promise<LoginResponseData> => {
     const response = await axiosClient.post<LoginResponseData>('/auth/company-login', payload);
+    return response.data;
+  },
+
+  /**
+   * Authenticate organization owner into workspace
+   */
+  organizationLogin: async (payload: OrganizationLoginPayload): Promise<LoginResponseData> => {
+    const response = await axiosClient.post<LoginResponseData>('/auth/organization-login', payload);
     return response.data;
   },
 
@@ -262,6 +311,33 @@ export const authApi = {
       recoveryRequired: boolean;
     }>('/auth/onboarding/verify-company', {
       companyName,
+      taxCode,
+    });
+    return response.data;
+  },
+
+  /**
+   * Verify organization details for onboarding (Step 1)
+   */
+  verifyOrganizationOnboarding: async (organizationName: string, taxCode: string): Promise<{
+    signedToken: string | null;
+    officialOrganizationName: string;
+    taxCode: string;
+    organizationExists: boolean;
+    organizationDisplayName?: string;
+    organizationSlug?: string;
+    recoveryRequired: boolean;
+  }> => {
+    const response = await axiosClient.post<{
+      signedToken: string | null;
+      officialOrganizationName: string;
+      taxCode: string;
+      organizationExists: boolean;
+      organizationDisplayName?: string;
+      organizationSlug?: string;
+      recoveryRequired: boolean;
+    }>('/auth/onboarding/verify-organization', {
+      organizationName,
       taxCode,
     });
     return response.data;

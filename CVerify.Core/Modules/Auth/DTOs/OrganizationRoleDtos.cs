@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CVerify.API.Modules.Auth.DTOs;
 
-public record CreateBusinessRoleDto(
+public record CreateOrganizationRoleDto(
     [Required] [MaxLength(50)] string Name,
     [Required] [MaxLength(100)] string DisplayName,
     [MaxLength(250)] string Description,
@@ -12,7 +12,16 @@ public record CreateBusinessRoleDto(
     [Required] List<string> PermissionNames
 );
 
-public record BusinessRoleDetailsDto(
+[Obsolete("Use CreateOrganizationRoleDto instead")]
+public record CreateBusinessRoleDto(
+    [Required] [MaxLength(50)] string Name,
+    [Required] [MaxLength(100)] string DisplayName,
+    [MaxLength(250)] string Description,
+    Guid? ParentRoleId,
+    [Required] List<string> PermissionNames
+) : CreateOrganizationRoleDto(Name, DisplayName, Description, ParentRoleId, PermissionNames);
+
+public record OrganizationRoleDetailsDto(
     Guid Id,
     string Name,
     string DisplayName,
@@ -25,6 +34,21 @@ public record BusinessRoleDetailsDto(
     List<string> Permissions,
     DateTimeOffset CreatedAt
 );
+
+[Obsolete("Use OrganizationRoleDetailsDto instead")]
+public record BusinessRoleDetailsDto(
+    Guid Id,
+    string Name,
+    string DisplayName,
+    string? Description,
+    Guid? ParentRoleId,
+    string? ParentRoleName,
+    bool IsSystem,
+    bool IsActive,
+    int MemberCount,
+    List<string> Permissions,
+    DateTimeOffset CreatedAt
+) : OrganizationRoleDetailsDto(Id, Name, DisplayName, Description, ParentRoleId, ParentRoleName, IsSystem, IsActive, MemberCount, Permissions, CreatedAt);
 
 public record AssignScopedRoleDto(
     [Required] Guid UserId,

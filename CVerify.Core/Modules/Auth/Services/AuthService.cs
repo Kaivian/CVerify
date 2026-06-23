@@ -2718,9 +2718,9 @@ public class AuthService : IAuthService
         }, cancellationToken);
     }
 
-    public async Task<bool> RegisterCompanyAsync(RegisterCompanyRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
+    public async Task<bool> RegisterOrganizationAsync(RegisterOrganizationRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = NormalizeEmailPolicy(request.CompanyEmail);
+        var normalizedEmail = NormalizeEmailPolicy(request.OrganizationEmail);
         if (IsDisposableEmail(normalizedEmail))
         {
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Disposable email addresses are not permitted.");
@@ -2751,11 +2751,11 @@ public class AuthService : IAuthService
         var officialName = dataElement.GetProperty("name").GetString() ?? string.Empty;
 
         var normalizedOfficial = NormalizeCompanyNameForMatching(officialName);
-        var normalizedUser = NormalizeCompanyNameForMatching(request.CompanyName);
+        var normalizedUser = NormalizeCompanyNameForMatching(request.OrganizationName);
 
         if (normalizedOfficial != normalizedUser)
         {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Company name does not exactly match the official tax registry business name.");
+            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Organization name does not exactly match the official tax registry business name.");
         }
 
         var plainToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
@@ -2766,9 +2766,9 @@ public class AuthService : IAuthService
         {
             Email = normalizedEmail,
             TaxCode = request.TaxCode,
-            CompanyName = officialName,
+            OrganizationName = officialName,
             TokenHash = tokenHash,
-            Purpose = "CompanyVerification",
+            Purpose = "OrganizationVerification",
             ExpiresAt = _timeProvider.GetUtcNow().AddHours(24),
             CreatedAt = _timeProvider.GetUtcNow()
         };
@@ -2786,20 +2786,20 @@ public class AuthService : IAuthService
             CorrelationId = correlationId
         };
 
-        _context.AddAndAuditOutboxMessage("CompanyEmailVerification", normalizedEmail, correlationId, payloadObj, _timeProvider.GetUtcNow());
+        _context.AddAndAuditOutboxMessage("OrganizationEmailVerification", normalizedEmail, correlationId, payloadObj, _timeProvider.GetUtcNow());
         await _context.SaveChangesAsync(cancellationToken);
 
-        await LogAuditEventAsync(null, "COMPANY_VERIFIED", $"Company verification link sent for tax code {request.TaxCode} to {normalizedEmail}.");
+        await LogAuditEventAsync(null, "ORGANIZATION_VERIFIED", $"Organization verification link sent for tax code {request.TaxCode} to {normalizedEmail}.");
         return true;
     }
 
-    public async Task<VerifyCompanyLinkResponse> VerifyCompanyLinkAsync(VerifyCompanyLinkRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
+    public async Task<VerifyOrganizationLinkResponse> VerifyOrganizationLinkAsync(VerifyOrganizationLinkRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
     {
         using var sha = SHA256.Create();
         var tokenHash = Convert.ToHexString(sha.ComputeHash(Encoding.UTF8.GetBytes(request.Token))).ToLowerInvariant();
 
         var link = await _context.VerificationLinks
-            .Where(vl => vl.TokenHash == tokenHash && vl.Purpose == "CompanyVerification" && vl.DeletedAt == null)
+            .Where(vl => vl.TokenHash == tokenHash && vl.Purpose == "OrganizationVerification" && vl.DeletedAt == null)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (link == null)
@@ -2825,7 +2825,7 @@ public class AuthService : IAuthService
         var workspaceToken = Guid.NewGuid().ToString("N");
         await _cacheService.SetAsync($"workspace:token:{link.Email}", workspaceToken, TimeSpan.FromMinutes(15));
 
-        return new VerifyCompanyLinkResponse(link.CompanyName ?? string.Empty, link.TaxCode ?? string.Empty, link.Email, workspaceToken);
+        return new VerifyOrganizationLinkResponse(link.OrganizationName ?? string.Empty, link.TaxCode ?? string.Empty, link.Email, workspaceToken);
     }
 
     private bool VerifyPassword(User user, string? hash, string inputPassword)
@@ -2895,7 +2895,7 @@ public class AuthService : IAuthService
 
 
 
-    public async Task<AuthResponse?> CompanyLoginAsync(OrganizationLoginRequest request, string userAgent, string ipAddress)
+    public async Task<AuthResponse?> OrganizationLoginAsync(OrganizationLoginRequest request, string userAgent, string ipAddress)
     {
         var normalizedUsername = request.OrganizationUsername.Trim().ToLowerInvariant();
         var credential = await _context.OrganizationCredentials
@@ -2910,7 +2910,7 @@ public class AuthService : IAuthService
         var utcNow = _timeProvider.GetUtcNow();
         if (credential.LockoutEnd.HasValue && credential.LockoutEnd.Value > utcNow)
         {
-            throw new AuthException(AuthErrorCodes.LockedOut, $"This business account is temporarily locked out until {credential.LockoutEnd.Value.ToLocalTime()}.");
+            throw new AuthException(AuthErrorCodes.LockedOut, $"This organization account is temporarily locked out until {credential.LockoutEnd.Value.ToLocalTime()}.");
         }
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, credential.PasswordHash))
@@ -2924,7 +2924,7 @@ public class AuthService : IAuthService
             credential.UpdatedAt = utcNow;
             await _context.SaveChangesAsync();
             
-            await LogAuditEventAsync(null, "COMPANY_LOGIN_FAILED_CREDENTIALS", $"Invalid workspace password login attempt for company {normalizedUsername}.");
+            await LogAuditEventAsync(null, "ORGANIZATION_LOGIN_FAILED_CREDENTIALS", $"Invalid workspace password login attempt for organization {normalizedUsername}.");
             return null;
         }
 
@@ -2936,11 +2936,11 @@ public class AuthService : IAuthService
             await _context.SaveChangesAsync();
         }
 
-        var roles = new[] { "BUSINESS" };
+        var roles = new[] { "ORGANIZATION", "BUSINESS" };
         var permissions = Enumerable.Empty<string>();
 
         var sessionId = Guid.CreateVersion7();
-        var jwt = _tokenService.GenerateCompanyJwtToken(credential, roles, permissions, sessionId: sessionId);
+        var jwt = _tokenService.GenerateOrganizationJwtToken(credential, roles, permissions, sessionId: sessionId);
         var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
         await SaveRefreshTokenAsync(null, credential.OrganizationId, refreshTokenStr, sessionId, false);

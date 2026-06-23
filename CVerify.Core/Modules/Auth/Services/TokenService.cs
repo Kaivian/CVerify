@@ -83,13 +83,14 @@ public class TokenService : ITokenService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public string GenerateCompanyJwtToken(CVerify.API.Modules.Auth.Entities.OrganizationCredential credential, IEnumerable<string> roles, IEnumerable<string> permissions, Guid? sessionId = null)
+    public string GenerateOrganizationJwtToken(CVerify.API.Modules.Auth.Entities.OrganizationCredential credential, IEnumerable<string> roles, IEnumerable<string> permissions, Guid? sessionId = null)
     {
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, credential.OrganizationId.ToString()),
             new(ClaimTypes.Name, credential.Username),
-            new("actor_type", "business"),
+            new("actor_type", "organization"),
+            new("actor_type_legacy", "business"),
             new("isEmailVerified", "true"),
             new("status", "ACTIVE"),
             new("session_version", "1"),
@@ -119,6 +120,12 @@ public class TokenService : ITokenService
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    [Obsolete("Use GenerateOrganizationJwtToken instead")]
+    public string GenerateCompanyJwtToken(CVerify.API.Modules.Auth.Entities.OrganizationCredential credential, IEnumerable<string> roles, IEnumerable<string> permissions, Guid? sessionId = null)
+    {
+        return GenerateOrganizationJwtToken(credential, roles, permissions, sessionId);
     }
 
     public string GenerateRefreshToken()

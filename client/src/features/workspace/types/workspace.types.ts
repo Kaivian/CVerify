@@ -252,3 +252,5 @@ export interface PaginatedOrganizations {
   pageSize: number;
 }
 
+export type OrganizationDetails = WorkspaceDetails;
+

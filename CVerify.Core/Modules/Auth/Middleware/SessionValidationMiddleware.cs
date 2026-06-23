@@ -35,7 +35,8 @@ public class SessionValidationMiddleware
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
                 var actorTypeClaim = context.User.FindFirst("actor_type")?.Value;
-                bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+                bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                                  string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
                 if (isBusiness)
                 {

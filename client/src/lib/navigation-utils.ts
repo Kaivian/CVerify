@@ -35,9 +35,11 @@ export const isActiveRoute = (
 
   if (cleanHref.includes("[slug]") || cleanHref.includes(":slug")) {
     const pathSegments = cleanPath.split("/");
-    if (pathSegments[1] === "business" && pathSegments[2]) {
-      const actualSlug = pathSegments[2];
-      cleanHref = cleanHref.replace(/\[slug\]/g, actualSlug).replace(/:slug/g, actualSlug);
+    if (pathSegments[1] === "business" || pathSegments[1] === "organization") {
+      if (pathSegments[2]) {
+        const actualSlug = pathSegments[2];
+        cleanHref = cleanHref.replace(/\[slug\]/g, actualSlug).replace(/:slug/g, actualSlug);
+      }
     }
   }
 
@@ -190,11 +192,11 @@ export const isActiveRoute = (
 
   // 12. Organizations matching
   if (itemId === 'organizations' || cleanHref === '/workspace/organizations') {
-    return cleanPath === '/workspace/organizations' || cleanPath.startsWith('/business/');
+    return cleanPath === '/workspace/organizations' || cleanPath.startsWith('/business/') || cleanPath.startsWith('/organization/');
   }
 
   // 13. Public Page group matching
-  if (!exact && (itemId === 'company-public-page-group' || (cleanHref.startsWith('/business/') && cleanHref.split('/').filter(Boolean).length === 2))) {
+  if (!exact && (itemId === 'company-public-page-group' || ((cleanHref.startsWith('/business/') || cleanHref.startsWith('/organization/')) && cleanHref.split('/').filter(Boolean).length === 2))) {
     const isPublicSubPage = 
       cleanPath.endsWith('/jobs') || 
       cleanPath.endsWith('/posts') || 
@@ -339,7 +341,7 @@ export const resolveNavigationContext = (pathname: string): NavigationContext =>
   }
 
   // 2. Company/Business Portal
-  if (pathname.startsWith("/business/")) {
+  if (pathname.startsWith("/business/") || pathname.startsWith("/organization/")) {
     const segments = pathname.split("/").filter(Boolean);
     const isWorkspaceSubRoute = segments.length >= 3 && (segments[2] === "workspace" || segments[2] === "recruitment");
     return {
@@ -348,7 +350,7 @@ export const resolveNavigationContext = (pathname: string): NavigationContext =>
       workspaceType: "ORGANIZATION",
     };
   }
-  if (pathname === "/business") {
+  if (pathname === "/business" || pathname === "/organization") {
     return {
       portal: "company",
       sidebarMode: "COMPANY",

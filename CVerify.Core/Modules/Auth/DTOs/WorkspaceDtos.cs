@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace CVerify.API.Modules.Auth.DTOs;
@@ -19,11 +20,6 @@ public record MemberProfileDataDto(
     string? Username
 );
 
-public record LinkedOrganizationDto(
-    string Name,
-    string Slug
-);
-
 public record WorkspaceDto(
     Guid Id,
     string DisplayName,
@@ -32,68 +28,6 @@ public record WorkspaceDto(
 
 public record WorkspaceAvatarUploadResponse(
     string AvatarUrl
-);
-
-public record WorkspaceDetailsDto(
-    Guid OrganizationId,
-    string OrganizationName,
-    string OrganizationSlug,
-    string? UserRole,
-    List<LinkedOrganizationDto> LinkedOrganizations,
-    List<string> Permissions,
-    List<WorkspaceDto> Workspaces,
-    string? BannerUrl = null,
-    string? LogoUrl = null,
-    string? CompanyType = null,
-    string? CompanySize = null,
-    int BranchCount = 0,
-    List<string>? IndustryTags = null,
-    string? Description = null,
-    List<string>? BenefitTags = null,
-    List<string>? GalleryUrls = null,
-    string? ContactName = null,
-    string? ContactPhone = null,
-    string? ContactEmail = null,
-    string? City = null,
-    string? DetailAddress = null,
-    string? GoogleMapsEmbedUrl = null,
-    string? LinkedinUrl = null,
-    string? FacebookUrl = null,
-    string? TwitterUrl = null,
-    string? Website = null,
-    string? TaxCode = null,
-    string? Mission = null,
-    string? Vision = null,
-    string? CoreValues = null,
-    string? Founded = null,
-    int FollowerCount = 0,
-    bool IsFollowing = false,
-    bool IsVerified = false,
-    int VerificationLevel = 0
-);
-
-
-public record UpdateWorkspaceDetailsRequestDto(
-    string? Description,
-    string? CompanyType,
-    string? CompanySize,
-    int BranchCount,
-    List<string> IndustryTags,
-    List<string> BenefitTags,
-    string? ContactName,
-    string? ContactPhone,
-    string? ContactEmail,
-    string? City,
-    string? DetailAddress,
-    string? GoogleMapsEmbedUrl,
-    string? LinkedinUrl,
-    string? FacebookUrl,
-    string? TwitterUrl,
-    string? Website,
-    string? Mission,
-    string? Vision,
-    string? CoreValues,
-    string? Founded
 );
 
 public record PaginatedMembersResponseDto(
@@ -128,7 +62,6 @@ public record CreateWorkspacePostRequestDto(
     List<string>? ImageUrls = null
 );
 
-
 public record CreateJobRequestDto(
     string Title,
     string Department,
@@ -153,48 +86,8 @@ public record CreateJobRequestDto(
     string? Metadata = null
 );
 
-public record OrganizationListDto(
-    Guid OrganizationId,
-    string OrganizationName,
-    string OrganizationSlug,
-    string? LogoUrl,
-    string? BannerUrl,
-    string? Description,
-    string? CompanyType,
-    string? CompanySize,
-    string? City,
-    string? Website,
-    List<string> IndustryTags,
-    bool IsVerified,
-    int VerificationLevel,
-    int MemberCount,
-    int OpenPositionsCount,
-    int RepositoryCount,
-    int VerifiedRepositoryCount,
-    double AverageTrustScore,
-    int FollowerCount,
-    DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
-);
-
-public record OrganizationStatsDto(
-    int TotalOrganizations,
-    int VerifiedOrganizations,
-    int OpenOpportunities,
-    int VerifiedRepositories,
-    int TotalMembers
-);
-
-public record PaginatedOrganizationsResponseDto(
-    List<OrganizationListDto> Items,
-    int TotalCount,
-    int Page,
-    int PageSize
-);
-
 public record CreateWorkspaceRequestDto(
     string DisplayName,
     string Slug,
     string? Description = null
 );
-

@@ -101,7 +101,7 @@ public class OnboardingAndAuthRegressionTests : BaseIntegrationTest
         var request = new CompleteOnboardingRequest(
             Step2Token: step2Token,
             OrganizationUsername: "vietqr-workspace",
-            CompanyDisplayName: "VietQR Legal Corp",
+            OrganizationDisplayName: "VietQR Legal Corp",
             Password: "SecurePassword123!"
         );
 
