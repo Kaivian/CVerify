@@ -6,6 +6,7 @@ import { Popover, Avatar, Typography, Button } from "@heroui/react";
 import { ChevronsUpDown, Plus, Search, Check, Building2 } from "lucide-react";
 import { useWorkspaceStore } from "../../../features/workspace/store/use-workspace-store";
 import { useAuth } from "../../../features/auth/hooks/use-auth";
+import { CreateWorkspaceModal } from "../../../features/workspace/components/create-workspace-modal";
 
 interface WorkspaceSwitcherProps {
   collapsed: boolean;
@@ -19,6 +20,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
   
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const fetchMyOrganizations = useWorkspaceStore((s) => s.fetchMyOrganizations);
   const myOrganizations = useWorkspaceStore((s) => s.myOrganizations);
@@ -125,7 +127,11 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
   const handleCreateWorkspace = () => {
     setIsOpen(false);
     setSearchQuery("");
-    router.push("/workspace-setup");
+    if (!myOrganizations || myOrganizations.length === 0) {
+      router.push("/company-verification");
+    } else {
+      setIsCreateModalOpen(true);
+    }
   };
 
   // 1. Loading state (No workspaces list loaded yet)
@@ -210,7 +216,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
                   {activeName}
                 </Typography>
                 <span className="text-[9px] text-muted font-medium font-outfit truncate block w-full mt-0.5">
-                  Business Workspace
+                  Company Profile
                 </span>
               </div>
             )}
@@ -307,6 +313,19 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
           </div>
         </Popover.Content>
       </Popover>
+
+      {activeOrg?.slug && (
+        <CreateWorkspaceModal
+          isOpen={isCreateModalOpen}
+          onOpenChange={setIsCreateModalOpen}
+          organizationSlug={activeOrg.slug}
+          onSuccess={() => {
+            if (activeOrg.slug) {
+              fetchWorkspace(activeOrg.slug);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

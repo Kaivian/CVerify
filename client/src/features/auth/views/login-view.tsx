@@ -310,7 +310,7 @@ function LoginContent() {
     } else {
       toast.danger("Authentication Failed", {
         description:
-          result.error?.message || "Invalid workspace username or password.",
+          result.error?.message || "Invalid business handle or password.",
       });
     }
   };
@@ -557,9 +557,9 @@ function LoginContent() {
                     onReset={handleBusinessReset}
                   >
                     <TextField isRequired name="username" type="text">
-                      <Label>Organization Slug</Label>
+                      <Label>Business Handle</Label>
                       <Input
-                        placeholder="Enter workspace handle (e.g. fpt-software)"
+                        placeholder="Enter business handle (e.g. fpt-software)"
                         value={businessUsername}
                         onChange={(e) => setBusinessUsername(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
                       />

@@ -151,7 +151,7 @@ export function CompanyVerificationView() {
   const steps = [
     { id: 1, label: "Legal Identity", desc: "Company registration check" },
     { id: 2, label: "Owner Ownership", desc: "Prove profile credentials" },
-    { id: 3, label: "Workspace Setup", desc: "Configure your space" },
+    { id: 3, label: "Company Setup", desc: "Configure your company" },
   ];
 
   // Regex and validators
@@ -884,7 +884,7 @@ export function CompanyVerificationView() {
                 </Typography.Heading>
                 <Typography className="text-xs text-muted text-center">
                   Prove ownership identity to associate with verified legal
-                  business workspace.
+                  business organization.
                 </Typography>
               </div>
             </div>
@@ -1176,10 +1176,10 @@ export function CompanyVerificationView() {
                   level={3}
                   className="text-2xl font-bold text-center"
                 >
-                  Setup Workspace
+                  Company Setup
                 </Typography.Heading>
                 <Typography className="text-xs text-muted text-center">
-                  Create your tenant profile, slug handle, and owner credential
+                  Create your company profile, business handle, and owner credential
                   settings.
                 </Typography>
               </div>
@@ -1219,16 +1219,16 @@ export function CompanyVerificationView() {
                   </Description>
                 </TextField>
 
-                {/* Workspace Username Slug */}
+                {/* Business Handle Slug */}
                 <TextField
                   isRequired
                   name="organizationUsername"
                   type="text"
                   isInvalid={!isSlugValid && slugTouched}
                 >
-                  <Label> Workspace Handle Slug (URL)</Label>
+                  <Label>Business Handle (URL)</Label>
                   <InputGroup>
-                    <InputGroup.Prefix>cverify.com/</InputGroup.Prefix>
+                    <InputGroup.Prefix>cverify.com/workspace/</InputGroup.Prefix>
                     <Input
                       placeholder="fpt-software"
                       className="rounded-r-xl rounded-l-none w-full"
@@ -1246,7 +1246,7 @@ export function CompanyVerificationView() {
                   {isSlugValid && !isReservedSlug && !isImpersonating && (
                     <div className="text-[10px] text-muted mt-1.5 font-medium flex items-center gap-1 select-none">
                       <Check className="size-3 text-success" />
-                      Slug handle available:{" "}
+                      Business handle available:{" "}
                       <span className="font-mono text-foreground/80 font-bold">
                         cverify.com/workspace/{organizationUsername}
                       </span>
@@ -1276,19 +1276,19 @@ export function CompanyVerificationView() {
                   )}
                 </TextField>
 
-                {/* Workspace Credentials Disclaimer */}
+                {/* Company Credentials Disclaimer */}
                 <div className="p-3.5 bg-surface-secondary border border-border rounded-xl text-xs text-muted leading-relaxed">
-                  <strong className="text-foreground font-semibold block mb-0.5">Workspace Credentials:</strong>
-                  This password establishes credentials for the Workspace login page (using slug + password). The ownership verification email is only used as a contact to automatically bootstrap admin permissions on registration, and is not a company user account or authenticated identity.
+                  <strong className="text-foreground font-semibold block mb-0.5">Company Credentials:</strong>
+                  This password establishes credentials for the Company login page (using handle + password). The ownership verification email is only used as a contact to automatically bootstrap admin permissions on registration, and is not a company user account or authenticated identity.
                 </div>
 
-                {/* Workspace Password */}
+                {/* Company Password */}
                 <TextField isRequired name="password" type="password">
-                  <Label>Workspace Password</Label>
+                  <Label>Company Password</Label>
                   <InputGroup>
                     <InputGroup.Input
                       type={isVisible ? "text" : "password"}
-                      placeholder="Workspace password (min 12 chars)"
+                      placeholder="Company password (min 12 chars)"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={isLoading}
@@ -1309,13 +1309,13 @@ export function CompanyVerificationView() {
                   <PasswordStrengthMeter value={password} policyId="enterprise" />
                 </TextField>
 
-                {/* Confirm Workspace Password */}
+                {/* Confirm Company Password */}
                 <TextField isRequired name="confirmPassword" type="password">
-                  <Label>Confirm Workspace Password</Label>
+                  <Label>Confirm Company Password</Label>
                   <InputGroup>
                     <InputGroup.Input
                       type={isConfirmVisible ? "text" : "password"}
-                      placeholder="Repeat workspace password"
+                      placeholder="Repeat company password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       disabled={isLoading}
@@ -1358,7 +1358,7 @@ export function CompanyVerificationView() {
                   isPending={isLoading}
                 >
                   {isLoading && <Spinner color="current" size="sm" />}
-                  Provision Workspace Organization
+                  Create Company Organization
                 </Button>
               </div>
             </Form>

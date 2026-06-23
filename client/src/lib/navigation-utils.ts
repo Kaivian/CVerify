@@ -9,7 +9,7 @@ export const RESERVED_USERNAMES = new Set([
   "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
   "chat", "business", "user", "organization", "organizations", "auth", "system", "unauthorized", "company-onboarding",
   "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email", "workspace-setup",
-  "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects", "ranking"
+  "company-setup", "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects", "ranking"
 ]);
 
 /**
