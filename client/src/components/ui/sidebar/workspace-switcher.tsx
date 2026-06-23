@@ -3,9 +3,10 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Popover, Avatar, Typography, Button } from "@heroui/react";
-import { ChevronsUpDown, Plus, Search, Check, Building2 } from "lucide-react";
+import { ChevronsUpDown, Plus, Search, Check } from "lucide-react";
 import { useWorkspaceStore } from "../../../features/workspace/store/use-workspace-store";
 import { useAuth } from "../../../features/auth/hooks/use-auth";
+import { useActiveWorkspace } from "../../../features/workspace/hooks/use-active-workspace";
 import { CreateWorkspaceModal } from "../../../features/workspace/components/create-workspace-modal";
 
 interface WorkspaceSwitcherProps {
@@ -24,17 +25,17 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
 
   const fetchMyOrganizations = useWorkspaceStore((s) => s.fetchMyOrganizations);
   const myOrganizations = useWorkspaceStore((s) => s.myOrganizations);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const workspacesStore = useWorkspaceStore((s) => s.workspaces);
   const fetchWorkspace = useWorkspaceStore((s) => s.fetchWorkspace);
 
-  // Fetch workspaces list on mount
+  // Fetch organizations list on mount
   useEffect(() => {
     if (isAuthenticated) {
       fetchMyOrganizations();
     }
   }, [isAuthenticated, fetchMyOrganizations]);
 
-  // Derive active workspace slug directly from URL segment
+  // Derive active organization slug directly from URL segment
   const activeWorkspaceSlug = useMemo(() => {
     if (pathname?.startsWith("/workspace/")) {
       const slug = pathname.split("/workspace/")[1]?.split("/")[0] || "";
@@ -44,30 +45,16 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
     return "";
   }, [pathname]);
 
-  // Fallback active organization if not on a workspace path
-  const activeOrg = useMemo(() => {
-    if (!myOrganizations || myOrganizations.length === 0) return null;
-    
-    // If we have an active slug, find it in the list
-    if (activeWorkspaceSlug) {
-      const found = myOrganizations.find(org => org.slug === activeWorkspaceSlug);
-      if (found) return found;
-    }
-    
-    // Otherwise fallback to first organization
-    return myOrganizations[0];
-  }, [activeWorkspaceSlug, myOrganizations]);
-
-  // Fetch details for active organization to retrieve logoUrl
+  // Fetch details for active organization to retrieve workspaces
   useEffect(() => {
-    if (activeOrg?.slug) {
-      fetchWorkspace(activeOrg.slug);
+    if (activeWorkspaceSlug) {
+      fetchWorkspace(activeWorkspaceSlug);
     }
-  }, [activeOrg?.slug, fetchWorkspace]);
+  }, [activeWorkspaceSlug, fetchWorkspace]);
 
-  const activeDetails = useMemo(() => {
-    return activeOrg ? workspaces[activeOrg.slug] : null;
-  }, [activeOrg, workspaces]);
+  // Active sub-workspaces hook
+  const { activeWorkspaceId, setActiveWorkspaceId, workspaces: subWorkspaces } = useActiveWorkspace(activeWorkspaceSlug);
+  const activeWorkspaceObj = useMemo(() => subWorkspaces.find(w => w.id === activeWorkspaceId), [subWorkspaces, activeWorkspaceId]);
 
   // Deterministic avatar monogram
   const getMonogram = (name: string) => {
@@ -79,8 +66,8 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
       .toUpperCase();
   };
 
-  // Deterministic background gradient based on slug hash
-  const getDeterministicGradient = (slug: string) => {
+  // Deterministic background gradient based on ID hash
+  const getDeterministicGradient = (id: string) => {
     const gradients = [
       "bg-linear-to-tr from-amber-500 to-orange-600 text-white",
       "bg-linear-to-tr from-blue-500 to-indigo-600 text-white",
@@ -90,52 +77,39 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
       "bg-linear-to-tr from-cyan-500 to-teal-600 text-white",
     ];
     let hash = 0;
-    for (let i = 0; i < slug.length; i++) {
-      hash = slug.charCodeAt(i) + ((hash << 5) - hash);
+    for (let i = 0; i < id.length; i++) {
+      hash = id.charCodeAt(i) + ((hash << 5) - hash);
     }
     const index = Math.abs(hash) % gradients.length;
     return gradients[index];
   };
 
-  // Filter organizations list based on search query
-  const filteredOrgs = useMemo(() => {
-    if (!myOrganizations) return [];
-    if (!searchQuery.trim()) return myOrganizations;
-    return myOrganizations.filter((org) =>
-      org.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filter sub-workspaces list based on search query
+  const filteredWorkspaces = useMemo(() => {
+    if (!subWorkspaces) return [];
+    if (!searchQuery.trim()) return subWorkspaces;
+    return subWorkspaces.filter((w) =>
+      w.displayName.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [myOrganizations, searchQuery]);
+  }, [subWorkspaces, searchQuery]);
 
-  const handleSwitchWorkspace = (slug: string) => {
+  const handleSwitchWorkspace = (id: string) => {
     setIsOpen(false);
     setSearchQuery("");
+    setActiveWorkspaceId(id);
     
-    // Preserve sub-path (e.g. settings, members) if switching from workspace page
-    if (pathname?.startsWith("/workspace/")) {
-      const segments = pathname.split("/");
-      if (segments[2] && segments[2] !== "organizations") {
-        segments[2] = slug;
-        router.push(segments.join("/"));
-        return;
-      }
-    }
-    
-    // Default fallback to dashboard
-    router.push(`/workspace/${slug}/dashboard`);
+    // Redirect to recruitment dashboard for the selected workspace context
+    router.push(`/workspace/${activeWorkspaceSlug}/recruitment/dashboard`);
   };
 
   const handleCreateWorkspace = () => {
     setIsOpen(false);
     setSearchQuery("");
-    if (!myOrganizations || myOrganizations.length === 0) {
-      router.push("/company-verification");
-    } else {
-      setIsCreateModalOpen(true);
-    }
+    setIsCreateModalOpen(true);
   };
 
-  // 1. Loading state (No workspaces list loaded yet)
-  if (myOrganizations === null) {
+  // 1. Loading state
+  if (myOrganizations === null || workspacesStore[activeWorkspaceSlug] === undefined) {
     return (
       <div className="w-full flex items-center gap-3 select-none px-3 py-2">
         <div className={[
@@ -152,32 +126,15 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
     );
   }
 
-  // 2. Empty state (User has no workspaces)
-  if (myOrganizations.length === 0) {
-    return (
-      <div className="w-full flex flex-col gap-2 select-none px-3 py-1">
-        <Button
-          onClick={handleCreateWorkspace}
-          className="w-full h-9 bg-accent hover:bg-accent/90 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer border-none shrink-0"
-        >
-          <Plus size={14} />
-          Create Workspace
-        </Button>
-      </div>
-    );
-  }
-
-  // Active workspace styling details
-  const activeName = activeOrg?.name || "Select Workspace";
-  const activeSlug = activeOrg?.slug || "";
-  const activeLogo = activeDetails?.logoUrl;
+  // Active workspace details
+  const activeName = activeWorkspaceObj?.displayName || "Select Workspace";
   const activeMonogram = getMonogram(activeName);
-  const activeGradient = getDeterministicGradient(activeSlug);
+  const activeGradient = getDeterministicGradient(activeWorkspaceId || "default");
 
   return (
     <div className="w-full min-w-0 select-none">
       <Popover isOpen={isOpen} onOpenChange={setIsOpen}>
-        <Popover.Trigger>
+        <Popover.Trigger className={collapsed ? "" : "w-full"}>
           <button
             type="button"
             className={[
@@ -200,9 +157,6 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
                     : "w-7 h-7 text-[10px] rounded-lg",
                 activeGradient
               ].join(" ")}>
-                {activeLogo && (
-                  <Avatar.Image src={activeLogo} alt={activeName} />
-                )}
                 <Avatar.Fallback>
                   {activeMonogram}
                 </Avatar.Fallback>
@@ -216,7 +170,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
                   {activeName}
                 </Typography>
                 <span className="text-[9px] text-muted font-medium font-outfit truncate block w-full mt-0.5">
-                  Company Profile
+                  Hiring Workspace
                 </span>
               </div>
             )}
@@ -231,7 +185,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
         <Popover.Content placement={collapsed ? "right" : "top start"} className="min-w-[272px] w-max max-w-[480px] p-1.5 bg-background border-2 border-border rounded-2xl shadow-overlay z-9999">
           <div className="flex flex-col w-full font-outfit text-foreground outline-hidden">
             {/* 1. Switcher Search filter */}
-            {myOrganizations.length > 5 && (
+            {subWorkspaces.length > 5 && (
               <div className="p-1 pb-2 flex items-center border-b border-separator/40 mb-1">
                 <div className="relative w-full flex items-center bg-surface-secondary rounded-lg px-2 h-8 border border-border/50">
                   <Search size={13} className="text-muted shrink-0 mr-1.5" />
@@ -246,45 +200,41 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
               </div>
             )}
 
-            {/* 2. Scrollable organizations list */}
+            {/* 2. Scrollable workspaces list */}
             <div className="max-h-60 overflow-y-auto flex flex-col gap-0.5 custom-scrollbar pr-0.5">
-              {filteredOrgs.length === 0 ? (
+              {filteredWorkspaces.length === 0 ? (
                 <div className="py-6 px-3 text-center text-xs font-semibold text-muted select-none">
                   No matching workspaces
                 </div>
               ) : (
-                filteredOrgs.map((org) => {
-                  const isActive = org.slug === activeSlug;
-                  const orgLogo = workspaces[org.slug]?.logoUrl;
-                  const orgMonogram = getMonogram(org.name);
-                  const orgGradient = getDeterministicGradient(org.slug);
+                filteredWorkspaces.map((w) => {
+                  const isActive = w.id === activeWorkspaceId;
+                  const wMonogram = getMonogram(w.displayName);
+                  const wGradient = getDeterministicGradient(w.id);
 
                   return (
                     <button
-                      key={org.slug}
-                      onClick={() => handleSwitchWorkspace(org.slug)}
+                      key={w.id}
+                      onClick={() => handleSwitchWorkspace(w.id)}
                       className={[
                         "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-200 text-left border-none bg-transparent hover:bg-surface-secondary focus:bg-surface-secondary cursor-pointer select-none",
                         isActive ? "bg-accent/5 font-bold" : "font-semibold"
                       ].join(" ")}
                     >
                       {/* Workspace Avatar */}
-                      <Avatar className={["w-8 h-8 rounded-lg font-bold font-outfit text-[10px] border border-border shrink-0", orgGradient].join(" ")}>
-                        {orgLogo && (
-                          <Avatar.Image src={orgLogo} alt={org.name} />
-                        )}
+                      <Avatar className={["w-8 h-8 rounded-lg font-bold font-outfit text-[10px] border border-border shrink-0", wGradient].join(" ")}>
                         <Avatar.Fallback>
-                          {orgMonogram}
+                          {wMonogram}
                         </Avatar.Fallback>
                       </Avatar>
 
                       {/* Workspace Name */}
                       <div className="flex-1 min-w-0 text-left">
                         <Typography type="body-xs" className={["truncate pr-1 text-foreground", isActive ? "font-bold" : "font-semibold"].join(" ")}>
-                          {org.name}
+                          {w.displayName}
                         </Typography>
                         <span className="text-[9px] text-muted block -mt-0.5">
-                          @{org.slug}
+                          @{w.slug}
                         </span>
                       </div>
 
@@ -314,14 +264,14 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
         </Popover.Content>
       </Popover>
 
-      {activeOrg?.slug && (
+      {activeWorkspaceSlug && (
         <CreateWorkspaceModal
           isOpen={isCreateModalOpen}
           onOpenChange={setIsCreateModalOpen}
-          organizationSlug={activeOrg.slug}
+          organizationSlug={activeWorkspaceSlug}
           onSuccess={() => {
-            if (activeOrg.slug) {
-              fetchWorkspace(activeOrg.slug);
+            if (activeWorkspaceSlug) {
+              fetchWorkspace(activeWorkspaceSlug);
             }
           }}
         />

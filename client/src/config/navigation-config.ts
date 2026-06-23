@@ -30,169 +30,211 @@ import {
 } from 'lucide-react';
 import { type NavigationNode } from '../types/navigation.types';
 
-export const navigationConfig: NavigationNode[] = [
-  // 1. BUSINESS SECTION (Workspace-specific operations)
+// 1. COMPANY-SCOPED NAVIGATION
+export const companyNavigationConfig: NavigationNode[] = [
   {
-    id: 'business-section',
+    id: 'general-section',
     type: 'section',
-    label: 'Business',
-    translationKey: 'common:dashboard.sections.business',
-    requiredRoles: ['BUSINESS', 'ADMIN'],
+    label: 'General',
     children: [
       {
-        id: 'workspace-dashboard',
+        id: 'company-overview',
         type: 'item',
-        label: 'Dashboard',
-        translationKey: 'common:dashboard.businessDashboard',
+        label: 'Overview',
         href: '/workspace/[slug]/dashboard',
         icon: LayoutDashboard,
         exactMatch: true,
       },
       {
-        id: 'workspace-listings',
+        id: 'company-workspaces',
         type: 'item',
-        label: 'Listings',
-        translationKey: 'common:dashboard.listings',
-        href: '/workspace/[slug]/listings',
-        icon: Globe,
+        label: 'Workspaces',
+        href: '/workspace/[slug]/workspaces',
+        icon: Building2,
+        exactMatch: true,
+      },
+    ],
+  },
+  {
+    id: 'talent-intelligence-section',
+    type: 'section',
+    label: 'Talent Intelligence',
+    children: [
+      {
+        id: 'company-talent-pool',
+        type: 'item',
+        label: 'Talent Pool',
+        href: '/workspace/[slug]/talent-pool',
+        icon: Bookmark,
       },
       {
-        id: 'workspace-bookings',
+        id: 'company-candidate-discovery',
         type: 'item',
-        label: 'Bookings',
-        translationKey: 'common:dashboard.bookings',
-        href: '/workspace/[slug]/bookings',
-        icon: TrendingUp,
+        label: 'Candidate Discovery',
+        href: '/workspace/[slug]/intelligence',
+        icon: Compass,
       },
       {
-        id: 'workspace-revenue',
+        id: 'company-rankings',
         type: 'item',
-        label: 'Revenue',
-        translationKey: 'common:dashboard.revenue',
-        href: '/workspace/[slug]/revenue',
-        icon: HandCoins,
-        requiredWorkspacePermissions: ['billing:invoice:view', 'billing:subscription:manage'],
+        label: 'Rankings',
+        href: '/workspace/[slug]/rankings',
+        icon: Trophy,
       },
       {
-        id: 'workspace-customers',
+        id: 'company-insights',
         type: 'item',
-        label: 'Customers',
-        translationKey: 'common:dashboard.customers',
-        href: '/workspace/[slug]/customers',
-        icon: Users,
-      },
-      {
-        id: 'workspace-analytics',
-        type: 'item',
-        label: 'Analytics',
-        translationKey: 'common:dashboard.analytics',
-        href: '/workspace/[slug]/analytics',
+        label: 'Insights',
+        href: '/workspace/[slug]/insights',
         icon: BarChart3,
       },
     ],
   },
-
-  // 2. PLATFORM SECTION (Global platform-level pages)
   {
-    id: 'platform-section',
+    id: 'organization-section',
     type: 'section',
-    label: 'Platform',
-    translationKey: 'common:dashboard.sections.platform',
-    children: [
-      {
-        id: 'job-board',
-        type: 'item',
-        label: 'Job Board',
-        translationKey: 'common:dashboard.jobBoard',
-        href: '/jobs',
-        icon: Briefcase,
-      },
-      {
-        id: 'forum',
-        type: 'item',
-        label: 'Forum',
-        translationKey: 'common:dashboard.forum',
-        href: '/forum',
-        icon: MessageSquare,
-      },
-      {
-        id: 'organizations',
-        type: 'item',
-        label: 'Organizations',
-        translationKey: 'common:dashboard.organizations',
-        href: '/workspace/organizations',
-        icon: Building2,
-      },
-      {
-        id: 'leaderboard',
-        type: 'item',
-        label: 'Leaderboard',
-        translationKey: 'common:dashboard.ranking',
-        href: '/ranking',
-        icon: Trophy,
-      },
-    ],
-  },
-
-  // 3. MANAGEMENT SECTION (Workspace management and settings)
-  {
-    id: 'management-section',
-    type: 'section',
-    label: 'Management',
-    translationKey: 'common:dashboard.sections.management',
+    label: 'Organization',
     requiredRoles: ['BUSINESS', 'ADMIN'],
     children: [
       {
-        id: 'workspace-members',
+        id: 'company-members',
         type: 'item',
         label: 'Members',
-        translationKey: 'common:dashboard.members',
         href: '/workspace/[slug]/members',
         icon: Users,
       },
       {
-        id: 'workspace-roles',
+        id: 'company-roles',
         type: 'item',
         label: 'Roles',
-        translationKey: 'common:dashboard.roles',
         href: '/workspace/[slug]/roles',
         icon: Shield,
         requiredWorkspacePermissions: ['organization:roles:view', 'organization:roles:manage'],
       },
+    ],
+  },
+  {
+    id: 'administration-section',
+    type: 'section',
+    label: 'Administration',
+    requiredRoles: ['BUSINESS', 'ADMIN'],
+    children: [
       {
-        id: 'workspace-billing',
+        id: 'company-billing',
         type: 'item',
         label: 'Billing',
-        translationKey: 'common:dashboard.billing',
         href: '/workspace/[slug]/billing',
         icon: CreditCard,
         requiredWorkspacePermissions: ['billing:invoice:view', 'billing:subscription:manage'],
       },
       {
-        id: 'workspace-settings',
+        id: 'company-verification',
+        type: 'item',
+        label: 'Verification',
+        href: '/workspace/[slug]/verification',
+        icon: ShieldCheck,
+      },
+      {
+        id: 'company-settings',
         type: 'item',
         label: 'Settings',
-        translationKey: 'common:dashboard.settings',
         href: '/workspace/[slug]/settings',
         icon: Settings,
         requiredWorkspacePermissions: ['organization:settings:edit', 'organization:profile:edit'],
       },
     ],
   },
+];
 
-  // 4. CANDIDATE SECTION (Personal developer dashboard - visible to USER/ADMIN roles)
+// 2. WORKSPACE-SCOPED NAVIGATION
+export const workspaceNavigationConfig: NavigationNode[] = [
+  {
+    id: 'workspace-dashboard',
+    type: 'item',
+    label: 'Dashboard',
+    href: '/workspace/[slug]/recruitment/dashboard',
+    icon: LayoutDashboard,
+    exactMatch: true,
+  },
+  {
+    id: 'recruitment-section',
+    type: 'section',
+    label: 'Recruitment',
+    requiredRoles: ['BUSINESS', 'ADMIN'],
+    children: [
+      {
+        id: 'workspace-jobs',
+        type: 'item',
+        label: 'Jobs',
+        href: '/workspace/[slug]/recruitment/jd',
+        icon: Briefcase,
+      },
+      {
+        id: 'workspace-candidates',
+        type: 'item',
+        label: 'Candidates',
+        href: '/workspace/[slug]/recruitment/candidates',
+        icon: Users,
+      },
+      {
+        id: 'workspace-applications',
+        type: 'item',
+        label: 'Applications',
+        href: '/workspace/[slug]/recruitment/applications',
+        icon: FileText,
+      },
+      {
+        id: 'workspace-interviews',
+        type: 'item',
+        label: 'Interviews',
+        href: '/workspace/[slug]/recruitment/interviews',
+        icon: Sparkles,
+      },
+      {
+        id: 'workspace-pipeline',
+        type: 'item',
+        label: 'Pipeline',
+        href: '/workspace/[slug]/recruitment/pipeline',
+        icon: TrendingUp,
+      },
+    ],
+  },
+  {
+    id: 'workspace-admin-section',
+    type: 'section',
+    label: 'Workspace Administration',
+    requiredRoles: ['BUSINESS', 'ADMIN'],
+    children: [
+      {
+        id: 'workspace-members',
+        type: 'item',
+        label: 'Members',
+        href: '/workspace/[slug]/workspace/members',
+        icon: Users,
+      },
+      {
+        id: 'workspace-settings',
+        type: 'item',
+        label: 'Settings',
+        href: '/workspace/[slug]/workspace/settings',
+        icon: Settings,
+      },
+    ],
+  },
+];
+
+// 3. CANDIDATE-SCOPED NAVIGATION
+export const candidateNavigationConfig: NavigationNode[] = [
   {
     id: 'candidate-section',
     type: 'section',
     label: 'Candidate',
-    translationKey: 'common:dashboard.sections.candidate',
     requiredRoles: ['USER', 'ADMIN'],
     children: [
       {
         id: 'candidate-dashboard',
         type: 'item',
         label: 'Dashboard',
-        translationKey: 'common:dashboard.candidateDashboard',
         href: '/user',
         icon: LayoutDashboard,
       },
@@ -200,7 +242,6 @@ export const navigationConfig: NavigationNode[] = [
         id: 'candidate-profile',
         type: 'item',
         label: 'Professional Profile',
-        translationKey: 'common:dashboard.profile',
         href: '/user/profile',
         icon: UserCircle,
       },
@@ -208,7 +249,6 @@ export const navigationConfig: NavigationNode[] = [
         id: 'candidate-cv-group',
         type: 'group',
         label: 'My CV',
-        translationKey: 'common:dashboard.cv',
         href: '/cv',
         icon: FileText,
         children: [
@@ -216,7 +256,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'cv-overview',
             type: 'item',
             label: 'Overview',
-            translationKey: 'common:cvManagement.overview',
             href: '/cv',
             icon: FileText,
             exactMatch: true,
@@ -225,7 +264,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'cv-basic-info',
             type: 'item',
             label: 'Basic Information',
-            translationKey: 'common:cvManagement.sectionBasicInfo',
             href: '/cv?tab=basic-info',
             icon: User,
           },
@@ -233,7 +271,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'cv-skills',
             type: 'item',
             label: 'Target Skills',
-            translationKey: 'common:cvManagement.sectionSkills',
             href: '/cv?tab=skills',
             icon: Sparkles,
           },
@@ -241,7 +278,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'cv-projects',
             type: 'item',
             label: 'Linked Projects',
-            translationKey: 'common:cvManagement.sectionProjects',
             href: '/cv?tab=projects',
             icon: Folder,
           },
@@ -249,7 +285,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'cv-experience',
             type: 'item',
             label: 'Work Experience',
-            translationKey: 'common:cvManagement.sectionExperience',
             href: '/cv?tab=experience',
             icon: Briefcase,
           },
@@ -257,7 +292,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'cv-education',
             type: 'item',
             label: 'Education',
-            translationKey: 'common:cvManagement.sectionEducation',
             href: '/cv?tab=education',
             icon: GraduationCap,
           },
@@ -265,7 +299,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'cv-achievements',
             type: 'item',
             label: 'Achievements & Certificates',
-            translationKey: 'common:cvManagement.sectionAchievements',
             href: '/cv?tab=achievements',
             icon: Award,
           },
@@ -273,7 +306,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'cv-preferences',
             type: 'item',
             label: 'Career Preferences',
-            translationKey: 'common:cvManagement.sectionPreferences',
             href: '/cv?tab=preferences',
             icon: Target,
           },
@@ -281,70 +313,26 @@ export const navigationConfig: NavigationNode[] = [
       },
     ],
   },
+];
 
-  // 5. INTELLIGENCE SECTION (Talent analysis tools)
-  {
-    id: 'intelligence-section',
-    type: 'section',
-    label: 'Intelligence',
-    translationKey: 'common:dashboard.sections.intelligence',
-    requiredRoles: ['USER', 'ADMIN'],
-    children: [
-      {
-        id: 'intelligence-capability-graph',
-        type: 'item',
-        label: 'Capability Graph',
-        translationKey: 'common:dashboard.capabilityGraph',
-        href: '/intelligence/capability-graph',
-        icon: Orbit,
-      },
-      {
-        id: 'intelligence-trust-score',
-        type: 'item',
-        label: 'Trust Score',
-        translationKey: 'common:dashboard.trustScore',
-        href: '/intelligence/trust-score',
-        icon: ShieldCheck,
-      },
-      {
-        id: 'intelligence-ai-analysis',
-        type: 'item',
-        label: 'AI Analysis',
-        translationKey: 'common:dashboard.aiAnalysis',
-        href: '/intelligence/ai-analysis',
-        icon: Sparkles,
-      },
-      {
-        id: 'intelligence-repositories',
-        type: 'item',
-        label: 'Repositories',
-        translationKey: 'common:dashboard.repositories',
-        href: '/settings/source-code-providers',
-        icon: GitFork,
-      },
-    ],
-  },
-
-  // 6. SYSTEM ADMINISTRATION SECTION
+// 4. SYSTEM ADMIN-SCOPED NAVIGATION
+export const adminNavigationConfig: NavigationNode[] = [
   {
     id: 'admin-section',
     type: 'section',
     label: 'Administration',
-    translationKey: 'common:dashboard.systemAdmin',
     requiredRoles: ['ADMIN'],
     children: [
       {
         id: 'admin-group',
         type: 'group',
         label: 'System Admin',
-        translationKey: 'common:admin.systemAdmin',
         icon: ShieldAlert,
         children: [
           {
             id: 'admin-overview',
             type: 'item',
             label: 'Admin',
-            translationKey: 'common:admin.dashboard',
             href: '/admin',
             exactMatch: true,
             icon: LayoutDashboard,
@@ -353,7 +341,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'admin-users',
             type: 'item',
             label: 'Users',
-            translationKey: 'common:admin.users',
             href: '/admin/users',
             icon: Users,
             requiredPermissions: ['users:view:list'],
@@ -362,7 +349,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'admin-roles',
             type: 'item',
             label: 'Roles Matrix',
-            translationKey: 'common:admin.rolesMatrix',
             href: '/admin/roles',
             icon: Shield,
             requiredPermissions: ['roles:view:list'],
@@ -371,7 +357,6 @@ export const navigationConfig: NavigationNode[] = [
             id: 'admin-audit-logs',
             type: 'item',
             label: 'Audit Trail',
-            translationKey: 'common:admin.auditTrail',
             href: '/admin/audit-logs',
             icon: FileText,
             requiredPermissions: ['ai:audit:view'],
@@ -381,3 +366,6 @@ export const navigationConfig: NavigationNode[] = [
     ],
   },
 ];
+
+// Legacy export fallback
+export const navigationConfig = companyNavigationConfig;
