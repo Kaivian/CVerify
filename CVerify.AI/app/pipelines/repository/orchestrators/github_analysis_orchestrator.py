@@ -299,7 +299,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         extra_log = {"correlation_id": correlation_id, "job_id": job_id, "task_type": task_type}
         
         # Determine if debug mode is active
-        debug_mode = os.getenv("AI_DEBUG_MODE", "false").lower() == "true"
+        debug_mode = settings.ai_debug_mode
         TraceContext.set(
             pipeline_stage=task_type,
             is_sampled=True, # Always log 100% of discrete task executions

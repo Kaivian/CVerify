@@ -537,7 +537,7 @@ export const AccountTab: React.FC<AccountTabProps> = ({
 
   const _handleOAuthReauth = () => {
     const provider = deletionRequirements?.linkedOAuthProvider || "google";
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
     window.location.assign(`${apiUrl}/users/me/connect-reauth/${provider}`);
   };
 

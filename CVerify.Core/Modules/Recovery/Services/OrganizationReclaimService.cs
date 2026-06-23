@@ -410,7 +410,7 @@ public class OrganizationReclaimService : IOrganizationReclaimService
                 claim.RecoveryEmail,
                 claim.Organization.Name,
                 "CVerify: Organization Reclaim Approved",
-                $"Your organization ownership reclaim for {claim.Organization.Name} has been approved. Please visit the link below to verify your token and configure your new administrator account:\n\nhttp://localhost:3000/organization/reclaim/bootstrap?token={tokenHash}\n\nNote: This link will expire in 24 hours."
+                $"Your organization ownership reclaim for {claim.Organization.Name} has been approved. Please visit the link below to verify your token and configure your new administrator account:\n\n{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/organization/reclaim/bootstrap?token={tokenHash}\n\nNote: This link will expire in 24 hours."
             );
         }
         else if (request.Status == "Rejected")

@@ -8,7 +8,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { organizationSlug } = await params;
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
     const res = await fetch(`${apiUrl}/workspace/${organizationSlug}`, {
       next: { revalidate: 60 },
     });

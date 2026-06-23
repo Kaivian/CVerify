@@ -98,8 +98,9 @@ class ImageTextExtractor(ITextExtractor):
             logger.warning("Image Tier-1 extraction failed: %s", tier1_err)
 
         # ── Tier 2: Claude Vision (optional, environment-gated) ────────────
-        vision_enabled = os.getenv("ENABLE_VISION_CERTIFICATE_OCR", "false").lower() == "true"
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        from app.core.config import settings
+        vision_enabled = settings.enable_vision_certificate_ocr
+        api_key = settings.anthropic_api_key
 
         if not vision_enabled:
             logger.debug(
