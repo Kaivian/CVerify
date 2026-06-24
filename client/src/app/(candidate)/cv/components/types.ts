@@ -4,8 +4,8 @@ import {
   type AcademicAchievementResponse,
   type WorkExperienceResponse,
   type DeclaredCareerPreference,
-  ProjectVerificationLevel,
-  ProjectVerificationStatus,
+  type ProjectVerificationLevel,
+  type ProjectVerificationStatus,
   type ProjectRepositoryLinkResponse,
 } from "@/types/profile.types";
 

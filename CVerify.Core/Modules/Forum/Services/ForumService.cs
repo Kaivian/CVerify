@@ -425,7 +425,7 @@ public class ForumService : IForumService
             var authorDto = await MapUserToMiniDtoAsync(t.AuthorId, cancellationToken);
             bool isBookmarked = currentUserId.HasValue && await _context.ForumBookmarks.AnyAsync(b => b.TopicId == t.Id && b.UserId == currentUserId.Value, cancellationToken);
             bool isFollowing = currentUserId.HasValue && await _context.ForumFollows.AnyAsync(f => f.TopicId == t.Id && f.UserId == currentUserId.Value, cancellationToken);
-            
+
             string? userVote = null;
             if (currentUserId.HasValue)
             {
@@ -572,7 +572,7 @@ public class ForumService : IForumService
         {
             var cleanedTagName = tagName.Trim();
             var tagSlug = cleanedTagName.ToLowerInvariant().Replace(" ", "-");
-            
+
             var tag = await _context.ForumTags.FirstOrDefaultAsync(tag => tag.Slug == tagSlug, cancellationToken);
             if (tag == null)
             {
@@ -657,7 +657,7 @@ public class ForumService : IForumService
         {
             var cleanedTagName = tagName.Trim();
             var tagSlug = cleanedTagName.ToLowerInvariant().Replace(" ", "-");
-            
+
             var tag = await _context.ForumTags.FirstOrDefaultAsync(tg => tg.Slug == tagSlug, cancellationToken);
             if (tag == null)
             {
@@ -855,7 +855,7 @@ public class ForumService : IForumService
         {
             var parent = await _context.ForumReplies.FindAsync(new object[] { request.ParentReplyId.Value }, cancellationToken);
             if (parent == null || parent.TopicId != topicId) throw new ResourceNotFoundException("PARENT_REPLY_NOT_FOUND");
-            
+
             // Check grand-parent depth
             if (parent.ParentReplyId.HasValue)
             {

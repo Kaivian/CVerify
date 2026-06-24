@@ -10,10 +10,10 @@ public class BusinessRuleException : CVerifyBaseException
 {
     public BusinessRuleException(string errorCode, string? customMessage = null, Exception? innerException = null)
         : base(
-            errorCode, 
-            ErrorCategory.BUSINESS, 
-            ErrorRegistryCompiler.Get(errorCode).MessageKey, 
-            customMessage ?? ErrorRegistryCompiler.Get(errorCode).DefaultMessage, 
+            errorCode,
+            ErrorCategory.BUSINESS,
+            ErrorRegistryCompiler.Get(errorCode).MessageKey,
+            customMessage ?? ErrorRegistryCompiler.Get(errorCode).DefaultMessage,
             innerException)
     {
         Severity = ErrorRegistryCompiler.Get(errorCode).DefaultSeverity;

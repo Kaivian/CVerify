@@ -288,7 +288,7 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
             var invite = await db.OrganizationInvitations.FirstOrDefaultAsync(oi => oi.InviteeEmail == inviteeEmail && oi.OrganizationId == org.Id);
             invite!.Status.Should().Be("Declined");
             invite.DeclinedAt.Should().NotBeNull();
-            
+
             // Check that no membership was created
             var isMember = await db.OrganizationMemberships.AnyAsync(om => om.OrganizationId == org.Id && om.UserId == inviteeUserId);
             isMember.Should().BeFalse();

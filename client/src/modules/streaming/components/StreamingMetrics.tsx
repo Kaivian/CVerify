@@ -1,6 +1,6 @@
 import React from "react";
 import { Clock, Coins, Cpu } from "lucide-react";
-import { StreamingSession } from "../types";
+import { type StreamingSession } from "../types";
 
 interface StreamingMetricsProps {
   activeSession: StreamingSession;

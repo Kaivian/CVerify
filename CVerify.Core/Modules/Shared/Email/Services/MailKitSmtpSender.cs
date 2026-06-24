@@ -95,8 +95,8 @@ public class MailKitSmtpSender : IEmailSender
                 }
                 else
                 {
-                    socketOptions = _settings.Smtp.EnableSsl 
-                        ? MailKit.Security.SecureSocketOptions.SslOnConnect 
+                    socketOptions = _settings.Smtp.EnableSsl
+                        ? MailKit.Security.SecureSocketOptions.SslOnConnect
                         : MailKit.Security.SecureSocketOptions.StartTlsWhenAvailable;
                 }
 

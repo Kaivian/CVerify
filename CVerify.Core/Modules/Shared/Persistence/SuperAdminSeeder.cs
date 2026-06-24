@@ -118,7 +118,7 @@ public static class SuperAdminSeeder
         {
             var jsonString = await File.ReadAllTextAsync(registryPath);
             using var doc = global::System.Text.Json.JsonDocument.Parse(jsonString);
-            
+
             // Seed all permissions from the modules section
             if (doc.RootElement.TryGetProperty("modules", out var modulesElement))
             {
@@ -130,14 +130,14 @@ public static class SuperAdminSeeder
                         var name = permElement.GetProperty("name").GetString();
                         var displayName = permElement.GetProperty("displayName").GetString();
                         var description = permElement.GetProperty("description").GetString();
-                        
+
                         var sqlSeedPermission = @"
                             INSERT INTO permissions (id, name, display_name, description, module, is_system)
                             VALUES (@id, @name, @displayName, @description, @module, TRUE)
                             ON CONFLICT (name) DO UPDATE 
                             SET display_name = EXCLUDED.display_name, description = EXCLUDED.description, module = EXCLUDED.module;";
-                            
-                        await context.Database.ExecuteSqlRawAsync(sqlSeedPermission, 
+
+                        await context.Database.ExecuteSqlRawAsync(sqlSeedPermission,
                             new NpgsqlParameter("@id", Guid.CreateVersion7()),
                             new NpgsqlParameter("@name", name),
                             new NpgsqlParameter("@displayName", displayName),
@@ -146,7 +146,7 @@ public static class SuperAdminSeeder
                     }
                 }
             }
-            
+
             // Seed all roles and map their permissions
             if (doc.RootElement.TryGetProperty("roles", out var rolesElement))
             {
@@ -155,13 +155,13 @@ public static class SuperAdminSeeder
                     var roleName = roleProperty.Name;
                     var roleDisplayName = roleProperty.Value.GetProperty("displayName").GetString();
                     var roleDescription = roleProperty.Value.GetProperty("description").GetString();
-                    
+
                     var sqlSeedRole = @"
                         INSERT INTO roles (id, name, display_name, description, is_system, is_active)
                         VALUES (@id, @name, @displayName, @description, TRUE, TRUE)
                         ON CONFLICT (name) WHERE tenant_id IS NULL DO UPDATE 
                         SET display_name = EXCLUDED.display_name, description = EXCLUDED.description;";
-                        
+
                     await context.Database.ExecuteSqlRawAsync(sqlSeedRole,
                         new NpgsqlParameter("@id", Guid.CreateVersion7()),
                         new NpgsqlParameter("@name", roleName),
@@ -184,21 +184,21 @@ public static class SuperAdminSeeder
                                 permissionsList.Add(permVal.GetString()!);
                             }
                         }
-                        
+
                         // Get all permission IDs for this role
                         var dbPermissionIds = await context.Permissions
                             .Where(p => permissionsList.Contains(p.Name))
                             .Select(p => p.Id)
                             .ToListAsync();
-                            
+
                         // Clear existing role-permissions mapping for this role, then rebuild it
                         var sqlClear = "DELETE FROM role_permissions WHERE role_id = @roleId;";
                         await context.Database.ExecuteSqlRawAsync(sqlClear, new Npgsql.NpgsqlParameter("@roleId", roleId));
-                        
+
                         foreach (var permId in dbPermissionIds)
                         {
                             var sqlLink = "INSERT INTO role_permissions (role_id, permission_id) VALUES (@roleId, @permId) ON CONFLICT DO NOTHING;";
-                            await context.Database.ExecuteSqlRawAsync(sqlLink, 
+                            await context.Database.ExecuteSqlRawAsync(sqlLink,
                                 new Npgsql.NpgsqlParameter("@roleId", roleId),
                                 new Npgsql.NpgsqlParameter("@permId", permId));
                         }

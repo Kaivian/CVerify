@@ -34,9 +34,9 @@ public class TalentDiscoveryController : ControllerBase
     [HttpGet("api/v1/intelligence/search")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Search(
-        [FromQuery] string? query, 
-        [FromQuery] string? location, 
-        [FromQuery] int minTrustScore = 0, 
+        [FromQuery] string? query,
+        [FromQuery] string? location,
+        [FromQuery] int minTrustScore = 0,
         CancellationToken cancellationToken = default)
     {
         // Query search profiles from the read-model projection
@@ -72,8 +72,8 @@ public class TalentDiscoveryController : ControllerBase
         {
             var cleanQuery = query.ToLowerInvariant();
             results = results
-                .Where(r => r.FullName.ToLower().Contains(cleanQuery) || 
-                            r.Headline?.ToLower().Contains(cleanQuery) == true || 
+                .Where(r => r.FullName.ToLower().Contains(cleanQuery) ||
+                            r.Headline?.ToLower().Contains(cleanQuery) == true ||
                             r.CapabilitiesJson.ToLower().Contains(cleanQuery))
                 .ToList();
         }

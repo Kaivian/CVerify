@@ -30,7 +30,7 @@ public class ApiErrorResponse
     public Dictionary<string, string[]>? Errors { get; set; }
     public string? CorrelationId { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    
+
     public UxSemantics UxSemantics { get; set; } = null!;
     public Dictionary<string, object> Details { get; set; } = new();
 }

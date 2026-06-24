@@ -88,8 +88,8 @@ public class WorkspaceMembershipService : IWorkspaceMembershipService
 
             // Accept and consume matching OrganizationInvitation if exists
             var matchingInvite = await _context.OrganizationInvitations
-                .FirstOrDefaultAsync(oi => oi.OrganizationId == po.OrganizationId && 
-                                           oi.InviteeEmail == po.OwnerEmail && 
+                .FirstOrDefaultAsync(oi => oi.OrganizationId == po.OrganizationId &&
+                                           oi.InviteeEmail == po.OwnerEmail &&
                                            oi.Status == "Pending");
             if (matchingInvite != null)
             {

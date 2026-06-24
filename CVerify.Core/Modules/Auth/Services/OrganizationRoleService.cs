@@ -58,7 +58,7 @@ public class OrganizationRoleService : IOrganizationRoleService
     public async Task<Guid> CreateRoleAsync(Guid orgId, Guid? actorUserId, CreateOrganizationRoleDto dto, CancellationToken cancellationToken)
     {
         var cleanName = dto.Name.Trim().ToLowerInvariant();
-        
+
         var nameExists = await _context.Roles
             .AnyAsync(r => r.TenantId == orgId && r.Domain == "TENANT" && r.Name == cleanName, cancellationToken);
 
@@ -294,7 +294,7 @@ public class OrganizationRoleService : IOrganizationRoleService
     public async Task RevokeRoleAsync(Guid orgId, Guid? actorUserId, AssignScopedRoleDto dto, CancellationToken cancellationToken)
     {
         var scopeTypeNormalized = dto.ScopeType.Trim().ToUpperInvariant();
-        
+
         var assignment = await _context.RoleAssignments
             .Include(ra => ra.Role)
             .FirstOrDefaultAsync(ra => ra.UserId == dto.UserId &&
@@ -312,7 +312,7 @@ public class OrganizationRoleService : IOrganizationRoleService
         {
             var ownerCount = await _context.RoleAssignments
                 .CountAsync(ra => ra.ScopeType == "ORGANIZATION" && ra.ScopeId == orgId && ra.Role.Name == "owner", cancellationToken);
-            
+
             if (ownerCount <= 1)
             {
                 throw new ValidationException("Cannot revoke role assignment because organizations must have at least one active Owner.");
@@ -406,13 +406,13 @@ public class OrganizationRoleService : IOrganizationRoleService
     }
 
     private async Task LogAuditAsync(
-        Guid orgId, 
-        Guid? actorUserId, 
-        string action, 
-        string targetRoleName, 
-        Guid? targetUserId = null, 
-        string? scopeType = null, 
-        Guid? scopeId = null, 
+        Guid orgId,
+        Guid? actorUserId,
+        string action,
+        string targetRoleName,
+        Guid? targetUserId = null,
+        string? scopeType = null,
+        Guid? scopeId = null,
         object? details = null)
     {
         var log = new AuditLog

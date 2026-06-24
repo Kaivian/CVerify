@@ -1,7 +1,7 @@
 import React from "react";
 import { Sparkles, X } from "lucide-react";
 import { Button, Chip } from "@heroui/react";
-import { StreamingSession } from "../types";
+import { type StreamingSession } from "../types";
 
 interface StreamingHeaderProps {
   activeSession: StreamingSession;

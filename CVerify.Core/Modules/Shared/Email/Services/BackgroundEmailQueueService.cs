@@ -36,7 +36,7 @@ public class BackgroundEmailQueue : IEmailQueue
     public void QueueEmail(EmailMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        
+
         // Writer.TryWrite is thread-safe and non-blocking
         if (!_channel.Writer.TryWrite(message))
         {
@@ -128,7 +128,7 @@ public class BackgroundEmailQueueProcessor : BackgroundService
 
                     // Execute delivery inside an isolated service scope to prevent DbContext or client lifecycle issues
                     using var scope = _serviceProvider.CreateScope();
-                    
+
                     // We resolve the active transport using a Keyed Service named "raw" to bypass the public decorator wrapper!
                     var rawSender = scope.ServiceProvider.GetRequiredKeyedService<IEmailSender>("raw");
 
@@ -152,7 +152,7 @@ public class BackgroundEmailQueueProcessor : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An unhandled exception occurred in the Background Email Queue Processor loop.");
-                
+
                 // Yield thread execution briefly to prevent tight CPU loops on persistent errors
                 await Task.Delay(1000, CancellationToken.None).ConfigureAwait(false);
             }
@@ -165,7 +165,7 @@ public class BackgroundEmailQueueProcessor : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping Background Email Queue Processor. Draining all queued items in memory...");
-        
+
         // Complete the channel writer. Prevents new enqueues but preserves existing buffer.
         _emailQueue.CompleteWriter();
 

@@ -90,11 +90,11 @@ public class BackgroundQueueTests
         var startTask = _processor.StartAsync(cts.Token);
 
         // Yield execution to allow processor loops to query the channel
-        await Task.Delay(200).ConfigureAwait(false);
+        await Task.Delay(200);
 
         // Stop the worker gracefully (drains remaining items)
-        await _processor.StopAsync(CancellationToken.None).ConfigureAwait(false);
-        await startTask.ConfigureAwait(false);
+        await _processor.StopAsync(CancellationToken.None);
+        await startTask;
 
         // Assert
         processed.Should().HaveCount(2);
@@ -110,7 +110,7 @@ public class BackgroundQueueTests
             .ToList();
 
         // Act - Parallel enqueues
-        await Task.WhenAll(messages.Select(msg => Task.Run(() => _queue.QueueEmail(msg)))).ConfigureAwait(false);
+        await Task.WhenAll(messages.Select(msg => Task.Run(() => _queue.QueueEmail(msg))));
 
         // Assert
         var dequeuedCount = 0;

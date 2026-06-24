@@ -83,7 +83,7 @@ public class SendGridHttpSender : IEmailSender
         };
 
         var json = JsonSerializer.Serialize(payload);
-        
+
         // Setup Polly Context with Message Reference for Audit Logging inside pipelines
         var pollyContext = ResilienceContextPool.Shared.Get(cancellationToken);
         pollyContext.Properties.Set(new ResiliencePropertyKey<EmailMessage>("Message"), message);
@@ -96,7 +96,7 @@ public class SendGridHttpSender : IEmailSender
             await _resiliencePipeline.ExecuteAsync(async ct =>
             {
                 using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.sendgrid.com/v3/mail/send");
-                
+
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.SendGrid.ApiKey);
                 request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 

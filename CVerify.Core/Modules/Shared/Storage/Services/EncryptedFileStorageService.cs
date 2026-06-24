@@ -27,7 +27,7 @@ public class EncryptedFileStorageService : IEncryptedFileStorageService
     {
         _s3Client = s3Client ?? throw new ArgumentNullException(nameof(s3Client));
         _envConfig = envConfig ?? throw new ArgumentNullException(nameof(envConfig));
-        
+
         // Derive 32-byte key for AES-256 using SHA-256 hash of the configuration JWT key
         using var sha = SHA256.Create();
         _key = sha.ComputeHash(Encoding.UTF8.GetBytes(_envConfig.Jwt.Key));
@@ -41,7 +41,7 @@ public class EncryptedFileStorageService : IEncryptedFileStorageService
                 UseJitter = true,
                 Delay = TimeSpan.FromSeconds(1),
                 ShouldHandle = new PredicateBuilder()
-                    .Handle<AmazonS3Exception>(ex => 
+                    .Handle<AmazonS3Exception>(ex =>
                         ex.StatusCode == HttpStatusCode.InternalServerError ||
                         ex.StatusCode == HttpStatusCode.BadGateway ||
                         ex.StatusCode == HttpStatusCode.ServiceUnavailable ||
@@ -55,9 +55,9 @@ public class EncryptedFileStorageService : IEncryptedFileStorageService
     }
 
     public async Task<EncryptedUploadResult> EncryptAndUploadFileAsync(
-        Guid claimId, 
-        Stream fileStream, 
-        string fileName, 
+        Guid claimId,
+        Stream fileStream,
+        string fileName,
         CancellationToken cancellationToken = default)
     {
         // 1. Setup temporary workspace directory for safe block writing
@@ -181,8 +181,8 @@ public class EncryptedFileStorageService : IEncryptedFileStorageService
     }
 
     public async Task<Stream> ReadAndDecryptFileAsync(
-        string objectKey, 
-        string baseNonceHex, 
+        string objectKey,
+        string baseNonceHex,
         CancellationToken cancellationToken = default)
     {
         var bucket = _envConfig.R2.BucketName;

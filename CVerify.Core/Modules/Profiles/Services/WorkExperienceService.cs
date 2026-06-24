@@ -38,8 +38,8 @@ public class WorkExperienceService : IWorkExperienceService
     }
 
     public async Task<WorkExperienceResponse> CreateWorkExperienceAsync(
-        Guid userId, 
-        WorkExperienceRequest request, 
+        Guid userId,
+        WorkExperienceRequest request,
         CancellationToken cancellationToken = default)
     {
         ValidateDateConstraints(request);
@@ -117,9 +117,9 @@ public class WorkExperienceService : IWorkExperienceService
     }
 
     public async Task<WorkExperienceResponse> UpdateWorkExperienceAsync(
-        Guid userId, 
-        Guid id, 
-        WorkExperienceRequest request, 
+        Guid userId,
+        Guid id,
+        WorkExperienceRequest request,
         CancellationToken cancellationToken = default)
     {
         var entry = await _context.WorkExperiences

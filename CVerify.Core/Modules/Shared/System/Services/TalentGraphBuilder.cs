@@ -184,7 +184,7 @@ public class TalentGraphBuilder : ITalentGraphBuilder
                         }
                     }
                 }
-                catch {}
+                catch { }
             }
         }
 

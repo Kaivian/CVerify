@@ -85,8 +85,8 @@ public class AchievementService : IAchievementService
     }
 
     public async Task<AcademicAchievementResponse> CreateAchievementAsync(
-        Guid userId, 
-        AcademicAchievementRequest request, 
+        Guid userId,
+        AcademicAchievementRequest request,
         CancellationToken cancellationToken = default)
     {
         // Calculate display order
@@ -162,9 +162,9 @@ public class AchievementService : IAchievementService
     }
 
     public async Task<AcademicAchievementResponse> UpdateAchievementAsync(
-        Guid userId, 
-        Guid achievementId, 
-        AcademicAchievementRequest request, 
+        Guid userId,
+        Guid achievementId,
+        AcademicAchievementRequest request,
         CancellationToken cancellationToken = default)
     {
         var achievement = await _context.AcademicAchievements

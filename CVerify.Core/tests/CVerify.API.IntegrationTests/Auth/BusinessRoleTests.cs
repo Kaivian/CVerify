@@ -231,7 +231,7 @@ public class BusinessRoleTests : BaseIntegrationTest
 
         // Let's try to update A to inherit from B (creating circular dependency)
         var updateA = new CreateBusinessRoleDto("role_a", "Role A", "", idB, new List<string>());
-        
+
         // Act
         var response = await client.PutAsJsonAsync($"/api/organizations/{org.Username}/roles/{idA}", updateA);
 
@@ -339,7 +339,7 @@ public class BusinessRoleTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var authService = scope.ServiceProvider.GetRequiredService<IOrganizationAuthorizationService>();
-            
+
             var hasDirect = await authService.AuthorizeAsync(userId, org.Id, "ai:interview:conduct");
             var hasInherited = await authService.AuthorizeAsync(userId, org.Id, "identity:verification:initiate");
             var hasUnrelated = await authService.AuthorizeAsync(userId, org.Id, "billing:subscription:manage");
@@ -392,7 +392,7 @@ public class BusinessRoleTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var authService = scope.ServiceProvider.GetRequiredService<IOrganizationAuthorizationService>();
-            
+
             // Check in Workspace A
             var hasAccessA = await authService.AuthorizeAsync(userId, org.Id, "ai:interview:conduct", "WORKSPACE", workspaceAId);
             hasAccessA.Should().BeTrue();
@@ -470,7 +470,7 @@ public class BusinessRoleTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var authService = scope.ServiceProvider.GetRequiredService<IOrganizationAuthorizationService>();
-            
+
             var hasOld = await authService.AuthorizeAsync(userId, org.Id, "identity:verification:initiate");
             var hasNew = await authService.AuthorizeAsync(userId, org.Id, "ai:interview:conduct");
 

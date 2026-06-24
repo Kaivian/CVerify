@@ -399,7 +399,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 var trustLevel = link?.ProjectEntry?.VerificationLevel == CVerify.API.Modules.Shared.Domain.Enums.ProjectVerificationLevel.AiAnalyzed ? 3 : 2;
 
                 var existingAssess = await _context.RepositoryAssessments
-                    .FirstOrDefaultAsync(ra => ra.AnalysisJobId == aJob.Id 
+                    .FirstOrDefaultAsync(ra => ra.AnalysisJobId == aJob.Id
                         && ra.Status == "Completed"
                         && ra.PipelineVersion == targetPipelineVersion
                         && ra.ModelVersion == targetModelVersion
@@ -469,7 +469,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     newAssess.Status = "Completed";
                     newAssess.CompletedAtUtc = DateTimeOffset.UtcNow;
                     newAssess.OverallScore = repoRoot.TryGetProperty("complexityScore", out var repoScoreProp) ? repoScoreProp.GetDouble() : 0.0;
-                    
+
                     if (repoRoot.TryGetProperty("primaryLanguages", out var langProp))
                         newAssess.TechStack = JsonSerializer.Serialize(langProp);
                     if (repoRoot.TryGetProperty("verifiedPatterns", out var patProp))
@@ -727,7 +727,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             var root = doc.RootElement;
 
             // Enforce strict schema validation and fail-fast streaming logic (composer v2/v3 enforcement)
-            if (!root.TryGetProperty("schemaVersion", out var schemaProp) || 
+            if (!root.TryGetProperty("schemaVersion", out var schemaProp) ||
                 (schemaProp.GetString() != "candidate-profile-v2" && schemaProp.GetString() != "candidate-profile-v3"))
             {
                 throw new InvalidDataException("Invalid assessment schema. Stream requires 'candidate-profile-v2' or 'candidate-profile-v3'.");
@@ -1220,7 +1220,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 using var trustDoc = JsonDocument.Parse(trustTaskResult.ResultData);
                 var trustRoot = trustDoc.RootElement;
                 var dataElement = trustRoot.TryGetProperty("data", out var dProp) ? dProp : trustRoot;
-                
+
                 if (dataElement.TryGetProperty("dimensions", out var dimProp))
                 {
                     if (dimProp.TryGetProperty("code_quality", out var ssProp)) scopeSignal = ssProp.GetDouble();
@@ -1254,7 +1254,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     if (ownProp.TryGetProperty("is_primary_author", out var primProp)) isPrimaryAuthor = primProp.GetBoolean();
                 }
             }
-            catch {}
+            catch { }
         }
         leadershipSignal = isPrimaryAuthor ? userCommitRatio * 100.0 : userCommitRatio * 50.0;
 
@@ -1314,14 +1314,14 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     using var qualDoc = JsonDocument.Parse(qualityResult.ResultData);
                     var qualRoot = qualDoc.RootElement;
                     var dataElement = qualRoot.TryGetProperty("data", out var dProp) ? dProp : qualRoot;
-                    
+
                     double qualityScore = 0.0;
                     if (dataElement.TryGetProperty("quality_score", out var qsProp)) qualityScore = qsProp.GetDouble();
                     else if (dataElement.TryGetProperty("score", out var sProp)) qualityScore = sProp.GetDouble();
-                    
-                    repoAssess.QualityMetrics = JsonSerializer.Serialize(new 
-                    { 
-                        qualityScore = qualityScore, 
+
+                    repoAssess.QualityMetrics = JsonSerializer.Serialize(new
+                    {
+                        qualityScore = qualityScore,
                         cloneRiskClassification = "clean",
                         cicd = dataElement.TryGetProperty("cicd", out var cicdProp) ? (object)cicdProp : null,
                         testing = dataElement.TryGetProperty("testing", out var testProp) ? (object)testProp : null
@@ -1338,12 +1338,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
     }
 
     private async Task<object> GetRelationalAssessPayloadAsync(
-        RepositoryAssessment assessment, 
-        string repoName, 
-        Guid? cvProjectEntryId, 
-        string? cvProjectName, 
-        string? cvVerificationLevel, 
-        int trustLevel, 
+        RepositoryAssessment assessment,
+        string repoName,
+        Guid? cvProjectEntryId,
+        string? cvProjectName,
+        string? cvVerificationLevel,
+        int trustLevel,
         CancellationToken cancellationToken)
     {
         var capabilitiesRaw = await _context.RepositoryCapabilities
@@ -1497,7 +1497,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         // 3. Save Signals
         var scope = root.TryGetProperty("technicalBreadth", out var scProp) ? scProp.GetDouble() : 0.0;
         var complexity = root.TryGetProperty("technicalDepth", out var compProp) ? compProp.GetDouble() : 0.0;
-        
+
         double verifiedSkillRatio = 0.0;
         double verifiedRepoRatio = 0.0;
         double verifiedEvidenceRatio = 0.0;

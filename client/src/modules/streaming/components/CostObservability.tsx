@@ -1,7 +1,7 @@
 import React from "react";
 import { Coins, Cpu, CpuIcon } from "lucide-react";
 import { Chip, Spinner } from "@heroui/react";
-import { StreamingSession, StreamingStage } from "../types";
+import { type StreamingSession, type StreamingStage } from "../types";
 
 interface CostObservabilityProps {
   activeSession: StreamingSession;

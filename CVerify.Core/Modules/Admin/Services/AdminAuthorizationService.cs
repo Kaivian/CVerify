@@ -31,7 +31,7 @@ public class AdminAuthorizationService : IAdminAuthorizationService
         {
             // Cache Miss: Query Database using Recursive CTE capped at depth 1
             var dbPerms = await FetchHierarchicalPermissionsFromDbAsync(userId, cancellationToken);
-            
+
             // Re-populate Cache
             foreach (var perm in dbPerms)
             {
@@ -117,7 +117,7 @@ public class AdminAuthorizationService : IAdminAuthorizationService
 
         var db = _context.Database.GetDbConnection();
         var result = await db.QueryAsync<string>(sql, new { UserId = userId });
-        
+
         return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 }

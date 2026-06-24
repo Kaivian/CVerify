@@ -37,7 +37,7 @@ public class AnalysisQueueRecoverySweeper : BackgroundService
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var activeStates = new[] { "Queued", "Preparing", "CloningRepository", "DetectingTechnologyStack", "SamplingCode", "RunningAgents", "AggregatingResults", "SavingReport" };
-            
+
             var stuckJobs = await context.AnalysisJobs
                 .Where(j => activeStates.Contains(j.Status))
                 .ToListAsync(stoppingToken);

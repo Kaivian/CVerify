@@ -11,10 +11,10 @@ namespace CVerify.API.Modules.Recovery.Services;
 public interface IOrganizationReclaimService
 {
     Task<SubmitClaimResponse> SubmitClaimAsync(
-        SubmitClaimRequest request, 
-        List<(Stream fileStream, string fileName, string contentType)> documents, 
-        string userAgent, 
-        string ipAddress, 
+        SubmitClaimRequest request,
+        List<(Stream fileStream, string fileName, string contentType)> documents,
+        string userAgent,
+        string ipAddress,
         CancellationToken cancellationToken = default);
 
     Task<List<ClaimDetailsResponse>> GetPendingClaimsAsync(CancellationToken cancellationToken = default);

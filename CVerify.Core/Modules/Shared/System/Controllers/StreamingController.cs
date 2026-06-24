@@ -25,8 +25,8 @@ public class StreamingController : ControllerBase
     private readonly IServiceProvider _serviceProvider;
 
     public StreamingController(
-        ApplicationDbContext dbContext, 
-        IConnectionMultiplexer redis, 
+        ApplicationDbContext dbContext,
+        IConnectionMultiplexer redis,
         IServiceProvider serviceProvider)
     {
         _dbContext = dbContext;

@@ -6,7 +6,8 @@ namespace CVerify.API.Modules.Shared.System.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SystemController : ControllerBase {
+public class SystemController : ControllerBase
+{
     private readonly ISystemService _systemService;
 
     public SystemController(ISystemService systemService)
@@ -26,17 +27,20 @@ public class SystemController : ControllerBase {
 
         return Ok(result);
     }
-    
+
     [HttpGet("status")]
-    public IActionResult GetStatus() {
-        return Ok(new {
+    public IActionResult GetStatus()
+    {
+        return Ok(new
+        {
             Status = "Online",
             Message = "CVerify System is operational."
         });
     }
 
     [HttpGet("health")]
-    public async Task<IActionResult> GetHealth() {
+    public async Task<IActionResult> GetHealth()
+    {
         var result = await _systemService.CheckSystemHealthAsync();
 
         if (!result.Success)
@@ -48,8 +52,10 @@ public class SystemController : ControllerBase {
     }
 
     [HttpGet("ping")]
-    public IActionResult Ping() {
-        return Ok(new {
+    public IActionResult Ping()
+    {
+        return Ok(new
+        {
             success = true,
             message = "pong",
             timestamp = DateTime.UtcNow
@@ -57,8 +63,10 @@ public class SystemController : ControllerBase {
     }
 
     [HttpGet("version")]
-    public IActionResult GetVersion() {
-        return Ok(new {
+    public IActionResult GetVersion()
+    {
+        return Ok(new
+        {
             success = true,
             version = "1.0.0",
             environment = "Development",
@@ -68,8 +76,10 @@ public class SystemController : ControllerBase {
     }
 
     [HttpGet("info")]
-    public IActionResult GetInfo() {
-        return Ok(new {
+    public IActionResult GetInfo()
+    {
+        return Ok(new
+        {
             Application = "CVerify Server",
             Framework = ".NET 10.0",
             OS = global::System.Runtime.InteropServices.RuntimeInformation.OSDescription

@@ -11,10 +11,10 @@ public class StorageException : CVerifyBaseException
 {
     public StorageException(string defaultMessage, Exception? innerException = null)
         : base(
-            SystemErrorCatalog.StorageServiceError, 
-            ErrorCategory.EXTERNAL_SERVICE, 
-            "system.toast.error.storage_service", 
-            defaultMessage, 
+            SystemErrorCatalog.StorageServiceError,
+            ErrorCategory.EXTERNAL_SERVICE,
+            "system.toast.error.storage_service",
+            defaultMessage,
             innerException)
     {
         // Mark as potentially retryable since S3/R2 actions are network-bound and transient

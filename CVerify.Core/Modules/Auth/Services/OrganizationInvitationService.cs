@@ -111,10 +111,10 @@ public class OrganizationInvitationService : IOrganizationInvitationService
                     foreach (var perm in targetRole.Permissions)
                     {
                         bool hasPermission = PermissionEvaluator.HasPermission(
-                            actorPerms, 
-                            perm.Name, 
-                            orgId, 
-                            roleDto.ScopeType, 
+                            actorPerms,
+                            perm.Name,
+                            orgId,
+                            roleDto.ScopeType,
                             roleDto.ScopeId);
 
                         if (!hasPermission)
@@ -285,7 +285,8 @@ public class OrganizationInvitationService : IOrganizationInvitationService
             .Where(w => workspaceIds.Contains(w.Id))
             .ToDictionaryAsync(w => w.Id, w => w.DisplayName, cancellationToken);
 
-        var mapped = items.Select(oi => {
+        var mapped = items.Select(oi =>
+        {
             var displayStatus = oi.Status;
             if (oi.Status == "Pending" && oi.ExpiresAt <= utcNow)
             {
@@ -413,7 +414,7 @@ public class OrganizationInvitationService : IOrganizationInvitationService
     public async Task<string> AcceptInvitationAsync(Guid userId, string token, CancellationToken cancellationToken)
     {
         var tokenHash = ComputeSha256(token);
-        
+
         using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, cancellationToken);
         try
         {
@@ -558,7 +559,7 @@ public class OrganizationInvitationService : IOrganizationInvitationService
     public async Task<string> DeclineInvitationAsync(Guid userId, string token, CancellationToken cancellationToken)
     {
         var tokenHash = ComputeSha256(token);
-        
+
         using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, cancellationToken);
         try
         {

@@ -10,10 +10,10 @@ public class RateLimitExceededException : CVerifyBaseException
 {
     public RateLimitExceededException(string? customMessage = null, int? cooldownSeconds = null, Exception? innerException = null)
         : base(
-            SystemErrorCatalog.RateLimitExceeded, 
-            ErrorCategory.INFRASTRUCTURE, 
-            SystemErrorCatalog.Definitions[SystemErrorCatalog.RateLimitExceeded].MessageKey, 
-            customMessage ?? SystemErrorCatalog.Definitions[SystemErrorCatalog.RateLimitExceeded].DefaultMessage, 
+            SystemErrorCatalog.RateLimitExceeded,
+            ErrorCategory.INFRASTRUCTURE,
+            SystemErrorCatalog.Definitions[SystemErrorCatalog.RateLimitExceeded].MessageKey,
+            customMessage ?? SystemErrorCatalog.Definitions[SystemErrorCatalog.RateLimitExceeded].DefaultMessage,
             innerException)
     {
         Severity = "Warning";

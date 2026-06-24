@@ -5,8 +5,8 @@ using System.ComponentModel.DataAnnotations;
 namespace CVerify.API.Modules.Auth.DTOs;
 
 public record CreateOrganizationRoleDto(
-    [Required] [MaxLength(50)] string Name,
-    [Required] [MaxLength(100)] string DisplayName,
+    [Required][MaxLength(50)] string Name,
+    [Required][MaxLength(100)] string DisplayName,
     [MaxLength(250)] string Description,
     Guid? ParentRoleId,
     [Required] List<string> PermissionNames
@@ -14,8 +14,8 @@ public record CreateOrganizationRoleDto(
 
 [Obsolete("Use CreateOrganizationRoleDto instead")]
 public record CreateBusinessRoleDto(
-    [Required] [MaxLength(50)] string Name,
-    [Required] [MaxLength(100)] string DisplayName,
+    [Required][MaxLength(50)] string Name,
+    [Required][MaxLength(100)] string DisplayName,
     [MaxLength(250)] string Description,
     Guid? ParentRoleId,
     [Required] List<string> PermissionNames
@@ -53,7 +53,7 @@ public record BusinessRoleDetailsDto(
 public record AssignScopedRoleDto(
     [Required] Guid UserId,
     [Required] Guid RoleId,
-    [Required] [MaxLength(30)] string ScopeType,
+    [Required][MaxLength(30)] string ScopeType,
     [Required] Guid ScopeId
 );
 

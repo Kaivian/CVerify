@@ -28,7 +28,7 @@ public static class OutboxExtensions
         ArgumentNullException.ThrowIfNull(payload);
 
         var json = JsonSerializer.Serialize(payload);
-        
+
         var message = new OutboxMessage
         {
             Id = Guid.CreateVersion7(),
@@ -38,7 +38,7 @@ public static class OutboxExtensions
         };
 
         context.OutboxMessages.Add(message);
-        
+
         // Log the Serialization stage for delivery auditing
         StructuredEmailAuditLogger.LogDeliveryStage("Serialization", message.Id.ToString(), type, recipient, correlationId);
     }

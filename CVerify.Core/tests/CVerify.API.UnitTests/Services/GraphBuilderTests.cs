@@ -37,7 +37,7 @@ public class GraphBuilderTests
         _capabilityProjectionBuilderMock
             .Setup(x => x.ResolveCanonicalIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string s, CancellationToken ct) => s);
-        
+
         _capabilityProjectionBuilderMock
             .Setup(x => x.GetCapabilityRegistryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((string s, CancellationToken ct) => new CapabilityRegistry

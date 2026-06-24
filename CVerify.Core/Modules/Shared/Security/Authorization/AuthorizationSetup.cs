@@ -10,7 +10,7 @@ public static class AuthorizationSetup
     {
         // Register Policy Provider as Singleton as it is stateless
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-        
+
         // Register Handler as Scoped to allow dependency injection (e.g., Database Context) if needed
         services.AddScoped<IAuthorizationHandler, PermissionHandler>();
 

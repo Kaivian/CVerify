@@ -40,12 +40,12 @@ public record TokenRefreshResult(
 public interface ISourceCodeClient
 {
     string ProviderName { get; }
-    
+
     Task<TokenRefreshResult> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken);
-    
+
     Task<bool> ValidateScopesAsync(string accessToken, CancellationToken cancellationToken);
-    
+
     Task<ExternalUserProfile> GetUserProfileAsync(string accessToken, CancellationToken cancellationToken);
-    
+
     Task<SyncResult> SyncRepositoriesAsync(string accessToken, int page, int pageSize, CancellationToken cancellationToken);
 }

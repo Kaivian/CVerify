@@ -30,9 +30,9 @@ public class QueuedEmailSenderDecorator : IEmailSender
     {
         // Enqueue the message to our background channel
         _emailQueue.QueueEmail(message);
-        
+
         _logger.LogInformation("[CorrelationID: {CorrelationId}] Email successfully enqueued to background channel processor for {ToEmail}.", message.CorrelationId, message.ToEmail);
-        
+
         return Task.CompletedTask;
     }
 }

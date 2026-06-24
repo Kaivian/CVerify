@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { applyNodeChanges, applyEdgeChanges, type NodeChange, type EdgeChange } from "@xyflow/react";
-import { calculateGraphLayout, PositionedNode, RawEdge, RawNode } from "../utils/graph-layout";
+import { calculateGraphLayout, type PositionedNode, type RawEdge, type RawNode } from "../utils/graph-layout";
 
 export interface TrustGraphState {
   // Graph Data

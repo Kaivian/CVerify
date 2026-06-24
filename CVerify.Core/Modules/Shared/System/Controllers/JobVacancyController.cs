@@ -331,7 +331,7 @@ public class JobVacancyController : ControllerBase
             return null;
         }
 
-        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             return url;

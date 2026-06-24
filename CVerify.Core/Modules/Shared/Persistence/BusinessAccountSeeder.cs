@@ -48,7 +48,7 @@ public static class BusinessAccountSeeder
         {
             PropertyNameCaseInsensitive = true
         };
-        
+
         var seedData = global::System.Text.Json.JsonSerializer.Deserialize<SeedData>(jsonString, options);
         if (seedData == null)
         {

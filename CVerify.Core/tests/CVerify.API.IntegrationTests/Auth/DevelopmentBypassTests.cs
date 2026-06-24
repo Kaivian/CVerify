@@ -26,7 +26,7 @@ namespace CVerify.API.IntegrationTests.Auth;
 
 public class DevelopmentBypassTests : BaseIntegrationTest
 {
-    public DevelopmentBypassTests(SharedTestcontainerFixture containerFixture) 
+    public DevelopmentBypassTests(SharedTestcontainerFixture containerFixture)
         : base(containerFixture, new Dictionary<string, string> { { "DISABLE_RATE_LIMITS", "true" } })
     {
     }
@@ -145,7 +145,7 @@ public class DevelopmentBypassTests : BaseIntegrationTest
                 {
                     services.Remove(realDescriptor);
                     services.AddScoped<CacheService>();
-                    services.AddScoped<ICacheService>(provider => 
+                    services.AddScoped<ICacheService>(provider =>
                         new CacheServiceSpy(
                             provider.GetRequiredService<CacheService>(),
                             provider.GetRequiredService<CacheSpyTracker>()));
@@ -159,7 +159,7 @@ public class DevelopmentBypassTests : BaseIntegrationTest
         });
 
         var request = new ForgotPasswordRequest(Email: email);
-        
+
         // Request 1
         var response1 = await client.PostAsJsonAsync("/api/auth/forgot-password", request);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -180,7 +180,7 @@ public class DevelopmentBypassTests : BaseIntegrationTest
     public async Task ResendVerificationEmail_BypassesCooldown_And_DoesNotWriteToRedis()
     {
         var email = $"resend_dev_{Guid.NewGuid()}@cverify.ai";
-        
+
         // Create user with EMAIL_VERIFY_PENDING status
         using (var scope = Factory.Services.CreateScope())
         {
@@ -220,7 +220,7 @@ public class DevelopmentBypassTests : BaseIntegrationTest
                 {
                     services.Remove(realDescriptor);
                     services.AddScoped<CacheService>();
-                    services.AddScoped<ICacheService>(provider => 
+                    services.AddScoped<ICacheService>(provider =>
                         new CacheServiceSpy(
                             provider.GetRequiredService<CacheService>(),
                             provider.GetRequiredService<CacheSpyTracker>()));
@@ -234,7 +234,7 @@ public class DevelopmentBypassTests : BaseIntegrationTest
         });
 
         var request = new ResendVerificationRequest(Email: email);
-        
+
         // Request 1
         var response1 = await client.PostAsJsonAsync("/api/auth/resend-verification", request);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -264,7 +264,7 @@ public class DevelopmentBypassTests : BaseIntegrationTest
         {
             var response = await Client.PostAsJsonAsync("/api/auth/login", loginRequest);
             response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-            
+
             var error = await response.Content.ReadAsStringAsync();
             error.Should().NotContain("locked");
         }
@@ -309,7 +309,7 @@ public class DevelopmentBypassTests : BaseIntegrationTest
 
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var cookieVal = setCookie.Split(';')[0];
-        
+
         var requestClient = Factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")

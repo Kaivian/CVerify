@@ -249,7 +249,8 @@ public class HiringRequirementController : ControllerBase
             object generatedJdJson = null;
             if (jd != null)
             {
-                generatedJdJson = new {
+                generatedJdJson = new
+                {
                     Id = jd.Id,
                     ArtifactType = jd.ArtifactType,
                     MarkdownContent = jd.MarkdownContent,
@@ -270,7 +271,8 @@ public class HiringRequirementController : ControllerBase
             {
                 RequirementId = req.Id,
                 GeneratedJd = generatedJdJson,
-                Artifacts = req.RequirementArtifacts.Select(a => new {
+                Artifacts = req.RequirementArtifacts.Select(a => new
+                {
                     Id = a.Id,
                     ArtifactType = a.ArtifactType,
                     MarkdownContent = a.MarkdownContent,
@@ -524,7 +526,7 @@ public class HiringRequirementController : ControllerBase
                     DateTimeOffset eventTimestamp = DateTimeOffset.MinValue;
                     using (var doc = JsonDocument.Parse(message))
                     {
-                        if (doc.RootElement.TryGetProperty("timestamp", out var tsProp) && 
+                        if (doc.RootElement.TryGetProperty("timestamp", out var tsProp) &&
                             DateTimeOffset.TryParse(tsProp.GetString(), out var parsedTs))
                         {
                             eventTimestamp = parsedTs;

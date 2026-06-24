@@ -101,7 +101,7 @@ public class FailoverIntegrationTests
         var action = async () => await _failoverSender.SendEmailAsync(message).ConfigureAwait(false);
 
         // Assert - The send call should complete successfully since the backup transport (SendGrid HTTP) works!
-        await action.Should().NotThrowAsync().ConfigureAwait(false);
+        await action.Should().NotThrowAsync();
 
         // Verify that SMTP failure and SendGrid success were logged in audit trail
         _auditLoggerMock.Verify(a => a.LogFailed(message, "SMTP", It.IsAny<Exception>()), Times.Once);

@@ -20,7 +20,7 @@ public class IdentityRepository : IIdentityRepository
             FROM roles r
             JOIN user_roles ur ON r.id = ur.role_id
             WHERE ur.user_id = @UserId";
-        
+
         return await _dbConnection.QueryAsync<string>(sql, new { UserId = userId });
     }
 
@@ -32,7 +32,7 @@ public class IdentityRepository : IIdentityRepository
             JOIN role_permissions rp ON p.id = rp.permission_id
             JOIN user_roles ur ON rp.role_id = ur.role_id
             WHERE ur.user_id = @UserId";
-        
+
         return await _dbConnection.QueryAsync<string>(sql, new { UserId = userId });
     }
 }

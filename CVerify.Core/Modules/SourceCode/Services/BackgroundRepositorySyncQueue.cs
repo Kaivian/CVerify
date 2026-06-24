@@ -38,7 +38,7 @@ public class BackgroundRepositorySyncQueue : IRepositorySyncQueue
     public void QueueSyncJob(RepositorySyncJob job)
     {
         ArgumentNullException.ThrowIfNull(job);
-        
+
         if (!_channel.Writer.TryWrite(job))
         {
             Task.Run(async () => await _channel.Writer.WriteAsync(job).ConfigureAwait(false));

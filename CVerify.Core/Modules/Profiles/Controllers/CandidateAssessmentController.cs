@@ -256,7 +256,7 @@ public class CandidateAssessmentController : ControllerBase
 
         // 1. Fetch, format and replay history from DB
         var (historicalEvents, latestHistoricalTimestamp, sessionStatus) = await _streamingSessionService.GetFormattedHistoryAsync(latest.Id);
-        
+
         foreach (var ev in historicalEvents)
         {
             await Response.WriteAsync($"data: {ev}\n\n", HttpContext.RequestAborted);

@@ -220,7 +220,7 @@ public class RecoveryController : ControllerBase
         try
         {
             var result = await _organizationReclaimService.ValidateRecoveryEmailOwnershipAsync(request.TaxCode, request.Email, cancellationToken);
-            
+
             if (result.Status == RecoveryEmailValidationStatus.OrganizationNotFound)
             {
                 return NotFound(new { message = result.Reason });
@@ -229,8 +229,8 @@ public class RecoveryController : ControllerBase
             var isDuplicate = result.Status == RecoveryEmailValidationStatus.DuplicateOldOwnerEmail;
             return Ok(new ValidateEmailOwnershipResponse(
                 IsDuplicate: isDuplicate,
-                Message: isDuplicate 
-                    ? "This email cannot be used for account recovery. Please use a different recovery email address." 
+                Message: isDuplicate
+                    ? "This email cannot be used for account recovery. Please use a different recovery email address."
                     : "Email is valid for recovery."
             ));
         }
@@ -319,7 +319,7 @@ public class RecoveryController : ControllerBase
         CancellationToken cancellationToken)
     {
         var reviewerName = User.FindFirst(ClaimTypes.Email)?.Value ?? User.Identity?.Name ?? "system_admin";
-        
+
         try
         {
             var result = await _organizationReclaimService.ReviewClaimAsync(id, request, reviewerName, cancellationToken);

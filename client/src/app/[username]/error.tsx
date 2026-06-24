@@ -20,7 +20,7 @@ export default function ProfileError({ error, reset }: ErrorProps) {
     const telemetryPayload = {
       event: 'profile_route_error',
       timestamp: new Date().toISOString(),
-      pathname: pathname,
+      pathname,
       errorMessage: error.message || 'Unknown profile fetch error',
       errorStack: error.stack,
       errorDigest: error.digest,

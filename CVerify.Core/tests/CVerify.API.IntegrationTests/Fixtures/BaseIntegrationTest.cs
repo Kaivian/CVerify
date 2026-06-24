@@ -23,7 +23,7 @@ namespace CVerify.API.IntegrationTests.Fixtures;
 public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly SharedTestcontainerFixture _containerFixture;
-    
+
     private readonly System.Collections.Generic.Dictionary<string, string?> _originalEnvVars = new();
 
     /// <summary>
@@ -145,7 +145,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                 {
                     services.RemoveAt(i);
                 }
-                else if (descriptor.ServiceType == typeof(IHostedService) && 
+                else if (descriptor.ServiceType == typeof(IHostedService) &&
                          descriptor.ImplementationType != null &&
                          descriptor.ImplementationType != typeof(CVerify.API.Modules.Shared.Diagnostics.AppLoggingBackgroundWorker))
                 {
@@ -160,7 +160,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
             // Register in-memory fake IAmazonS3 client in DI to prevent external R2 API timeouts
             var inMemoryS3Files = new System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] Data, Amazon.S3.Model.MetadataCollection Metadata)>();
             var mockS3 = new Moq.Mock<Amazon.S3.IAmazonS3>();
-            
+
             mockS3.Setup(x => x.PutObjectAsync(Moq.It.IsAny<Amazon.S3.Model.PutObjectRequest>(), Moq.It.IsAny<CancellationToken>()))
                 .Returns<Amazon.S3.Model.PutObjectRequest, CancellationToken>(async (req, ct) =>
                 {

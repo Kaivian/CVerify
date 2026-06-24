@@ -75,7 +75,7 @@ public class AiChatController : ControllerBase
         // 3. Pre-flight health probe check against FastAPI AI microservice with timeout protection
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
-        
+
         var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
         try
         {
@@ -92,8 +92,8 @@ public class AiChatController : ControllerBase
                 await Response.WriteAsJsonAsync(new { error = "CVerify AI Assistant engine readiness check timed out." }, cancellationToken);
                 return;
             }
-            catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException socketEx && 
-                                                 (socketEx.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionRefused || 
+            catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException socketEx &&
+                                                 (socketEx.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionRefused ||
                                                   socketEx.SocketErrorCode == System.Net.Sockets.SocketError.HostUnreachable))
             {
                 _logger.LogError(ex, "FastAPI readiness check failed: Connection refused or host unreachable. SocketErrorCode={SocketErrorCode}", socketEx.SocketErrorCode);
@@ -202,7 +202,7 @@ public class AiChatController : ControllerBase
             StreamingState = StreamingState.Completed
         };
         _dbContext.Messages.Add(userMessage);
-        
+
         // Save Assistant Message shell as Pending
         var assistantMessage = new Message
         {
@@ -224,8 +224,8 @@ public class AiChatController : ControllerBase
             .ToListAsync(cancellationToken);
 
         // 7. Formulate request tracing and correlation ID
-        var correlationId = HttpContext.Items.TryGetValue("CorrelationId", out var cId) 
-            ? cId?.ToString() ?? Guid.NewGuid().ToString() 
+        var correlationId = HttpContext.Items.TryGetValue("CorrelationId", out var cId)
+            ? cId?.ToString() ?? Guid.NewGuid().ToString()
             : Guid.NewGuid().ToString();
 
         // 8. Prepare Payload and call microservice
@@ -274,9 +274,9 @@ public class AiChatController : ControllerBase
         if (!responseMessage.IsSuccessStatusCode)
         {
             var errorBody = await responseMessage.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogError("FastAPI microservice returned error status {StatusCode}: {ErrorBody} for CorrelationId: {CorrelationId}", 
+            _logger.LogError("FastAPI microservice returned error status {StatusCode}: {ErrorBody} for CorrelationId: {CorrelationId}",
                 responseMessage.StatusCode, errorBody, correlationId);
-                
+
             assistantMessage.StreamingState = StreamingState.Failed;
             assistantMessage.Content = "The AI service encountered an error processing this request.";
             await _dbContext.SaveChangesAsync(CancellationToken.None);
@@ -291,7 +291,7 @@ public class AiChatController : ControllerBase
 
         var responseStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(responseStream);
-        
+
         var fullContentBuilder = new StringBuilder();
 
         // 9. Stream chunks with custom SSE heartbeats
@@ -319,7 +319,7 @@ public class AiChatController : ControllerBase
                 else
                 {
                     var line = await readTask;
-                    
+
                     if (line == null)
                     {
                         // End of stream reached
@@ -363,9 +363,9 @@ public class AiChatController : ControllerBase
                         {
                             // Ignore parse errors on raw meta frames
                         }
-                      }
-                  }
-              }
+                    }
+                }
+            }
 
             // Successfully finished stream!
             assistantMessage.Content = fullContentBuilder.ToString();

@@ -11,7 +11,7 @@ import {
 import { Button, Spinner, Card } from "@heroui/react";
 import { useStreamingStore } from "../use-streaming-store";
 import { streamingHistoryApi } from "../history-service";
-import { StreamingSession } from "../types";
+import { type StreamingSession } from "../types";
 
 interface HistoryViewerProps {
   pipelineId: string;

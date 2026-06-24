@@ -58,12 +58,12 @@ public class EvidenceController : ControllerBase
 
         using var fileStream = file.OpenReadStream();
         var response = await _attachmentService.UploadAttachmentAsync(
-            CurrentUserId, 
-            entityType, 
-            entityId, 
-            fileStream, 
-            file.FileName, 
-            file.ContentType, 
+            CurrentUserId,
+            entityType,
+            entityId,
+            fileStream,
+            file.FileName,
+            file.ContentType,
             cancellationToken);
 
         return CreatedAtAction(nameof(GetEvidenceDownload), new { id = response.Id }, response);

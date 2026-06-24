@@ -33,7 +33,7 @@ public class EmailProviderHealthCheck : IHealthCheck
             if (_settings.Provider == EmailProvider.Smtp || _settings.Provider == EmailProvider.Failover)
             {
                 using var tcpClient = new TcpClient();
-                
+
                 // Set a strict 5-second socket connection timeout
                 var connectTask = tcpClient.ConnectAsync(_settings.Smtp.Host, _settings.Smtp.Port, cancellationToken);
                 await connectTask.AsTask().WaitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);

@@ -169,9 +169,9 @@ public class Level2RecoveryService : ILevel2RecoveryService
 
         request.VerificationCallNotes = notes;
         request.VerificationCallStatus = status;
-        
+
         await _context.SaveChangesAsync(cancellationToken);
-        
+
         await LogAuditEventAsync(null, "LEVEL2_ROTATION_CALL_RECORDED", $"Verification call recorded for request {requestId} by reviewer {reviewerName}. Status: {status}.", null, null);
         return true;
     }
@@ -205,7 +205,7 @@ public class Level2RecoveryService : ILevel2RecoveryService
             await _context.SaveChangesAsync(cancellationToken);
 
             await LogAuditEventAsync(null, "LEVEL2_ROTATION_SUPPORT_REJECTED", $"Representative rotation request {requestId} rejected by Support Reviewer {reviewerName}.", ipAddress, userAgent);
-            
+
             // Send rejection emails
             await QueueNotificationEmailAsync(request.RequestedEmail, request.Organization.Name, "CVerify: Representative Rotation Request Rejected", $"Your representative rotation request for {request.Organization.Name} has been rejected by CVerify Support.");
             return true;
@@ -219,7 +219,7 @@ public class Level2RecoveryService : ILevel2RecoveryService
             }
 
             request.SupportApprovalStatus = "approved";
-            
+
             // Check dual approval condition
             if (request.AdminApprovalStatus == "approved")
             {
@@ -296,7 +296,7 @@ public class Level2RecoveryService : ILevel2RecoveryService
             await _context.SaveChangesAsync(cancellationToken);
 
             await LogAuditEventAsync(approverUserId, "LEVEL2_ROTATION_ADMIN_REJECTED", $"Representative rotation request {requestId} rejected by Organization Admin vote.", ipAddress, userAgent);
-            
+
             // Notify claimant
             await QueueNotificationEmailAsync(request.RequestedEmail, request.Organization.Name, "CVerify: Representative Rotation Request Rejected", $"Your representative rotation request for {request.Organization.Name} has been rejected by the organization administrator.");
             return true;

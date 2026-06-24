@@ -1,5 +1,5 @@
 import { axiosClient } from "../../services/axios-client";
-import { StreamingSession, StreamingStage, StreamingLog } from "./types";
+import { type StreamingSession, type StreamingStage, type StreamingLog } from "./types";
 
 export interface SessionDetailsResponse {
   session: StreamingSession;

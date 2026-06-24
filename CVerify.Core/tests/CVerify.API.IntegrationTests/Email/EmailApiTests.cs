@@ -40,18 +40,18 @@ public class EmailApiTests : BaseIntegrationTest
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/api/emailtest/send-verification", request).ConfigureAwait(false);
+        var response = await Client.PostAsJsonAsync("/api/emailtest/send-verification", request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Yield processor slice for background queue draining
-        await Task.Delay(200).ConfigureAwait(false);
+        await Task.Delay(200);
 
         // Verify captured dispatch
         EmailSender.SentMessages.Should().ContainSingle();
         var sent = EmailSender.SentMessages.First();
-        
+
         sent.ToEmail.Should().Be(request.email);
         sent.ToName.Should().Be(request.fullName);
         sent.CorrelationId.Should().NotBeNullOrWhiteSpace();
@@ -72,15 +72,15 @@ public class EmailApiTests : BaseIntegrationTest
 
         // Act
         // 1st request should succeed and send email
-        var response1 = await Client.PostAsJsonAsync("/api/emailtest/send-verification", request).ConfigureAwait(false);
+        var response1 = await Client.PostAsJsonAsync("/api/emailtest/send-verification", request);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 2nd duplicate request immediately should get blocked silently
-        var response2 = await Client.PostAsJsonAsync("/api/emailtest/send-verification", request).ConfigureAwait(false);
+        var response2 = await Client.PostAsJsonAsync("/api/emailtest/send-verification", request);
         response2.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Yield processor slice
-        await Task.Delay(200).ConfigureAwait(false);
+        await Task.Delay(200);
 
         // Assert - Only ONE message is sent because Redis locked out the duplicate
         EmailSender.SentMessages.Should().ContainSingle();
@@ -98,16 +98,16 @@ public class EmailApiTests : BaseIntegrationTest
         };
 
         // Act
-        var response = await Client.PostAsJsonAsync("/api/emailtest/send-reset", request).ConfigureAwait(false);
+        var response = await Client.PostAsJsonAsync("/api/emailtest/send-reset", request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        await Task.Delay(200).ConfigureAwait(false);
+        await Task.Delay(200);
 
         EmailSender.SentMessages.Should().ContainSingle();
         var sent = EmailSender.SentMessages.First();
-        
+
         sent.ToEmail.Should().Be(request.email);
         sent.HtmlContent.Should().Contain("Reset Password")
             .And.Contain(request.resetLink);
@@ -146,7 +146,7 @@ public class EmailApiTests : BaseIntegrationTest
             FullName: "Kaivian Dev"
         );
 
-        var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", registerRequest).ConfigureAwait(false);
+        var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", registerRequest);
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 2. Resolve background processor and run pending messages
@@ -158,7 +158,7 @@ public class EmailApiTests : BaseIntegrationTest
                 scope.ServiceProvider.GetRequiredService<TimeProvider>()
             );
 
-            await processor.ProcessPendingMessagesAsync(default).ConfigureAwait(false);
+            await processor.ProcessPendingMessagesAsync(default);
         }
 
         // 3. Extract diagnostics
@@ -167,7 +167,8 @@ public class EmailApiTests : BaseIntegrationTest
         // Find all traces starting with "DELIVERY_AUDIT:"
         var auditTraces = traces
             .Where(t => t.Contains("DELIVERY_AUDIT:"))
-            .Select(t => {
+            .Select(t =>
+            {
                 var clean = t.Substring(t.IndexOf("DELIVERY_AUDIT:"));
                 var parts = clean.Split('|').Select(p => p.Trim()).ToList();
                 var dict = new Dictionary<string, string>();
@@ -222,7 +223,7 @@ public class EmailApiTests : BaseIntegrationTest
         EmailSender.SentMessages.Should().ContainSingle();
         var sentEmail = EmailSender.SentMessages.Single();
         sentEmail.ToEmail.Should().Be("audit-pipeline@cverify.ai");
-        
+
         // HtmlContent must render greeting text with Kaivian Dev and NOT contain "Candidate User" or other placeholders
         sentEmail.HtmlContent.Should().Contain("Hi Kaivian Dev,")
             .And.NotContain("Candidate User")

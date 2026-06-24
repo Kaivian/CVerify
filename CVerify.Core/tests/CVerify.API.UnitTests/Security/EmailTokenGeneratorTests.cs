@@ -75,7 +75,7 @@ public class EmailTokenGeneratorTests
         await Task.WhenAll(Enumerable.Range(0, 1000).Select(_ => Task.Run(() =>
         {
             tokens.Add(EmailTokenGenerator.GenerateSecureToken());
-        }))).ConfigureAwait(false);
+        })));
 
         // Assert
         tokens.Distinct().Count().Should().Be(1000);

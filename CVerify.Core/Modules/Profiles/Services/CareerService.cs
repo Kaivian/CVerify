@@ -95,8 +95,8 @@ public class CareerService : ICareerService
     }
 
     public async Task<CareerPreferencesDashboardResponse> UpdateCareerPreferenceAsync(
-        Guid userId, 
-        UpdateCareerPreferenceRequest request, 
+        Guid userId,
+        UpdateCareerPreferenceRequest request,
         CancellationToken cancellationToken = default)
     {
         var career = await _context.CareerPreferences
@@ -155,7 +155,7 @@ public class CareerService : ICareerService
         career.CompanyStagePreferences = companyStages;
         career.PreferredIndustries = preferredIndustries;
         career.TargetSkills = targetSkills;
-        
+
         if (request.ExpectedSalaryMin.HasValue) career.ExpectedSalaryMin = request.ExpectedSalaryMin;
         if (request.ExpectedSalaryMax.HasValue) career.ExpectedSalaryMax = request.ExpectedSalaryMax;
         if (request.ExpectedSalaryCurrency != null) career.ExpectedSalaryCurrency = request.ExpectedSalaryCurrency;
@@ -163,7 +163,7 @@ public class CareerService : ICareerService
         if (request.ExpectedSalaryNegotiable.HasValue) career.ExpectedSalaryNegotiable = request.ExpectedSalaryNegotiable.Value;
         if (request.IsExpectedSalaryVisible.HasValue) career.IsExpectedSalaryVisible = request.IsExpectedSalaryVisible.Value;
         if (request.WorkPreferenceNotes != null) career.WorkPreferenceNotes = request.WorkPreferenceNotes;
-        
+
         career.UpdatedAt = DateTimeOffset.UtcNow;
 
         // Sync Skills if request skills list was provided
@@ -289,7 +289,7 @@ public class CareerService : ICareerService
         if (updated)
         {
             career.UpdatedAt = DateTimeOffset.UtcNow;
-            
+
             if (request.AcceptSkills && inferred.InferredSkills != null && inferred.InferredSkills.Any())
             {
                 var profile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
@@ -324,9 +324,9 @@ public class CareerService : ICareerService
     }
 
     private static DeclaredCareerPreferenceDto MapToDeclaredDto(
-        CareerPreference career, 
-        List<string> skills, 
-        List<string> locations, 
+        CareerPreference career,
+        List<string> skills,
+        List<string> locations,
         List<string> employmentPrefs)
     {
         return new DeclaredCareerPreferenceDto(

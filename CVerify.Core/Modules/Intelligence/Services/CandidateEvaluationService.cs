@@ -165,7 +165,7 @@ public class CandidateEvaluationService : ICandidateEvaluationService
                             rationale = descProp.GetString() ?? "";
                         }
                     }
-                    catch {}
+                    catch { }
                 }
 
                 item = new ProjectedCapabilityItem
@@ -212,7 +212,7 @@ public class CandidateEvaluationService : ICandidateEvaluationService
                                 rationale = descProp.GetString() ?? "";
                             }
                         }
-                        catch {}
+                        catch { }
                     }
                     item.TargetFilePath = targetFile;
                     item.Rationale = rationale;
@@ -321,7 +321,7 @@ public class CandidateEvaluationService : ICandidateEvaluationService
                 .Where(s => toRemoveIds.Contains(s.CandidateCapabilityId))
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
-            
+
             _context.CandidateCapabilityScores.RemoveRange(scoresToRemove);
             _context.CandidateCapabilities.RemoveRange(toRemove);
         }
@@ -404,15 +404,15 @@ public class CandidateEvaluationService : ICandidateEvaluationService
         await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         stopwatch.Stop();
 
-        _logger.LogInformation("Capability sync completed for CandidateId: {CandidateId} in {DurationMs}ms. Action: Consolidate, ConsolidatedCount: {ConsolidatedCount}, AddedCount: {AddedCount}, UpdatedCount: {UpdatedCount}, RemovedCount: {RemovedCount}", 
+        _logger.LogInformation("Capability sync completed for CandidateId: {CandidateId} in {DurationMs}ms. Action: Consolidate, ConsolidatedCount: {ConsolidatedCount}, AddedCount: {AddedCount}, UpdatedCount: {UpdatedCount}, RemovedCount: {RemovedCount}",
             candidateId, stopwatch.ElapsedMilliseconds, projectionList.Count, addedCount, updatedCount, removedCount);
 
         return snapshot;
     }
 
     public async Task<CandidateCapabilityIntelligence> GetCapabilityIntelligenceAsync(
-        Guid candidateId, 
-        bool forceRefresh = false, 
+        Guid candidateId,
+        bool forceRefresh = false,
         CancellationToken cancellationToken = default)
     {
         var snapshot = await _context.CandidateEvaluationSnapshots
@@ -456,7 +456,7 @@ public class CandidateEvaluationService : ICandidateEvaluationService
 
         var careerLevel = "";
         var careerLevelLabel = "";
-        
+
         var latestAssessment = await _context.CandidateAssessments
             .Where(ca => ca.UserId == candidateId && ca.Status == "Completed")
             .OrderByDescending(ca => ca.CompletedAtUtc)

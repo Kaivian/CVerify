@@ -45,7 +45,7 @@ public class CandidateRankingProjectionWorker : BackgroundService
             using var backfillScope = _serviceProvider.CreateScope();
             var backfillContext = backfillScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var evaluationService = backfillScope.ServiceProvider.GetRequiredService<ICandidateEvaluationService>();
-            
+
             // Find all active non-deleted candidates who have a completed assessment but 0 candidate capability records
             var candidatesToBackfill = await backfillContext.UserProfiles
                 .Where(up => up.DeletedAt == null && up.User.DeletedAt == null)
@@ -93,7 +93,7 @@ public class CandidateRankingProjectionWorker : BackgroundService
                 _logger.LogInformation("Triggering scheduled candidate ranking projections rebuild...");
                 using var scope = _serviceProvider.CreateScope();
                 var projectionService = scope.ServiceProvider.GetRequiredService<ICandidateRankingProjectionService>();
-                
+
                 await projectionService.RebuildRankingProjectionsAsync(stoppingToken).ConfigureAwait(false);
             }
             catch (Exception ex)

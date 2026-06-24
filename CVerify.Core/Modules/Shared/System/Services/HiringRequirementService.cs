@@ -433,7 +433,7 @@ public class HiringRequirementService : IHiringRequirementService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var cleanSearch = search.Trim().ToLower();
-            query = query.Where(r => r.Title.ToLower().Contains(cleanSearch) || 
+            query = query.Where(r => r.Title.ToLower().Contains(cleanSearch) ||
                                      r.Department.ToLower().Contains(cleanSearch));
         }
 
@@ -675,10 +675,10 @@ public class HiringRequirementService : IHiringRequirementService
 
                     // Forward to client channel and save in DB
                     await _streamingSessionService.UpdateSessionProgressAsync(req.Id, percentage, step);
-                    
+
                     string? detailsJson = root.TryGetProperty("jsonData", out var jsonProp) ? jsonProp.GetString() : null;
                     await _streamingSessionService.UpsertStageAsync(req.Id, step, step, status, percentage, message, detailsJson: detailsJson);
-                    
+
                     var logLevel = status == "Failed" ? "Error" : status == "Completed" ? "Success" : "Info";
                     await _streamingSessionService.AddLogAsync(req.Id, step, logLevel, "FastApiStream", message);
 
@@ -727,7 +727,7 @@ public class HiringRequirementService : IHiringRequirementService
                 req.Status = "Draft";
                 await _context.SaveChangesAsync(CancellationToken.None);
             }
-            catch {}
+            catch { }
             _logger.LogError(ex, "Error generating artifacts for hiring requirement {RequirementId}", req.Id);
             await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Failed", errorMessage: ex.Message);
             await PublishProgressAsync(req.Id, "Failed", "Failed", ex.Message, 100.0);
@@ -869,10 +869,10 @@ public class HiringRequirementService : IHiringRequirementService
 
                     // Forward to client channel and save in DB
                     await _streamingSessionService.UpdateSessionProgressAsync(req.Id, percentage, step);
-                    
+
                     string? detailsJson = root.TryGetProperty("jsonData", out var jsonProp) ? jsonProp.GetString() : null;
                     await _streamingSessionService.UpsertStageAsync(req.Id, step, step, status, percentage, message, detailsJson: detailsJson);
-                    
+
                     var logLevel = status == "Failed" ? "Error" : status == "Completed" ? "Success" : "Info";
                     await _streamingSessionService.AddLogAsync(req.Id, step, logLevel, "FastApiStream", message);
 
@@ -985,7 +985,7 @@ public class HiringRequirementService : IHiringRequirementService
             using var doc = JsonDocument.Parse(jsonData);
             var root = doc.RootElement;
             var markdownContent = root.TryGetProperty("markdownContent", out var mdProp) ? mdProp.GetString() ?? "" : "";
-            
+
             string? structuredContentJson = null;
             if (root.TryGetProperty("structuredContent", out var scProp))
             {
@@ -1155,7 +1155,7 @@ public class HiringRequirementService : IHiringRequirementService
         // 1. Persist using the unified service
         await _streamingSessionService.UpdateSessionProgressAsync(reqId, percentage, step);
         await _streamingSessionService.UpsertStageAsync(reqId, step, step, status, percentage, message);
-        
+
         var logLevel = status == "Failed" ? "Error" : status == "Completed" ? "Success" : "Info";
         await _streamingSessionService.AddLogAsync(reqId, step, logLevel, "HiringRequirementService", message);
 
@@ -1184,7 +1184,7 @@ public class HiringRequirementService : IHiringRequirementService
             .Replace(" ", "-")
             .Replace(".", "")
             .Replace("/", "-");
-        
+
         var capId = $"custom.{request.WorkspaceId:N}.{suffix}";
         if (capId.Length > 100)
         {

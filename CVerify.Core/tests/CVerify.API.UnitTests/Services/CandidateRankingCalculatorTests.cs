@@ -271,7 +271,7 @@ public class CandidateRankingCalculatorTests
         parsedCapabilities[0].score.Should().Be(95.0);
         parsedCapabilities[1].name.Should().Be("WebAssembly");
         parsedCapabilities[1].score.Should().Be(88.0);
-        
+
         result.PrimaryDomain.Should().Be("Backend");
         result.CareerLevelLabel.Should().Be("Lead");
         result.AvailableForHire.Should().BeTrue();

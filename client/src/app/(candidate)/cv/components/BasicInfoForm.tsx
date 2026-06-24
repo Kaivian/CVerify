@@ -120,7 +120,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
         aiValue: roleTitle,
         source: 'ai' as const,
         generatedAt: new Date().toISOString(),
-        matchScore: matchScore
+        matchScore
       }
     };
     onChange({

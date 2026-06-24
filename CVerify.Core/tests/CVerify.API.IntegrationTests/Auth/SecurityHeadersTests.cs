@@ -18,10 +18,10 @@ public class SecurityHeadersTests : BaseIntegrationTest
     public async Task Auth_Endpoints_Should_Expose_Strict_Security_Headers()
     {
         var response = await Client.GetAsync("/openapi/v1.json"); // Trigger a request to the server
-        
+
         // Let's call a post endpoint to see headers applied by our SecurityHeadersMiddleware
         var loginResponse = await Client.PostAsync("/api/auth/login", null);
-        
+
         // Assert anti-caching headers
         loginResponse.Headers.CacheControl.ToString().Should().Contain("no-store");
         loginResponse.Headers.CacheControl.ToString().Should().Contain("no-cache");

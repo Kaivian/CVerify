@@ -25,8 +25,8 @@ public class SystemService : ISystemService
     private readonly EnvConfiguration _envConfig;
 
     public SystemService(
-        ApplicationDbContext context, 
-        IConnectionMultiplexer redis, 
+        ApplicationDbContext context,
+        IConnectionMultiplexer redis,
         IHostEnvironment env,
         IHttpClientFactory httpClientFactory,
         IAmazonS3 s3Client,

@@ -73,7 +73,7 @@ public class ExplainableMatchService : IExplainableMatchService
             var snapshotCaps = JsonSerializer.Deserialize<List<RequirementCapabilityDto>>(
                 job.RequirementSnapshot.CapabilitiesJson,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            
+
             jobRequirement.Capabilities = snapshotCaps.Select(c => new RequiredCapabilityDto
             {
                 CapabilityId = c.CapabilityId,

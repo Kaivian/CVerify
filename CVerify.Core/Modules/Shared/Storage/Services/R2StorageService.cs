@@ -57,7 +57,7 @@ public class R2StorageService : IStorageService
                 UseJitter = true,
                 Delay = TimeSpan.FromSeconds(1),
                 ShouldHandle = new PredicateBuilder()
-                    .Handle<AmazonS3Exception>(ex => 
+                    .Handle<AmazonS3Exception>(ex =>
                         ex.StatusCode == HttpStatusCode.InternalServerError ||
                         ex.StatusCode == HttpStatusCode.BadGateway ||
                         ex.StatusCode == HttpStatusCode.ServiceUnavailable ||

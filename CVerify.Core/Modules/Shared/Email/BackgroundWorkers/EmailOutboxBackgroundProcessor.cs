@@ -260,7 +260,7 @@ public class EmailOutboxBackgroundProcessor : BackgroundService
 
                                 var subject = "CVerify Account Deactivation and Scheduled Purge";
                                 var body = $"Hi {deletionPayload.FullName},\n\nYour CVerify account deactivation has been initiated. Your profile and credentials are now hidden. Your account will enter a 14-day grace period, and will be permanently purged on {deletionPayload.ReactivateDeadline:yyyy-MM-dd HH:mm} UTC. If you wish to reactivate your account before this time, please log back in and follow the reactivation link.";
-                                
+
                                 await emailService.SendSecurityAlertEmailAsync(
                                     deletionPayload.Email,
                                     subject,

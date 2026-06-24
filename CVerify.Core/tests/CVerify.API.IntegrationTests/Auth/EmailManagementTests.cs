@@ -97,7 +97,7 @@ public class EmailManagementTests : BaseIntegrationTest
         // 1. GET emails - should return only primary initially
         var getResponse1 = await authClient.GetAsync("/api/auth/emails");
         getResponse1.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var emailsList1 = await getResponse1.Content.ReadFromJsonAsync<List<EmailItemTemp>>();
         emailsList1.Should().NotBeNull();
         emailsList1!.Count.Should().Be(1);
@@ -122,7 +122,7 @@ public class EmailManagementTests : BaseIntegrationTest
         EmailSender.SentMessages.Should().ContainSingle();
         var sentEmail = EmailSender.SentMessages.First();
         sentEmail.ToEmail.Should().Be(secondaryEmail);
-        
+
         var otpCode = sentEmail.PlainTextContent.Split(':').Last().Trim();
         otpCode.Length.Should().Be(6);
 
@@ -139,11 +139,11 @@ public class EmailManagementTests : BaseIntegrationTest
         // GET emails - should return primary and secondary
         var getResponse2 = await authClient.GetAsync("/api/auth/emails");
         getResponse2.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var emailsList2 = await getResponse2.Content.ReadFromJsonAsync<List<EmailItemTemp>>();
         emailsList2.Should().NotBeNull();
         emailsList2!.Count.Should().Be(2);
-        
+
         var linkedSecondary = emailsList2.FirstOrDefault(e => !e.IsPrimary);
         linkedSecondary.Should().NotBeNull();
         linkedSecondary!.Email.Should().Be(secondaryEmail);
@@ -157,7 +157,7 @@ public class EmailManagementTests : BaseIntegrationTest
         // GET emails - secondary is now primary, primary is secondary
         var getResponse3 = await authClient.GetAsync("/api/auth/emails");
         getResponse3.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var emailsList3 = await getResponse3.Content.ReadFromJsonAsync<List<EmailItemTemp>>();
         emailsList3!.Count.Should().Be(2);
 
@@ -174,7 +174,7 @@ public class EmailManagementTests : BaseIntegrationTest
         // GET emails - should return only 1 primary email now
         var getResponse4 = await authClient.GetAsync("/api/auth/emails");
         getResponse4.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var emailsList4 = await getResponse4.Content.ReadFromJsonAsync<List<EmailItemTemp>>();
         emailsList4!.Count.Should().Be(1);
         emailsList4[0].Email.Should().Be(secondaryEmail);
@@ -292,7 +292,7 @@ public class EmailManagementTests : BaseIntegrationTest
 
         var authResponse = await googleLoginResponse.Content.ReadFromJsonAsync<AuthResponse>();
         authResponse.Should().NotBeNull();
-        
+
         // Assert it resolved to the primary email
         authResponse!.Email.Should().Be(primaryEmail);
 
@@ -424,7 +424,7 @@ public class EmailManagementTests : BaseIntegrationTest
             FullName: "User B"
         );
         var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", registerRequest);
-        
+
         // Assert registration is rejected due to global uniqueness
         registerResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
@@ -472,7 +472,7 @@ public class EmailManagementTests : BaseIntegrationTest
             FullName: "Reuse User"
         );
         var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", registerRequest);
-        
+
         // Assert it is allowed now
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
     }

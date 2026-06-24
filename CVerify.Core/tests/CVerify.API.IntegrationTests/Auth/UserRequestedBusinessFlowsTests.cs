@@ -70,7 +70,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
                 }
             });
         });
-        
+
         _client = _customFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -81,7 +81,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
     {
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var userRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "USER");
         if (userRole == null)
         {
@@ -94,7 +94,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
                 IsActive = true
             });
         }
-        
+
         var adminRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "SUPER_ADMIN");
         if (adminRole == null)
         {
@@ -107,7 +107,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
                 IsActive = true
             });
         }
-        
+
         await db.SaveChangesAsync();
     }
 
@@ -119,21 +119,21 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
     public async Task BUS_REG_001_Register_Company_With_Valid_MST_Success()
     {
         await SeedDefaultRolesAsync();
-        
+
         // 1. Verify Company (Step 1)
         var verifyCompanyRequest = new VerifyCompanyOnboardingRequest(
             CompanyName: "CÔNG TY TNHH PHẦN MỀM FPT",
             TaxCode: "0101243156"
         );
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/onboarding/verify-company", verifyCompanyRequest);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var data = await response.Content.ReadFromJsonAsync<VerifyOrganizationOnboardingResponse>();
         data.Should().NotBeNull();
         data!.SignedToken.Should().NotBeNullOrEmpty();
         data.OfficialOrganizationName.Should().Be("CÔNG TY TNHH PHẦN MỀM FPT");
-        
+
         var step1Token = data.SignedToken!;
 
         // 2. Dispatch OTP to representative email (must use public domain like gmail.com to pass DNS lookup check)
@@ -141,7 +141,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
         var otpReq = new SendOtpRequest(Email: repEmail, Purpose: "Authentication");
         var sendOtpRes = await _client.PostAsJsonAsync("/api/auth/send-otp", otpReq);
         sendOtpRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var otpData = await sendOtpRes.Content.ReadFromJsonAsync<SendOtpResponse>();
         otpData.Should().NotBeNull();
         var challengeId = otpData!.ChallengeId;
@@ -169,7 +169,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
 
         var verifyOtpRes = await _client.SendAsync(verifyOtpMsg);
         verifyOtpRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var step2Data = await verifyOtpRes.Content.ReadFromJsonAsync<VerifyOtpResponse>();
         step2Data.Should().NotBeNull();
         step2Data!.VerificationToken.Should().NotBeNullOrEmpty();
@@ -192,7 +192,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
         var org = await db2.Organizations.FirstOrDefaultAsync(o => o.Username == "fpt-test-workspace" && o.DeletedAt == null);
         org.Should().NotBeNull();
         org!.Name.Should().Be("CÔNG TY TNHH PHẦN MỀM FPT");
-        
+
         var cred = await db2.OrganizationCredentials.FirstOrDefaultAsync(c => c.OrganizationId == org.Id);
         cred.Should().NotBeNull();
         BCrypt.Net.BCrypt.Verify("SecurePassword123!", cred!.PasswordHash).Should().BeTrue();
@@ -205,7 +205,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
             CompanyName: "CÔNG TY TNHH PHẦN MỀM FPT",
             TaxCode: "12345" // Invalid format (should be 10 digits or 10-3)
         );
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/onboarding/verify-company", verifyCompanyRequest);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -217,7 +217,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
             CompanyName: "CONG TY SAI HOAN TOAN", // Similarity similarity < 75%
             TaxCode: "0101243156"
         );
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/onboarding/verify-company", verifyCompanyRequest);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -226,7 +226,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
     public async Task BUS_REG_004_Register_MST_Already_Exists_Triggers_Reclaim()
     {
         await SeedDefaultRolesAsync();
-        
+
         // Seed Organization in DB
         using (var scope = _customFactory.Services.CreateScope())
         {
@@ -250,10 +250,10 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
             CompanyName: "CÔNG TY TNHH PHẦN MỀM FPT",
             TaxCode: "0101243156"
         );
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/onboarding/verify-company", verifyCompanyRequest);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var data = await response.Content.ReadFromJsonAsync<VerifyOrganizationOnboardingResponse>();
         data.Should().NotBeNull();
         data!.OrganizationExists.Should().BeTrue();
@@ -265,10 +265,10 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
     public async Task BUS_REG_005_Register_Workspace_Slug_Reserved_Word_Fails()
     {
         var step2Token = OnboardingTokenHelper.GenerateStep2Token(
-            "0101243156", 
-            "CÔNG TY TNHH PHẦN MỀM FPT", 
-            "rep@gmail.com", 
-            false, 
+            "0101243156",
+            "CÔNG TY TNHH PHẦN MỀM FPT",
+            "rep@gmail.com",
+            false,
             "super_secret_key_super_secret_key_super_secret_key_32_characters"
         );
 
@@ -287,10 +287,10 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
     public async Task BUS_REG_006_Register_Workspace_Slug_Too_Short_Fails()
     {
         var step2Token = OnboardingTokenHelper.GenerateStep2Token(
-            "0101243156", 
-            "CÔNG TY TNHH PHẦN MỀM FPT", 
-            "rep@gmail.com", 
-            false, 
+            "0101243156",
+            "CÔNG TY TNHH PHẦN MỀM FPT",
+            "rep@gmail.com",
+            false,
             "super_secret_key_super_secret_key_super_secret_key_32_characters"
         );
 
@@ -309,10 +309,10 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
     public async Task BUS_REG_007_Register_Workspace_Slug_Contains_Uppercase_Fails()
     {
         var step2Token = OnboardingTokenHelper.GenerateStep2Token(
-            "0101243156", 
-            "CÔNG TY TNHH PHẦN MỀM FPT", 
-            "rep@gmail.com", 
-            false, 
+            "0101243156",
+            "CÔNG TY TNHH PHẦN MỀM FPT",
+            "rep@gmail.com",
+            false,
             "super_secret_key_super_secret_key_super_secret_key_32_characters"
         );
 
@@ -331,10 +331,10 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
     public async Task BUS_REG_008_Register_Workspace_Weak_Password_Fails()
     {
         var step2Token = OnboardingTokenHelper.GenerateStep2Token(
-            "0101243156", 
-            "CÔNG TY TNHH PHẦN MỀM FPT", 
-            "rep@gmail.com", 
-            false, 
+            "0101243156",
+            "CÔNG TY TNHH PHẦN MỀM FPT",
+            "rep@gmail.com",
+            false,
             "super_secret_key_super_secret_key_super_secret_key_32_characters"
         );
 
@@ -395,7 +395,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
 
         var response = await _client.PostAsJsonAsync("/api/auth/company-login", loginRequest);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var cookies = response.Headers.GetValues("Set-Cookie").ToList();
         cookies.Any(c => c.StartsWith("access_token")).Should().BeTrue();
     }
@@ -490,9 +490,9 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
 
         var request = new OrganizationForgotRequest(TaxCode: "0101243156");
         var response = await _client.PostAsJsonAsync("/api/auth/recovery/organization/forgot", request);
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var forgotData = await response.Content.ReadFromJsonAsync<OrganizationForgotResponse>();
         forgotData.Should().NotBeNull();
         forgotData!.ChallengeId.Should().NotBe(Guid.Empty);
@@ -687,7 +687,7 @@ public class UserRequestedBusinessFlowsTests : BaseIntegrationTest
         var db2 = scope2.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var claim = await db2.OrganizationRecoveryClaims
             .FirstOrDefaultAsync(c => c.Id == claimData.ClaimId);
-        
+
         claim.Should().NotBeNull();
         claim!.Status.Should().Be("Pending");
         claim.RecoveryEmail.Should().Be(reclaimEmail);

@@ -39,7 +39,7 @@ public class VerifySnapshotTests
         };
 
         // Act
-        var html = await _templateService.RenderTemplateAsync("VerificationEmail.html", model).ConfigureAwait(false);
+        var html = await _templateService.RenderTemplateAsync("VerificationEmail.html", model);
 
         // Assert
         // Verifier saves dynamic HTML outputs and compares them to pre-recorded .received and .verified states
@@ -58,7 +58,7 @@ public class VerifySnapshotTests
         };
 
         // Act
-        var html = await _templateService.RenderTemplateAsync("ResetPasswordEmail.html", model).ConfigureAwait(false);
+        var html = await _templateService.RenderTemplateAsync("ResetPasswordEmail.html", model);
 
         // Assert
         await Verifier.Verify(html, "html").ConfigureAwait(false);
@@ -75,7 +75,7 @@ public class VerifySnapshotTests
         };
 
         // Act
-        var html = await _templateService.RenderTemplateAsync("WelcomeEmail.html", model).ConfigureAwait(false);
+        var html = await _templateService.RenderTemplateAsync("WelcomeEmail.html", model);
 
         // Assert
         await Verifier.Verify(html, "html").ConfigureAwait(false);
@@ -93,7 +93,7 @@ public class VerifySnapshotTests
         };
 
         // Act
-        var html = await _templateService.RenderTemplateAsync("OtpVerificationEmail.html", model).ConfigureAwait(false);
+        var html = await _templateService.RenderTemplateAsync("OtpVerificationEmail.html", model);
 
         // Assert
         await Verifier.Verify(html, "html").ConfigureAwait(false);
@@ -117,7 +117,7 @@ public class VerifySnapshotTests
         };
 
         // Act
-        var html = await _templateService.RenderTemplateAsync("SecurityAlertEmail.html", model).ConfigureAwait(false);
+        var html = await _templateService.RenderTemplateAsync("SecurityAlertEmail.html", model);
 
         // Assert
         await Verifier.Verify(html, "html").ConfigureAwait(false);
@@ -136,7 +136,7 @@ public class VerifySnapshotTests
         };
 
         // Act
-        var html = await _templateService.RenderTemplateAsync("CompanyVerificationEmail.html", model).ConfigureAwait(false);
+        var html = await _templateService.RenderTemplateAsync("CompanyVerificationEmail.html", model);
 
         // Assert
         await Verifier.Verify(html, "html").ConfigureAwait(false);
@@ -156,7 +156,7 @@ public class VerifySnapshotTests
         };
 
         // Act
-        var html = await _templateService.RenderTemplateAsync("WorkspaceOnboardingEmail.html", model).ConfigureAwait(false);
+        var html = await _templateService.RenderTemplateAsync("WorkspaceOnboardingEmail.html", model);
 
         // Assert
         await Verifier.Verify(html, "html").ConfigureAwait(false);

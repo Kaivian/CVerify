@@ -67,7 +67,7 @@ public class TokenCleanupBackgroundJob : BackgroundService
 
         // 1. Purge expired/consumed Verification Tokens (Retention: Immediate for consumed, 30 days for history)
         var gdprLimit = now.AddDays(-30);
-        
+
         int deleted;
         do
         {
@@ -279,8 +279,8 @@ public class TokenCleanupBackgroundJob : BackgroundService
                         }
                     }
 
-                    if (!string.IsNullOrEmpty(user.AvatarUrl) && 
-                        !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                    if (!string.IsNullOrEmpty(user.AvatarUrl) &&
+                        !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                         !user.AvatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                     {
                         try

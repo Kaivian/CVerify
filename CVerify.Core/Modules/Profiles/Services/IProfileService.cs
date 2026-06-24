@@ -10,19 +10,19 @@ namespace CVerify.API.Modules.Profiles.Services;
 public interface IProfileService
 {
     Task<ProfileResponse> GetProfileByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
-    
+
     Task<ProfileResponse> UpdateProfileAsync(
-        Guid userId, 
-        UpdateProfileRequest request, 
-        string? ipAddress = null, 
-        string? userAgent = null, 
+        Guid userId,
+        UpdateProfileRequest request,
+        string? ipAddress = null,
+        string? userAgent = null,
         CancellationToken cancellationToken = default);
-        
+
     Task UpdateUsernameAsync(
-        Guid userId, 
-        string newUsername, 
-        string? ipAddress = null, 
-        string? userAgent = null, 
+        Guid userId,
+        string newUsername,
+        string? ipAddress = null,
+        string? userAgent = null,
         CancellationToken cancellationToken = default);
 
     Task<(string SignedUrl, string ObjectKey)> UploadAvatarAsync(
@@ -44,18 +44,18 @@ public interface IProfileService
     Task<PublicProfileResponse> GetPublicProfileByUsernameAsync(string username, CancellationToken cancellationToken = default);
 
     Task<PaginatedResultDto<RankingResponseItemDto>> GetRankingAsync(
-        Guid? currentUserId, 
-        RankingQueryDto query, 
+        Guid? currentUserId,
+        RankingQueryDto query,
         CancellationToken cancellationToken = default);
 
     Task FollowUserAsync(
-        Guid followerId, 
-        string usernameToFollow, 
+        Guid followerId,
+        string usernameToFollow,
         CancellationToken cancellationToken = default);
 
     Task UnfollowUserAsync(
-        Guid followerId, 
-        string usernameToUnfollow, 
+        Guid followerId,
+        string usernameToUnfollow,
         CancellationToken cancellationToken = default);
 
     Task<RankingStatsDto> GetRankingStatsAsync(CancellationToken cancellationToken = default);

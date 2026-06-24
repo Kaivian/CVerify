@@ -196,7 +196,7 @@ public class PublicJobController : ControllerBase
         try
         {
             var report = await _eligibilityService.CheckEligibilityAsync(id, userId, cancellationToken);
-            
+
             // Build explainable match report
             var matchEval = await _matchService.EvaluateMatchAsync(id, userId);
             var factors = await _context.MatchingFactors

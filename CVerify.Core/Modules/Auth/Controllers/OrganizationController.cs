@@ -679,7 +679,7 @@ public class OrganizationController : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var searchLower = search.ToLower();
-            query = query.Where(om => 
+            query = query.Where(om =>
                 om.User.FullName.ToLower().Contains(searchLower) ||
                 om.User.Email.ToLower().Contains(searchLower)
             );
@@ -702,7 +702,7 @@ public class OrganizationController : ControllerBase
                 "SELECT user_id, headline, username FROM user_profiles WHERE user_id = ANY({0})",
                 memberUserIds.ToArray()
             ).ToListAsync();
-            
+
             profileMap = profiles.ToDictionary(p => p.UserId);
         }
 
@@ -787,8 +787,8 @@ public class OrganizationController : ControllerBase
         }
 
         // Delete old banner from storage if exists
-        if (!string.IsNullOrEmpty(org.BannerUrl) && 
-            !org.BannerUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+        if (!string.IsNullOrEmpty(org.BannerUrl) &&
+            !org.BannerUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !org.BannerUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -880,8 +880,8 @@ public class OrganizationController : ControllerBase
         }
 
         // Delete old logo from storage if exists
-        if (!string.IsNullOrEmpty(org.LogoUrl) && 
-            !org.LogoUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+        if (!string.IsNullOrEmpty(org.LogoUrl) &&
+            !org.LogoUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !org.LogoUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -975,7 +975,7 @@ public class OrganizationController : ControllerBase
         {
             var isMember = await _context.OrganizationMemberships
                 .AnyAsync(om => om.OrganizationId == org.Id && om.UserId == userId && om.Status == "active", cancellationToken);
-            
+
             if (!isMember)
             {
                 return Forbid();
@@ -1052,7 +1052,7 @@ public class OrganizationController : ControllerBase
         {
             var membership = await _context.OrganizationMemberships
                 .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == userId && om.Status == "active", cancellationToken);
-            
+
             if (membership == null)
             {
                 return Forbid();
@@ -1218,7 +1218,7 @@ public class OrganizationController : ControllerBase
         {
             var membership = await _context.OrganizationMemberships
                 .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == userId && om.Status == "active", cancellationToken);
-            
+
             if (membership == null)
             {
                 return Forbid();
@@ -1349,7 +1349,7 @@ public class OrganizationController : ControllerBase
             return null;
         }
 
-        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             return url;

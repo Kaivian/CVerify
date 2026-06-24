@@ -8,7 +8,7 @@ public interface ICacheService
     Task SetAsync<T>(string key, T value, TimeSpan? expiration = null);
     Task RemoveAsync(string key);
     Task<bool> ExistsAsync(string key);
-    
+
     // Specific for Permissions/Roles
     Task AddToSetAsync(string key, string value);
     Task<IEnumerable<string>> GetSetAsync(string key);

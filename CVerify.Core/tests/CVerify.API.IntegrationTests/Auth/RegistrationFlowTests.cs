@@ -88,10 +88,10 @@ public class RegistrationFlowTests : BaseIntegrationTest
         }
 
         // Try to register same email again
-        var response2 = await Client.PostAsJsonAsync("/api/auth/register", userRequest).ConfigureAwait(false);
+        var response2 = await Client.PostAsJsonAsync("/api/auth/register", userRequest);
         response2.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
-        var problem = await response2.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>().ConfigureAwait(false);
+        var problem = await response2.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         problem.Should().NotBeNull();
         problem!.Extensions.Should().ContainKey("code");
         problem.Extensions["code"]!.ToString().Should().Be(AuthErrorCodes.EmailAlreadyExists);
@@ -112,10 +112,10 @@ public class RegistrationFlowTests : BaseIntegrationTest
         await Client.PostAsJsonAsync("/api/auth/register", userRequest);
 
         // Try to register same email again without activating
-        var response2 = await Client.PostAsJsonAsync("/api/auth/register", userRequest).ConfigureAwait(false);
+        var response2 = await Client.PostAsJsonAsync("/api/auth/register", userRequest);
         response2.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var data2 = await response2.Content.ReadFromJsonAsync<RegisterResponse>().ConfigureAwait(false);
+        var data2 = await response2.Content.ReadFromJsonAsync<RegisterResponse>();
         data2.Should().NotBeNull();
         data2!.StatusCode.Should().Be("REGISTRATION_PENDING_VERIFY");
         data2.UiAction.Should().Be("SHOW_WARNING_TOAST");
@@ -251,7 +251,7 @@ public class RegistrationFlowTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             // Seed existing user with NULL password hash
             var userRole = await db.Roles.FirstAsync(r => r.Name == "USER");
             db.Users.Add(new User
@@ -336,7 +336,7 @@ public class RegistrationFlowTests : BaseIntegrationTest
 
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email.Trim().ToLowerInvariant());
         user.Should().NotBeNull();
         user!.Email.Should().Be(email.Trim().ToLowerInvariant());
@@ -349,7 +349,7 @@ public class RegistrationFlowTests : BaseIntegrationTest
 
         var legacyEmail = "theluc1746@gmail.com";
         var passwordHash = BCrypt.Net.BCrypt.HashPassword("SecurePassword123!");
-        
+
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

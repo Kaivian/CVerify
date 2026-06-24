@@ -37,7 +37,7 @@ public class EmailProviderHealthCheckTests
         var context = new HealthCheckContext();
 
         // Act
-        var result = await healthCheck.CheckHealthAsync(context).ConfigureAwait(false);
+        var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
         result.Status.Should().Be(HealthStatus.Unhealthy);
@@ -63,7 +63,7 @@ public class EmailProviderHealthCheckTests
         var context = new HealthCheckContext();
 
         // Act
-        var result = await healthCheck.CheckHealthAsync(context).ConfigureAwait(false);
+        var result = await healthCheck.CheckHealthAsync(context);
 
         // Assert
         // Since 'api.sendgrid.com' has public DNS A/AAAA records, this will succeed on typical connected developer and CI platforms

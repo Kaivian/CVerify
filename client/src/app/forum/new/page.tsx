@@ -125,7 +125,7 @@ export default function NewTopicPage() {
         categoryId: selectedCategoryId,
         title: title.trim(),
         content: content.trim(),
-        tags: tags
+        tags
       });
       router.push(`/forum/topic/${topic.slug}`);
     } catch (err: any) {

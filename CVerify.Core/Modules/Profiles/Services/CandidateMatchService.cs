@@ -223,7 +223,7 @@ public class CandidateMatchService : ICandidateMatchService
             r.CandidatesFoundCount,
             r.MatchQualitySummary,
             r.ErrorMessage,
-            !string.IsNullOrEmpty(r.RawResultsJson) 
+            !string.IsNullOrEmpty(r.RawResultsJson)
                 ? JsonSerializer.Deserialize<List<CandidateMatchDto>>(r.RawResultsJson)
                 : null
         )).ToList();

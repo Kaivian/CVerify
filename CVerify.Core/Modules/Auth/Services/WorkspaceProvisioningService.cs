@@ -106,7 +106,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
                      .Replace("quốc tế", "")
                      .Replace("việt nam", "")
                      .Replace("vietnam", "");
-                     
+
         var charArray = clean.Where(c => char.IsLetterOrDigit(c)).ToArray();
         return new string(charArray);
     }
@@ -229,7 +229,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var root = doc.RootElement;
-        
+
         if (!root.TryGetProperty("code", out var codeProp) || codeProp.GetString() != "00")
         {
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Invalid business tax code.");

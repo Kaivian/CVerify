@@ -69,7 +69,7 @@ public class AppLoggingBackgroundWorker : BackgroundService
     private void WriteCleanConsole(AppLogEvent logEvent)
     {
         var timestamp = logEvent.Timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff");
-        
+
         var (levelStr, colorCode) = logEvent.Level switch
         {
             LogLevel.Trace => ("TRC", "\x1B[90m"),         // Gray

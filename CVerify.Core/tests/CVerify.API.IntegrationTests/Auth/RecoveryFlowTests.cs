@@ -60,7 +60,7 @@ public class RecoveryFlowTests : BaseIntegrationTest
         var companyName = "Test Cooldown Corp";
         var email = "owner@cooldowncorp.com";
         var username = "cooldown-corp";
-        
+
         var org = await SeedOrganizationAsync(taxCode, companyName, email, username);
 
         // Generate valid OTP verification token
@@ -95,7 +95,7 @@ public class RecoveryFlowTests : BaseIntegrationTest
         content2.Add(new StringContent("+84901234567"), "PhoneNumber");
         content2.Add(new StringContent(email), "RecoveryEmail");
         content2.Add(new StringContent(token), "EmailVerificationToken");
-        
+
         var fileContent2 = new ByteArrayContent(Encoding.UTF8.GetBytes("Mock License Content"));
         fileContent2.Headers.ContentType = MediaTypeHeaderValue.Parse("application/pdf");
         content2.Add(fileContent2, "documents", "license2.pdf");
@@ -114,7 +114,7 @@ public class RecoveryFlowTests : BaseIntegrationTest
         var companyName = "Test Escalation Corp";
         var email = "owner@escalationcorp.com";
         var username = "escalation-corp";
-        
+
         var org = await SeedOrganizationAsync(taxCode, companyName, email, username);
 
         // Create a High risk claim directly in database for validation simplicity
@@ -144,7 +144,7 @@ public class RecoveryFlowTests : BaseIntegrationTest
         // Note: Integration tests helper usually has custom token generator or endpoints to authenticate.
         // Let's call the review service directly inside scope to verify logic correctness bypass token configs
         var reclaimService = scope.ServiceProvider.GetRequiredService<IOrganizationReclaimService>();
-        
+
         // First approval
         var partialApproved = await reclaimService.ReviewClaimAsync(claim.Id, new ReviewClaimRequest("Approved", null), "admin1@cverify.ai");
         partialApproved.Should().BeTrue();
@@ -176,7 +176,7 @@ public class RecoveryFlowTests : BaseIntegrationTest
         var companyName = "Test Duplicate Corp";
         var email = "owner@duplicatecorp.com";
         var username = "duplicate-corp";
-        
+
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -213,7 +213,7 @@ public class RecoveryFlowTests : BaseIntegrationTest
         var companyName = "Test Reclaim Block Corp";
         var email = "owner@reclaimblock.com";
         var username = "reclaimblock-corp";
-        
+
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -249,13 +249,13 @@ public class RecoveryFlowTests : BaseIntegrationTest
         var expectedEmail = "owner.name+reclaim@gmail.com";
         var rawEmailInRequest = " OWNER.NAME+reclaim@gmail.com ";
         var username = "normalization-corp";
-        
+
         var org = await SeedOrganizationAsync(taxCode, companyName, expectedEmail, username);
 
         // Generate valid OTP verification token using the normalized email format
         using var scope = Factory.Services.CreateScope();
         var config = scope.ServiceProvider.GetRequiredService<EnvConfiguration>();
-        
+
         var token = RecoveryTokenHelper.GenerateOtpVerifiedToken(taxCode, expectedEmail, config.Jwt.Key);
 
         // Submit claim with non-normalized recovery email containing casing and whitespace differences

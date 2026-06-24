@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Scroll, Search, Copy, Download } from "lucide-react";
 import { Button } from "@heroui/react";
-import { StreamingLog } from "../types";
+import { type StreamingLog } from "../types";
 
 interface StreamingLogConsoleProps {
   logs: StreamingLog[];
@@ -132,7 +132,7 @@ export function VirtualLogConsole({ logs, autoScroll = true }: VirtualLogConsole
   useEffect(() => {
     if (containerRef.current) {
       const resizeObserver = new ResizeObserver((entries) => {
-        for (let entry of entries) {
+        for (const entry of entries) {
           setHeight(entry.contentRect.height);
         }
       });

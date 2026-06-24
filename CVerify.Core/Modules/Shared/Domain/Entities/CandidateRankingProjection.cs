@@ -44,13 +44,13 @@ public class CandidateRankingProjection
     public int TotalStarsCount { get; set; } = 0;
     public int TotalForksCount { get; set; } = 0;
     public int VerifiedContributionCount { get; set; } = 0;
-    
+
     [Column(TypeName = "jsonb")]
     public string? TopCapabilitiesJson { get; set; } // flat capabilities list: [{"name":"C#", "score":95}]
-    
+
     [MaxLength(100)]
     public string? PrimaryDomain { get; set; } // backend, frontend, etc
-    
+
     [MaxLength(50)]
     public string? CareerLevelLabel { get; set; } // Senior, Lead, etc
 
@@ -60,7 +60,7 @@ public class CandidateRankingProjection
 
     // Availability
     public bool AvailableForHire { get; set; } = true;
-    
+
     [MaxLength(20)]
     public string OpenToWorkStatus { get; set; } = "casual";
 
