@@ -1,13 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { ScrollShadow } from "@heroui/react";
 import { useSidebarStore } from "../../../stores/use-sidebar-store";
 import SidebarBrand from "./sidebar-brand";
 import SidebarContent from "./sidebar-content";
 import WorkspaceSwitcher from "./workspace-switcher";
 import { useAuth } from "../../../features/auth/hooks/use-auth";
-import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { useSidebarMode } from "../../../providers/sidebar-mode-provider";
 import { useActiveWorkspace } from "../../../features/workspace/hooks/use-active-workspace";

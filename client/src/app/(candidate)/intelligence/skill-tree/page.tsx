@@ -51,29 +51,7 @@ export default function SkillTreePage() {
     "Domain", "Subdomain", "Technology", "Framework", "Library", "Tool", "Methodology"
   ]);
 
-  // Load Tree expansion states on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("cverify_skill_tree_expanded");
-      if (saved) {
-        setExpandedNodes(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.error("Failed to load expanded nodes from localStorage", e);
-    }
-  }, []);
-
-  // Fetch tree data whenever the active completed assessment ID changes
-  useEffect(() => {
-    if (latestAssessment?.id && (latestAssessment.status === "Completed" || latestAssessment.status === "Running")) {
-      loadSkillTree();
-    } else {
-      setTreeData([]);
-      setLoading(false);
-    }
-  }, [latestAssessment?.id, latestAssessment?.status]);
-
-  const loadSkillTree = async () => {
+  async function loadSkillTree() {
     setLoading(true);
     try {
       const data = await profileApi.fetchLatestSkillTree();
@@ -102,7 +80,29 @@ export default function SkillTreePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  // Load Tree expansion states on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cverify_skill_tree_expanded");
+      if (saved) {
+        setExpandedNodes(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error("Failed to load expanded nodes from localStorage", e);
+    }
+  }, []);
+
+  // Fetch tree data whenever the active completed assessment ID changes
+  useEffect(() => {
+    if (latestAssessment?.id && (latestAssessment.status === "Completed" || latestAssessment.status === "Running")) {
+      loadSkillTree();
+    } else {
+      setTreeData([]);
+      setLoading(false);
+    }
+  }, [latestAssessment?.id, latestAssessment?.status]);
 
   const toggleExpand = (nodeId: string) => {
     setExpandedNodes(prev => {

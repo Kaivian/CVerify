@@ -124,8 +124,6 @@ export default function JdDetailView({
     setStreamedMarkdown(initialContent);
     setIsGeneratingJd(true);
 
-    const { useStreamingStore } = require("@/modules/streaming");
-
     const unsubscribe = useStreamingStore.subscribe((state: any) => {
       const activeSession = state.activeSession;
       if (activeSession && activeSession.id === reqId) {
@@ -192,8 +190,6 @@ export default function JdDetailView({
 
   const setupDiscoveryProgressStream = (reqId: string) => {
     setIsDiscovering(true);
-
-    const { useStreamingStore } = require("@/modules/streaming");
 
     const unsubscribe = useStreamingStore.subscribe((state: any) => {
       const activeSession = state.activeSession;
@@ -303,7 +299,6 @@ export default function JdDetailView({
      
     loadRequirementDetails();
     return () => {
-      const { useStreamingStore } = require("@/modules/streaming");
       useStreamingStore.getState().disconnect();
     };
   }, [requirementId]);
@@ -371,7 +366,6 @@ export default function JdDetailView({
     if (!activeRequirement) return;
     try {
       await hiringRequirementService.cancelArtifactGeneration(activeRequirement.id, "JobDescription");
-      const { useStreamingStore } = require("@/modules/streaming");
       useStreamingStore.getState().disconnect();
       setIsGeneratingJd(false);
       setGenerationProgress(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../features/auth/hooks/use-auth";
 import { usePathname } from "next/navigation";
 import { Toast } from "@heroui/react";
@@ -13,7 +13,6 @@ import { SignalRProvider } from "../providers/signalr-provider";
 
 import { useAuthStore } from "../features/auth/store/use-auth-store";
 import { type User } from "../types/auth.types";
-import { useRef } from "react";
 
 export function Providers({
   children,
@@ -24,8 +23,7 @@ export function Providers({
   locale: string;
   initialUser: User | null;
 }) {
-  const initializedRef = useRef(false);
-  if (!initializedRef.current) {
+  const [storeInitialized] = useState(() => {
     if (initialUser) {
       useAuthStore.setState({
         isAuthenticated: true,
@@ -41,8 +39,8 @@ export function Providers({
         isInitialized: true,
       });
     }
-    initializedRef.current = true;
-  }
+    return true;
+  });
 
   const { initializeSession } = useAuth();
   const initializeTheme = useThemeStore((state) => state.initializeTheme);
