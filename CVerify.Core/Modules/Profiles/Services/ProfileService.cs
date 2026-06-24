@@ -270,7 +270,26 @@ public class ProfileService : IProfileService
 
         if (profile == null)
         {
-            throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == normalizedUsername, cancellationToken);
+            if (user == null)
+            {
+                throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
+            }
+
+            profile = new UserProfile
+            {
+                UserId = user.Id,
+                Username = user.Username,
+                ProfileVisibility = "public",
+                RecruiterVisibility = true,
+                AiTalentDiscovery = "disabled",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            _context.UserProfiles.Add(profile);
+            await _context.SaveChangesAsync(cancellationToken);
+            profile.User = user;
         }
 
         // Visibility settings of "private" or "connections" return 404 Not Found for public lookup

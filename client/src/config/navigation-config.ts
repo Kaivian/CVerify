@@ -26,7 +26,9 @@ import {
   TrendingUp,
   HandCoins,
   Globe,
-  BarChart3
+  BarChart3,
+  Home,
+  CheckCircle2
 } from 'lucide-react';
 import { type NavigationNode } from '../types/navigation.types';
 
@@ -55,12 +57,42 @@ export const companyNavigationConfig: NavigationNode[] = [
         requiredWorkspacePermissions: ['organization:workspaces:view'],
       },
       {
-        id: 'company-public-page',
-        type: 'item',
+        id: 'company-public-page-group',
+        type: 'group',
         label: 'Public Page',
         href: '/business/[slug]',
         icon: Globe,
-        exactMatch: true,
+        children: [
+          {
+            id: 'public-page-home',
+            type: 'item',
+            label: 'Home',
+            href: '/business/[slug]',
+            icon: Home,
+            exactMatch: true,
+          },
+          {
+            id: 'public-page-jobs',
+            type: 'item',
+            label: 'Jobs',
+            href: '/business/[slug]/jobs',
+            icon: Briefcase,
+          },
+          {
+            id: 'public-page-posts',
+            type: 'item',
+            label: 'Posts',
+            href: '/business/[slug]/posts',
+            icon: FileText,
+          },
+          {
+            id: 'public-page-members',
+            type: 'item',
+            label: 'Members',
+            href: '/business/[slug]/people',
+            icon: Users,
+          },
+        ],
       },
     ],
   },
@@ -237,6 +269,90 @@ export const workspaceNavigationConfig: NavigationNode[] = [
 // 3. CANDIDATE-SCOPED NAVIGATION
 export const candidateNavigationConfig: NavigationNode[] = [
   {
+    id: 'candidate-general-section',
+    type: 'section',
+    label: 'General',
+    requiredRoles: ['USER', 'ADMIN'],
+    children: [
+      {
+        id: 'candidate-jobs-group',
+        type: 'group',
+        label: 'Job Board',
+        href: '/jobs',
+        icon: Briefcase,
+        children: [
+          {
+            id: 'jobs-explore',
+            type: 'item',
+            label: 'Explore',
+            href: '/jobs',
+            icon: Briefcase,
+            exactMatch: true,
+          },
+          {
+            id: 'jobs-recommended',
+            type: 'item',
+            label: 'Recommended',
+            href: '/jobs?tab=recommended',
+            icon: Sparkles,
+          },
+          {
+            id: 'jobs-saved',
+            type: 'item',
+            label: 'Saved',
+            href: '/jobs?tab=saved',
+            icon: Bookmark,
+          },
+          {
+            id: 'jobs-applied',
+            type: 'item',
+            label: 'Applied',
+            href: '/jobs?tab=applied',
+            icon: CheckCircle2,
+          },
+        ],
+      },
+      {
+        id: 'candidate-forum',
+        type: 'item',
+        label: 'Forum',
+        href: '/forum',
+        icon: MessageSquare,
+      },
+      {
+        id: 'candidate-organizations',
+        type: 'item',
+        label: 'Organizations',
+        href: '/workspace/organizations',
+        icon: Building2,
+      },
+      {
+        id: 'ranking-group',
+        type: 'group',
+        label: 'Leaderboard',
+        href: '/ranking/insights',
+        icon: Trophy,
+        children: [
+          {
+            id: 'ranking-insights',
+            type: 'item',
+            label: 'Insights',
+            href: '/ranking/insights',
+            icon: Sparkles,
+          },
+          {
+            id: 'ranking-candidates',
+            type: 'item',
+            label: 'Rankings',
+            href: '/ranking',
+            icon: Trophy,
+            exactMatch: true,
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: 'candidate-section',
     type: 'section',
     label: 'Candidate',
@@ -253,7 +369,7 @@ export const candidateNavigationConfig: NavigationNode[] = [
         id: 'candidate-profile',
         type: 'item',
         label: 'Professional Profile',
-        href: '/user/profile',
+        href: '/[username]',
         icon: UserCircle,
       },
       {
@@ -321,6 +437,42 @@ export const candidateNavigationConfig: NavigationNode[] = [
             icon: Target,
           },
         ],
+      },
+    ],
+  },
+  {
+    id: 'candidate-intelligence-section',
+    type: 'section',
+    label: 'Intelligence',
+    requiredRoles: ['USER', 'ADMIN'],
+    children: [
+      {
+        id: 'intelligence-capability-graph',
+        type: 'item',
+        label: 'Capability Graph',
+        href: '/intelligence/capability-graph',
+        icon: Orbit,
+      },
+      {
+        id: 'intelligence-trust-score',
+        type: 'item',
+        label: 'Trust Score',
+        href: '/intelligence/trust-score',
+        icon: ShieldCheck,
+      },
+      {
+        id: 'intelligence-ai-analysis',
+        type: 'item',
+        label: 'AI Analysis',
+        href: '/intelligence/ai-analysis',
+        icon: Sparkles,
+      },
+      {
+        id: 'intelligence-repositories',
+        type: 'item',
+        label: 'Repositories',
+        href: '/settings/source-code-providers',
+        icon: GitFork,
       },
     ],
   },

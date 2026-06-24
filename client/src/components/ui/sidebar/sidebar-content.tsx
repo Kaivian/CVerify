@@ -40,11 +40,15 @@ import { type NavigationNode } from "../../../types/navigation.types";
 interface SidebarContentProps {
   collapsed: boolean;
   isMobile: boolean;
+  hideSwitcher?: boolean;
+  hideActiveWorkspaceBanner?: boolean;
 }
 
 export const SidebarContent: React.FC<SidebarContentProps> = ({
   collapsed,
   isMobile,
+  hideSwitcher = false,
+  hideActiveWorkspaceBanner = false,
 }) => {
   const { user, isAuthenticated, hasPermission } = useAuth();
   const userRole = user?.role || "USER";
@@ -122,18 +126,29 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     return true;
   };
 
-  // Helper to substitute workspace slug in href
+  // Helper to substitute workspace slug and username in href
   const resolveNodeHref = (node: NavigationNode): NavigationNode => {
+    const username = user?.username ? user.username.toLowerCase() : "";
+    const replaceTokens = (str: string) => {
+      let result = str.replace(/\[slug\]/g, currentOrgSlug).replace(/:slug/g, currentOrgSlug);
+      if (user?.username) {
+        result = result.replace(/\[username\]/g, username).replace(/:username/g, username);
+      } else {
+        result = result.replace(/\/\[username\]/g, "/user/profile").replace(/\/:username/g, "/user/profile");
+      }
+      return result;
+    };
+
     if (node.type === "item") {
       return {
         ...node,
-        href: node.href.replace("[slug]", currentOrgSlug).replace(":slug", currentOrgSlug),
+        href: replaceTokens(node.href),
       };
     }
     if (node.type === "group") {
       return {
         ...node,
-        href: node.href ? node.href.replace("[slug]", currentOrgSlug).replace(":slug", currentOrgSlug) : undefined,
+        href: node.href ? replaceTokens(node.href) : undefined,
         children: node.children.map(resolveNodeHref),
       };
     }
@@ -362,7 +377,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         )}
 
         {/* Company Quick-Jump Banner (Rendered when in Company Mode and a workspace is selected) */}
-        {sidebarMode === "COMPANY" && activeWorkspaceObj && !collapsed && (
+        {!hideActiveWorkspaceBanner && sidebarMode === "COMPANY" && activeWorkspaceObj && !collapsed && (
           <div className="select-none">
             <Link
               href={`/business/${currentOrgSlug}/recruitment/dashboard`}
@@ -414,7 +429,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       </div>
 
       {/* Organization Switcher at the bottom */}
-      {(userRole === "BUSINESS" || userRole === "ADMIN") && (
+      {!hideSwitcher && (userRole === "BUSINESS" || userRole === "ADMIN") && (
         <div className="mt-auto pt-3 border-t border-separator/50 w-full shrink-0 min-w-0">
           <WorkspaceSwitcher collapsed={collapsed} isMobile={isMobile} />
         </div>

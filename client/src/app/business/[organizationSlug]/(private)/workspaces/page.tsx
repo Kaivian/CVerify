@@ -19,9 +19,7 @@ import {
   Button,
   Input,
   Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
+  Label,
   AlertDialog
 } from "@heroui/react";
 import {
@@ -303,95 +301,94 @@ export default function WorkspacesDirectoryPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <Dropdown>
-                          <DropdownTrigger>
-                            <Button isIconOnly variant="ghost" className="w-8 h-8 rounded-xl cursor-pointer">
-                              <MoreVertical size={16} />
-                            </Button>
-                          </DropdownTrigger>
-                          <DropdownMenu className="font-outfit text-foreground text-xs p-1" aria-label="Workspace actions menu">
-                            <DropdownItem
-                              key="open"
-                              onPress={() => handleOpenWorkspace(w.id)}
-                              className="text-xs"
-                            >
-                              <span className="flex items-center gap-2.5">
-                                <ExternalLink size={13} />
-                                <span>Open Workspace</span>
-                              </span>
-                            </DropdownItem>
-                            <DropdownItem
-                              key="edit"
-                              onPress={() => {
-                                setSelectedWorkspace(w);
-                                setIsEditOpen(true);
+                          <Button isIconOnly variant="ghost" className="w-8 h-8 rounded-xl cursor-pointer" aria-label="Workspace actions">
+                            <MoreVertical size={16} />
+                          </Button>
+                          <Dropdown.Popover className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] outline-hidden animate-in fade-in duration-100 z-50 font-outfit">
+                            <Dropdown.Menu
+                              className="text-foreground text-xs p-1"
+                              aria-label="Workspace actions menu"
+                              onAction={(key) => {
+                                if (key === "open") handleOpenWorkspace(w.id);
+                                else if (key === "edit") {
+                                  setSelectedWorkspace(w);
+                                  setIsEditOpen(true);
+                                } else if (key === "members") {
+                                  setSelectedWorkspace(w);
+                                  setIsMembersOpen(true);
+                                } else if (key === "transfer") {
+                                  setSelectedWorkspace(w);
+                                  setIsTransferOpen(true);
+                                } else if (key === "archive") {
+                                  setArchiveConfirmWorkspace(w);
+                                } else if (key === "restore") {
+                                  setRestoreConfirmWorkspace(w);
+                                } else if (key === "delete") {
+                                  setDeleteConfirmWorkspace(w);
+                                }
                               }}
-                              className="text-xs"
                             >
-                              <span className="flex items-center gap-2.5">
-                                <Settings size={13} />
-                                <span>Edit Settings</span>
-                              </span>
-                            </DropdownItem>
-                            <DropdownItem
-                              key="members"
-                              onPress={() => {
-                                setSelectedWorkspace(w);
-                                setIsMembersOpen(true);
-                              }}
-                              className="text-xs"
-                            >
-                              <span className="flex items-center gap-2.5">
-                                <Users size={13} />
-                                <span>Manage Members</span>
-                              </span>
-                            </DropdownItem>
-                            <DropdownItem
-                              key="transfer"
-                              onPress={() => {
-                                setSelectedWorkspace(w);
-                                setIsTransferOpen(true);
-                              }}
-                              className="text-xs"
-                            >
-                              <span className="flex items-center gap-2.5">
-                                <Key size={13} />
-                                <span>Transfer Ownership</span>
-                              </span>
-                            </DropdownItem>
-                            {w.status !== "archived" ? (
-                              <DropdownItem
-                                key="archive"
-                                onPress={() => setArchiveConfirmWorkspace(w)}
-                                className="text-xs text-warning"
+                              <Dropdown.Item
+                                id="open"
+                                textValue="Open Workspace"
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-hidden select-none text-foreground hover:bg-surface-secondary focus:bg-surface-secondary"
                               >
-                                <span className="flex items-center gap-2.5">
-                                  <Archive size={13} />
-                                  <span>Archive Workspace</span>
-                                </span>
-                              </DropdownItem>
-                            ) : (
-                              <DropdownItem
-                                key="restore"
-                                onPress={() => setRestoreConfirmWorkspace(w)}
-                                className="text-xs text-success"
+                                <ExternalLink size={13} className="text-muted shrink-0" />
+                                <Label className="font-semibold text-inherit">Open Workspace</Label>
+                              </Dropdown.Item>
+                              <Dropdown.Item
+                                id="edit"
+                                textValue="Edit Settings"
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-hidden select-none text-foreground hover:bg-surface-secondary focus:bg-surface-secondary"
                               >
-                                <span className="flex items-center gap-2.5">
-                                  <RefreshCw size={13} />
-                                  <span>Restore Workspace</span>
-                                </span>
-                              </DropdownItem>
-                            )}
-                            <DropdownItem
-                              key="delete"
-                              onPress={() => setDeleteConfirmWorkspace(w)}
-                              className="text-xs text-danger"
-                            >
-                              <span className="flex items-center gap-2.5">
-                                <Trash2 size={13} />
-                                <span>Delete Workspace</span>
-                              </span>
-                            </DropdownItem>
-                          </DropdownMenu>
+                                <Settings size={13} className="text-muted shrink-0" />
+                                <Label className="font-semibold text-inherit">Edit Settings</Label>
+                              </Dropdown.Item>
+                              <Dropdown.Item
+                                id="members"
+                                textValue="Manage Members"
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-hidden select-none text-foreground hover:bg-surface-secondary focus:bg-surface-secondary"
+                              >
+                                <Users size={13} className="text-muted shrink-0" />
+                                <Label className="font-semibold text-inherit">Manage Members</Label>
+                              </Dropdown.Item>
+                              <Dropdown.Item
+                                id="transfer"
+                                textValue="Transfer Ownership"
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-hidden select-none text-foreground hover:bg-surface-secondary focus:bg-surface-secondary"
+                              >
+                                <Key size={13} className="text-muted shrink-0" />
+                                <Label className="font-semibold text-inherit">Transfer Ownership</Label>
+                              </Dropdown.Item>
+                              {w.status !== "archived" ? (
+                                <Dropdown.Item
+                                  id="archive"
+                                  textValue="Archive Workspace"
+                                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-hidden select-none text-warning hover:bg-warning/10 focus:bg-warning/10"
+                                >
+                                  <Archive size={13} className="text-warning shrink-0" />
+                                  <Label className="font-semibold text-inherit">Archive Workspace</Label>
+                                </Dropdown.Item>
+                              ) : (
+                                <Dropdown.Item
+                                  id="restore"
+                                  textValue="Restore Workspace"
+                                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-hidden select-none text-success hover:bg-success/10 focus:bg-success/10"
+                                >
+                                  <RefreshCw size={13} className="text-success shrink-0" />
+                                  <Label className="font-semibold text-inherit">Restore Workspace</Label>
+                                </Dropdown.Item>
+                              )}
+                              <Dropdown.Item
+                                id="delete"
+                                textValue="Delete Workspace"
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-hidden select-none text-danger hover:bg-danger/10 focus:bg-danger/10"
+                              >
+                                <Trash2 size={13} className="text-danger shrink-0" />
+                                <Label className="font-semibold text-inherit">Delete Workspace</Label>
+                              </Dropdown.Item>
+                            </Dropdown.Menu>
+                          </Dropdown.Popover>
                         </Dropdown>
                       </td>
                     </tr>
