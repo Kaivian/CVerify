@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js v20
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: 'npm'
@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup .NET SDK 10.0
-        uses: actions/setup-dotnet@3951f0dfe7a07e2313ec93c75700083e2005cbab # v4.3.0
+        uses: actions/setup-dotnet@67a3573ca6942973715c03f5699980d9657b9858 # v4.3.1
         with:
           dotnet-version: '10.0.x'
           cache: true
@@ -77,7 +77,7 @@ jobs:
             --results-directory coverage-results
 
       - name: Upload Unit Test Coverage Results
-        uses: actions/upload-artifact@b4b15b3d683774811a216b490d189b87f2873919 # v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: dotnet-unit-coverage-report
           path: coverage-results/
@@ -95,7 +95,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup .NET SDK 10.0
-        uses: actions/setup-dotnet@3951f0dfe7a07e2313ec93c75700083e2005cbab # v4.3.0
+        uses: actions/setup-dotnet@67a3573ca6942973715c03f5699980d9657b9858 # v4.3.1
         with:
           dotnet-version: '10.0.x'
           cache: true
@@ -115,7 +115,7 @@ jobs:
             --results-directory coverage-results
 
       - name: Upload Integration Coverage Results
-        uses: actions/upload-artifact@b4b15b3d683774811a216b490d189b87f2873919 # v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: dotnet-integration-coverage-report
           path: coverage-results/
@@ -132,7 +132,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Python 3.11
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -158,7 +158,7 @@ jobs:
           BACKEND_API_URL: http://mock-backend:8080
 
       - name: Upload AI Coverage Artifacts
-        uses: actions/upload-artifact@b4b15b3d683774811a216b490d189b87f2873919 # v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: ai-coverage-report
           path: CVerify.AI/coverage.xml
@@ -176,7 +176,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318a16484918e4ebe6a0e7d45f922714e # v3.10.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Build Backend Docker Image (Dry Run)
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
