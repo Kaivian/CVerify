@@ -31,72 +31,58 @@ public class CareerReadinessEngine : ICareerReadinessEngine
 
         var actionItems = new List<CareerReadinessActionItem>();
 
-        // 1. Calculate Completeness Percent (0-100)
+        // 1. Fetch UserProfile to check Name, Bio, and Headline
+        var userId = career.UserId;
+        var profile = await _context.UserProfiles
+            .Include(u => u.User)
+            .FirstOrDefaultAsync(u => u.UserId == userId, cancellationToken);
+
+        // Calculate Completeness Percent (0-100)
         int completeness = 0;
 
-        // Availability Status (15%)
-        if (!string.IsNullOrWhiteSpace(career.OpenToWorkStatus))
+        // 1. Full Name (5%)
+        if (!string.IsNullOrWhiteSpace(profile?.User?.FullName))
         {
-            completeness += 15;
+            completeness += 5;
         }
         else
         {
             actionItems.Add(new CareerReadinessActionItem(
-                "add-availability-status",
-                "Set your availability status (Active, Casual, Closed) to inform recruiters of your search intent.",
-                15
+                "add-fullname",
+                "Add your full name to your profile.",
+                5
             ));
         }
 
-        // Desired job positions (15%)
-        if (career.DesiredJobPositions != null && career.DesiredJobPositions.Any())
-        {
-            completeness += 15;
-        }
-        else
-        {
-            actionItems.Add(new CareerReadinessActionItem(
-                "add-desired-roles",
-                "Add desired job roles to specify the engineering positions you want to target.",
-                15
-            ));
-        }
-
-        // Spoken language (10%)
-        if (!string.IsNullOrWhiteSpace(career.PreferredLanguage))
-        {
-            completeness += 10;
-        }
-
-        // Work arrangement remote/hybrid/onsite (10%)
-        if (!string.IsNullOrWhiteSpace(career.RemotePreference))
+        // 2. Biography/Summary (10%)
+        if (!string.IsNullOrWhiteSpace(profile?.Bio))
         {
             completeness += 10;
         }
         else
         {
             actionItems.Add(new CareerReadinessActionItem(
-                "specify-arrangement",
-                "Specify your preferred work arrangements (Remote, Hybrid, or Onsite).",
+                "add-bio",
+                "Add a professional bio or profile summary to introduce yourself to recruiters.",
                 10
             ));
         }
 
-        // Expected salary min (15%)
-        if (career.ExpectedSalaryMin.HasValue)
+        // 3. Professional Headline (5%)
+        if (!string.IsNullOrWhiteSpace(profile?.Headline))
         {
-            completeness += 15;
+            completeness += 5;
         }
         else
         {
             actionItems.Add(new CareerReadinessActionItem(
-                "add-expected-salary",
-                "Set expected salary boundaries to improve match alignment with recruiters.",
-                15
+                "add-headline",
+                "Add a professional headline summarizing your targeted title or expertise.",
+                5
             ));
         }
 
-        // Target skills (15%)
+        // 4. Target Skills (15%)
         if (career.TargetSkills != null && career.TargetSkills.Any())
         {
             completeness += 15;
@@ -105,37 +91,135 @@ public class CareerReadinessEngine : ICareerReadinessEngine
         {
             actionItems.Add(new CareerReadinessActionItem(
                 "add-target-skills",
-                "Add target skills you want to use in your next engineering role.",
+                "Add target skills to specify your primary technologies and areas of expertise.",
                 15
             ));
         }
 
-        // Work Preference Notes (10%)
-        if (!string.IsNullOrWhiteSpace(career.WorkPreferenceNotes))
+        // 5. Work Experience (15%)
+        var hasExperience = await _context.WorkExperiences.AnyAsync(we => we.UserId == userId, cancellationToken);
+        if (hasExperience)
+        {
+            completeness += 15;
+        }
+        else
+        {
+            actionItems.Add(new CareerReadinessActionItem(
+                "add-experience",
+                "Add work experience history to showcase your professional employment track record.",
+                15
+            ));
+        }
+
+        // 6. Education (10%)
+        var hasEducation = await _context.EducationEntries.AnyAsync(ee => ee.UserId == userId, cancellationToken);
+        if (hasEducation)
         {
             completeness += 10;
         }
         else
         {
             actionItems.Add(new CareerReadinessActionItem(
-                "add-preference-notes",
-                "Write a brief description of your ideal team culture or work environment.",
+                "add-education",
+                "Add education entries to document your academic credentials and background.",
                 10
             ));
         }
 
-        // Preferred stage & industries (10%)
-        if ((career.CompanyStagePreferences != null && career.CompanyStagePreferences.Any()) ||
-            (career.PreferredIndustries != null && career.PreferredIndustries.Any()))
+        // 7. Achievements & Certifications (5%)
+        var hasAchievements = await _context.AcademicAchievements.AnyAsync(a => a.UserId == userId, cancellationToken);
+        if (hasAchievements)
+        {
+            completeness += 5;
+        }
+        else
+        {
+            actionItems.Add(new CareerReadinessActionItem(
+                "add-achievements",
+                "Add certifications, achievements, or awards to validate your credentials.",
+                5
+            ));
+        }
+
+        // 8. Linked Projects/Repositories (10%)
+        var hasRepos = await _context.SourceCodeRepositories
+            .FromSqlRaw(@"
+                SELECT r.* 
+                FROM source_code_repositories r
+                INNER JOIN auth_providers ap ON r.auth_provider_id = ap.id
+                WHERE ap.user_id = {0} 
+                  AND ap.deleted_at IS NULL
+                  AND r.latest_analysis_status = 'Completed'
+                  AND r.is_enabled = TRUE
+                  AND r.is_accessible = TRUE", 
+                userId)
+            .AnyAsync(cancellationToken);
+        if (hasRepos)
         {
             completeness += 10;
         }
         else
         {
             actionItems.Add(new CareerReadinessActionItem(
-                "add-company-stage",
-                "List target company stages or industries of interest to refine matches.",
+                "add-repos",
+                "Connect and link public GitHub repositories to provide source code evidence.",
                 10
+            ));
+        }
+
+        // 9. Open to Work Status (5%)
+        if (!string.IsNullOrWhiteSpace(career.OpenToWorkStatus))
+        {
+            completeness += 5;
+        }
+        else
+        {
+            actionItems.Add(new CareerReadinessActionItem(
+                "add-availability",
+                "Set your job search status (Active, Casual, or Closed) to indicate your availability.",
+                5
+            ));
+        }
+
+        // 10. Desired Job Positions (10%)
+        if (career.DesiredJobPositions != null && career.DesiredJobPositions.Any())
+        {
+            completeness += 10;
+        }
+        else
+        {
+            actionItems.Add(new CareerReadinessActionItem(
+                "add-desired-roles",
+                "Add desired job roles to specify the engineering positions you want to target.",
+                10
+            ));
+        }
+
+        // 11. Remote Preference / Work Arrangement (5%)
+        if (!string.IsNullOrWhiteSpace(career.RemotePreference))
+        {
+            completeness += 5;
+        }
+        else
+        {
+            actionItems.Add(new CareerReadinessActionItem(
+                "specify-arrangement",
+                "Specify your preferred work arrangements (Remote, Hybrid, or Onsite).",
+                5
+            ));
+        }
+
+        // 12. Expected Salary (5%)
+        if (career.ExpectedSalaryMin.HasValue)
+        {
+            completeness += 5;
+        }
+        else
+        {
+            actionItems.Add(new CareerReadinessActionItem(
+                "add-expected-salary",
+                "Set your expected salary boundaries to improve match alignment.",
+                5
             ));
         }
 

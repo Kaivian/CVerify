@@ -17,6 +17,7 @@ export interface ProfileResponse {
   createdAt: string;
   updatedAt: string;
   version: number;
+  aiSuggestionsJson?: string | null;
   socialLinks: string[];
 }
 
@@ -34,6 +35,7 @@ export interface UpdateProfileRequest {
   profileVisibility: string;
   recruiterVisibility: boolean;
   aiTalentDiscovery: string;
+  aiSuggestionsJson?: string | null;
   socialLinks: string[];
   version: number;
 }
@@ -304,9 +306,16 @@ export interface WorkExperienceResponse {
 }
 
 
+export interface MissingFieldDto {
+  fieldKey: string;
+  displayLabel: string;
+  recommendationMessage: string;
+  isRequired: boolean;
+}
+
 export interface CandidateReadinessDto {
   isReady: boolean;
-  missingFields: string[];
+  missingFields: MissingFieldDto[];
   completenessScore: number;
   requiresReassessment: boolean;
   lastAssessmentAt: string | null;

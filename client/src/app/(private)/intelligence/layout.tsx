@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button, Spinner, Chip } from "@heroui/react";
 import { useAssessment } from "@/providers/assessment-provider";
+import { RequiredFieldsMissingModal } from "@/components/ui/RequiredFieldsMissingModal";
 
 export default function IntelligenceLayout({
   children,
@@ -31,6 +32,8 @@ export default function IntelligenceLayout({
     isTriggering,
     streamStatus
   } = useAssessment();
+
+  const [isPrereqModalOpen, setIsPrereqModalOpen] = React.useState(false);
 
   // 1. Loading Skeleton / Spinner
   if (isLoadingLatest && !latestAssessment) {
@@ -57,6 +60,14 @@ export default function IntelligenceLayout({
   ];
 
   const handleReassess = async () => {
+    if (readiness && readiness.missingFields && readiness.missingFields.length > 0) {
+      setIsPrereqModalOpen(true);
+      return;
+    }
+    await handleForceReassess();
+  };
+
+  const handleForceReassess = async () => {
     try {
       await triggerAssessment();
     } catch (err) {
@@ -249,6 +260,16 @@ export default function IntelligenceLayout({
 
       {/* 3. Render page children */}
       <div className="w-full min-h-[400px]">{children}</div>
+
+      {readiness && (
+        <RequiredFieldsMissingModal
+          isOpen={isPrereqModalOpen}
+          onOpenChange={setIsPrereqModalOpen}
+          missingFields={readiness.missingFields}
+          onProceedAnyway={handleForceReassess}
+          isProceeding={isTriggering}
+        />
+      )}
     </div>
   );
 }

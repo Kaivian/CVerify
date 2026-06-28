@@ -62,42 +62,80 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
         }
 
-        var missingFields = new List<string>();
+        var missingFields = new List<MissingFieldDto>();
+
+        var hasCompletedRepos = await _repositoryProvider.HasCompletedRepositoriesAsync(userId, cancellationToken);
+        if (!hasCompletedRepos)
+        {
+            missingFields.Add(new MissingFieldDto(
+                "Repositories",
+                "Source Code Repositories",
+                "At least one analyzed repository is required for AI code capability & engineering telemetry evaluation.",
+                IsRequired: true
+            ));
+        }
 
         if (string.IsNullOrWhiteSpace(profile.Headline))
         {
-            missingFields.Add("Headline");
+            missingFields.Add(new MissingFieldDto(
+                "Headline",
+                "Professional Headline",
+                "A professional headline helps direct the AI assessment on your targeted career orientation.",
+                IsRequired: false
+            ));
         }
 
         if (string.IsNullOrWhiteSpace(profile.Bio))
         {
-            missingFields.Add("Bio");
+            missingFields.Add(new MissingFieldDto(
+                "Bio",
+                "Professional Bio / Summary",
+                "A brief professional summary contextualizes your technical experience and engineering background.",
+                IsRequired: false
+            ));
         }
 
         var hasSkills = await _context.UserSkills.AnyAsync(us => us.UserId == userId, cancellationToken);
+        bool hasTargetSkills = false;
         if (!hasSkills)
         {
             var careerPref = await _context.CareerPreferences.FirstOrDefaultAsync(cp => cp.UserId == userId, cancellationToken);
-            if (careerPref?.TargetSkills == null || careerPref.TargetSkills.Count == 0)
-            {
-                missingFields.Add("Skills");
-            }
+            hasTargetSkills = careerPref?.TargetSkills != null && careerPref.TargetSkills.Count > 0;
+        }
+        if (!hasSkills && !hasTargetSkills)
+        {
+            missingFields.Add(new MissingFieldDto(
+                "Skills",
+                "Target Technical Skills",
+                "Declaring core skills helps the AI verify and cross-reference your expertise against codebase telemetry.",
+                IsRequired: false
+            ));
         }
 
         var hasEducation = await _context.EducationEntries.AnyAsync(ee => ee.UserId == userId, cancellationToken);
         if (!hasEducation)
         {
-            missingFields.Add("Education");
+            missingFields.Add(new MissingFieldDto(
+                "Education",
+                "Education History",
+                "Education history adds credential weight and establishes academic background context.",
+                IsRequired: false
+            ));
         }
 
         var hasExperience = await _context.WorkExperiences.AnyAsync(we => we.UserId == userId, cancellationToken);
         if (!hasExperience)
         {
-            missingFields.Add("Experiences");
+            missingFields.Add(new MissingFieldDto(
+                "Experiences",
+                "Work Experience History",
+                "Work experience is critical to map your codebase telemetry and technical contributions to real-world employment.",
+                IsRequired: false
+            ));
         }
 
-        double completenessScore = (5.0 - missingFields.Count) * 20.0;
-        bool isReady = missingFields.Count == 0;
+        double completenessScore = Math.Round((6.0 - missingFields.Count) * 100.0 / 6.0, 1);
+        bool isReady = !missingFields.Any(mf => mf.IsRequired);
 
         var latestAssessment = await _context.CandidateAssessments
             .Where(ca => ca.UserId == userId && ca.Status == "Completed")
@@ -144,15 +182,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         var readiness = await GetReadinessStatusAsync(userId, cancellationToken);
         if (!readiness.IsReady)
         {
-            throw new BusinessRuleException("PROFILE_INCOMPLETE", "Please complete your biography, headline, skills, education, and work experience before starting the assessment.");
-        }
-
-        // 3. Check repo eligibility (need at least one connected completed repo)
-        var hasCompletedRepos = await _repositoryProvider.HasCompletedRepositoriesAsync(userId, cancellationToken);
-
-        if (!hasCompletedRepos)
-        {
-            throw new BusinessRuleException("NO_COMPLETED_REPOS", "No completed repository analysis found. Please connect and analyze at least one repository first.");
+            throw new BusinessRuleException("PROFILE_INCOMPLETE", "At least one analyzed repository is required. Please connect and analyze a repository first.");
         }
 
         var lastRepoAnalysisAt = await _repositoryProvider.GetLastRepositoryAnalysisAtAsync(userId, cancellationToken);
@@ -688,6 +718,51 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             if (userProfile != null)
             {
                 userProfile.UpdatedAt = DateTimeOffset.UtcNow;
+
+                // Update AI Suggestions JSON
+                Dictionary<string, AiSuggestionItem>? suggestions = null;
+                if (!string.IsNullOrEmpty(userProfile.AiSuggestionsJson))
+                {
+                    try
+                    {
+                        suggestions = JsonSerializer.Deserialize<Dictionary<string, AiSuggestionItem>>(
+                            userProfile.AiSuggestionsJson,
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                        );
+                    }
+                    catch { /* Ignore parsing errors and recreate */ }
+                }
+
+                suggestions ??= new Dictionary<string, AiSuggestionItem>();
+
+                // 1. Headline suggestion
+                if (!string.IsNullOrEmpty(assessment.SummaryHeadline))
+                {
+                    if (!suggestions.TryGetValue("headline", out var headlineItem))
+                    {
+                        headlineItem = new AiSuggestionItem { Source = "user" };
+                        suggestions["headline"] = headlineItem;
+                    }
+                    headlineItem.AiValue = assessment.SummaryHeadline;
+                    headlineItem.GeneratedAt = DateTimeOffset.UtcNow;
+                }
+
+                // 2. Bio suggestion
+                if (!string.IsNullOrEmpty(assessment.SummaryParagraph))
+                {
+                    if (!suggestions.TryGetValue("bio", out var bioItem))
+                    {
+                        bioItem = new AiSuggestionItem { Source = "user" };
+                        suggestions["bio"] = bioItem;
+                    }
+                    bioItem.AiValue = assessment.SummaryParagraph;
+                    bioItem.GeneratedAt = DateTimeOffset.UtcNow;
+                }
+
+                userProfile.AiSuggestionsJson = JsonSerializer.Serialize(
+                    suggestions,
+                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
+                );
             }
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -1438,5 +1513,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         public double Percentage { get; set; }
         public string? ArtifactType { get; set; }
         public string? JsonData { get; set; }
+    }
+
+    private class AiSuggestionItem
+    {
+        public string? AiValue { get; set; }
+        public string? Source { get; set; }
+        public DateTimeOffset? GeneratedAt { get; set; }
     }
 }
