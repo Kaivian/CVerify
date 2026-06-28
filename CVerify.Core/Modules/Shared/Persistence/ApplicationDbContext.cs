@@ -221,6 +221,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<CandidateStrengthWeakness> CandidateStrengthsWeaknesses => Set<CandidateStrengthWeakness>();
     public DbSet<CandidateSkillTreeNode> CandidateSkillTreeNodes => Set<CandidateSkillTreeNode>();
 
+    public DbSet<AiStreamingSession> AiStreamingSessions => Set<AiStreamingSession>();
+    public DbSet<AiStreamingStage> AiStreamingStages => Set<AiStreamingStage>();
+    public DbSet<AiStreamingLog> AiStreamingLogs => Set<AiStreamingLog>();
+    public DbSet<AiStreamingMetric> AiStreamingMetrics => Set<AiStreamingMetric>();
+
 
     public DbSet<ProjectEntry> ProjectEntries => Set<ProjectEntry>();
     public DbSet<ProjectRepositoryLink> ProjectRepositoryLinks => Set<ProjectRepositoryLink>();

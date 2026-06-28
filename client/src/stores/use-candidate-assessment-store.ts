@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { profileApi } from '@/services/profile.service';
+import { useStreamingStore } from '@/modules/streaming';
 import {
   type CandidateReadinessDto,
   type CandidateAssessmentResponse,
@@ -206,8 +207,13 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
       const response = await profileApi.triggerCandidateAssessment();
       set({ latestAssessment: response, isProgressModalOpen: true, hasClosedProgressModal: false });
       
-      // Automatically connect to progress stream
-      get().connectProgressStream(response.userId);
+      // Automatically connect to progress stream via unified framework
+      useStreamingStore.getState().connectSession(
+        "candidate-assessment",
+        response.id,
+        `/v1/candidate-assessments/progress/${response.userId}`,
+        response.id
+      );
       return response;
     } catch (err: any) {
       const errMsg = err.response?.data?.message || 'Failed to start candidate assessment.';
@@ -219,190 +225,40 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
   },
 
   connectProgressStream: (userId: string) => {
-    if (activeEventSource) {
-      activeEventSource.close();
-      activeEventSource = null;
-    }
-
     set({
       streamStatus: 'connecting',
       streamProgress: 0,
       streamStep: 'Initializing',
       streamMessage: 'Connecting to progress stream...',
-      realtimeScore: null,
-      realtimeLevel: null,
-      realtimeLevelLabel: null,
-      realtimeDimensions: {},
-      realtimeRecommendations: [],
-      realtimeSignals: [],
     });
 
-    const sseBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    const sseUrl = `${sseBaseUrl}/v1/candidate-assessments/progress/${userId}`;
-
-    const es = new EventSource(sseUrl, { withCredentials: true });
-    activeEventSource = es;
-
-    es.onopen = () => {
-      set({ streamStatus: 'streaming' });
-    };
-
-    es.onmessage = async (event) => {
-      if (activeEventSource !== es) {
-        es.close();
-        return;
-      }
-
-      const dataStr = event.data;
-      if (dataStr === '[DONE]') {
-        es.close();
-        if (activeEventSource === es) {
-          activeEventSource = null;
+    profileApi.fetchLatestCandidateAssessment()
+      .then(latest => {
+        if (latest) {
+          useStreamingStore.getState().connectSession(
+            "candidate-assessment",
+            latest.id,
+            `/v1/candidate-assessments/progress/${userId}`,
+            latest.id
+          );
         }
+      })
+      .catch(err => {
+        console.error("Failed to delegate progress stream:", err);
         set({
-          streamStatus: 'completed',
-          streamProgress: 100,
-          streamStep: 'Completed',
-          streamMessage: 'Candidate assessment completed successfully.',
+          streamStatus: 'failed',
+          streamMessage: 'Failed to retrieve latest assessment session.',
         });
-        // Refresh details, latest, readiness, and history
-        await get().fetchLatest();
-        await get().fetchHistory();
-        await get().fetchReadiness();
-        return;
-      }
-
-      try {
-        const payload = JSON.parse(dataStr);
-        if (payload) {
-          const status = payload.status || 'Running';
-          const step = payload.step || '';
-          const message = payload.message || '';
-          const progress = payload.percentage !== undefined ? payload.percentage : 0;
-
-          if (status === 'Failed') {
-            es.close();
-            if (activeEventSource === es) {
-              activeEventSource = null;
-            }
-            set({
-              streamStatus: 'failed',
-              streamProgress: progress,
-              streamStep: step,
-              streamMessage: message || 'Assessment run failed.',
-              error: message || 'Assessment run failed.',
-            });
-            await get().fetchLatest();
-            await get().fetchHistory();
-            return;
-          }
-
-          const updates: Partial<CandidateAssessmentState> = {
-            streamProgress: progress,
-            streamStep: step,
-            streamMessage: message,
-          };
-
-          // Parse nested PipelineEvent if it exists in the payload envelope
-          if (payload.event) {
-            const pipeEvent = payload.event;
-            const eventType = pipeEvent.eventType;
-            const eventPayload = pipeEvent.payload || {};
-            const snapshot = pipeEvent.stateSnapshot || {};
-
-            if (snapshot.partialScore !== undefined) {
-              updates.realtimeScore = snapshot.partialScore;
-            }
-            if (snapshot.estimatedLevel !== undefined) {
-              updates.realtimeLevel = snapshot.estimatedLevel;
-              const levelLabels: Record<string, string> = {
-                'L1': 'Junior',
-                'L2': 'Middle',
-                'L3': 'Senior',
-                'L4': 'Staff',
-                'L5': 'Principal'
-              };
-              updates.realtimeLevelLabel = levelLabels[snapshot.estimatedLevel] || snapshot.estimatedLevel;
-            }
-
-            if (eventType === 'DIMENSION_SCORE_UPDATED') {
-              const dim = eventPayload.dimension;
-              const val = eventPayload.value;
-              if (dim && val !== undefined) {
-                updates.realtimeDimensions = {
-                  ...get().realtimeDimensions,
-                  [dim]: val
-                };
-              }
-            } else if (eventType === 'SCORE_DELTA_UPDATED') {
-              if (eventPayload.candidateScore !== undefined) {
-                updates.realtimeScore = eventPayload.candidateScore;
-              }
-            } else if (eventType === 'LEVEL_ESTIMATE_UPDATED') {
-              if (eventPayload.level) {
-                updates.realtimeLevel = eventPayload.level;
-                updates.realtimeLevelLabel = eventPayload.label || eventPayload.level;
-              }
-            } else if (eventType === 'IMPROVEMENT_SIGNAL_DETECTED') {
-              if (eventPayload.gapCategory) {
-                const currentSignals = get().realtimeSignals;
-                if (!currentSignals.includes(eventPayload.gapCategory)) {
-                  updates.realtimeSignals = [...currentSignals, eventPayload.gapCategory];
-                }
-              }
-            } else if (eventType === 'IMPROVEMENT_RECOMMENDATION_READY') {
-              if (eventPayload.id) {
-                const currentRecs = get().realtimeRecommendations;
-                if (!currentRecs.some(r => r.id === eventPayload.id)) {
-                  updates.realtimeRecommendations = [
-                    ...currentRecs,
-                    {
-                      id: eventPayload.id,
-                      priority: eventPayload.priority || 'Medium',
-                      action: eventPayload.action || ''
-                    }
-                  ];
-                }
-              }
-            }
-          }
-
-          set(updates);
-        }
-      } catch (e) {
-        console.error('Failed to parse SSE payload:', e);
-      }
-    };
-
-    es.onerror = (err) => {
-      console.error('Candidate assessment EventSource error:', err);
-      es.close();
-      if (activeEventSource === es) {
-        activeEventSource = null;
-      }
-      set({
-        streamStatus: 'failed',
-        streamMessage: 'Connection to assessment progress lost.',
       });
-    };
   },
 
   disconnectProgressStream: () => {
-    if (activeEventSource) {
-      activeEventSource.close();
-      activeEventSource = null;
-    }
+    useStreamingStore.getState().disconnect();
     set({
       streamStatus: 'idle',
       streamProgress: 0,
       streamStep: '',
       streamMessage: '',
-      realtimeScore: null,
-      realtimeLevel: null,
-      realtimeLevelLabel: null,
-      realtimeDimensions: {},
-      realtimeRecommendations: [],
-      realtimeSignals: [],
     });
   },
 }));

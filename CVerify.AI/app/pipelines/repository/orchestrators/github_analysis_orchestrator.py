@@ -47,7 +47,7 @@ class RiskV2(BaseModel):
     reasons: List[str]
 
 class CvHighlight(BaseModel):
-    signal: str = Field(..., max_length=100)
+    signal: str = Field(..., max_length=150)
     impact: str = ""
 
 class CvSynthesisContract(BaseModel):
@@ -197,6 +197,15 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
             sentences = re.split(r'(?<=[.!?])\s+', sig)
             if sentences:
                 sig = sentences[0]
+                
+            # Truncate sig if too long (max 150 characters)
+            if len(sig) > 150:
+                truncated = sig[:147]
+                last_space = truncated.rfind(' ')
+                if last_space > 0:
+                    sig = truncated[:last_space] + "..."
+                else:
+                    sig = truncated + "..."
                 
             sig_lower = sig.lower()
             is_low_value = any(pat in sig_lower for pat in low_value_patterns)
@@ -3556,7 +3565,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
                 cv_synthesis_data["highlights"] = cv_synthesis_data["highlights"][:3]
                 for hl in cv_synthesis_data["highlights"]:
                     if isinstance(hl, dict) and "signal" in hl and hl["signal"]:
-                        hl["signal"] = hl["signal"][:100]
+                        hl["signal"] = hl["signal"][:150]
             if "title" in cv_synthesis_data and cv_synthesis_data["title"]:
                 cv_synthesis_data["title"] = cv_synthesis_data["title"][:40]
             if "summary" in cv_synthesis_data and cv_synthesis_data["summary"]:

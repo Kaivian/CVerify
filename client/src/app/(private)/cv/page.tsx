@@ -264,7 +264,7 @@ export default function CvManagementCenter() {
     isLoadingDetails,
     triggerAssessment,
     fetchDetails,
-    setIsProgressModalOpen,
+    connectProgressStream,
     streamProgress
   } = useAssessment();
 
@@ -1922,7 +1922,7 @@ export default function CvManagementCenter() {
                           }`}
                         onPress={
                           latestAssessment?.status === 'Running' || latestAssessment?.status === 'Queued'
-                            ? () => setIsProgressModalOpen(true)
+                            ? () => connectProgressStream()
                             : handleTriggerAssessment
                         }
                       >

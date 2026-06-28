@@ -29,6 +29,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
     private readonly ILogger<CandidateAssessmentService> _logger;
     private readonly ICandidateEvaluationService _evaluationService;
     private readonly ISkillTreeValidationService _validationService;
+    private readonly IAiStreamingSessionService _streamingSessionService;
+    private readonly IAiCancellationManager _cancellationManager;
 
     public CandidateAssessmentService(
         ApplicationDbContext context,
@@ -39,7 +41,9 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         ICandidateRepositoryProvider repositoryProvider,
         ILogger<CandidateAssessmentService> _logger,
         ICandidateEvaluationService evaluationService,
-        ISkillTreeValidationService validationService)
+        ISkillTreeValidationService validationService,
+        IAiStreamingSessionService streamingSessionService,
+        IAiCancellationManager cancellationManager)
     {
         _context = context;
         _queue = queue;
@@ -50,6 +54,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         this._logger = _logger;
         _evaluationService = evaluationService;
         _validationService = validationService;
+        _streamingSessionService = streamingSessionService;
+        _cancellationManager = cancellationManager;
     }
 
     public async Task<CandidateReadinessDto> GetReadinessStatusAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -201,7 +207,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             PipelineVersion = "2.2.0",
             AssessmentSchemaVersion = "1.2.0",
             PromptVersion = "v2.2.0",
-            ModelVersion = "gemini-1.5-flash",
+            ModelVersion = "claude-haiku-4-5-20251001",
             LastProfileUpdateAt = profile.LastProfileUpdateAt,
             LastRepositoryAnalysisAt = lastRepoAnalysisAt,
             Version = maxVersion + 1,
@@ -210,6 +216,18 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
         _context.CandidateAssessments.Add(assessment);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Create unified AI Streaming Session
+        await _streamingSessionService.CreateSessionAsync(
+            sessionId: assessment.Id,
+            pipelineId: "candidate-assessment",
+            userId: userId,
+            workspaceId: null,
+            modelName: "claude-haiku-4-5-20251001",
+            provider: "Google",
+            pipelineVersion: "2.2.0",
+            expectedOutputsJson: "[\"CandidateProfile\", \"SkillsList\", \"Maturity\", \"Recommendations\", \"StrengthsGaps\", \"SkillTree\", \"ImprovementPlan\"]"
+        );
 
         // 5. Enqueue job
         await _queue.EnqueueAssessmentAsync(assessment.Id);
@@ -287,9 +305,13 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
     public async Task ProcessAssessmentJobAsync(Guid assessmentId, CancellationToken cancellationToken = default)
     {
+        var managerToken = _cancellationManager.Register(assessmentId, cancellationToken);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(managerToken);
+        linkedCts.CancelAfter(TimeSpan.FromMinutes(10));
+
         var assessment = await _context.CandidateAssessments
             .Include(ca => ca.User)
-            .FirstOrDefaultAsync(ca => ca.Id == assessmentId, cancellationToken);
+            .FirstOrDefaultAsync(ca => ca.Id == assessmentId, linkedCts.Token);
 
         if (assessment == null)
         {
@@ -320,10 +342,13 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             assessment.Status = "Running";
             await _context.SaveChangesAsync(cancellationToken);
 
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Running");
+            await _streamingSessionService.AddLogAsync(assessment.Id, "Initialize", "Info", "Orchestrator", "Initiated candidate assessment execution pipeline.");
+
             await PublishProgressAsync(assessment.UserId, "Running", "Initialize", "Starting candidate assessment...", 0.0);
 
             const string targetPipelineVersion = "2.2.0";
-            const string targetModelVersion = "gemini-1.5-flash";
+            const string targetModelVersion = "claude-haiku-4-5-20251001";
             const string targetPromptVersion = "v2.1.0-scoringV2-projectionV2";
             const string targetSchemaVersion = "1.1.0";
 
@@ -644,6 +669,23 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     var progressEvent = JsonSerializer.Deserialize<FastApiProgressEvent>(eventData, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     if (progressEvent != null)
                     {
+                        var status = progressEvent.Status ?? "Running";
+                        var step = progressEvent.Step ?? "Process";
+                        var msg = progressEvent.Message ?? "";
+                        var pct = progressEvent.Percentage;
+
+                        // Update unified session progress and log/stage in database
+                        await _streamingSessionService.UpdateSessionProgressAsync(assessment.Id, pct, step);
+                        await _streamingSessionService.UpsertStageAsync(assessment.Id, step, step, status, pct, msg, detailsJson: progressEvent.JsonData);
+                        await _streamingSessionService.AddLogAsync(assessment.Id, step, status == "Failed" ? "Error" : "Info", "FastApiStream", msg);
+
+                        if (progressEvent.InputTokens.HasValue)
+                            await _streamingSessionService.AddMetricAsync(assessment.Id, step, "input_tokens", progressEvent.InputTokens.Value);
+                        if (progressEvent.OutputTokens.HasValue)
+                            await _streamingSessionService.AddMetricAsync(assessment.Id, step, "output_tokens", progressEvent.OutputTokens.Value);
+                        if (progressEvent.CostUsd.HasValue)
+                            await _streamingSessionService.AddMetricAsync(assessment.Id, step, "cost_usd", (double)progressEvent.CostUsd.Value);
+
                         if (progressEvent.Status == "Failed")
                         {
                             assessment.FailedStage = progressEvent.Step;
@@ -765,28 +807,65 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 );
             }
 
+            await _context.Entry(assessment).ReloadAsync(cancellationToken);
+            if (assessment.Status == "Cancelled")
+            {
+                throw new OperationCanceledException("Assessment was cancelled by the user.");
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
 
             // Recalculate candidate evaluation snapshot and capability projection
             await _evaluationService.EvaluateAndSnapshotCandidateAsync(assessment.UserId, cancellationToken);
 
+            var profileArtifactJson = profileArtifact?.JsonData;
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Completed", summaryData: profileArtifactJson);
+            await _streamingSessionService.AddLogAsync(assessment.Id, "CandidateProfileComposer", "Success", "Orchestrator", "Candidate Assessment pipeline completed successfully.");
+
             // Publish final completion
             await PublishProgressAsync(assessment.UserId, "Completed", "CandidateProfileComposer", "Candidate Assessment completed successfully.", 100.0);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Candidate assessment job {AssessmentId} was cancelled.", assessment.Id);
+
+            var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id);
+            if (freshAssess != null && freshAssess.Status != "Cancelled")
+            {
+                freshAssess.Status = "Cancelled";
+                freshAssess.CompletedAtUtc = DateTimeOffset.UtcNow;
+                await _context.SaveChangesAsync(CancellationToken.None);
+            }
+
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
+            await PublishProgressAsync(assessment.UserId, "Cancelled", "Cancelled", "Assessment cancelled by user.", 100.0);
+        }
         catch (Exception ex)
         {
+            var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id);
+            if (freshAssess != null && freshAssess.Status == "Cancelled")
+            {
+                await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
+                await PublishProgressAsync(assessment.UserId, "Cancelled", "Cancelled", "Assessment cancelled by user.", 100.0);
+                return;
+            }
+
             _logger.LogError(ex, "Error processing candidate assessment job {AssessmentId}", assessment.Id);
 
             assessment.Status = "Failed";
             assessment.FailureReason ??= ex.Message;
             assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
+            await _context.SaveChangesAsync(CancellationToken.None);
+
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Failed", errorMessage: ex.Message);
+            await _streamingSessionService.AddLogAsync(assessment.Id, "Failed", "Error", "Orchestrator", $"Pipeline failed: {ex.Message}");
 
             // Publish failure
             await PublishProgressAsync(assessment.UserId, "Failed", assessment.FailedStage ?? "Failed", ex.Message, 100.0);
         }
         finally
         {
+            _cancellationManager.Unregister(assessmentId);
             await db.LockReleaseAsync(lockKey, token);
         }
     }
@@ -1513,6 +1592,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         public double Percentage { get; set; }
         public string? ArtifactType { get; set; }
         public string? JsonData { get; set; }
+        public string? EventType { get; set; }
+        public int? InputTokens { get; set; }
+        public int? OutputTokens { get; set; }
+        public decimal? CostUsd { get; set; }
+        public long? DurationMs { get; set; }
+        public string? ModelName { get; set; }
     }
 
     private class AiSuggestionItem
@@ -1520,5 +1605,45 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         public string? AiValue { get; set; }
         public string? Source { get; set; }
         public DateTimeOffset? GeneratedAt { get; set; }
+    }
+
+    public async Task<bool> CancelAssessmentAsync(Guid userId, Guid assessmentId)
+    {
+        var assessment = await _context.CandidateAssessments
+            .FirstOrDefaultAsync(ca => ca.Id == assessmentId && ca.UserId == userId);
+
+        if (assessment == null) return false;
+
+        var activeStates = new[] { "Queued", "Running" };
+        if (!activeStates.Contains(assessment.Status))
+        {
+            return false;
+        }
+
+        assessment.Status = "Cancelled";
+        assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // 1. Set Redis cancellation key for Python AI service
+        try
+        {
+            var db = _redis.GetDatabase();
+            await db.StringSetAsync($"ai:cancel:{assessmentId}", "true", TimeSpan.FromMinutes(5));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set Redis cancellation key for assessment {AssessmentId}", assessmentId);
+        }
+
+        // 2. Cancel C# token via IAiCancellationManager
+        _cancellationManager.Cancel(assessmentId);
+
+        // 3. Update unified streaming session so client-side and server-side state is synchronized
+        await _streamingSessionService.UpdateSessionStatusAsync(assessmentId, "Cancelled");
+
+        // Broadcast to Redis Pub/Sub to notify listening SSE connections
+        await PublishProgressAsync(userId, "Cancelled", "Cancelled", "Assessment cancelled by user.", 100.0);
+
+        return true;
     }
 }

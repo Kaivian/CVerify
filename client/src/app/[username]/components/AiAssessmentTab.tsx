@@ -232,7 +232,7 @@ function mapToViewModel(
   const pipelineVersion = assessment.pipelineVersion || '3.0.0';
   const calculationDate = assessment.completedAtUtc || null;
   const rawModelName = assessment.modelVersion || 'Gemini';
-  const modelName = rawModelName === 'gemini-1.5-flash' || rawModelName === 'Gemini' ? 'claude-haiku-4-5-20251001' : rawModelName;
+  const modelName = rawModelName === 'claude-haiku-4-5-20251001' || rawModelName === 'Gemini' ? 'claude-haiku-4-5-20251001' : rawModelName;
   const promptVersion = assessment.promptVersion || 'v2.1';
   const schemaVersion = profileData?.schemaVersion || 'candidate-profile-v1';
 

@@ -91,6 +91,20 @@ public class CandidateAssessmentController : ControllerBase
         return Accepted(result);
     }
 
+    [HttpPost("v1/candidate-assessments/{assessmentId}/cancel")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CancelAssessment(Guid assessmentId)
+    {
+        var success = await _assessmentService.CancelAssessmentAsync(CurrentUserId, assessmentId);
+        if (!success)
+        {
+            return BadRequest(new { Message = "Assessment could not be cancelled." });
+        }
+        return Ok(new { Message = "Assessment cancelled successfully." });
+    }
+
     [HttpGet("v1/candidate-assessments/dev-trigger")]
     [AllowAnonymous]
     public async Task<IActionResult> DevTriggerAssessment(CancellationToken cancellationToken)
@@ -231,6 +245,13 @@ public class CandidateAssessmentController : ControllerBase
         {
             await Response.WriteAsync("data: [DONE]\n\n", HttpContext.RequestAborted);
             await Response.Body.FlushAsync(HttpContext.RequestAborted);
+            return;
+        }
+
+        if (latest == null)
+        {
+            Response.StatusCode = StatusCodes.Status404NotFound;
+            await Response.WriteAsJsonAsync(new { Message = "No active assessment found." });
             return;
         }
 

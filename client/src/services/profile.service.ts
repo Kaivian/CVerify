@@ -218,6 +218,11 @@ export const profileApi = {
     return response.data;
   },
 
+  cancelCandidateAssessment: async (assessmentId: string): Promise<{ status: string }> => {
+    const response = await axiosClient.post<{ status: string }>(`/v1/candidate-assessments/${assessmentId}/cancel`);
+    return response.data;
+  },
+
   fetchLatestCandidateAssessment: async (): Promise<CandidateAssessmentResponse | null> => {
     const response = await axiosClient.get<CandidateAssessmentResponse | null>('/v1/candidate-assessments/latest');
     if (response.status === 204) {

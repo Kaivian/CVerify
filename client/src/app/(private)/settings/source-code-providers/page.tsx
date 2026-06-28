@@ -45,9 +45,10 @@ import type {
 import { API_URL } from "@/services/axios-client";
 import { useDebounce } from "@/hooks/use-debounce";
 import { AnalysisStatusBadge } from "../components/repository-analysis/AnalysisStatusBadge";
-import { DetailedAnalysisModal } from "../components/repository-analysis/DetailedAnalysisModal";
+import { useStreamingStore } from "@/modules/streaming";
 import { useAnalysisJobStore, getDerivedUIState } from "../components/repository-analysis/stores/use-analysis-job-store";
 import { RepositoryHeatmap } from "../components/repository-analysis/RepositoryHeatmap";
+import { useProfileStore } from "@/stores/use-profile-store";
 
 const POPULAR_LANGUAGES = [
   "TypeScript",
@@ -98,8 +99,23 @@ export default function SourceCodeProvidersPage() {
   // Repository Analysis States (Zustand subscribed)
   const repoStates = useAnalysisJobStore((state) => state.repoStates);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRepoId, setSelectedRepoId] = useState<string>("");
+  const { connectSession, loadHistorySession } = useStreamingStore();
+  const openAnalysisDetails = useCallback((repoId: string) => {
+    const repoState = repoStates[repoId];
+    const jobId = repoState?.jobId || repoState?.latestReport?.jobId || repoState?.partialSnapshot?.jobId || (repoState?.latestReport as any)?.job_id || null;
+    const status = repoState?.status;
+    
+    if (jobId) {
+      if (status === "ANALYZING" || status === "QUEUED") {
+        connectSession("repository-analysis", jobId, undefined, repoId);
+      } else {
+        loadHistorySession(jobId, repoId);
+      }
+    } else {
+      toast.danger("No analysis run found for this repository.");
+    }
+  }, [repoStates, connectSession, loadHistorySession]);
+
   const [repoToReanalyze, setRepoToReanalyze] = useState<{ id: string; name: string; owner: string } | null>(null);
   const [isReanalyzeConfirmOpen, setIsReanalyzeConfirmOpen] = useState(false);
   const [repoToReset, setRepoToReset] = useState<{ id: string; name: string; owner: string } | null>(null);
@@ -225,6 +241,19 @@ export default function SourceCodeProvidersPage() {
     setIsResetting(true);
     try {
       await useAnalysisJobStore.getState().resetRepositoryAnalysis(repoId);
+      
+      // Invalidate profile store caches to ensure the CV page pulls fresh data
+      useProfileStore.setState((state) => ({
+        fetched: {
+          ...state.fetched,
+          projects: false,
+          profile: false,
+          career: false,
+          workExperiences: false,
+          achievements: false,
+        }
+      }));
+
       toast.success("Repository analysis was reset successfully.");
       setPage(1);
       fetchRepos(1, true);
@@ -639,10 +668,7 @@ export default function SourceCodeProvidersPage() {
                     size="sm"
                     className="text-xs font-bold rounded-xl bg-accent text-accent-foreground"
                     isDisabled={isResetting}
-                    onClick={() => {
-                      setSelectedRepoId(repo.id);
-                      setIsModalOpen(true);
-                    }}
+                    onClick={() => openAnalysisDetails(repo.id)}
                   >
                     <span>View Details</span>
                   </Button>
@@ -916,10 +942,7 @@ export default function SourceCodeProvidersPage() {
                   size="sm"
                   variant="outline"
                   className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md flex items-center gap-1 border-border/40 hover:bg-surface-secondary text-warning"
-                  onClick={() => {
-                    setSelectedRepoId(repo.id);
-                    setIsModalOpen(true);
-                  }}
+                  onClick={() => openAnalysisDetails(repo.id)}
                 >
                   <Terminal size={10} className="shrink-0" />
                   <span>Monitor Logs</span>
@@ -943,10 +966,7 @@ export default function SourceCodeProvidersPage() {
                       variant="secondary"
                       className="text-xs font-bold rounded-xl border-border/40"
                       isDisabled={isResetting}
-                      onClick={() => {
-                        setSelectedRepoId(repo.id);
-                        setIsModalOpen(true);
-                      }}
+                      onClick={() => openAnalysisDetails(repo.id)}
                     >
                       <span>Logs</span>
                     </Button>
@@ -1605,12 +1625,7 @@ export default function SourceCodeProvidersPage() {
         </div>
       )}
 
-      {/* Detailed Analysis Modal */}
-      <DetailedAnalysisModal
-        isOpen={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        repoId={selectedRepoId}
-      />
+
 
       {/* Reanalyze Confirmation Modal */}
       <AlertDialog.Backdrop
@@ -1623,7 +1638,10 @@ export default function SourceCodeProvidersPage() {
         }}
       >
         <AlertDialog.Container>
-          <AlertDialog.Dialog className="sm:max-w-[400px]">
+          <AlertDialog.Dialog 
+            aria-label="Confirm Reanalysis"
+            className="sm:max-w-[400px]"
+          >
             {(renderProps) => (
               <>
                 <AlertDialog.CloseTrigger />
@@ -1687,7 +1705,10 @@ export default function SourceCodeProvidersPage() {
         }}
       >
         <AlertDialog.Container>
-          <AlertDialog.Dialog className="sm:max-w-[400px]">
+          <AlertDialog.Dialog 
+            aria-label="Confirm Repository Reset"
+            className="sm:max-w-[400px]"
+          >
             {(renderProps) => (
               <>
                 <AlertDialog.CloseTrigger />

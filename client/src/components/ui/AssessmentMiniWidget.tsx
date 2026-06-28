@@ -4,26 +4,28 @@ import React from "react";
 import { Sparkles, Maximize2 } from "lucide-react";
 import { Button, Spinner } from "@heroui/react";
 import { useAssessment } from "@/providers/assessment-provider";
+import { useStreamingStore } from "@/modules/streaming";
 
 export function AssessmentMiniWidget() {
   const {
-    isProgressModalOpen,
-    setIsProgressModalOpen,
+    connectProgressStream,
     streamStatus,
     streamProgress,
     streamStep,
     latestAssessment
   } = useAssessment();
 
+  const { isModalOpen } = useStreamingStore();
+
   // Show only if modal is minimized and stream is actively running/queued
   const isRunning =
     (latestAssessment?.status === "Running" || latestAssessment?.status === "Queued") &&
     (streamStatus === "streaming" || streamStatus === "connecting");
 
-  if (isProgressModalOpen || !isRunning) return null;
+  if (isModalOpen || !isRunning) return null;
 
   const handleRestore = () => {
-    setIsProgressModalOpen(true);
+    connectProgressStream();
   };
 
   return (

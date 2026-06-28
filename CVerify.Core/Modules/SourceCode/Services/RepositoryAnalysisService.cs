@@ -38,6 +38,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     private readonly IArtifactStorageProvider _storageProvider;
     private readonly ICandidateAssessmentService _candidateAssessmentService;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IAiStreamingSessionService _streamingSessionService;
+    private readonly IAiCancellationManager _cancellationManager;
 
     public RepositoryAnalysisService(
         ApplicationDbContext context,
@@ -50,7 +52,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         TimeProvider timeProvider,
         IArtifactStorageProvider storageProvider,
         ICandidateAssessmentService candidateAssessmentService,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        IAiStreamingSessionService streamingSessionService,
+        IAiCancellationManager cancellationManager)
     {
         _context = context;
         _queue = queue;
@@ -63,6 +67,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         _storageProvider = storageProvider;
         _candidateAssessmentService = candidateAssessmentService;
         _scopeFactory = scopeFactory;
+        _streamingSessionService = streamingSessionService;
+        _cancellationManager = cancellationManager;
     }
 
     public async Task<Guid> EnqueueAnalysisJobAsync(Guid userId, Guid repositoryId)
@@ -167,6 +173,18 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         }
 
         await _context.SaveChangesAsync();
+
+        // Create unified AI Streaming Session
+        await _streamingSessionService.CreateSessionAsync(
+            sessionId: jobId,
+            pipelineId: "repository-analysis",
+            userId: userId,
+            workspaceId: null,
+            modelName: "claude-haiku-4-5-20251001",
+            provider: "Claude",
+            pipelineVersion: "1.0.0",
+            expectedOutputsJson: "[\"RepositoryHealth\", \"CodeQuality\", \"Architecture\", \"Risks\"]"
+        );
 
         // 5. Enqueue Job ID
         await _queue.EnqueueJobAsync(jobId);
@@ -331,6 +349,23 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         await SaveEventAsync(jobId, "Cancelled", job.Progress, "Analysis cancelled by user.");
         await _context.SaveChangesAsync();
 
+        // 1. Set Redis cancellation key for Python AI service
+        try
+        {
+            var db = _redis.GetDatabase();
+            await db.StringSetAsync($"ai:cancel:{jobId}", "true", TimeSpan.FromMinutes(5));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set Redis cancellation key for job {JobId}", jobId);
+        }
+
+        // 2. Cancel C# token via IAiCancellationManager
+        _cancellationManager.Cancel(jobId);
+
+        // 3. Update unified streaming session so client-side and server-side state is synchronized
+        await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Cancelled");
+
         // Broadcast to Redis Pub/Sub to notify listening SSE connections
         await PublishProgressEventAsync(jobId, "Cancelled", "Cancelled", job.Progress, "Analysis cancelled by user.");
 
@@ -339,7 +374,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
     public async Task ExecuteAnalysisJobAsync(Guid jobId, CancellationToken cancellationToken)
     {
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var managerToken = _cancellationManager.Register(jobId, cancellationToken);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(managerToken);
         linkedCts.CancelAfter(TimeSpan.FromMinutes(10)); // Max 10 mins timeout
 
         var job = await _context.AnalysisJobs.FirstOrDefaultAsync(j => j.Id == jobId);
@@ -478,6 +514,13 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 task.ModelName = null;
 
                 // Update task and job to Running
+                // Check if job was cancelled out-of-band before starting task
+                await _context.Entry(job).ReloadAsync(linkedCts.Token);
+                if (job.Status == "Cancelled")
+                {
+                    throw new OperationCanceledException("Job was cancelled by the user.");
+                }
+
                 task.Status = "Running";
                 task.StartedAt = _timeProvider.GetUtcNow();
                 task.Progress = 10.0;
@@ -621,6 +664,11 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                             }
                         }
 
+                        await _context.Entry(job).ReloadAsync(linkedCts.Token);
+                        if (job.Status == "Cancelled")
+                        {
+                            throw new OperationCanceledException("Job was cancelled by the user.");
+                        }
                         job.Progress = completedProgress;
                         await _context.SaveChangesAsync(linkedCts.Token);
 
@@ -645,6 +693,10 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     }
                     catch (Exception ex)
                     {
+                        if (ex is OperationCanceledException || linkedCts.Token.IsCancellationRequested)
+                        {
+                            throw;
+                        }
                         var (errCode, retryable) = ClassifyError(null, ex);
                         
                         // Check if we can retry
@@ -851,6 +903,12 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             }
 
             // 8. Complete Job
+            await _context.Entry(job).ReloadAsync(linkedCts.Token);
+            if (job.Status == "Cancelled")
+            {
+                throw new OperationCanceledException("Job was cancelled by the user.");
+            }
+
             job.Status = "Completed";
             job.Progress = 100.0;
             job.CurrentStep = "Completed";
@@ -858,7 +916,11 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             job.LastUpdatedUtc = _timeProvider.GetUtcNow();
 
             await SaveEventAsync(jobId, "Completed", 100.0, "Analysis completed successfully.");
-            await _context.SaveChangesAsync(CancellationToken.None);
+            await _context.SaveChangesAsync(linkedCts.Token);
+
+            await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Completed", summaryData: finalReportJson);
+            await _streamingSessionService.UpdateSessionProgressAsync(jobId, 100.0, "Completed");
+            await _streamingSessionService.AddLogAsync(jobId, "Completed", "Success", "System", "Analysis completed successfully.");
 
             await PublishProgressEventAsync(jobId, "Completed", "Completed", 100.0, "Analysis completed successfully.");
         }
@@ -885,6 +947,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 await _context.SaveChangesAsync(CancellationToken.None);
 
                 await PublishProgressEventAsync(jobId, "TimedOut", "TimedOut", freshJob.Progress, freshJob.ErrorMessage);
+
+                // Update unified streaming session so the SSE channel properly terminates
+                await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Failed", errorMessage: freshJob.ErrorMessage);
             }
         }
         catch (Exception ex)
@@ -920,7 +985,14 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
                 // Always save changes to persist repo and job status updates
                 await _context.SaveChangesAsync(CancellationToken.None);
+
+                // Update unified streaming session so the SSE channel properly terminates
+                await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Failed", errorMessage: freshJob.ErrorMessage ?? ex.Message);
             }
+        }
+        finally
+        {
+            _cancellationManager.Unregister(jobId);
         }
     }
 
@@ -1375,6 +1447,31 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     {
         try
         {
+            // Sync to unified AI streaming stages, logs and metrics tables
+            var unifiedStatus = taskStatus == "Completed" ? "Completed" : taskStatus == "Failed" ? "Failed" : "Running";
+            await _streamingSessionService.UpsertStageAsync(
+                sessionId: jobId,
+                stageId: taskType,
+                stageName: taskType,
+                status: unifiedStatus,
+                progress: taskProgress,
+                description: message,
+                retryCount: 0,
+                durationMs: durationMs
+            );
+
+            await _streamingSessionService.AddLogAsync(
+                sessionId: jobId,
+                stageId: taskType,
+                logLevel: taskStatus == "Failed" ? "Error" : taskStatus == "Completed" ? "Success" : "Info",
+                component: taskType,
+                message: message
+            );
+
+            if (promptTokens.HasValue) await _streamingSessionService.AddMetricAsync(jobId, taskType, "input_tokens", promptTokens.Value);
+            if (completionTokens.HasValue) await _streamingSessionService.AddMetricAsync(jobId, taskType, "output_tokens", completionTokens.Value);
+            if (estimatedCostUsd.HasValue) await _streamingSessionService.AddMetricAsync(jobId, taskType, "cost_usd", (double)estimatedCostUsd.Value);
+
             var eventType = taskStatus == "Completed" ? "AI_TASK_COMPLETED" : taskStatus == "Failed" ? "AI_TASK_FAILED" : "ProgressUpdate";
             var eventPayload = new
             {
@@ -1436,6 +1533,19 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         await SaveEventAsync(job.Id, status, progress, message);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Update generic AI streaming session
+        await _streamingSessionService.UpdateSessionProgressAsync(job.Id, progress, status);
+        if (status == "Failed")
+        {
+            await _streamingSessionService.UpdateSessionStatusAsync(job.Id, "Failed", errorMessage: message);
+            await _streamingSessionService.AddLogAsync(job.Id, null, "Error", "System", message);
+        }
+        else
+        {
+            await _streamingSessionService.UpdateSessionStatusAsync(job.Id, "Running");
+            await _streamingSessionService.AddLogAsync(job.Id, null, "Info", "System", message);
+        }
 
         await PublishProgressEventAsync(job.Id, status, status, progress, message);
     }
