@@ -29,7 +29,8 @@ public class CandidateRankingProjectionService : ICandidateRankingProjectionServ
 
     public async Task RebuildRankingProjectionsAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting candidate ranking projections rebuild...");
+        _logger.LogInformation("Starting candidate ranking projections rebuild... Action: Rebuild");
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
         try
         {
@@ -107,19 +108,21 @@ public class CandidateRankingProjectionService : ICandidateRankingProjectionServ
 
                 await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                stopwatch.Stop();
 
-                _logger.LogInformation("Successfully rebuilt {Count} candidate ranking projections.", sortedProjections.Count);
+                _logger.LogInformation("Successfully rebuilt {Count} candidate ranking projections in {DurationMs}ms. Action: Rebuild", sortedProjections.Count, stopwatch.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
                 await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                _logger.LogError(ex, "Error executing transaction during ranking projections rebuild. Rollback successful.");
+                _logger.LogError(ex, "Error executing transaction during ranking projections rebuild in {DurationMs}ms. Action: Rebuild. Rollback successful.", stopwatch.ElapsedMilliseconds);
                 throw;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to rebuild candidate ranking projections.");
+            _logger.LogError(ex, "Failed to rebuild candidate ranking projections. Action: Rebuild");
             throw;
         }
     }

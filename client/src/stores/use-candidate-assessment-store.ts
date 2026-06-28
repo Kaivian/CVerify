@@ -211,7 +211,7 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
       useStreamingStore.getState().connectSession(
         "candidate-assessment",
         response.id,
-        `/v1/candidate-assessments/progress/${response.userId}`,
+        undefined,
         response.id
       );
       return response;
@@ -238,7 +238,7 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
           useStreamingStore.getState().connectSession(
             "candidate-assessment",
             latest.id,
-            `/v1/candidate-assessments/progress/${userId}`,
+            undefined,
             latest.id
           );
         }

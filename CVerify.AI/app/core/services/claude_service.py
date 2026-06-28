@@ -387,7 +387,8 @@ class ClaudeService:
                 cache_creation_tokens=normalized.cache_write_tokens,
                 cache_read_tokens=normalized.cache_read_tokens,
                 duration_ms=duration,
-                total_tokens=normalized.total_tokens
+                total_tokens=normalized.total_tokens,
+                provider="Anthropic"
             )
 
             telemetry = {

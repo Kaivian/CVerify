@@ -147,6 +147,7 @@ export default function CandidateIntelligenceDetailPage() {
                         <span>{Math.round(cap.score.proficiencyScore)}%</span>
                       </div>
                       <ProgressBar
+                        aria-label="Capability proficiency score"
                         size="sm"
                         value={cap.score.proficiencyScore}
                         color="success"
@@ -167,7 +168,7 @@ export default function CandidateIntelligenceDetailPage() {
               ))}
             </div>
           </Card>
-
+ 
           {/* Trust breakdown card */}
           {selectedCandidate.trustComponents && (
             <Card className="p-6 bg-surface border border-border rounded-2xl space-y-4">
@@ -175,7 +176,7 @@ export default function CandidateIntelligenceDetailPage() {
                 <ShieldCheck size={20} className="text-accent" />
                 <h3 className="font-bold text-foreground text-lg">Trust Vector Breakdown</h3>
               </div>
-
+ 
               <div className="space-y-4">
                 {selectedCandidate.trustComponents.map((c, i) => (
                   <div key={i} className="space-y-1.5">
@@ -184,6 +185,7 @@ export default function CandidateIntelligenceDetailPage() {
                       <span className="text-muted">{c.componentScore}% (Weight: {Math.round(c.weight * 100)}%)</span>
                     </div>
                     <ProgressBar
+                      aria-label={c.componentName}
                       size="md"
                       value={c.componentScore}
                       color={c.componentScore >= 80 ? "success" : c.componentScore >= 50 ? "warning" : "default"}

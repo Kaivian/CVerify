@@ -80,6 +80,11 @@ class BaseTask(ITask):
             except Exception as ex:
                 logger.warning(f"Failed to emit TASK_STARTED callback: {ex}")
                 
+        # Get pre-execution LLM call count
+        from app.core.monitoring.ai_cost_tracker import AiCostTracker
+        cost_tracker = AiCostTracker()
+        pre_count = len(cost_tracker._executions.get(correlation_id, []))
+
         try:
             # Check if internal execution method supports the event callback
             sig = inspect.signature(self._execute_internal)
@@ -109,15 +114,39 @@ class BaseTask(ITask):
             updated_context = context.update(**filtered_updates)
             duration_ms = (time.time() - start_time) * 1000.0
             
+            # Retrieve LLM calls made during this task run
+            post_executions = cost_tracker._executions.get(correlation_id, [])[pre_count:]
+            
+            # Aggregate telemetry
+            telemetry = None
+            if post_executions:
+                total_in = sum(ex.get("promptTokens", 0) for ex in post_executions)
+                total_out = sum(ex.get("completionTokens", 0) for ex in post_executions)
+                total_cost = sum(ex.get("estimatedCostUsd", 0.0) for ex in post_executions)
+                last_ex = post_executions[-1]
+                telemetry = {
+                    "promptTokens": total_in,
+                    "completionTokens": total_out,
+                    "totalTokens": total_in + total_out,
+                    "estimatedCostUsd": float(total_cost),
+                    "modelName": last_ex.get("model", "unknown"),
+                    "provider": last_ex.get("provider", "Anthropic"),
+                    "durationMs": round(duration_ms, 2)
+                }
+            
             # 2. Emit TASK_COMPLETED
             if event_callback:
                 try:
+                    payload = {"durationMs": round(duration_ms, 2)}
+                    if telemetry:
+                        payload.update(telemetry)
+                        
                     await event_callback(PipelineEvent(
                         eventType="TASK_COMPLETED",
                         timestamp=time.time(),
                         correlationId=correlation_id,
                         taskId=self.name,
-                        payload={"durationMs": round(duration_ms, 2)},
+                        payload=payload,
                         stateSnapshot={
                             "partialScore": updated_context.candidateScore or updated_context.calibratedScore or 0.0,
                             "estimatedLevel": updated_context.finalLevel or updated_context.calibratedLevel or "L1"
@@ -125,6 +154,10 @@ class BaseTask(ITask):
                     ))
                 except Exception as ex:
                     logger.warning(f"Failed to emit TASK_COMPLETED callback: {ex}")
+            
+            # Store telemetry on task instance in a coroutine-safe way for orchestrator retrieval
+            self.last_telemetry = telemetry
+            
             return updated_context
             
         except Exception as e:

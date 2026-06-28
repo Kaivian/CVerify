@@ -13,4 +13,5 @@ public interface IAiStreamingSessionService
     Task AddLogAsync(Guid sessionId, string? stageId, string logLevel, string? component, string message);
     Task AddMetricAsync(Guid sessionId, string? stageId, string metricName, double metricValue);
     Task StreamTextChunkAsync(Guid sessionId, string stageId, string chunk);
+    Task<(global::System.Collections.Generic.List<string> Events, DateTimeOffset LatestTimestamp, string SessionStatus)> GetFormattedHistoryAsync(Guid sessionId);
 }

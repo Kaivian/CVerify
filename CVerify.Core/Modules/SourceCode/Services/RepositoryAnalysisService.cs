@@ -40,6 +40,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IAiStreamingSessionService _streamingSessionService;
     private readonly IAiCancellationManager _cancellationManager;
+    private readonly IOutboxPublisher _outboxPublisher;
 
     public RepositoryAnalysisService(
         ApplicationDbContext context,
@@ -54,7 +55,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         ICandidateAssessmentService candidateAssessmentService,
         IServiceScopeFactory scopeFactory,
         IAiStreamingSessionService streamingSessionService,
-        IAiCancellationManager cancellationManager)
+        IAiCancellationManager cancellationManager,
+        IOutboxPublisher outboxPublisher)
     {
         _context = context;
         _queue = queue;
@@ -69,6 +71,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         _scopeFactory = scopeFactory;
         _streamingSessionService = streamingSessionService;
         _cancellationManager = cancellationManager;
+        _outboxPublisher = outboxPublisher;
     }
 
     public async Task<Guid> EnqueueAnalysisJobAsync(Guid userId, Guid repositoryId)
@@ -916,6 +919,11 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             job.LastUpdatedUtc = _timeProvider.GetUtcNow();
 
             await SaveEventAsync(jobId, "Completed", 100.0, "Analysis completed successfully.");
+
+            // Enqueue RepositorySyncTriggered outbox message to trigger downstream talent intelligence pipeline
+            _logger.LogInformation("Enqueuing RepositorySyncTriggered outbox message for CandidateId: {CandidateId}, RepositoryId: {RepositoryId}, Action: SyncTriggered", job.UserId, job.RepositoryId);
+            _outboxPublisher.Enqueue("RepositorySyncTriggered", new { CandidateId = job.UserId, RepositoryId = job.RepositoryId });
+
             await _context.SaveChangesAsync(linkedCts.Token);
 
             await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Completed", summaryData: finalReportJson);

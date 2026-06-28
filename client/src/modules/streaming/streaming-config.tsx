@@ -12,18 +12,24 @@ pipelineRegistry.register({
   enabledTabs: ["dashboard", "logs", "costs", "cv"],
   stages: [
     { id: "Initialize", name: "Initialization", description: "Spinning up secure assessment environment and fetching workspace context." },
-    { id: "TechnologyStackDetection", name: "Technology Stack Detection", description: "Mapping languages, libraries, and frameworks across linked codebases." },
-    { id: "CommitActivityIntelligence", name: "Commit Intelligence", description: "Analyzing Git historical velocity, authorship weight, and contributions." },
-    { id: "SkillExtraction", name: "Skill Extraction", description: "Extracting specific programming paradigms, tools, and technical competencies." },
-    { id: "ArchitectureAnalysis", name: "Architecture Analysis", description: "Verifying system designs, modularity, patterns, and component structures." },
-    { id: "CodeQuality", name: "Code Quality Assessment", description: "Measuring test coverage, static analysis violations, complexity indices, and performance." },
-    { id: "SecurityAnalysis", name: "Security Auditing", description: "Scanning dependencies for CVE vulnerabilities and checking codebase secrets." },
-    { id: "RepositoryClassification", name: "Repository Classification", description: "Categorizing repo types (e.g. library, tool, app, scripts, forks)." },
-    { id: "RepositorySummary", name: "Repository Summarization", description: "Synthesizing codebase-level architectural and quality metrics." },
-    { id: "CvSynthesis", name: "CV Profile Synthesis", description: "Cross-referencing codebase telemetry against declared professional experience." },
-    { id: "ExecutiveSummaryGeneration", name: "Executive Summary", description: "Generating recruiter-friendly evaluation narratives and overall alignment scores." },
-    { id: "SkillTreeGeneration", name: "Skill Tree Compilation", description: "Building interactive capability hierarchy validated by repository evidence." },
-    { id: "CandidateProfileComposer", name: "Profile Composition", description: "Assembling final verified profile and publishing results." }
+    { id: "FetchLine1", name: "Retrieve Repository Artifacts", description: "Fetches verified static analysis, provenance, and git telemetry artifacts for the candidate's active repositories." },
+    { id: "ConsolidateLine1", name: "Consolidate Repository Signals", description: "Merges multidimensional capability signals, code quality scores, and commit telemetry across all repositories." },
+    { id: "L2-001", name: "Skill Taxonomy Mapping", description: "Normalizes raw project-level skills against the global CVerify technical skill taxonomy." },
+    { id: "L2-002", name: "Skill Proficiency Estimation", description: "Estimates the depth, scope, and capability bands for each extracted skill using commit frequency and syntax patterns." },
+    { id: "L2-003", name: "Capabilities & Gaps Diagnostics", description: "Pinpoints key architectural strengths and potential engineering development areas from the codebase history." },
+    { id: "L2-004", name: "Career Level Assessment", description: "Maps codebase scope, ownership ratio, and engineering complexity to career-level thresholds." },
+    { id: "L2-005", name: "Career Level Calibration", description: "Calibrates career level alignment across multiple repositories using weighted developer experience metrics." },
+    { id: "L2-006", name: "Career Level Evaluation Gate", description: "Applies validation constraints and overrides to finalize candidate level classifications." },
+    { id: "L2-007", name: "Engineering Maturity Evaluation", description: "Evaluates project hygiene, logging practices, test coverage, and structural organization." },
+    { id: "L2-008", name: "Problem Solving Complexity Analyzer", description: "Analyzes diagnostic intent, recovery patterns, and bug-fix cycles in git commit messages." },
+    { id: "L2-009", name: "Technical Tendency Classification", description: "Classifies developer affinity towards backend, frontend, devops, or fullstack development." },
+    { id: "L2-010", name: "Working Style Classification", description: "Infers collaboration density, velocity consistency, and code review compliance from git metadata." },
+    { id: "L2-011", name: "Experience Confidence Calibration", description: "Adjusts assessment confidence scores based on codebase age, volume, and contributor density." },
+    { id: "L2-012", name: "Role Recommendation Engine", description: "Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect)." },
+    { id: "L2-013", name: "Executive Summary Generation", description: "Generates a comprehensive recruiter-friendly assessment narrative and executive summary." },
+    { id: "L2-016", name: "Skill Tree Generation", description: "Constructs a validated, hierarchical taxonomy of skills and capabilities based on code and profile evidence." },
+    { id: "L2-014", name: "AI Profile Composition", description: "Assembles and serializes the final verified candidate profile and calibrated score index." },
+    { id: "L2-015", name: "Candidate Improvement Engine", description: "Generates personalized capability improvement plans and score optimization pathways." }
   ],
   renderers: {},
   actions: {
@@ -33,6 +39,17 @@ pipelineRegistry.register({
     },
     cancelSession: async (sessionId: string) => {
       await profileApi.cancelCandidateAssessment(sessionId);
+    },
+    fetchCosts: async (sessionId: string) => {
+      const sseBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
+      const token = localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+      const res = await fetch(`${sseBaseUrl}/v1/streaming/sessions/${sessionId}/costs`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error("Failed to fetch assessment costs");
+      return res.json();
     }
   }
 });

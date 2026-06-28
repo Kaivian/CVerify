@@ -29,6 +29,7 @@ public class HiringRequirementController : ControllerBase
     private readonly ICapabilityCatalogService _catalogService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<HiringRequirementController> _logger;
+    private readonly IAiStreamingSessionService _streamingSessionService;
 
     public HiringRequirementController(
         IHiringRequirementService hiringRequirementService,
@@ -36,7 +37,8 @@ public class HiringRequirementController : ControllerBase
         IConnectionMultiplexer redis,
         ICapabilityCatalogService catalogService,
         IServiceScopeFactory scopeFactory,
-        ILogger<HiringRequirementController> logger)
+        ILogger<HiringRequirementController> logger,
+        IAiStreamingSessionService streamingSessionService)
     {
         _hiringRequirementService = hiringRequirementService;
         _candidateMatchService = candidateMatchService;
@@ -44,6 +46,7 @@ public class HiringRequirementController : ControllerBase
         _catalogService = catalogService;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _streamingSessionService = streamingSessionService;
     }
 
     private Guid CurrentUserId
@@ -481,6 +484,25 @@ public class HiringRequirementController : ControllerBase
             Response.Headers.Append("Cache-Control", "no-cache");
             Response.Headers.Append("Connection", "keep-alive");
 
+            var terminalStates = new[] { "Completed", "Failed", "Cancelled" };
+
+            // 1. Fetch, format and replay history from DB
+            var (historicalEvents, latestHistoricalTimestamp, sessionStatus) = await _streamingSessionService.GetFormattedHistoryAsync(id);
+
+            foreach (var ev in historicalEvents)
+            {
+                await Response.WriteAsync($"data: {ev}\n\n", HttpContext.RequestAborted);
+            }
+            await Response.Body.FlushAsync(HttpContext.RequestAborted);
+
+            if (terminalStates.Contains(sessionStatus))
+            {
+                await Response.WriteAsync("data: [DONE]\n\n", HttpContext.RequestAborted);
+                await Response.Body.FlushAsync(HttpContext.RequestAborted);
+                return;
+            }
+
+            // 2. Subscribe to Redis for live events with timestamp deduplication
             var sub = _redis.GetSubscriber();
             var channel = $"ai:streaming:progress:{id}";
             var channelQueue = global::System.Threading.Channels.Channel.CreateUnbounded<string>();
@@ -498,15 +520,32 @@ public class HiringRequirementController : ControllerBase
                 {
                     var message = await channelQueue.Reader.ReadAsync(HttpContext.RequestAborted);
 
+                    // Deduplicate live events by timestamp to prevent duplicate playback
+                    DateTimeOffset eventTimestamp = DateTimeOffset.MinValue;
+                    using (var doc = JsonDocument.Parse(message))
+                    {
+                        if (doc.RootElement.TryGetProperty("timestamp", out var tsProp) && 
+                            DateTimeOffset.TryParse(tsProp.GetString(), out var parsedTs))
+                        {
+                            eventTimestamp = parsedTs;
+                        }
+                    }
+
+                    if (eventTimestamp != DateTimeOffset.MinValue && eventTimestamp <= latestHistoricalTimestamp)
+                    {
+                        // Skip duplicate event that was already replayed from history
+                        continue;
+                    }
+
                     await Response.WriteAsync($"data: {message}\n\n", HttpContext.RequestAborted);
                     await Response.Body.FlushAsync(HttpContext.RequestAborted);
 
-                    using var doc = JsonDocument.Parse(message);
-                    var statusPropExists = doc.RootElement.TryGetProperty("status", out var statusProp) || doc.RootElement.TryGetProperty("Status", out statusProp);
+                    using var docCheck = JsonDocument.Parse(message);
+                    var statusPropExists = docCheck.RootElement.TryGetProperty("status", out var statusProp) || docCheck.RootElement.TryGetProperty("Status", out statusProp);
                     if (statusPropExists)
                     {
                         var status = statusProp.GetString();
-                        if (status != null && (status.Equals("Completed", StringComparison.OrdinalIgnoreCase) || status.Equals("Failed", StringComparison.OrdinalIgnoreCase)))
+                        if (status != null && terminalStates.Contains(status))
                         {
                             await Response.WriteAsync("data: [DONE]\n\n", HttpContext.RequestAborted);
                             await Response.Body.FlushAsync(HttpContext.RequestAborted);
@@ -524,10 +563,10 @@ public class HiringRequirementController : ControllerBase
                 await sub.UnsubscribeAsync(channel, RedisMessageHandler);
             }
         }
-        catch (KeyNotFoundException)
+        catch (KeyNotFoundException ex)
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
-            await Response.WriteAsJsonAsync(new { message = "Hiring requirement not found." });
+            await Response.WriteAsJsonAsync(new { message = ex.Message });
         }
     }
 

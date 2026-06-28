@@ -31,6 +31,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
     private readonly ISkillTreeValidationService _validationService;
     private readonly IAiStreamingSessionService _streamingSessionService;
     private readonly IAiCancellationManager _cancellationManager;
+    private readonly ICandidateRankingProjectionService _rankingProjectionService;
 
     public CandidateAssessmentService(
         ApplicationDbContext context,
@@ -43,7 +44,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         ICandidateEvaluationService evaluationService,
         ISkillTreeValidationService validationService,
         IAiStreamingSessionService streamingSessionService,
-        IAiCancellationManager cancellationManager)
+        IAiCancellationManager cancellationManager,
+        ICandidateRankingProjectionService rankingProjectionService)
     {
         _context = context;
         _queue = queue;
@@ -56,6 +58,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         _validationService = validationService;
         _streamingSessionService = streamingSessionService;
         _cancellationManager = cancellationManager;
+        _rankingProjectionService = rankingProjectionService;
     }
 
     public async Task<CandidateReadinessDto> GetReadinessStatusAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -686,6 +689,16 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                         if (progressEvent.CostUsd.HasValue)
                             await _streamingSessionService.AddMetricAsync(assessment.Id, step, "cost_usd", (double)progressEvent.CostUsd.Value);
 
+                        if (!string.IsNullOrEmpty(progressEvent.ModelName))
+                        {
+                            var session = await _context.AiStreamingSessions.FirstOrDefaultAsync(s => s.Id == assessment.Id, cancellationToken);
+                            if (session != null && session.ModelName != progressEvent.ModelName)
+                            {
+                                session.ModelName = progressEvent.ModelName;
+                                await _context.SaveChangesAsync(cancellationToken);
+                            }
+                        }
+
                         if (progressEvent.Status == "Failed")
                         {
                             assessment.FailedStage = progressEvent.Step;
@@ -807,9 +820,16 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 );
             }
 
-            await _context.Entry(assessment).ReloadAsync(cancellationToken);
-            if (assessment.Status == "Cancelled")
+            var dbStatus = await _context.CandidateAssessments
+                .AsNoTracking()
+                .Where(ca => ca.Id == assessment.Id)
+                .Select(ca => ca.Status)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (dbStatus == "Cancelled")
             {
+                assessment.Status = "Cancelled";
+                await _context.SaveChangesAsync(cancellationToken);
                 throw new OperationCanceledException("Assessment was cancelled by the user.");
             }
 
@@ -817,6 +837,10 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
             // Recalculate candidate evaluation snapshot and capability projection
             await _evaluationService.EvaluateAndSnapshotCandidateAsync(assessment.UserId, cancellationToken);
+
+            // Rebuild global ranking projections immediately
+            _logger.LogInformation("Rebuilding candidate ranking projections for completed assessment. CandidateId: {CandidateId}, Action: Rebuild", assessment.UserId);
+            await _rankingProjectionService.RebuildRankingProjectionsAsync(cancellationToken).ConfigureAwait(false);
 
             var profileArtifactJson = profileArtifact?.JsonData;
             await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Completed", summaryData: profileArtifactJson);

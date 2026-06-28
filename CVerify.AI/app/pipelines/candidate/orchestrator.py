@@ -196,6 +196,9 @@ class CandidateEvaluationOrchestrator:
                 "duration_ms": round(duration_ms, 2),
                 "task_type": task.task_name
             }
+            if hasattr(task, "last_telemetry") and task.last_telemetry:
+                telemetry.update(task.last_telemetry)
+
             return self._ok(result_data, telemetry, task.task_name)
         except Exception as e:
             logger.exception(f"Error in Line 2 task {normalized}: {e}", extra=extra)

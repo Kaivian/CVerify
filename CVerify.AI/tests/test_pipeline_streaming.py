@@ -161,7 +161,7 @@ async def test_streaming_orchestrator_unpacks_wrapped_artifacts():
         events.append(event)
 
     # Find the completion event for L2-014
-    profile_completion = next((e for e in events if e.get("step") == "L2-014" and e.get("status") == "Running" and "artifactType" in e), None)
+    profile_completion = next((e for e in events if e.get("step") == "L2-014" and e.get("status") == "Completed" and "artifactType" in e), None)
     assert profile_completion is not None
     assert profile_completion["artifactType"] == "CandidateProfile"
     
