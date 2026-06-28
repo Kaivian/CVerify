@@ -13,10 +13,16 @@ interface CandidateAssessmentState {
   readiness: CandidateReadinessDto | null;
   latestAssessment: CandidateAssessmentResponse | null;
   assessmentDetails: CandidateAssessmentDetailResponse | null;
+  parsedProfile: any | null;
+  parsedImprovementPlan: any | null;
   history: CandidateAssessmentResponse[];
   loading: Record<string, boolean>;
   error: string | null;
   stages: AssessmentStageDto[];
+
+  // Global modal visibility states
+  isProgressModalOpen: boolean;
+  hasClosedProgressModal: boolean;
 
   // Real-time SSE progress state
   streamStatus: StreamStatus;
@@ -40,6 +46,8 @@ interface CandidateAssessmentState {
   triggerAssessment: () => Promise<CandidateAssessmentResponse>;
   connectProgressStream: (userId: string) => void;
   disconnectProgressStream: () => void;
+  setIsProgressModalOpen: (isOpen: boolean) => void;
+  setHasClosedProgressModal: (hasClosed: boolean) => void;
   clearError: () => void;
 }
 
@@ -70,10 +78,15 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
   readiness: null,
   latestAssessment: null,
   assessmentDetails: null,
+  parsedProfile: null,
+  parsedImprovementPlan: null,
   history: [],
   loading: {},
   error: null,
   stages: FALLBACK_STAGES,
+
+  isProgressModalOpen: false,
+  hasClosedProgressModal: false,
 
   streamStatus: 'idle',
   streamProgress: 0,
@@ -87,6 +100,8 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
   realtimeRecommendations: [],
   realtimeSignals: [],
 
+  setIsProgressModalOpen: (isOpen: boolean) => set({ isProgressModalOpen: isOpen }),
+  setHasClosedProgressModal: (hasClosed: boolean) => set({ hasClosedProgressModal: hasClosed }),
   clearError: () => set({ error: null }),
 
   fetchReadiness: async () => {
@@ -113,6 +128,10 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
         const userId = latestAssessment.userId;
         if (userId && !activeEventSource) {
           get().connectProgressStream(userId);
+          // Auto-open modal if the user hasn't closed it in this session
+          if (!get().hasClosedProgressModal) {
+            set({ isProgressModalOpen: true });
+          }
         }
       }
     } catch (err: any) {
@@ -126,7 +145,31 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
     set((state) => ({ loading: { ...state.loading, details: true }, error: null }));
     try {
       const assessmentDetails = await profileApi.fetchCandidateAssessmentDetails(id);
-      set({ assessmentDetails });
+      
+      let parsedProfile = null;
+      let parsedImprovementPlan = null;
+      
+      if (assessmentDetails && assessmentDetails.artifacts) {
+        const profileArt = assessmentDetails.artifacts.find(a => a.artifactType === 'CandidateProfile');
+        if (profileArt) {
+          try {
+            parsedProfile = JSON.parse(profileArt.jsonData);
+          } catch (e) {
+            console.error('Failed to parse CandidateProfile artifact:', e);
+          }
+        }
+        
+        const planArt = assessmentDetails.artifacts.find(a => a.artifactType === 'ImprovementPlan');
+        if (planArt) {
+          try {
+            parsedImprovementPlan = JSON.parse(planArt.jsonData);
+          } catch (e) {
+            console.error('Failed to parse ImprovementPlan artifact:', e);
+          }
+        }
+      }
+      
+      set({ assessmentDetails, parsedProfile, parsedImprovementPlan });
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load assessment details.' });
     } finally {
@@ -161,7 +204,7 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
     set((state) => ({ loading: { ...state.loading, trigger: true }, error: null }));
     try {
       const response = await profileApi.triggerCandidateAssessment();
-      set({ latestAssessment: response });
+      set({ latestAssessment: response, isProgressModalOpen: true, hasClosedProgressModal: false });
       
       // Automatically connect to progress stream
       get().connectProgressStream(response.userId);
