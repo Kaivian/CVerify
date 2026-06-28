@@ -743,7 +743,7 @@ class TestOrchestratorDispatch(unittest.TestCase):
         self.assertFalse(self.is_line2_task("RandomTask"))
 
     def test_alias_map_has_14_entries(self):
-        self.assertEqual(len(self.TASK_ALIASES), 15)
+        self.assertEqual(len(self.TASK_ALIASES), 16)
 
     def test_all_aliases_map_to_known_names(self):
         valid_names = {
@@ -752,7 +752,7 @@ class TestOrchestratorDispatch(unittest.TestCase):
             "EngineeringMaturityAssessor", "ProblemSolvingAnalyzer", "TechnicalTendencyClassifier",
             "WorkingStyleClassifier", "ExperienceConfidenceMultiplier",
             "MultiRoleRecommendationEngine", "CandidateSummaryGenerator", "CandidateProfileComposer",
-            "CandidateImprovementEngine",
+            "CandidateImprovementEngine", "SkillTreeGenerator",
         }
         for alias, name in self.TASK_ALIASES.items():
             self.assertIn(name, valid_names, f"Alias {alias} → {name} not in valid names")
