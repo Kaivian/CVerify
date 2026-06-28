@@ -61,17 +61,17 @@ export function isValidInternalPath(path: string | null | undefined): boolean {
  * Determines whether a pathname requires an authenticated session.
  * Protects:
  * - /admin, /business, /user, /chat, /cv, /settings, and their sub-routes.
- * - Private sub-routes under /workspace (e.g. /workspace/{slug}/information) while allowing
- *   public sub-routes like /workspace/{slug}, /workspace/{slug}/about, etc.
+ * - Private sub-routes under /business (e.g. /business/{slug}/information) while allowing
+ *   public sub-routes like /business/{slug}, /business/{slug}/about, etc.
  */
 export function isProtectedRoute(pathname: string): boolean {
-  const isDashboardRoute = ['/admin', '/business', '/user', '/chat', '/cv', '/settings', '/workspace'].some(p => pathname.startsWith(p));
+  const isDashboardRoute = ['/admin', '/business', '/user', '/chat', '/cv', '/settings'].some(p => pathname.startsWith(p));
   if (!isDashboardRoute) return false;
 
   const segments = pathname.split('/').filter(Boolean);
-  if (segments[0] === 'workspace') {
+  if (segments[0] === 'business') {
     if (segments.length <= 2) {
-      // /workspace or /workspace/{organizationSlug} are public
+      // /business or /business/{organizationSlug} are public
       return false;
     } else {
       const subPath = segments[2];

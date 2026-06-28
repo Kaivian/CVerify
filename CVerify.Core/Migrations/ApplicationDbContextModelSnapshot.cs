@@ -20,7 +20,7 @@ namespace CVerify.API.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.8")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "user_status", new[] { "EMAIL_VERIFY_PENDING", "ACTIVE", "SUSPENDED", "BANNED", "DELETION_PENDING", "DELETED" });
@@ -1205,6 +1205,62 @@ namespace CVerify.API.Migrations
                     b.ToTable("candidate_skills", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateSkillTreeNode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CandidateAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_assessment_id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("category");
+
+                    b.Property<double>("ConfidenceScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("confidence_score");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("display_name");
+
+                    b.Property<double>("EstimatedExperienceMonths")
+                        .HasColumnType("double precision")
+                        .HasColumnName("estimated_experience_months");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_id");
+
+                    b.Property<string>("ProficiencyLevel")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("proficiency_level");
+
+                    b.Property<string>("SupportingEvidence")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("supporting_evidence");
+
+                    b.HasKey("Id")
+                        .HasName("pk_candidate_skill_tree_nodes");
+
+                    b.HasIndex("CandidateAssessmentId")
+                        .HasDatabaseName("ix_candidate_skill_tree_nodes_candidate_assessment_id");
+
+                    b.HasIndex("ParentId")
+                        .HasDatabaseName("ix_candidate_skill_tree_nodes_parent_id");
+
+                    b.ToTable("candidate_skill_tree_nodes", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateStrengthWeakness", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2136,6 +2192,10 @@ namespace CVerify.API.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
+
+                    b.Property<string>("AiSuggestionsJson")
+                        .HasColumnType("text")
+                        .HasColumnName("ai_suggestions_json");
 
                     b.Property<string>("AiTalentDiscovery")
                         .IsRequired()
@@ -3134,6 +3194,263 @@ namespace CVerify.API.Migrations
                         .HasDatabaseName("ix_admin_members_user_id");
 
                     b.ToTable("admin_members", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Component")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("component");
+
+                    b.Property<string>("LogLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("log_level");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("message");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("StageId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("stage_id");
+
+                    b.Property<DateTimeOffset>("Timestamp")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("timestamp");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ai_streaming_logs");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_ai_streaming_logs_session_id");
+
+                    b.ToTable("ai_streaming_logs", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingMetric", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("MetricName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("metric_name");
+
+                    b.Property<double>("MetricValue")
+                        .HasColumnType("double precision")
+                        .HasColumnName("metric_value");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("StageId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("stage_id");
+
+                    b.Property<DateTimeOffset>("Timestamp")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("timestamp");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ai_streaming_metrics");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_ai_streaming_metrics_session_id");
+
+                    b.ToTable("ai_streaming_metrics", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("CurrentStep")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("current_step");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("ExpectedOutputs")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("expected_outputs");
+
+                    b.Property<DateTimeOffset>("LastUpdatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated_utc");
+
+                    b.Property<string>("ModelName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model_name");
+
+                    b.Property<string>("PipelineId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("pipeline_id");
+
+                    b.Property<string>("PipelineVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("pipeline_version");
+
+                    b.Property<double>("Progress")
+                        .HasColumnType("double precision")
+                        .HasColumnName("progress");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("provider");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SummaryData")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("summary_data");
+
+                    b.Property<decimal?>("TotalCostUsd")
+                        .HasColumnType("numeric(10, 6)")
+                        .HasColumnName("total_cost_usd");
+
+                    b.Property<int?>("TotalInputTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_input_tokens");
+
+                    b.Property<int?>("TotalOutputTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_output_tokens");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid?>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ai_streaming_sessions");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_ai_streaming_sessions_user_id");
+
+                    b.HasIndex("WorkspaceId")
+                        .HasDatabaseName("ix_ai_streaming_sessions_workspace_id");
+
+                    b.ToTable("ai_streaming_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingStage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("details");
+
+                    b.Property<long?>("DurationMs")
+                        .HasColumnType("bigint")
+                        .HasColumnName("duration_ms");
+
+                    b.Property<string>("ParentStageId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("parent_stage_id");
+
+                    b.Property<double>("Progress")
+                        .HasColumnType("double precision")
+                        .HasColumnName("progress");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("retry_count");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("StageId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("stage_id");
+
+                    b.Property<string>("StageName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("stage_name");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ai_streaming_stages");
+
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("ix_ai_streaming_stages_session_id");
+
+                    b.ToTable("ai_streaming_stages", (string)null);
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AuditLog", b =>
@@ -6367,6 +6684,11 @@ namespace CVerify.API.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -6376,6 +6698,10 @@ namespace CVerify.API.Migrations
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -6398,6 +6724,9 @@ namespace CVerify.API.Migrations
 
                     b.HasIndex("OrganizationId")
                         .HasDatabaseName("ix_workspaces_organization_id");
+
+                    b.HasIndex("OwnerId")
+                        .HasDatabaseName("ix_workspaces_owner_id");
 
                     b.HasIndex("Slug")
                         .IsUnique()
@@ -7690,6 +8019,26 @@ namespace CVerify.API.Migrations
                     b.Navigation("Assessment");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateSkillTreeNode", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
+                        .WithMany("SkillTreeNodes")
+                        .HasForeignKey("CandidateAssessmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_candidate_skill_tree_nodes_candidate_assessments_candidate_");
+
+                    b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateSkillTreeNode", "Parent")
+                        .WithMany()
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_candidate_skill_tree_nodes_candidate_skill_tree_nodes_paren");
+
+                    b.Navigation("Assessment");
+
+                    b.Navigation("Parent");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateStrengthWeakness", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", "Assessment")
@@ -8054,6 +8403,59 @@ namespace CVerify.API.Migrations
                     b.Navigation("AssignedByUser");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingLog", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingSession", "Session")
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_streaming_logs_ai_streaming_sessions_session_id");
+
+                    b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingMetric", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingSession", "Session")
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_streaming_metrics_ai_streaming_sessions_session_id");
+
+                    b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingSession", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("fk_ai_streaming_sessions_users_user_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .HasConstraintName("fk_ai_streaming_sessions_workspaces_workspace_id");
+
+                    b.Navigation("User");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingStage", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.AiStreamingSession", "Session")
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ai_streaming_stages_ai_streaming_sessions_session_id");
+
+                    b.Navigation("Session");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.AuditLog", b =>
@@ -8937,7 +9339,16 @@ namespace CVerify.API.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_workspaces_organizations_organization_id");
 
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workspaces_users_owner_id");
+
                     b.Navigation("Organization");
+
+                    b.Navigation("Owner");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Shared.Domain.Entities.WorkspaceArchiveSnapshot", b =>
@@ -9204,6 +9615,8 @@ namespace CVerify.API.Migrations
                     b.Navigation("DomainProfiles");
 
                     b.Navigation("IntelligenceSignals");
+
+                    b.Navigation("SkillTreeNodes");
 
                     b.Navigation("Skills");
 

@@ -43,6 +43,7 @@ import {
   type RequirementArtifact
 } from "@/services/hiring-requirement.service";
 import { API_URL } from "@/services/axios-client";
+import { useStreamingStore } from "@/modules/streaming";
 
 interface JdDetailViewProps {
   workspaceId: string;
@@ -120,69 +121,48 @@ export default function JdDetailView({
 
   // Setup SSE stream for AI generation
   const setupProgressStream = (reqId: string, initialContent = "") => {
-    if (esRef.current) esRef.current.close();
-
     setStreamedMarkdown(initialContent);
     setIsGeneratingJd(true);
 
-    const url = `${API_URL}/v1/hiring-requirements/${reqId}/progress-stream`;
-    const es = new EventSource(url, { withCredentials: true });
-    esRef.current = es;
+    const { useStreamingStore } = require("@/modules/streaming");
 
-    es.onmessage = async (event) => {
-      if (event.data === "[DONE]") {
-        es.close();
-        setIsGeneratingJd(false);
-        setGenerationProgress(null);
-        await loadRequirementDetails();
-        return;
-      }
-
-      try {
-        const data = JSON.parse(event.data);
-        
-        // Accumulate raw text tokens if generating Job Description
-        if (data.step === "JobDescriptionStream" && data.chunk) {
-          setStreamedMarkdown(prev => prev + data.chunk);
+    const unsubscribe = useStreamingStore.subscribe((state: any) => {
+      const activeSession = state.activeSession;
+      if (activeSession && activeSession.id === reqId) {
+        if (state.latestTextChunk) {
+          setStreamedMarkdown(prev => prev + state.latestTextChunk);
+          useStreamingStore.setState({ latestTextChunk: null });
         }
 
         setGenerationProgress({
-          status: data.status,
-          step: data.step,
-          message: data.message || "",
-          percentage: data.percentage || 0
+          status: activeSession.status,
+          step: activeSession.currentStep || "",
+          message: activeSession.errorMessage || "",
+          percentage: activeSession.progress || 0
         });
 
-        if (data.status === "Completed") {
-          es.close();
+        if (activeSession.status === "Completed") {
           setIsGeneratingJd(false);
           setGenerationProgress(null);
-          await loadRequirementDetails();
+          loadRequirementDetails();
           toast.success("AI capability artifacts generated successfully!");
-        } else if (data.status === "Failed") {
-          es.close();
+          unsubscribe();
+        } else if (activeSession.status === "Failed") {
           setIsGeneratingJd(false);
           setGenerationProgress(null);
-          toast.danger(`Generation failed: ${data.message}`);
-        } else if (data.status === "Cancelled") {
-          es.close();
+          toast.danger(`Generation failed: ${activeSession.errorMessage || "Unknown error"}`);
+          unsubscribe();
+        } else if (activeSession.status === "Cancelled") {
           setIsGeneratingJd(false);
           setGenerationProgress(null);
           toast.warning("Generation cancelled.");
-          await loadRequirementDetails();
+          loadRequirementDetails();
+          unsubscribe();
         }
-      } catch (err) {
-        console.error("SSE message parse error:", err);
       }
-    };
+    });
 
-    es.onerror = (err) => {
-      console.error("Progress stream error:", err);
-      es.close();
-      setIsGeneratingJd(false);
-      setGenerationProgress(null);
-      loadRequirementDetails();
-    };
+    useStreamingStore.getState().connectSession("jd-generation", reqId, undefined, reqId);
   };
 
   const loadMatches = async () => {
@@ -211,60 +191,44 @@ export default function JdDetailView({
   };
 
   const setupDiscoveryProgressStream = (reqId: string) => {
-    if (esRef.current) esRef.current.close();
-
     setIsDiscovering(true);
 
-    const url = `${API_URL}/v1/hiring-requirements/${reqId}/progress-stream`;
-    const es = new EventSource(url, { withCredentials: true });
-    esRef.current = es;
+    const { useStreamingStore } = require("@/modules/streaming");
 
-    es.onmessage = async (event) => {
-      if (event.data === "[DONE]") {
-        es.close();
-        setIsDiscovering(false);
-        setDiscoveryProgress(null);
-        await loadMatches();
-        await loadDiscoveryRuns();
-        return;
-      }
-
-      try {
-        const data = JSON.parse(event.data);
+    const unsubscribe = useStreamingStore.subscribe((state: any) => {
+      const activeSession = state.activeSession;
+      if (activeSession && activeSession.id === reqId) {
         setDiscoveryProgress({
-          status: data.status,
-          step: data.step,
-          message: data.message || "",
-          percentage: data.percentage || 0
+          status: activeSession.status,
+          step: activeSession.currentStep || "",
+          message: activeSession.errorMessage || "",
+          percentage: activeSession.progress || 0
         });
 
-        if (data.status === "Completed") {
-          es.close();
+        if (activeSession.status === "Completed") {
           setIsDiscovering(false);
           setDiscoveryProgress(null);
-          await loadMatches();
-          await loadDiscoveryRuns();
+          loadMatches();
+          loadDiscoveryRuns();
           toast.success("Candidate matches discovered successfully!");
-        } else if (data.status === "Failed") {
-          es.close();
+          unsubscribe();
+        } else if (activeSession.status === "Failed") {
           setIsDiscovering(false);
           setDiscoveryProgress(null);
-          toast.danger(`Discovery failed: ${data.message}`);
-          await loadDiscoveryRuns();
+          toast.danger(`Discovery failed: ${activeSession.errorMessage || "Unknown error"}`);
+          loadDiscoveryRuns();
+          unsubscribe();
+        } else if (activeSession.status === "Cancelled") {
+          setIsDiscovering(false);
+          setDiscoveryProgress(null);
+          loadMatches();
+          loadDiscoveryRuns();
+          unsubscribe();
         }
-      } catch (err) {
-        console.error("SSE message parse error:", err);
       }
-    };
+    });
 
-    es.onerror = (err) => {
-      console.error("Discovery progress stream error:", err);
-      es.close();
-      setIsDiscovering(false);
-      setDiscoveryProgress(null);
-      loadMatches();
-      loadDiscoveryRuns();
-    };
+    useStreamingStore.getState().connectSession("candidate-discovery", reqId, undefined, reqId);
   };
 
   const handleTriggerDiscovery = async () => {
@@ -339,7 +303,8 @@ export default function JdDetailView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadRequirementDetails();
     return () => {
-      if (esRef.current) esRef.current.close();
+      const { useStreamingStore } = require("@/modules/streaming");
+      useStreamingStore.getState().disconnect();
     };
   }, [requirementId]);
 
@@ -381,7 +346,7 @@ export default function JdDetailView({
       const draft = await hiringRequirementService.createJobPostingDraft(requirementId);
       toast.success("Job posting draft created successfully!");
       setJobPosting(draft);
-      router.push(`/workspace/${params.organizationSlug}/recruitment/jd/${requirementId}/review`);
+      router.push(`/business/${params.organizationSlug}/recruitment/jd/${requirementId}/review`);
     } catch (err: any) {
       toast.danger(err.response?.data?.message || err.message || "Failed to create job posting draft.");
     } finally {
@@ -406,7 +371,8 @@ export default function JdDetailView({
     if (!activeRequirement) return;
     try {
       await hiringRequirementService.cancelArtifactGeneration(activeRequirement.id, "JobDescription");
-      if (esRef.current) esRef.current.close();
+      const { useStreamingStore } = require("@/modules/streaming");
+      useStreamingStore.getState().disconnect();
       setIsGeneratingJd(false);
       setGenerationProgress(null);
       toast.warning("Job Description generation cancelled.");
@@ -693,7 +659,7 @@ export default function JdDetailView({
               {hasGenerated && (
                 jobPosting ? (
                   <Button
-                    onClick={() => router.push(`/workspace/${params.organizationSlug}/recruitment/jd/${requirementId}/review`)}
+                    onClick={() => router.push(`/business/${params.organizationSlug}/recruitment/jd/${requirementId}/review`)}
                     className="bg-accent text-accent-foreground font-bold text-xs h-10 px-4 rounded-xl cursor-pointer flex items-center gap-1.5 hover:opacity-90 animate-none"
                   >
                     <ExternalLink size={14} /> Review Job Posting

@@ -74,6 +74,25 @@ const UncertaintyMetricsSchema = z.object({
   uncalibrated_identities: z.number().nullish().transform((val) => val ?? 0),
 });
 
+const RepositoryEvidenceItemSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(["file", "dependency", "structure", "commit"]),
+  path: z.string().nullable(),
+  line_range: z.string().nullable(),
+  signal: z.string(),
+});
+
+const RepositoryEvidenceFindingSchema = z.object({
+  id: z.string().optional(),
+  category: z.string(),
+  finding: z.string(),
+  confidence: z.number(),
+  evidence: z.array(RepositoryEvidenceItemSchema).nullish().transform((val) => val ?? []),
+  evidence_signals: z.array(z.string()).nullish().transform((val) => val ?? []),
+  explanation: z.string(),
+  impact: z.enum(["positive", "warning", "critical"]).optional(),
+});
+
 const TrustGraphSchema = z.object({
   nodes: z.array(z.object({
     id: z.string(),
@@ -99,7 +118,7 @@ const TrustIntelligenceSchema = z.object({
     uncalibrated_identities: 0,
   }),
   conflict_resolution_log: z.array(z.string()).nullish().transform((val) => val ?? []),
-  trust_graph: TrustGraphSchema.default({ nodes: [], edges: [] }),
+  trust_graph: TrustGraphSchema.nullish().transform((val) => val ?? { nodes: [], edges: [] }),
 });
 
 const RepositoryClassificationSchema = z.object({
@@ -260,6 +279,10 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
     facts.git_metrics = gitMetrics;
   }
 
+  const findings = v.findings || v.ai_conclusions?.findings || [];
+  const daily_commits = v.daily_commits || null;
+  const user_daily_commits = v.user_daily_commits || null;
+
   return {
     ...v,
     repoId,
@@ -269,7 +292,10 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
     risk,
     facts,
     narrative,
-    cvSynthesis
+    cvSynthesis,
+    findings,
+    daily_commits,
+    user_daily_commits
   };
 }, z.object({
   jobId: z.string().optional(),
@@ -283,6 +309,9 @@ export const RepositoryAnalysisSchema = z.preprocess((val: unknown) => {
   trust_intelligence: TrustIntelligenceSchema.nullable().optional(),
   narrative: RepositoryNarrativeSchema.nullable().optional(),
   cvSynthesis: CvSynthesisSchema.nullable().optional(),
+  findings: z.array(RepositoryEvidenceFindingSchema).nullish().transform((val) => val ?? []),
+  daily_commits: z.record(z.number()).nullable().optional(),
+  user_daily_commits: z.record(z.number()).nullable().optional(),
 }));
 
 export const logSchemaAnomaly = (error: z.ZodError, rawData: any) => {

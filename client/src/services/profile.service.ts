@@ -23,6 +23,7 @@ import {
   type RankingQueryParams,
   type PaginatedRankingResponse,
   type RankingStats,
+  type CandidateSkillTreeNodeResponse,
 } from '../types/profile.types';
 
 export const profileApi = {
@@ -217,6 +218,11 @@ export const profileApi = {
     return response.data;
   },
 
+  cancelCandidateAssessment: async (assessmentId: string): Promise<{ status: string }> => {
+    const response = await axiosClient.post<{ status: string }>(`/v1/candidate-assessments/${assessmentId}/cancel`);
+    return response.data;
+  },
+
   fetchLatestCandidateAssessment: async (): Promise<CandidateAssessmentResponse | null> => {
     const response = await axiosClient.get<CandidateAssessmentResponse | null>('/v1/candidate-assessments/latest');
     if (response.status === 204) {
@@ -292,6 +298,21 @@ export const profileApi = {
 
   fetchRankingStats: async (): Promise<RankingStats> => {
     const response = await axiosClient.get<RankingStats>('/v1/users/profile/ranking/stats');
+    return response.data;
+  },
+
+  fetchLatestSkillTree: async (): Promise<CandidateSkillTreeNodeResponse[]> => {
+    const response = await axiosClient.get<CandidateSkillTreeNodeResponse[]>('/v1/candidate-assessments/latest/skill-tree');
+    return response.data;
+  },
+
+  fetchSkillTree: async (assessmentId: string): Promise<CandidateSkillTreeNodeResponse[]> => {
+    const response = await axiosClient.get<CandidateSkillTreeNodeResponse[]>(`/v1/candidate-assessments/${assessmentId}/skill-tree`);
+    return response.data;
+  },
+
+  fetchPublicSkillTree: async (username: string): Promise<CandidateSkillTreeNodeResponse[]> => {
+    const response = await axiosClient.get<CandidateSkillTreeNodeResponse[]>(`/v1/candidate-assessments/public/${username}/skill-tree`);
     return response.data;
   },
 };

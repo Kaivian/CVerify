@@ -10,7 +10,7 @@ class CvPromptFactory(IPromptFactory):
             "into a career-oriented, short-form CV narrative summary.\n\n"
             "CRITICAL FORMATTING RULES:\n"
             "1. Project Summary: The summary MUST be maximum 1 short, concise sentence (30 to 150 characters) summarizing the repository's purpose. Do NOT mention developer contributions or names here.\n"
-            "2. Key Contributions Highlights: Provide exactly 2 to 4 bullet points. Each bullet point MUST be 1 concise sentence that fits naturally within a resume layout.\n"
+            "2. Key Contributions Highlights: Provide exactly 2 to 3 bullet points. Each bullet point MUST be 1 concise sentence that fits naturally within a resume layout and is under 100 characters.\n"
             "3. Action Verbs: Every contribution bullet point MUST start with a strong action verb (e.g., 'Built', 'Developed', 'Implemented', 'Optimized', 'Designed', 'Refactored').\n"
             "4. CV Style: Write in a professional resume style. Focus exclusively on what the developer built, implemented, optimized, or delivered.\n"
             "5. STRICT PROHIBITIONS: Do NOT include repository evaluations, strengths/weaknesses analysis, maintainability commentary, warning labels, quality assessments, score-oriented language, or technical auditing/grading terminology (e.g., do NOT say 'This repository has good code quality' or 'maintainability is medium').\n"
@@ -35,7 +35,7 @@ class CvPromptFactory(IPromptFactory):
     "summary": "string (maximum 1 short sentence summarizing the repository's purpose. STRICT LIMIT: 30 to 150 characters)",
     "highlights": [
         {
-            "signal": "string (a concise contribution bullet point, 1 sentence, starting with an action verb, e.g. 'Implemented JWT authentication flows.')",
+            "signal": "string (a concise contribution bullet point, 1 sentence, starting with an action verb, e.g. 'Implemented JWT authentication flows.' STRICT LIMIT: under 100 characters.)",
             "impact": "string (MUST be set to empty string: '')"
         }
     ],

@@ -7,6 +7,16 @@ from anthropic import AsyncAnthropic
 from app.core.config import settings
 from app.core.monitoring.ai_cost_tracker import AiCostTracker
 from app.core.services.token_accounting_service import TokenAccountingService
+import redis.asyncio as redis
+
+_redis_client = None
+
+def get_redis_client():
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+    return _redis_client
+
 
 logger = logging.getLogger("claude_service")
 
@@ -61,6 +71,19 @@ class ClaudeService:
         self.client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         self.cost_tracker = AiCostTracker()
 
+    async def _check_cancellation(self, correlation_id: str):
+        if correlation_id and correlation_id != "system":
+            try:
+                redis_client = get_redis_client()
+                if await redis_client.get(f"ai:cancel:{correlation_id}"):
+                    logger.warning(f"Job {correlation_id} cancellation detected. Aborting LLM execution.", extra={"correlation_id": correlation_id})
+                    raise asyncio.CancelledError(f"Job {correlation_id} was cancelled by user.")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(f"Error checking cancellation in Redis: {e}", extra={"correlation_id": correlation_id})
+
+
     async def stream_chat(self, messages: list, correlation_id: str = "system") -> AsyncGenerator[str, None]:
         extra_log = {"correlation_id": correlation_id}
         system_prompt = (
@@ -102,6 +125,7 @@ class ClaudeService:
                     stream=True
                 )
 
+            await self._check_cancellation(correlation_id)
             stream = await retry_with_exponential_backoff(get_stream, correlation_id=correlation_id)
             
             prompt_tokens = 0
@@ -111,6 +135,7 @@ class ClaudeService:
             cache_read = 0
 
             async for event in stream:
+                await self._check_cancellation(correlation_id)
                 if event.type == "content_block_delta" and event.delta.type == "text_delta":
                     yield event.delta.text
                 elif event.type == "message_start":
@@ -188,6 +213,7 @@ class ClaudeService:
                     stream=True
                 )
 
+            await self._check_cancellation(correlation_id)
             stream = await retry_with_exponential_backoff(get_stream, correlation_id=correlation_id)
             
             prompt_tokens = 0
@@ -197,6 +223,7 @@ class ClaudeService:
             cache_read = 0
 
             async for event in stream:
+                await self._check_cancellation(correlation_id)
                 if event.type == "content_block_delta" and event.delta.type == "text_delta":
                     yield {"type": "content", "text": event.delta.text}
                 elif event.type == "message_start":
@@ -311,6 +338,7 @@ class ClaudeService:
                     stream=True
                 )
 
+            await self._check_cancellation(correlation_id)
             stream = await retry_with_exponential_backoff(get_stream, correlation_id=correlation_id)
             
             prompt_tokens = 0
@@ -321,6 +349,7 @@ class ClaudeService:
             text_chunks = []
             
             async for event in stream:
+                await self._check_cancellation(correlation_id)
                 if event.type == "content_block_delta" and event.delta.type == "text_delta":
                     token_text = event.delta.text
                     text_chunks.append(token_text)
@@ -358,7 +387,8 @@ class ClaudeService:
                 cache_creation_tokens=normalized.cache_write_tokens,
                 cache_read_tokens=normalized.cache_read_tokens,
                 duration_ms=duration,
-                total_tokens=normalized.total_tokens
+                total_tokens=normalized.total_tokens,
+                provider="Anthropic"
             )
 
             telemetry = {

@@ -132,6 +132,7 @@ public class ProfileService : IProfileService
         profile.ProfileVisibility = request.ProfileVisibility;
         profile.RecruiterVisibility = request.RecruiterVisibility;
         profile.AiTalentDiscovery = request.AiTalentDiscovery;
+        profile.AiSuggestionsJson = request.AiSuggestionsJson;
         profile.UpdatedAt = DateTimeOffset.UtcNow;
         profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
 
@@ -270,7 +271,26 @@ public class ProfileService : IProfileService
 
         if (profile == null)
         {
-            throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == normalizedUsername, cancellationToken);
+            if (user == null)
+            {
+                throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
+            }
+
+            profile = new UserProfile
+            {
+                UserId = user.Id,
+                Username = user.Username,
+                ProfileVisibility = "public",
+                RecruiterVisibility = true,
+                AiTalentDiscovery = "disabled",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            _context.UserProfiles.Add(profile);
+            await _context.SaveChangesAsync(cancellationToken);
+            profile.User = user;
         }
 
         // Visibility settings of "private" or "connections" return 404 Not Found for public lookup
@@ -659,6 +679,7 @@ public class ProfileService : IProfileService
             profile.CreatedAt,
             profile.UpdatedAt,
             profile.Version,
+            profile.AiSuggestionsJson,
             socialLinks
         );
     }
@@ -739,6 +760,7 @@ public class ProfileService : IProfileService
                 "SELECT provider_avatar_url AS \"Value\" FROM auth_providers WHERE user_id = {0} AND LOWER(provider_name) = {1} AND deleted_at IS NULL LIMIT 1",
                 userId,
                 canonicalName)
+            .OrderBy(v => v)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (string.IsNullOrEmpty(providerAvatarUrl))
@@ -902,18 +924,18 @@ public class ProfileService : IProfileService
             );
         }
 
-        // 6. Apply Skills filter (matches in TopCapabilitiesJson)
+        // Fetch all matching projections
+        var items = await dbQuery.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        // 6. Apply Skills filter in-memory (matches in TopCapabilitiesJson)
         if (query.Skills != null && query.Skills.Any())
         {
             foreach (var skill in query.Skills)
             {
                 var skillLower = skill.ToLower();
-                dbQuery = dbQuery.Where(p => p.TopCapabilitiesJson != null && p.TopCapabilitiesJson.ToLower().Contains(skillLower));
+                items = items.Where(p => p.TopCapabilitiesJson != null && p.TopCapabilitiesJson.ToLower().Contains(skillLower)).ToList();
             }
         }
-
-        // Fetch all matching projections
-        var items = await dbQuery.ToListAsync(cancellationToken).ConfigureAwait(false);
 
         // 7. Dynamic follows state for current user
         var followedUserIds = new HashSet<Guid>();

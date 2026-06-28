@@ -219,6 +219,12 @@ public class ApplicationDbContext : DbContext
     public DbSet<CandidateIntelligenceSignal> CandidateIntelligenceSignals => Set<CandidateIntelligenceSignal>();
     public DbSet<CandidateBestFitRole> CandidateBestFitRoles => Set<CandidateBestFitRole>();
     public DbSet<CandidateStrengthWeakness> CandidateStrengthsWeaknesses => Set<CandidateStrengthWeakness>();
+    public DbSet<CandidateSkillTreeNode> CandidateSkillTreeNodes => Set<CandidateSkillTreeNode>();
+
+    public DbSet<AiStreamingSession> AiStreamingSessions => Set<AiStreamingSession>();
+    public DbSet<AiStreamingStage> AiStreamingStages => Set<AiStreamingStage>();
+    public DbSet<AiStreamingLog> AiStreamingLogs => Set<AiStreamingLog>();
+    public DbSet<AiStreamingMetric> AiStreamingMetrics => Set<AiStreamingMetric>();
 
 
     public DbSet<ProjectEntry> ProjectEntries => Set<ProjectEntry>();
@@ -545,6 +551,21 @@ public class ApplicationDbContext : DbContext
         {
             entity.Property(me => me.Id).ValueGeneratedNever();
             entity.HasIndex(me => me.MatchingEvaluationId);
+        });
+
+        modelBuilder.Entity<CandidateSkillTreeNode>(entity =>
+        {
+            entity.Property(n => n.Id).ValueGeneratedNever();
+            
+            entity.HasOne(n => n.Assessment)
+                  .WithMany(a => a.SkillTreeNodes)
+                  .HasForeignKey(n => n.CandidateAssessmentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.Parent)
+                  .WithMany()
+                  .HasForeignKey(n => n.ParentId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
 
@@ -1973,6 +1994,7 @@ public class ApplicationDbContext : DbContext
         var jsonContainment = $"[{{\"email\": \"{normalized}\"}}]";
         return await Users
             .FromSqlRaw("SELECT * FROM users WHERE email = {0} OR (linked_emails IS NOT NULL AND linked_emails @> {1}::jsonb)", normalized, jsonContainment)
+            .OrderBy(u => u.Id)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -1989,6 +2011,7 @@ public class ApplicationDbContext : DbContext
         var jsonContainment = $"[{{\"email\": \"{normalized}\", \"is_verified\": true}}]";
         return await Users
             .FromSqlRaw("SELECT * FROM users WHERE email = {0} OR (linked_emails IS NOT NULL AND linked_emails @> {1}::jsonb)", normalized, jsonContainment)
+            .OrderBy(u => u.Id)
             .FirstOrDefaultAsync(cancellationToken);
     }
 

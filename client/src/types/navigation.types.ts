@@ -10,6 +10,8 @@ export interface BaseNavigationNode {
   translationKey?: string;
   requiredPermissions?: ResourceActionPermission[];
   requiredRoles?: UserRole[];
+  requiredWorkspacePermissions?: string[];
+  requiredWorkspaceRoles?: string[];
   tooltip?: string;
 }
 
@@ -20,6 +22,7 @@ export interface NavigationLinkItem extends BaseNavigationNode {
   icon?: LucideIcon;
   badge?: string | number;
   badgeColor?: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
+  openInNewTab?: boolean;
 }
 
 export interface NavigationGroupItem extends BaseNavigationNode {

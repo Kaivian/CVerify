@@ -50,13 +50,13 @@ function VerifyLinkContent() {
     runVerification();
   }, [token, verifyCompanyLink]);
 
-  const handleProceedToWorkspace = () => {
+  const handleProceedToCompanySetup = () => {
     if (!companyDetails) return;
     const query = new URLSearchParams({
       email: companyDetails.companyEmail,
       token: companyDetails.verificationToken
     }).toString();
-    router.push(`/workspace-setup?${query}`);
+    router.push(`/company-setup?${query}`);
   };
 
   return (
@@ -84,7 +84,7 @@ function VerifyLinkContent() {
           </Typography.Heading>
           
           <Typography className="text-sm text-muted mb-8 max-w-sm">
-            Company ownership has been proven. You are authorized to setup the company workspace.
+            Company ownership has been proven. You are authorized to complete the company setup.
           </Typography>
 
           <div className="w-full bg-surface-secondary border border-border rounded-xl p-5 mb-8 text-left space-y-3 font-outfit">
@@ -107,9 +107,9 @@ function VerifyLinkContent() {
           <Button
             fullWidth
             className="h-12 rounded-xl bg-foreground text-background font-semibold"
-            onPress={handleProceedToWorkspace}
+            onPress={handleProceedToCompanySetup}
           >
-            Set Up Workspace
+            Continue to Company Setup
           </Button>
         </div>
       )}

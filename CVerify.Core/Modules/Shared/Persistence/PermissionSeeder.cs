@@ -22,7 +22,12 @@ public static class PermissionSeeder
         {
             ("organization:profile:edit", "Edit Profile", "Modify organization public profile, logo, and banner", "Organization"),
             ("organization:settings:edit", "Edit Settings", "Modify organization settings and metadata", "Organization"),
-            ("organization:workspace:view", "View Workspace", "Read-only access to assigned workspaces and pipelines", "Workspace"),
+            ("organization:workspaces:view", "View Workspaces", "View the list of all workspaces", "Workspace"),
+            ("organization:workspaces:create", "Create Workspaces", "Create new workspaces under the organization", "Workspace"),
+            ("organization:workspaces:update", "Update Workspaces", "Update workspace metadata", "Workspace"),
+            ("organization:workspaces:delete", "Delete Workspaces", "Archive, restore, or delete workspaces", "Workspace"),
+            ("workspace:settings:update", "Update Workspace Settings", "Modify workspace-level settings and branding", "Workspace"),
+            ("workspace:members:manage", "Manage Workspace Members", "Manage workspace-level members and their roles", "Workspace"),
             ("organization:roles:manage", "Manage Roles", "Create, edit, and delete custom business roles", "Business Roles"),
             ("organization:roles:view", "View Roles", "Read business roles and permission mapping matrices", "Business Roles"),
             ("organization:members:manage", "Manage Members", "Invite, suspend, and remove organization team members", "People"),

@@ -285,7 +285,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                   <Tabs.Indicator className="bottom-0" />
                 </Tabs.Tab>
                 <Tabs.Tab id="assessment" className="pb-2 font-bold text-sm cursor-pointer select-none">
-                  AI Verified Assessment
+                  AI Suggested Assessment
                   <Tabs.Indicator className="bottom-0" />
                 </Tabs.Tab>
                 {profile.vacancies && profile.vacancies.length > 0 && (
@@ -794,7 +794,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
               </div>
             </Tabs.Panel>
 
-            {/* Tab 2: AI Verified Assessment Panel */}
+            {/* Tab 2: AI Suggested Assessment Panel */}
             <Tabs.Panel id="assessment" className="pt-6">
               {profile.hasCompletedAssessment && assessment ? (
                 <AiAssessmentTab 
@@ -807,7 +807,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                   <ShieldCheck className="size-12 text-muted/40" />
                   <h3 className="text-base font-bold text-foreground">Not Yet Analyzed</h3>
                   <p className="text-xs text-muted leading-relaxed">
-                    This candidate has not generated their public AI Verified Assessment yet. AI Assessments require manually linking GitHub repositories and initiating verification.
+                    This candidate has not generated their public AI Suggested Assessment yet. AI Assessments require manually linking GitHub repositories and initiating verification.
                   </p>
                 </div>
               )}
@@ -872,7 +872,7 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
 
                           <div className="shrink-0 pt-2 md:pt-0 w-full md:w-auto">
                             <Link
-                              href={`/workspace/${orgSlug}/jobs`}
+                              href={`/business/${orgSlug}/jobs`}
                               className="inline-block text-xs font-bold px-6 py-2 rounded-lg transition-colors border-none text-center bg-accent text-background hover:bg-accent/90 w-full md:w-auto hover:opacity-95"
                             >
                               Apply Now

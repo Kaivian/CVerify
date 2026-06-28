@@ -66,7 +66,8 @@ public static class DbInitializer
                 ('20260615152001_AddProjectEntriesAndLinks', '10.0.0'),
                 ('20260615171115_AddRepositoryAssessments', '10.0.0'),
                 ('20260616080806_AddRepositoryIntelligenceTables', '10.0.0'),
-                ('20260616082519_AddCandidateIntelligenceTablesPhase2', '10.0.0')
+                ('20260616082519_AddCandidateIntelligenceTablesPhase2', '10.0.0'),
+                ('20260623181310_AddWorkspaceDescriptionAndOwner', '10.0.0')
                 ON CONFLICT (migration_id) DO NOTHING;
             ");
         }
@@ -335,6 +336,28 @@ public static class DbInitializer
                     END IF;
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'follower_count') THEN
                         ALTER TABLE organizations ADD COLUMN follower_count INTEGER NOT NULL DEFAULT 0;
+                    END IF;
+                END IF;
+
+                -- If workspaces exists but lacks owner_id or description, add them
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'workspaces') THEN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'workspaces' AND column_name = 'owner_id') THEN
+                        ALTER TABLE workspaces ADD COLUMN owner_id UUID;
+                        UPDATE workspaces w 
+                        SET owner_id = COALESCE(
+                            (SELECT user_id FROM organization_memberships om WHERE om.organization_id = w.organization_id AND om.role = 'OWNER' AND om.status = 'active' LIMIT 1),
+                            (SELECT user_id FROM organization_memberships om WHERE om.organization_id = w.organization_id AND om.status = 'active' LIMIT 1),
+                            (SELECT id FROM users LIMIT 1)
+                        );
+                        ALTER TABLE workspaces ALTER COLUMN owner_id SET NOT NULL;
+                        
+                        -- Add foreign key constraint to workspaces(owner_id)
+                        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'fk_workspaces_users_owner_id') THEN
+                            ALTER TABLE workspaces ADD CONSTRAINT fk_workspaces_users_owner_id FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+                        END IF;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'workspaces' AND column_name = 'description') THEN
+                        ALTER TABLE workspaces ADD COLUMN description VARCHAR(1000);
                     END IF;
                 END IF;
 
@@ -962,14 +985,18 @@ public static class DbInitializer
                 organization_id UUID NOT NULL,
                 display_name VARCHAR(255) NOT NULL,
                 slug VARCHAR(100) NOT NULL,
+                description VARCHAR(1000),
                 branding TEXT,
                 status VARCHAR(50) NOT NULL DEFAULT 'active',
+                owner_id UUID NOT NULL,
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 deleted_at TIMESTAMP WITH TIME ZONE,
-                CONSTRAINT fk_workspaces_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+                CONSTRAINT fk_workspaces_organization FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+                CONSTRAINT fk_workspaces_users_owner_id FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_slug_active ON workspaces(slug) WHERE deleted_at IS NULL;
+            CREATE INDEX IF NOT EXISTS ix_workspaces_owner_id ON workspaces(owner_id);
 
             -- Stores workspace memberships (Workspace Membership Layer)
             CREATE TABLE IF NOT EXISTS workspace_members (
@@ -2986,7 +3013,7 @@ public static class DbInitializer
                 SELECT COUNT(*)::int AS ""Value""
                 FROM pg_type 
                 WHERE typname = 'user_status'
-            ").FirstOrDefaultAsync();
+            ").SingleOrDefaultAsync();
 
             if (typeExists > 0)
             {
@@ -3082,7 +3109,7 @@ public static class DbInitializer
         {
             var storedEnv = await context.Database.SqlQueryRaw<string>(@"
                 SELECT value AS ""Value"" FROM system_metadata WHERE key = 'database_environment'
-            ").FirstOrDefaultAsync();
+            ").SingleOrDefaultAsync();
 
             var currentEnv = resolvedEnv?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
@@ -3111,9 +3138,9 @@ public static class DbInitializer
         // Invoke modular seeders
         await SuperAdminSeeder.SeedAsync(context, config.SuperAdmin, seedingPolicy);
         await PermissionSeeder.SeedAsync(context, seedingPolicy);
+        await BusinessAccountSeeder.SeedAsync(context, config.Seeding, seedingPolicy);
         await RoleSeeder.SeedAsync(context, seedingPolicy);
         await MembershipMigrationSeeder.SeedAsync(context, seedingPolicy);
-        await BusinessAccountSeeder.SeedAsync(context, config.Seeding, seedingPolicy);
         await CapabilityCatalogSeeder.SeedAsync(context, seedingPolicy);
 
         global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder> moduleSeeders;

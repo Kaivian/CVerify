@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { type WorkspaceDetails, type LinkedOrganization, type Post, type Job } from '../types/workspace.types';
+import { type WorkspaceDetails, type LinkedOrganization, type LinkedWorkspace, type Post, type Job } from '../types/workspace.types';
 import { workspaceService } from '../services/workspace.service';
 import { rolesService } from '../services/roles.service';
 import type {
@@ -16,6 +16,9 @@ interface WorkspaceState {
   loading: Record<string, boolean>;
   errors: Record<string, string | null>;
   myOrganizations: LinkedOrganization[] | null;
+  activeWorkspaceIds: Record<string, string>;
+  setActiveWorkspaceId: (orgSlug: string, workspaceId: string) => void;
+  createWorkspace: (orgSlug: string, workspace: { displayName: string; slug: string }) => Promise<LinkedWorkspace | null>;
   fetchWorkspace: (slug: string) => Promise<WorkspaceDetails | null>;
   fetchMyOrganizations: () => Promise<LinkedOrganization[] | null>;
   updateWorkspaceDetails: (slug: string, updates: Partial<WorkspaceDetails>) => Promise<WorkspaceDetails | null>;
@@ -61,6 +64,39 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   loading: {},
   errors: {},
   myOrganizations: null,
+  activeWorkspaceIds: {},
+
+  setActiveWorkspaceId: (orgSlug: string, workspaceId: string) => {
+    set((state) => ({
+      activeWorkspaceIds: {
+        ...(state.activeWorkspaceIds || {}),
+        [orgSlug]: workspaceId,
+      },
+    }));
+  },
+
+  createWorkspace: async (orgSlug: string, workspace: { displayName: string; slug: string }) => {
+    try {
+      const newWorkspace = await workspaceService.createWorkspace(orgSlug, workspace);
+      set((state) => {
+        const currentDetails = state.workspaces[orgSlug];
+        if (!currentDetails) return {};
+        return {
+          workspaces: {
+            ...state.workspaces,
+            [orgSlug]: {
+              ...currentDetails,
+              workspaces: [...(currentDetails.workspaces || []), newWorkspace]
+            }
+          }
+        };
+      });
+      return newWorkspace;
+    } catch (err) {
+      console.error('[Workspace Store] Failed to create workspace', err);
+      return null;
+    }
+  },
 
   // Business Roles initial state
   roles: {},

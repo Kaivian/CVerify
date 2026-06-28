@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { profileApi } from '@/services/profile.service';
+import { useStreamingStore } from '@/modules/streaming';
 import {
   type CandidateReadinessDto,
   type CandidateAssessmentResponse,
@@ -13,10 +14,16 @@ interface CandidateAssessmentState {
   readiness: CandidateReadinessDto | null;
   latestAssessment: CandidateAssessmentResponse | null;
   assessmentDetails: CandidateAssessmentDetailResponse | null;
+  parsedProfile: any | null;
+  parsedImprovementPlan: any | null;
   history: CandidateAssessmentResponse[];
   loading: Record<string, boolean>;
   error: string | null;
   stages: AssessmentStageDto[];
+
+  // Global modal visibility states
+  isProgressModalOpen: boolean;
+  hasClosedProgressModal: boolean;
 
   // Real-time SSE progress state
   streamStatus: StreamStatus;
@@ -40,6 +47,8 @@ interface CandidateAssessmentState {
   triggerAssessment: () => Promise<CandidateAssessmentResponse>;
   connectProgressStream: (userId: string) => void;
   disconnectProgressStream: () => void;
+  setIsProgressModalOpen: (isOpen: boolean) => void;
+  setHasClosedProgressModal: (hasClosed: boolean) => void;
   clearError: () => void;
 }
 
@@ -61,6 +70,7 @@ const FALLBACK_STAGES: AssessmentStageDto[] = [
   { id: 'L2-011', name: 'Experience Confidence Calibration', description: 'Adjusts assessment confidence scores based on codebase age, volume, and contributor density.' },
   { id: 'L2-012', name: 'Role Recommendation Engine', description: 'Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect).' },
   { id: 'L2-013', name: 'Executive Summary Generation', description: 'Generates a comprehensive recruiter-friendly assessment narrative and executive summary.' },
+  { id: 'L2-016', name: 'Skill Tree Generation', description: 'Constructs a validated, hierarchical taxonomy of skills and capabilities based on code and profile evidence.' },
   { id: 'L2-014', name: 'AI Profile Composition', description: 'Assembles and serializes the final verified candidate profile and calibrated score index.' },
   { id: 'L2-015', name: 'Candidate Improvement Engine', description: 'Formulates targeted vector-improvement recommendations and prioritizes progression paths.' }
 ];
@@ -69,10 +79,15 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
   readiness: null,
   latestAssessment: null,
   assessmentDetails: null,
+  parsedProfile: null,
+  parsedImprovementPlan: null,
   history: [],
   loading: {},
   error: null,
   stages: FALLBACK_STAGES,
+
+  isProgressModalOpen: false,
+  hasClosedProgressModal: false,
 
   streamStatus: 'idle',
   streamProgress: 0,
@@ -86,6 +101,8 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
   realtimeRecommendations: [],
   realtimeSignals: [],
 
+  setIsProgressModalOpen: (isOpen: boolean) => set({ isProgressModalOpen: isOpen }),
+  setHasClosedProgressModal: (hasClosed: boolean) => set({ hasClosedProgressModal: hasClosed }),
   clearError: () => set({ error: null }),
 
   fetchReadiness: async () => {
@@ -112,6 +129,10 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
         const userId = latestAssessment.userId;
         if (userId && !activeEventSource) {
           get().connectProgressStream(userId);
+          // Auto-open modal if the user hasn't closed it in this session
+          if (!get().hasClosedProgressModal) {
+            set({ isProgressModalOpen: true });
+          }
         }
       }
     } catch (err: any) {
@@ -125,7 +146,31 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
     set((state) => ({ loading: { ...state.loading, details: true }, error: null }));
     try {
       const assessmentDetails = await profileApi.fetchCandidateAssessmentDetails(id);
-      set({ assessmentDetails });
+      
+      let parsedProfile = null;
+      let parsedImprovementPlan = null;
+      
+      if (assessmentDetails && assessmentDetails.artifacts) {
+        const profileArt = assessmentDetails.artifacts.find(a => a.artifactType === 'CandidateProfile');
+        if (profileArt) {
+          try {
+            parsedProfile = JSON.parse(profileArt.jsonData);
+          } catch (e) {
+            console.error('Failed to parse CandidateProfile artifact:', e);
+          }
+        }
+        
+        const planArt = assessmentDetails.artifacts.find(a => a.artifactType === 'ImprovementPlan');
+        if (planArt) {
+          try {
+            parsedImprovementPlan = JSON.parse(planArt.jsonData);
+          } catch (e) {
+            console.error('Failed to parse ImprovementPlan artifact:', e);
+          }
+        }
+      }
+      
+      set({ assessmentDetails, parsedProfile, parsedImprovementPlan });
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load assessment details.' });
     } finally {
@@ -160,10 +205,15 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
     set((state) => ({ loading: { ...state.loading, trigger: true }, error: null }));
     try {
       const response = await profileApi.triggerCandidateAssessment();
-      set({ latestAssessment: response });
+      set({ latestAssessment: response, isProgressModalOpen: true, hasClosedProgressModal: false });
       
-      // Automatically connect to progress stream
-      get().connectProgressStream(response.userId);
+      // Automatically connect to progress stream via unified framework
+      useStreamingStore.getState().connectSession(
+        "candidate-assessment",
+        response.id,
+        undefined,
+        response.id
+      );
       return response;
     } catch (err: any) {
       const errMsg = err.response?.data?.message || 'Failed to start candidate assessment.';
@@ -175,190 +225,40 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
   },
 
   connectProgressStream: (userId: string) => {
-    if (activeEventSource) {
-      activeEventSource.close();
-      activeEventSource = null;
-    }
-
     set({
       streamStatus: 'connecting',
       streamProgress: 0,
       streamStep: 'Initializing',
       streamMessage: 'Connecting to progress stream...',
-      realtimeScore: null,
-      realtimeLevel: null,
-      realtimeLevelLabel: null,
-      realtimeDimensions: {},
-      realtimeRecommendations: [],
-      realtimeSignals: [],
     });
 
-    const sseBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    const sseUrl = `${sseBaseUrl}/v1/candidate-assessments/progress/${userId}`;
-
-    const es = new EventSource(sseUrl, { withCredentials: true });
-    activeEventSource = es;
-
-    es.onopen = () => {
-      set({ streamStatus: 'streaming' });
-    };
-
-    es.onmessage = async (event) => {
-      if (activeEventSource !== es) {
-        es.close();
-        return;
-      }
-
-      const dataStr = event.data;
-      if (dataStr === '[DONE]') {
-        es.close();
-        if (activeEventSource === es) {
-          activeEventSource = null;
+    profileApi.fetchLatestCandidateAssessment()
+      .then(latest => {
+        if (latest) {
+          useStreamingStore.getState().connectSession(
+            "candidate-assessment",
+            latest.id,
+            undefined,
+            latest.id
+          );
         }
+      })
+      .catch(err => {
+        console.error("Failed to delegate progress stream:", err);
         set({
-          streamStatus: 'completed',
-          streamProgress: 100,
-          streamStep: 'Completed',
-          streamMessage: 'Candidate assessment completed successfully.',
+          streamStatus: 'failed',
+          streamMessage: 'Failed to retrieve latest assessment session.',
         });
-        // Refresh details, latest, readiness, and history
-        await get().fetchLatest();
-        await get().fetchHistory();
-        await get().fetchReadiness();
-        return;
-      }
-
-      try {
-        const payload = JSON.parse(dataStr);
-        if (payload) {
-          const status = payload.status || 'Running';
-          const step = payload.step || '';
-          const message = payload.message || '';
-          const progress = payload.percentage !== undefined ? payload.percentage : 0;
-
-          if (status === 'Failed') {
-            es.close();
-            if (activeEventSource === es) {
-              activeEventSource = null;
-            }
-            set({
-              streamStatus: 'failed',
-              streamProgress: progress,
-              streamStep: step,
-              streamMessage: message || 'Assessment run failed.',
-              error: message || 'Assessment run failed.',
-            });
-            await get().fetchLatest();
-            await get().fetchHistory();
-            return;
-          }
-
-          const updates: Partial<CandidateAssessmentState> = {
-            streamProgress: progress,
-            streamStep: step,
-            streamMessage: message,
-          };
-
-          // Parse nested PipelineEvent if it exists in the payload envelope
-          if (payload.event) {
-            const pipeEvent = payload.event;
-            const eventType = pipeEvent.eventType;
-            const eventPayload = pipeEvent.payload || {};
-            const snapshot = pipeEvent.stateSnapshot || {};
-
-            if (snapshot.partialScore !== undefined) {
-              updates.realtimeScore = snapshot.partialScore;
-            }
-            if (snapshot.estimatedLevel !== undefined) {
-              updates.realtimeLevel = snapshot.estimatedLevel;
-              const levelLabels: Record<string, string> = {
-                'L1': 'Junior',
-                'L2': 'Middle',
-                'L3': 'Senior',
-                'L4': 'Staff',
-                'L5': 'Principal'
-              };
-              updates.realtimeLevelLabel = levelLabels[snapshot.estimatedLevel] || snapshot.estimatedLevel;
-            }
-
-            if (eventType === 'DIMENSION_SCORE_UPDATED') {
-              const dim = eventPayload.dimension;
-              const val = eventPayload.value;
-              if (dim && val !== undefined) {
-                updates.realtimeDimensions = {
-                  ...get().realtimeDimensions,
-                  [dim]: val
-                };
-              }
-            } else if (eventType === 'SCORE_DELTA_UPDATED') {
-              if (eventPayload.candidateScore !== undefined) {
-                updates.realtimeScore = eventPayload.candidateScore;
-              }
-            } else if (eventType === 'LEVEL_ESTIMATE_UPDATED') {
-              if (eventPayload.level) {
-                updates.realtimeLevel = eventPayload.level;
-                updates.realtimeLevelLabel = eventPayload.label || eventPayload.level;
-              }
-            } else if (eventType === 'IMPROVEMENT_SIGNAL_DETECTED') {
-              if (eventPayload.gapCategory) {
-                const currentSignals = get().realtimeSignals;
-                if (!currentSignals.includes(eventPayload.gapCategory)) {
-                  updates.realtimeSignals = [...currentSignals, eventPayload.gapCategory];
-                }
-              }
-            } else if (eventType === 'IMPROVEMENT_RECOMMENDATION_READY') {
-              if (eventPayload.id) {
-                const currentRecs = get().realtimeRecommendations;
-                if (!currentRecs.some(r => r.id === eventPayload.id)) {
-                  updates.realtimeRecommendations = [
-                    ...currentRecs,
-                    {
-                      id: eventPayload.id,
-                      priority: eventPayload.priority || 'Medium',
-                      action: eventPayload.action || ''
-                    }
-                  ];
-                }
-              }
-            }
-          }
-
-          set(updates);
-        }
-      } catch (e) {
-        console.error('Failed to parse SSE payload:', e);
-      }
-    };
-
-    es.onerror = (err) => {
-      console.error('Candidate assessment EventSource error:', err);
-      es.close();
-      if (activeEventSource === es) {
-        activeEventSource = null;
-      }
-      set({
-        streamStatus: 'failed',
-        streamMessage: 'Connection to assessment progress lost.',
       });
-    };
   },
 
   disconnectProgressStream: () => {
-    if (activeEventSource) {
-      activeEventSource.close();
-      activeEventSource = null;
-    }
+    useStreamingStore.getState().disconnect();
     set({
       streamStatus: 'idle',
       streamProgress: 0,
       streamStep: '',
       streamMessage: '',
-      realtimeScore: null,
-      realtimeLevel: null,
-      realtimeLevelLabel: null,
-      realtimeDimensions: {},
-      realtimeRecommendations: [],
-      realtimeSignals: [],
     });
   },
 }));

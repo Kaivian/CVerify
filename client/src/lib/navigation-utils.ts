@@ -9,7 +9,7 @@ export const RESERVED_USERNAMES = new Set([
   "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
   "chat", "business", "user", "organization", "organizations", "auth", "system", "unauthorized", "company-onboarding",
   "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email", "workspace-setup",
-  "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects", "ranking"
+  "company-setup", "cv", "jobs", "forum", "intelligence", "applications", "repositories", "projects", "ranking"
 ]);
 
 /**
@@ -30,7 +30,15 @@ export const isActiveRoute = (
 
   // Helper check for root and normalization
   const cleanPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
-  const cleanHref = href.endsWith('/') && href.length > 1 ? href.slice(0, -1) : href;
+  let cleanHref = href.endsWith('/') && href.length > 1 ? href.slice(0, -1) : href;
+
+  if (cleanHref.includes("[slug]") || cleanHref.includes(":slug")) {
+    const pathSegments = cleanPath.split("/");
+    if (pathSegments[1] === "business" && pathSegments[2]) {
+      const actualSlug = pathSegments[2];
+      cleanHref = cleanHref.replace(/\[slug\]/g, actualSlug).replace(/:slug/g, actualSlug);
+    }
+  }
 
   // 1. Dashboard matching
   if (itemId === 'candidate-dashboard' || cleanHref === '/user' || cleanHref === '/dashboard') {
@@ -116,9 +124,9 @@ export const isActiveRoute = (
     return cleanPath === '/user/profile' || cleanPath.startsWith('/user/profile/');
   }
 
-  // 4. Capability Graph matching
-  if (itemId === 'intelligence-capability-graph' || cleanHref === '/intelligence/capability-graph') {
-    return cleanPath === '/intelligence/capability-graph' || cleanPath.startsWith('/intelligence/capability-graph/');
+  // 4. Skill Tree matching
+  if (itemId === 'intelligence-skill-tree' || cleanHref === '/intelligence/skill-tree') {
+    return cleanPath === '/intelligence/skill-tree' || cleanPath.startsWith('/intelligence/skill-tree/');
   }
 
   // 5. Trust Score matching
@@ -181,7 +189,16 @@ export const isActiveRoute = (
 
   // 12. Organizations matching
   if (itemId === 'organizations' || cleanHref === '/workspace/organizations') {
-    return cleanPath === '/workspace/organizations' || cleanPath.startsWith('/workspace/');
+    return cleanPath === '/workspace/organizations' || cleanPath.startsWith('/business/');
+  }
+
+  // 13. Public Page group matching
+  if (!exact && (itemId === 'company-public-page-group' || (cleanHref.startsWith('/business/') && cleanHref.split('/').filter(Boolean).length === 2))) {
+    const isPublicSubPage = 
+      cleanPath.endsWith('/jobs') || 
+      cleanPath.endsWith('/posts') || 
+      cleanPath.endsWith('/people');
+    return cleanPath === cleanHref || (cleanPath.startsWith(cleanHref + '/') && isPublicSubPage);
   }
 
   if (exact) {

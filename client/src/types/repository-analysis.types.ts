@@ -196,7 +196,7 @@ export interface RepositoryAnalysis {
       uncalibrated_identities: number;
     };
     conflict_resolution_log: string[];
-    trust_graph: {
+    trust_graph?: {
       nodes: Array<{ id: string; type: string; data: Record<string, any> }>;
       edges: Array<{ id: string; source: string; target: string; label?: string; weight?: number }>;
     };
@@ -207,6 +207,9 @@ export interface RepositoryAnalysis {
     score: number;
     label: string;
   };
+  findings?: RepositoryEvidenceFinding[];
+  daily_commits?: Record<string, number> | null;
+  user_daily_commits?: Record<string, number> | null;
 }
 
 export interface CvHighlightItem {

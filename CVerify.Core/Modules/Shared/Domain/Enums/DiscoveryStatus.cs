@@ -7,5 +7,6 @@ public enum DiscoveryStatus
     Matching = 3,
     Ranking = 4,
     Completed = 5,
-    Failed = 6
+    Failed = 6,
+    Cancelled = 7
 }

@@ -26,6 +26,9 @@ public class CandidateMatchService : ICandidateMatchService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ICandidateEvaluationService _evaluationService;
     private readonly IUnifiedMatchingEngine _matchingEngine;
+    private readonly IAiCancellationManager _cancellationManager;
+    private readonly IAiStreamingSessionService _streamingSessionService;
+    private readonly ILogger<CandidateMatchService> _logger;
 
     public CandidateMatchService(
         ApplicationDbContext context,
@@ -34,7 +37,10 @@ public class CandidateMatchService : ICandidateMatchService
         IConnectionMultiplexer redis,
         IServiceScopeFactory scopeFactory,
         ICandidateEvaluationService evaluationService,
-        IUnifiedMatchingEngine matchingEngine)
+        IUnifiedMatchingEngine matchingEngine,
+        IAiCancellationManager cancellationManager,
+        IAiStreamingSessionService streamingSessionService,
+        ILogger<CandidateMatchService> logger)
     {
         _context = context;
         _catalogService = catalogService;
@@ -43,6 +49,9 @@ public class CandidateMatchService : ICandidateMatchService
         _scopeFactory = scopeFactory;
         _evaluationService = evaluationService;
         _matchingEngine = matchingEngine;
+        _cancellationManager = cancellationManager;
+        _streamingSessionService = streamingSessionService;
+        _logger = logger;
     }
 
     public async Task<List<CandidateMatchDto>> GetCandidateMatchesAsync(Guid requirementId, CancellationToken cancellationToken)
@@ -243,6 +252,22 @@ public class CandidateMatchService : ICandidateMatchService
         _context.CandidateDiscoveryRuns.Add(run);
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Create unified streaming session
+        await _streamingSessionService.CreateSessionAsync(
+            sessionId: requirementId,
+            pipelineId: "candidate-discovery",
+            userId: userId,
+            workspaceId: req.WorkspaceId,
+            modelName: "Claude 3.5 Sonnet",
+            provider: "Anthropic",
+            pipelineVersion: "1.0.0",
+            expectedOutputsJson: "[\"CandidateMatches\"]"
+        );
+        await _streamingSessionService.UpdateSessionStatusAsync(requirementId, "Running");
+
+        // Register requirementId in cancellation manager linked to background task
+        var linkedToken = _cancellationManager.Register(requirementId, cancellationToken);
+
         // Run matching in the background
         var runId = run.Id;
         var scopeFactory = _scopeFactory;
@@ -252,7 +277,7 @@ public class CandidateMatchService : ICandidateMatchService
             {
                 using var scope = scopeFactory.CreateScope();
                 var scopedMatchService = scope.ServiceProvider.GetRequiredService<ICandidateMatchService>();
-                await ((CandidateMatchService)scopedMatchService).ExecuteDiscoveryPipelineAsync(runId, CancellationToken.None);
+                await ((CandidateMatchService)scopedMatchService).ExecuteDiscoveryPipelineAsync(runId, linkedToken);
             }
             catch (Exception ex)
             {
@@ -271,20 +296,35 @@ public class CandidateMatchService : ICandidateMatchService
         try
         {
             // 1. Searching candidates
+            await _context.Entry(run).ReloadAsync(cancellationToken);
+            if (run.Status == DiscoveryStatus.Cancelled) throw new OperationCanceledException("Discovery run was cancelled.");
+
             run.Status = DiscoveryStatus.Searching;
             await _context.SaveChangesAsync(cancellationToken);
+            await _streamingSessionService.UpsertStageAsync(run.HiringRequirementId, "Searching", "Searching candidates", "Running", 20.0, "Searching candidate profiles...");
+            await _streamingSessionService.UpdateSessionProgressAsync(run.HiringRequirementId, 20.0, "Searching");
             await PublishProgressAsync(run.HiringRequirementId, "Running", "Searching", "Searching candidates...", 20.0);
             await Task.Delay(1000, cancellationToken);
 
             // 2. Matching profiles
+            await _context.Entry(run).ReloadAsync(cancellationToken);
+            if (run.Status == DiscoveryStatus.Cancelled) throw new OperationCanceledException("Discovery run was cancelled.");
+
             run.Status = DiscoveryStatus.Matching;
             await _context.SaveChangesAsync(cancellationToken);
+            await _streamingSessionService.UpsertStageAsync(run.HiringRequirementId, "Matching", "Matching profiles", "Running", 50.0, "Matching profiles to requirement...");
+            await _streamingSessionService.UpdateSessionProgressAsync(run.HiringRequirementId, 50.0, "Matching");
             await PublishProgressAsync(run.HiringRequirementId, "Running", "Matching", "Matching profiles...", 50.0);
             await Task.Delay(1000, cancellationToken);
 
             // 3. Ranking candidates
+            await _context.Entry(run).ReloadAsync(cancellationToken);
+            if (run.Status == DiscoveryStatus.Cancelled) throw new OperationCanceledException("Discovery run was cancelled.");
+
             run.Status = DiscoveryStatus.Ranking;
             await _context.SaveChangesAsync(cancellationToken);
+            await _streamingSessionService.UpsertStageAsync(run.HiringRequirementId, "Ranking", "Ranking candidates", "Running", 80.0, "Ranking matched candidates...");
+            await _streamingSessionService.UpdateSessionProgressAsync(run.HiringRequirementId, 80.0, "Ranking");
             await PublishProgressAsync(run.HiringRequirementId, "Running", "Ranking", "Ranking candidates...", 80.0);
 
             // Perform the actual matching calculation
@@ -292,6 +332,9 @@ public class CandidateMatchService : ICandidateMatchService
             await Task.Delay(500, cancellationToken);
 
             // 4. Completed
+            await _context.Entry(run).ReloadAsync(cancellationToken);
+            if (run.Status == DiscoveryStatus.Cancelled) throw new OperationCanceledException("Discovery run was cancelled.");
+
             run.CompletedAt = DateTimeOffset.UtcNow;
             run.Status = DiscoveryStatus.Completed;
             run.CandidatesFoundCount = matches.Count;
@@ -305,16 +348,82 @@ public class CandidateMatchService : ICandidateMatchService
             run.RawResultsJson = JsonSerializer.Serialize(matches);
 
             await _context.SaveChangesAsync(cancellationToken);
+            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Completed", summaryData: run.RawResultsJson);
+            await _streamingSessionService.UpdateSessionProgressAsync(run.HiringRequirementId, 100.0, "Completed");
+            await _streamingSessionService.UpsertStageAsync(run.HiringRequirementId, "Completed", "Completed", "Completed", 100.0, "Discovery run completed.");
             await PublishProgressAsync(run.HiringRequirementId, "Completed", "Completed", "Discovery run completed.", 100.0);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Candidate discovery run {RunId} was cancelled.", runId);
+
+            var freshRun = await _context.CandidateDiscoveryRuns.FirstOrDefaultAsync(r => r.Id == runId);
+            if (freshRun != null && freshRun.Status != DiscoveryStatus.Cancelled)
+            {
+                freshRun.Status = DiscoveryStatus.Cancelled;
+                freshRun.CompletedAt = DateTimeOffset.UtcNow;
+                await _context.SaveChangesAsync(CancellationToken.None);
+            }
+
+            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Cancelled");
+            await PublishProgressAsync(run.HiringRequirementId, "Cancelled", "Cancelled", "Discovery run cancelled by user.", 100.0);
         }
         catch (Exception ex)
         {
-            run.CompletedAt = DateTimeOffset.UtcNow;
-            run.Status = DiscoveryStatus.Failed;
-            run.ErrorMessage = ex.Message;
-            await _context.SaveChangesAsync(CancellationToken.None);
+            _logger.LogError(ex, "Error executing candidate discovery pipeline for run {RunId}", runId);
+
+            var freshRun = await _context.CandidateDiscoveryRuns.FirstOrDefaultAsync(r => r.Id == runId);
+            if (freshRun != null && freshRun.Status != DiscoveryStatus.Cancelled)
+            {
+                freshRun.CompletedAt = DateTimeOffset.UtcNow;
+                freshRun.Status = DiscoveryStatus.Failed;
+                freshRun.ErrorMessage = ex.Message;
+                await _context.SaveChangesAsync(CancellationToken.None);
+            }
+
+            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Failed", errorMessage: ex.Message);
             await PublishProgressAsync(run.HiringRequirementId, "Failed", "Failed", $"Discovery run failed: {ex.Message}", 100.0);
         }
+        finally
+        {
+            _cancellationManager.Unregister(run.HiringRequirementId);
+        }
+    }
+
+    public async Task<bool> CancelDiscoveryAsync(Guid requirementId)
+    {
+        var run = await _context.CandidateDiscoveryRuns
+            .Where(r => r.HiringRequirementId == requirementId && r.Status != DiscoveryStatus.Completed && r.Status != DiscoveryStatus.Failed && r.Status != DiscoveryStatus.Cancelled)
+            .OrderByDescending(r => r.StartedAt)
+            .FirstOrDefaultAsync();
+
+        if (run == null) return false;
+
+        run.Status = DiscoveryStatus.Cancelled;
+        run.CompletedAt = DateTimeOffset.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // 1. Set Redis cancellation key for Python AI service
+        try
+        {
+            var db = _redis.GetDatabase();
+            await db.StringSetAsync($"ai:cancel:{requirementId}", "true", TimeSpan.FromMinutes(5));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set Redis cancellation key for candidate discovery session {SessionId}", requirementId);
+        }
+
+        // 2. Cancel C# token via IAiCancellationManager
+        _cancellationManager.Cancel(requirementId);
+
+        // 3. Update unified streaming session status
+        await _streamingSessionService.UpdateSessionStatusAsync(requirementId, "Cancelled");
+
+        // Broadcast progress updates
+        await PublishProgressAsync(requirementId, "Cancelled", "Cancelled", "Discovery run cancelled by user.", 100.0);
+
+        return true;
     }
 
     private async Task PublishProgressAsync(Guid reqId, string status, string step, string message, double percentage)

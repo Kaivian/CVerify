@@ -38,6 +38,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     private readonly IArtifactStorageProvider _storageProvider;
     private readonly ICandidateAssessmentService _candidateAssessmentService;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IAiStreamingSessionService _streamingSessionService;
+    private readonly IAiCancellationManager _cancellationManager;
+    private readonly IOutboxPublisher _outboxPublisher;
 
     public RepositoryAnalysisService(
         ApplicationDbContext context,
@@ -50,7 +53,10 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         TimeProvider timeProvider,
         IArtifactStorageProvider storageProvider,
         ICandidateAssessmentService candidateAssessmentService,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        IAiStreamingSessionService streamingSessionService,
+        IAiCancellationManager cancellationManager,
+        IOutboxPublisher outboxPublisher)
     {
         _context = context;
         _queue = queue;
@@ -63,6 +69,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         _storageProvider = storageProvider;
         _candidateAssessmentService = candidateAssessmentService;
         _scopeFactory = scopeFactory;
+        _streamingSessionService = streamingSessionService;
+        _cancellationManager = cancellationManager;
+        _outboxPublisher = outboxPublisher;
     }
 
     public async Task<Guid> EnqueueAnalysisJobAsync(Guid userId, Guid repositoryId)
@@ -168,6 +177,18 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         await _context.SaveChangesAsync();
 
+        // Create unified AI Streaming Session
+        await _streamingSessionService.CreateSessionAsync(
+            sessionId: jobId,
+            pipelineId: "repository-analysis",
+            userId: userId,
+            workspaceId: null,
+            modelName: "claude-haiku-4-5-20251001",
+            provider: "Claude",
+            pipelineVersion: "1.0.0",
+            expectedOutputsJson: "[\"RepositoryHealth\", \"CodeQuality\", \"Architecture\", \"Risks\"]"
+        );
+
         // 5. Enqueue Job ID
         await _queue.EnqueueJobAsync(jobId);
 
@@ -186,7 +207,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 _context.AnalysisTaskResults,
                 task => task.Id,
                 res => res.TaskId,
-                (task, results) => new { task, result = results.FirstOrDefault() }
+                (task, results) => new { task, result = results.OrderBy(r => r.TaskId).FirstOrDefault() }
             )
             .Where(x => x.task.JobId == jobId)
             .ToListAsync();
@@ -331,6 +352,23 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         await SaveEventAsync(jobId, "Cancelled", job.Progress, "Analysis cancelled by user.");
         await _context.SaveChangesAsync();
 
+        // 1. Set Redis cancellation key for Python AI service
+        try
+        {
+            var db = _redis.GetDatabase();
+            await db.StringSetAsync($"ai:cancel:{jobId}", "true", TimeSpan.FromMinutes(5));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set Redis cancellation key for job {JobId}", jobId);
+        }
+
+        // 2. Cancel C# token via IAiCancellationManager
+        _cancellationManager.Cancel(jobId);
+
+        // 3. Update unified streaming session so client-side and server-side state is synchronized
+        await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Cancelled");
+
         // Broadcast to Redis Pub/Sub to notify listening SSE connections
         await PublishProgressEventAsync(jobId, "Cancelled", "Cancelled", job.Progress, "Analysis cancelled by user.");
 
@@ -339,7 +377,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
     public async Task ExecuteAnalysisJobAsync(Guid jobId, CancellationToken cancellationToken)
     {
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var managerToken = _cancellationManager.Register(jobId, cancellationToken);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(managerToken);
         linkedCts.CancelAfter(TimeSpan.FromMinutes(10)); // Max 10 mins timeout
 
         var job = await _context.AnalysisJobs.FirstOrDefaultAsync(j => j.Id == jobId);
@@ -478,6 +517,13 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 task.ModelName = null;
 
                 // Update task and job to Running
+                // Check if job was cancelled out-of-band before starting task
+                await _context.Entry(job).ReloadAsync(linkedCts.Token);
+                if (job.Status == "Cancelled")
+                {
+                    throw new OperationCanceledException("Job was cancelled by the user.");
+                }
+
                 task.Status = "Running";
                 task.StartedAt = _timeProvider.GetUtcNow();
                 task.Progress = 10.0;
@@ -621,6 +667,11 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                             }
                         }
 
+                        await _context.Entry(job).ReloadAsync(linkedCts.Token);
+                        if (job.Status == "Cancelled")
+                        {
+                            throw new OperationCanceledException("Job was cancelled by the user.");
+                        }
                         job.Progress = completedProgress;
                         await _context.SaveChangesAsync(linkedCts.Token);
 
@@ -645,6 +696,10 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     }
                     catch (Exception ex)
                     {
+                        if (ex is OperationCanceledException || linkedCts.Token.IsCancellationRequested)
+                        {
+                            throw;
+                        }
                         var (errCode, retryable) = ClassifyError(null, ex);
                         
                         // Check if we can retry
@@ -851,6 +906,12 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             }
 
             // 8. Complete Job
+            await _context.Entry(job).ReloadAsync(linkedCts.Token);
+            if (job.Status == "Cancelled")
+            {
+                throw new OperationCanceledException("Job was cancelled by the user.");
+            }
+
             job.Status = "Completed";
             job.Progress = 100.0;
             job.CurrentStep = "Completed";
@@ -858,7 +919,16 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             job.LastUpdatedUtc = _timeProvider.GetUtcNow();
 
             await SaveEventAsync(jobId, "Completed", 100.0, "Analysis completed successfully.");
-            await _context.SaveChangesAsync(CancellationToken.None);
+
+            // Enqueue RepositorySyncTriggered outbox message to trigger downstream talent intelligence pipeline
+            _logger.LogInformation("Enqueuing RepositorySyncTriggered outbox message for CandidateId: {CandidateId}, RepositoryId: {RepositoryId}, Action: SyncTriggered", job.UserId, job.RepositoryId);
+            _outboxPublisher.Enqueue("RepositorySyncTriggered", new { CandidateId = job.UserId, RepositoryId = job.RepositoryId });
+
+            await _context.SaveChangesAsync(linkedCts.Token);
+
+            await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Completed", summaryData: finalReportJson);
+            await _streamingSessionService.UpdateSessionProgressAsync(jobId, 100.0, "Completed");
+            await _streamingSessionService.AddLogAsync(jobId, "Completed", "Success", "System", "Analysis completed successfully.");
 
             await PublishProgressEventAsync(jobId, "Completed", "Completed", 100.0, "Analysis completed successfully.");
         }
@@ -885,6 +955,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 await _context.SaveChangesAsync(CancellationToken.None);
 
                 await PublishProgressEventAsync(jobId, "TimedOut", "TimedOut", freshJob.Progress, freshJob.ErrorMessage);
+
+                // Update unified streaming session so the SSE channel properly terminates
+                await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Failed", errorMessage: freshJob.ErrorMessage);
             }
         }
         catch (Exception ex)
@@ -920,7 +993,14 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
                 // Always save changes to persist repo and job status updates
                 await _context.SaveChangesAsync(CancellationToken.None);
+
+                // Update unified streaming session so the SSE channel properly terminates
+                await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Failed", errorMessage: freshJob.ErrorMessage ?? ex.Message);
             }
+        }
+        finally
+        {
+            _cancellationManager.Unregister(jobId);
         }
     }
 
@@ -1375,6 +1455,31 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     {
         try
         {
+            // Sync to unified AI streaming stages, logs and metrics tables
+            var unifiedStatus = taskStatus == "Completed" ? "Completed" : taskStatus == "Failed" ? "Failed" : "Running";
+            await _streamingSessionService.UpsertStageAsync(
+                sessionId: jobId,
+                stageId: taskType,
+                stageName: taskType,
+                status: unifiedStatus,
+                progress: taskProgress,
+                description: message,
+                retryCount: 0,
+                durationMs: durationMs
+            );
+
+            await _streamingSessionService.AddLogAsync(
+                sessionId: jobId,
+                stageId: taskType,
+                logLevel: taskStatus == "Failed" ? "Error" : taskStatus == "Completed" ? "Success" : "Info",
+                component: taskType,
+                message: message
+            );
+
+            if (promptTokens.HasValue) await _streamingSessionService.AddMetricAsync(jobId, taskType, "input_tokens", promptTokens.Value);
+            if (completionTokens.HasValue) await _streamingSessionService.AddMetricAsync(jobId, taskType, "output_tokens", completionTokens.Value);
+            if (estimatedCostUsd.HasValue) await _streamingSessionService.AddMetricAsync(jobId, taskType, "cost_usd", (double)estimatedCostUsd.Value);
+
             var eventType = taskStatus == "Completed" ? "AI_TASK_COMPLETED" : taskStatus == "Failed" ? "AI_TASK_FAILED" : "ProgressUpdate";
             var eventPayload = new
             {
@@ -1436,6 +1541,19 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         await SaveEventAsync(job.Id, status, progress, message);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Update generic AI streaming session
+        await _streamingSessionService.UpdateSessionProgressAsync(job.Id, progress, status);
+        if (status == "Failed")
+        {
+            await _streamingSessionService.UpdateSessionStatusAsync(job.Id, "Failed", errorMessage: message);
+            await _streamingSessionService.AddLogAsync(job.Id, null, "Error", "System", message);
+        }
+        else
+        {
+            await _streamingSessionService.UpdateSessionStatusAsync(job.Id, "Running");
+            await _streamingSessionService.AddLogAsync(job.Id, null, "Info", "System", message);
+        }
 
         await PublishProgressEventAsync(job.Id, status, status, progress, message);
     }
@@ -1709,13 +1827,40 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             using (var reportDoc = JsonDocument.Parse(finalReportJson))
             {
                 var root = reportDoc.RootElement;
-                if (root.TryGetProperty("trust_score", out var trustProp))
+
+                // 1. Parse trustScore (V2: classification.trustScore [0.0-1.0], V1: trust_score.score [0.0-100.0])
+                if (root.TryGetProperty("classification", out var classificationProp) &&
+                    classificationProp.TryGetProperty("trustScore", out var trustScoreProp))
                 {
-                    if (trustProp.TryGetProperty("score", out var scoreProp)) trustScore = scoreProp.GetDouble();
+                    trustScore = trustScoreProp.GetDouble() * 100.0;
+                }
+                else if (root.TryGetProperty("trust_score", out var trustProp) &&
+                         trustProp.TryGetProperty("score", out var scoreProp))
+                {
+                    trustScore = scoreProp.GetDouble();
                 }
 
-                if (root.TryGetProperty("ingestion", out var ingestionProp) && 
-                    ingestionProp.TryGetProperty("language_distribution", out var langProp))
+                // 2. Parse language distribution (V2: facts.repo.languages / repo.languages, V1: ingestion.language_distribution)
+                JsonElement langProp = default;
+                bool hasLangs = false;
+                if (root.TryGetProperty("facts", out var factsProp) &&
+                    factsProp.TryGetProperty("repo", out var repoProp) &&
+                    repoProp.TryGetProperty("languages", out langProp))
+                {
+                    hasLangs = true;
+                }
+                else if (root.TryGetProperty("repo", out repoProp) &&
+                         repoProp.TryGetProperty("languages", out langProp))
+                {
+                    hasLangs = true;
+                }
+                else if (root.TryGetProperty("ingestion", out var ingestionProp) &&
+                         ingestionProp.TryGetProperty("language_distribution", out langProp))
+                {
+                    hasLangs = true;
+                }
+
+                if (hasLangs && langProp.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var prop in langProp.EnumerateObject())
                     {
@@ -1723,8 +1868,39 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     }
                 }
 
-                if (root.TryGetProperty("architecture", out var archProp) && 
-                    archProp.TryGetProperty("patterns", out var patProp))
+                // 3. Parse architecture patterns from individual task result or aggregated report
+                var archResult = results.FirstOrDefault(r => r.Task.TaskType == "ArchitectureAnalysis");
+                if (archResult != null && !string.IsNullOrEmpty(archResult.ResultData))
+                {
+                    try
+                    {
+                        using var archDoc = JsonDocument.Parse(archResult.ResultData);
+                        var archRoot = archDoc.RootElement;
+                        var dataProp = archRoot.TryGetProperty("data", out var dProp) ? dProp : archRoot;
+                        if (dataProp.TryGetProperty("patterns", out var patProp) && patProp.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var item in patProp.EnumerateArray())
+                            {
+                                if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("pattern", out var pNameProp))
+                                {
+                                    var pat = pNameProp.GetString();
+                                    if (!string.IsNullOrEmpty(pat)) patterns.Add(pat);
+                                }
+                                else if (item.ValueKind == JsonValueKind.String)
+                                {
+                                    var pat = item.GetString();
+                                    if (!string.IsNullOrEmpty(pat)) patterns.Add(pat);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "ProjectIntelligenceDataAsync: Failed to parse architecture patterns from individual task result.");
+                    }
+                }
+                else if (root.TryGetProperty("architecture", out var archProp) && 
+                         archProp.TryGetProperty("patterns", out var patProp))
                 {
                     foreach (var item in patProp.EnumerateArray())
                     {
@@ -1735,16 +1911,27 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     }
                 }
 
+                // 4. Parse qualityScore and cloneRiskClassification
                 if (root.TryGetProperty("code_quality", out var qProp) && 
                     qProp.TryGetProperty("overall_score", out var oScoreProp))
                 {
                     qualityScore = oScoreProp.GetDouble();
+                }
+                else
+                {
+                    qualityScore = trustScore; // Fallback to trust score
                 }
 
                 if (root.TryGetProperty("fraud_signals", out var fraudProp) && 
                     fraudProp.TryGetProperty("clone_classification", out var cloneProp))
                 {
                     cloneRiskClassification = cloneProp.GetString() ?? "clean";
+                }
+                else if (root.TryGetProperty("risk", out var riskProp) &&
+                         riskProp.TryGetProperty("level", out var levelProp))
+                {
+                    var level = levelProp.GetString()?.ToLowerInvariant();
+                    cloneRiskClassification = level == "high" ? "suspicious" : "clean";
                 }
             }
 

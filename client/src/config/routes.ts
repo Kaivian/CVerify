@@ -80,10 +80,10 @@ export const routesConfig: Record<string, RouteMetadata> = {
     icon: Sparkles,
     parentPath: '/ranking',
   },
-  '/intelligence/capability-graph': {
-    path: '/intelligence/capability-graph',
-    translationKey: 'common:dashboard.capabilityGraph',
-    fallbackLabel: 'Capability Graph',
+  '/intelligence/skill-tree': {
+    path: '/intelligence/skill-tree',
+    translationKey: 'common:dashboard.skillTree',
+    fallbackLabel: 'Skill Tree',
   },
   '/intelligence/trust-score': {
     path: '/intelligence/trust-score',
@@ -127,6 +127,56 @@ export const routesConfig: Record<string, RouteMetadata> = {
     fallbackLabel: 'Audit Trail',
     icon: FileText,
     parentPath: '/admin',
+  },
+  '/business/[organizationSlug]/dashboard': {
+    path: '/business/[organizationSlug]/dashboard',
+    translationKey: 'common:dashboard.businessDashboard',
+    fallbackLabel: 'Dashboard',
+  },
+  '/business/[organizationSlug]/listings': {
+    path: '/business/[organizationSlug]/listings',
+    translationKey: 'common:dashboard.listings',
+    fallbackLabel: 'Listings',
+  },
+  '/business/[organizationSlug]/bookings': {
+    path: '/business/[organizationSlug]/bookings',
+    translationKey: 'common:dashboard.bookings',
+    fallbackLabel: 'Bookings',
+  },
+  '/business/[organizationSlug]/revenue': {
+    path: '/business/[organizationSlug]/revenue',
+    translationKey: 'common:dashboard.revenue',
+    fallbackLabel: 'Revenue',
+  },
+  '/business/[organizationSlug]/customers': {
+    path: '/business/[organizationSlug]/customers',
+    translationKey: 'common:dashboard.customers',
+    fallbackLabel: 'Customers',
+  },
+  '/business/[organizationSlug]/analytics': {
+    path: '/business/[organizationSlug]/analytics',
+    translationKey: 'common:dashboard.analytics',
+    fallbackLabel: 'Analytics',
+  },
+  '/business/[organizationSlug]/members': {
+    path: '/business/[organizationSlug]/members',
+    translationKey: 'common:dashboard.members',
+    fallbackLabel: 'Team Members',
+  },
+  '/business/[organizationSlug]/roles': {
+    path: '/business/[organizationSlug]/roles',
+    translationKey: 'common:dashboard.roles',
+    fallbackLabel: 'Access Control',
+  },
+  '/business/[organizationSlug]/billing': {
+    path: '/business/[organizationSlug]/billing',
+    translationKey: 'common:dashboard.billing',
+    fallbackLabel: 'Billing & Subscription',
+  },
+  '/business/[organizationSlug]/settings': {
+    path: '/business/[organizationSlug]/settings',
+    translationKey: 'common:dashboard.settings',
+    fallbackLabel: 'Workspace Settings',
   },
 };
 

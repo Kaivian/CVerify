@@ -155,7 +155,7 @@ export const OrganizationCard: React.FC<OrganizationCardProps> = ({ organization
           )}
 
           <Link
-            href={`/workspace/${organization.organizationSlug}`}
+            href={`/business/${organization.organizationSlug}`}
             className="flex items-center justify-center h-7 px-3 bg-accent text-accent-foreground text-[10px] font-bold rounded-lg hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
           >
             View Workspace

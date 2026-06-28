@@ -141,25 +141,25 @@ class GitHubPromptFactory(IPromptFactory):
             "title": "string title (3-6 words, identical to finding)",
             "confidence": 0 to 100,
             "impact": "positive" | "warning" | "critical",
-            "explanation": "string details (2-4 sentences. MUST reference at least one specific file path or method name observed in the sampled code)",
+            "explanation": "string details (1-2 sentences. STRICT LIMIT: under 200 characters. MUST reference at least one specific file path or method name observed in the sampled code)",
             "evidence_signals": ["string paths or patterns supporting finding"],
             "evidence": [
                 {
                     "type": "file" | "dependency" | "structure" | "commit",
                     "path": "string path or null",
                     "line_range": "string line range (e.g. 10-25) or null",
-                    "signal": "string detail (1 sentence citing files)"
+                    "signal": "string detail (1 sentence citing files. STRICT LIMIT: under 100 characters)"
                 }
             ]
         }
     ],
     "narrative": {
-        "recruiter_summary": "string summary (A detailed, technical explanation of the repository. Detail the repository's purpose, design, architecture patterns, and technology stack in depth with no strict length limit.)",
+        "recruiter_summary": "string summary (A concise, technical summary of the repository's purpose, design, architecture patterns, and tech stack. STRICT LIMIT: under 3 paragraphs, under 900 characters.)",
         "top_strengths": [
-            { "strength": "string name", "rationale": "string details (1-2 sentences. Ground in technical observation)" }
+            { "strength": "string name", "rationale": "string details (1 sentence. Ground in technical observation. STRICT LIMIT: under 120 characters)" }
         ],
         "limitations": [
-            { "limitation": "string name", "rationale": "string details (1-2 sentences. Ground in technical observation)" }
+            { "limitation": "string name", "rationale": "string details (1 sentence. Ground in technical observation. STRICT LIMIT: under 120 characters)" }
         ]
     }
 }

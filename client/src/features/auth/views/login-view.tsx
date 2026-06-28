@@ -310,7 +310,7 @@ function LoginContent() {
     } else {
       toast.danger("Authentication Failed", {
         description:
-          result.error?.message || "Invalid workspace username or password.",
+          result.error?.message || "Invalid business handle or password.",
       });
     }
   };
@@ -557,9 +557,9 @@ function LoginContent() {
                     onReset={handleBusinessReset}
                   >
                     <TextField isRequired name="username" type="text">
-                      <Label>Organization Slug</Label>
+                      <Label>Business Handle</Label>
                       <Input
-                        placeholder="Enter workspace handle (e.g. fpt-software)"
+                        placeholder="Enter business handle (e.g. fpt-software)"
                         value={businessUsername}
                         onChange={(e) => setBusinessUsername(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
                       />
@@ -598,15 +598,15 @@ function LoginContent() {
                       <FieldError />
                     </TextField>
 
-                    <div className="flex items-center justify-between">
-                      <Checkbox id="remember-me">
+                    <div className="flex justify-between">
+                      <Checkbox id="remember-me" className="flex flex-row">
                         <Checkbox.Control>
                           <Checkbox.Indicator />
                         </Checkbox.Control>
                         <Checkbox.Content>
                           <Label
                             htmlFor="remember-me"
-                            className="text-muted cursor-pointer text-xs"
+                            className="text-muted cursor-pointer text-xs pt-px"
                           >
                             Remember me
                           </Label>

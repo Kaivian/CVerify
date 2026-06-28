@@ -22,6 +22,7 @@ export interface BasicInfoDraft {
   company: string;
   birthDate: string;
   socialLinks: string[];
+  aiSuggestionsJson?: string | null;
 }
 
 export interface SkillsDraft {

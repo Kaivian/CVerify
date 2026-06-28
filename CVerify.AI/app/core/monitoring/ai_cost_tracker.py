@@ -130,7 +130,8 @@ class AiCostTracker(IAiCostTracker):
         cache_read_tokens: int = 0,
         duration_ms: int = 0,
         status: str = "success",
-        total_tokens: Optional[int] = None
+        total_tokens: Optional[int] = None,
+        provider: Optional[str] = None
     ) -> Decimal:
         normalized = TokenAccountingService.normalize_usage(
             model=model,
@@ -142,8 +143,16 @@ class AiCostTracker(IAiCostTracker):
         )
         cost = Decimal(str(normalized.estimated_cost_usd))
         
+        resolved_provider = provider or (
+            "Anthropic" if "claude" in model.lower()
+            else "Google" if "gemini" in model.lower()
+            else "OpenAI" if "gpt" in model.lower()
+            else "Unknown"
+        )
+        
         execution_record = {
             "model": model,
+            "provider": resolved_provider,
             "executionType": execution_type,
             "promptTokens": normalized.prompt_tokens,
             "completionTokens": normalized.completion_tokens,

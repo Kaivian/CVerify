@@ -45,8 +45,10 @@ import type {
 import { API_URL } from "@/services/axios-client";
 import { useDebounce } from "@/hooks/use-debounce";
 import { AnalysisStatusBadge } from "../components/repository-analysis/AnalysisStatusBadge";
-import { DetailedAnalysisModal } from "../components/repository-analysis/DetailedAnalysisModal";
+import { useStreamingStore } from "@/modules/streaming";
 import { useAnalysisJobStore, getDerivedUIState } from "../components/repository-analysis/stores/use-analysis-job-store";
+import { RepositoryHeatmap } from "../components/repository-analysis/RepositoryHeatmap";
+import { useProfileStore } from "@/stores/use-profile-store";
 
 const POPULAR_LANGUAGES = [
   "TypeScript",
@@ -97,8 +99,23 @@ export default function SourceCodeProvidersPage() {
   // Repository Analysis States (Zustand subscribed)
   const repoStates = useAnalysisJobStore((state) => state.repoStates);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRepoId, setSelectedRepoId] = useState<string>("");
+  const { connectSession, loadHistorySession } = useStreamingStore();
+  const openAnalysisDetails = useCallback((repoId: string) => {
+    const repoState = repoStates[repoId];
+    const jobId = repoState?.jobId || repoState?.latestReport?.jobId || repoState?.partialSnapshot?.jobId || (repoState?.latestReport as any)?.job_id || null;
+    const status = repoState?.status;
+    
+    if (jobId) {
+      if (status === "ANALYZING" || status === "QUEUED") {
+        connectSession("repository-analysis", jobId, undefined, repoId);
+      } else {
+        loadHistorySession(jobId, repoId);
+      }
+    } else {
+      toast.danger("No analysis run found for this repository.");
+    }
+  }, [repoStates, connectSession, loadHistorySession]);
+
   const [repoToReanalyze, setRepoToReanalyze] = useState<{ id: string; name: string; owner: string } | null>(null);
   const [isReanalyzeConfirmOpen, setIsReanalyzeConfirmOpen] = useState(false);
   const [repoToReset, setRepoToReset] = useState<{ id: string; name: string; owner: string } | null>(null);
@@ -224,6 +241,19 @@ export default function SourceCodeProvidersPage() {
     setIsResetting(true);
     try {
       await useAnalysisJobStore.getState().resetRepositoryAnalysis(repoId);
+      
+      // Invalidate profile store caches to ensure the CV page pulls fresh data
+      useProfileStore.setState((state) => ({
+        fetched: {
+          ...state.fetched,
+          projects: false,
+          profile: false,
+          career: false,
+          workExperiences: false,
+          achievements: false,
+        }
+      }));
+
       toast.success("Repository analysis was reset successfully.");
       setPage(1);
       fetchRepos(1, true);
@@ -525,9 +555,10 @@ export default function SourceCodeProvidersPage() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
-            {/* Left Compartment: Core Details & Repo Stats & Actions */}
-            <div className="lg:col-span-5 flex flex-col justify-between text-left">
-              <div className="flex flex-col justify-between gap-2">
+            {/* Left Column (lg:col-span-7) - Repo Identity & Heatmap & Actions */}
+            <div className="lg:col-span-7 flex flex-col justify-between text-left space-y-4">
+              <div className="space-y-3">
+                {/* Title & Badge Row */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="shrink-0 text-foreground/80">
@@ -545,92 +576,53 @@ export default function SourceCodeProvidersPage() {
                   </div>
                   <div className="shrink-0 flex items-center gap-1.5">
                     {repo.isPrivate ? (
-                      <Chip size="sm" color="default" variant="primary">
-                        <Lock className="size-2.5 mr-0.5" />
-                        <span className="text-[8.5px] uppercase tracking-wider font-extrabold mt-0.5">Private</span>
-                      </Chip>
+                      <Lock size={12} className="text-muted-foreground" />
                     ) : (
-                      <Chip size="sm" color="accent" variant="soft">
-                        <Globe className="size-3 mr-0.5" />
-                        <span className="text-[8.5px] uppercase tracking-wider font-extrabold mt-px">Public</span>
-                      </Chip>
+                      <Globe size={12} className="text-accent" />
                     )}
                     <Chip size="sm" color="default" variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
-                      {repo.classification || "Pending Analysis"}
+                      {repo.classification || "Pending"}
                     </Chip>
-                    {repo.authenticityType && (
-                      <Chip size="sm" color="warning" variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
-                        {repo.authenticityType.replace(/_/g, " ")}
-                      </Chip>
-                    )}
                   </div>
                 </div>
 
-                <span className="text-[10px] text-muted block">
-                  Owner: <strong className="text-foreground">{repo.owner}</strong>
-                </span>
-
+                {/* Description */}
                 <p className="text-xs text-muted leading-relaxed">
                   {repo.description || "No description provided."}
                 </p>
 
-                <Separator variant="tertiary" />
-
-                {/* AI REPO SUMARRY */}
-                {analysisResult.cvSynthesis && (
-                  <div className="space-y-2 mt-2 bg-surface-secondary/30 border border-tertiary p-3 rounded-xl text-left">
-                    <div className="flex items-center justify-between border-b border-border/10 pb-1.5">
-                      <div className="flex items-center gap-1">
-                        <Sparkles className="size-3.5 text-accent shrink-0" />
-                        <span className="text-[10px] text-foreground uppercase font-black tracking-wider font-sans">
-                          AI CV Profile
-                        </span>
-                      </div>
-                      {analysisResult.cvSynthesis.ownershipProfile && (
-                        <Chip
-                          size="sm"
-                          variant="soft"
-                          color="default"
-                          className="h-4.5 px-1.5 text-[10px] uppercase rounded-md"
-                        >
-                          {analysisResult.cvSynthesis.ownershipProfile}
-                        </Chip>
-                      )}
-                    </div>
-                    {analysisResult.cvSynthesis.title && (
-                      <h5 className="text-[11px] font-extrabold text-foreground tracking-wide font-sans">
-                        {analysisResult.cvSynthesis.title}
-                      </h5>
-                    )}
-                    <p className="text-[10.5px] text-muted-foreground leading-relaxed font-light whitespace-pre-wrap line-clamp-4">
-                      {analysisResult.cvSynthesis.summary}
-                    </p>
-                    {analysisResult.cvSynthesis.skills && analysisResult.cvSynthesis.skills.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1 border-t border-border/10 mt-1">
-                        {analysisResult.cvSynthesis.skills.slice(0, 4).map((skill, idx) => (
-                          <Chip
-                            key={`${skill}-${idx}`}
-                            size="sm"
-                            variant="soft"
-                            color="default"
-                            className="h-4.5 px-1.5 text-[8.5px] font-bold rounded-md"
-                          >
-                            {skill}
-                          </Chip>
-                        ))}
-                        {analysisResult.cvSynthesis.skills.length > 3 && (
-                          <span className="text-[8.5px] text-muted font-bold self-center">
-                            +{analysisResult.cvSynthesis.skills.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    )}
+                {/* Verdict Section: Insights First! */}
+                <div className="p-3.5 rounded-xl bg-success-soft/20 dark:bg-success-soft/10 border border-success/15 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-success font-black uppercase tracking-wider font-sans">
+                      Verification Verdict
+                    </span>
+                    <Chip size="sm" color="success" variant="soft" className="h-4.5 px-1.5 text-[9px] font-extrabold uppercase rounded-md">
+                      Verified Contributor
+                    </Chip>
                   </div>
-                )}
+                  <Typography type="body-xs" className="font-bold text-foreground">
+                    Verified original project with {trustScorePct}% trust score.
+                  </Typography>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex flex-wrap items-center gap-2 bg-surface-secondary/30 border border-tertiary px-3 py-2 rounded-xl text-[11px] text-muted font-mono w-fit">
+              {/* Inline Heatmap */}
+              <div className="border border-border/40 p-4 rounded-xl bg-surface-secondary/20 mt-1">
+                <RepositoryHeatmap
+                  dailyCommits={analysisResult.daily_commits}
+                  userDailyCommits={analysisResult.user_daily_commits}
+                  onReanalyze={() => {
+                    setRepoToReanalyze({ id: repo.id, name: repo.name, owner: repo.owner });
+                    setIsReanalyzeConfirmOpen(true);
+                  }}
+                  isReanalyzing={status === "ANALYZING" || status === "QUEUED"}
+                />
+              </div>
+
+              {/* Bottom stats and Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                <div className="flex flex-wrap items-center gap-2 bg-surface-secondary/30 border border-tertiary px-3 py-1.5 rounded-xl text-[11px] text-muted font-mono w-fit">
                   {repo.primaryLanguage && (
                     <span className="font-bold text-foreground pr-2 border-r border-tertiary">
                       {repo.primaryLanguage}
@@ -645,6 +637,7 @@ export default function SourceCodeProvidersPage() {
                     <span className="font-black text-foreground">{repo.forksCount}</span>
                   </span>
                 </div>
+
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
@@ -675,10 +668,7 @@ export default function SourceCodeProvidersPage() {
                     size="sm"
                     className="text-xs font-bold rounded-xl bg-accent text-accent-foreground"
                     isDisabled={isResetting}
-                    onClick={() => {
-                      setSelectedRepoId(repo.id);
-                      setIsModalOpen(true);
-                    }}
+                    onClick={() => openAnalysisDetails(repo.id)}
                   >
                     <span>View Details</span>
                   </Button>
@@ -686,108 +676,103 @@ export default function SourceCodeProvidersPage() {
               </div>
             </div>
 
-            {/* Right Compartment: Bento AI findings */}
-            <div className="lg:col-span-7 flex flex-col gap-4 text-left lg:border-l lg:border-tertiary lg:pl-6 pt-4 lg:pt-0">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-accent">
-                  <Sparkles className="size-4" /> AI Analysis
-                </span>
-                <AnalysisStatusBadge status={status} />
-              </div>
+            {/* Right Column (lg:col-span-5) - AI CV synthesis & Profile Card */}
+            <div className="lg:col-span-5 flex flex-col justify-between text-left lg:border-l lg:border-tertiary lg:pl-6 pt-4 lg:pt-0 gap-4">
+              <div className="space-y-4 flex-1 flex flex-col justify-between">
+                {/* AI Credentials Card */}
+                {analysisResult.cvSynthesis && (
+                  <div className="space-y-3 p-4 rounded-xl border border-tertiary bg-surface-secondary/40 flex-1 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between border-b border-border/10 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="size-4 text-accent shrink-0" />
+                          <span className="text-[10px] text-foreground uppercase font-black tracking-wider font-sans">
+                            Developer Profile
+                          </span>
+                        </div>
+                        {analysisResult.cvSynthesis.ownershipProfile && (
+                          <Chip
+                            size="sm"
+                            variant="soft"
+                            color="default"
+                            className="h-4.5 px-1.5 text-[9px] uppercase font-bold rounded-md"
+                          >
+                            {analysisResult.cvSynthesis.ownershipProfile}
+                          </Chip>
+                        )}
+                      </div>
 
-              {/* Nested 2x2 Grid of Bento Blocks */}
-              <div className="flex gap-4 items-center justify-between">
-                {/* Block 1: Evidence Coverage */}
-                <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
-                  <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Evidence Strength</span>
-                  <span className="text-sm font-black text-foreground font-mono mt-1">
-                    {totalEvidence.toFixed(0)} <span className="text-[10px] text-muted font-normal">{hasWeightedStrength ? "Weighted Pts" : "Signals"}</span>
-                  </span>
-                </div>
+                      {analysisResult.cvSynthesis.title && (
+                        <h5 className="text-xs font-extrabold text-foreground tracking-wide font-sans mt-2">
+                          {analysisResult.cvSynthesis.title}
+                        </h5>
+                      )}
+                      
+                      <p className="text-[11px] text-muted-foreground leading-relaxed font-light">
+                        {analysisResult.cvSynthesis.summary}
+                      </p>
+                    </div>
 
-                {/* Block 2: Trust Confidence */}
-                <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
-                  <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Trust Level</span>
-                  <span className="text-sm font-black text-foreground font-mono mt-1">
-                    {trustScorePct}%
-                  </span>
-                </div>
-
-                {/* Block 3: Classification */}
-                <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
-                  <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Classification</span>
-                  <span className="text-sm font-bold text-foreground truncate block mt-1">
-                    {primaryDomain}
-                  </span>
-                </div>
-              </div>
-
-              {/* Block 4: Risk Profile */}
-              <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
-                <div className="flex items-center justify-between w-full">
-                  <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Risk Level</span>
-                  <div>
-                    {(() => {
-                      const getRiskColor = (level: string) => {
-                        switch (level.toLowerCase()) {
-                          case "high": return "danger";
-                          case "medium": return "warning";
-                          case "low":
-                          default: return "success";
-                        }
-                      };
-                      return (
-                        <Chip size="sm" color={getRiskColor(riskLevel)} variant="soft" className="h-5.5 px-2 text-[9px] font-extrabold uppercase mb-1 rounded-md">
-                          {riskLevel} Risk
-                        </Chip>
-                      );
-                    })()}
-                  </div>
-                </div>
-                {analysisResult.risk?.reasons && analysisResult.risk.reasons.length > 0 && (
-                  <div className=" text-[10px] text-muted-foreground flex flex-wrap gap-1">
-                    {analysisResult.risk.reasons.map((reason: string) => (
-                      <Chip key={reason} color="default" variant="soft" className="h-5.5 px-2 text-[9px] uppercase truncate rounded-md border border-border">{reason}</Chip>
-                    ))}
+                    {/* Skill Tags */}
+                    {analysisResult.cvSynthesis.skills && analysisResult.cvSynthesis.skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2 pt-2.5 border-t border-border/10">
+                        {analysisResult.cvSynthesis.skills.slice(0, 5).map((skill, idx) => (
+                          <Chip
+                            key={`${skill}-${idx}`}
+                            size="sm"
+                            variant="soft"
+                            color="default"
+                            className="h-4.5 px-1.5 text-[8.5px] font-extrabold rounded-md"
+                          >
+                            {skill}
+                          </Chip>
+                        ))}
+                        {analysisResult.cvSynthesis.skills.length > 5 && (
+                          <span className="text-[8.5px] text-muted font-bold self-center">
+                            +{analysisResult.cvSynthesis.skills.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
 
-              {/* Skills Highlights */}
-              {analysisResult.narrative?.top_strengths && analysisResult.narrative.top_strengths.length > 0 && (
-                <div className="flex flex-col gap-2 p-3 rounded-xl border border-tertiary bg-surface-secondary/30 w-full">
-                  <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Top Skills</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {analysisResult.narrative.top_strengths.map((strengthItem, idx) => (
-                      <Chip key={idx} color="default" variant="soft" className="h-5.5 px-2 text-[9px] uppercase truncate rounded-md border border-border">
-                        {strengthItem.strength}
-                      </Chip>
-                    ))}
+                {/* Key Insights highlights instead of raw metrics */}
+                {analysisResult.cvSynthesis?.highlights && analysisResult.cvSynthesis.highlights.length > 0 && (
+                  <div className="space-y-2 p-3.5 rounded-xl border border-tertiary bg-surface-secondary/20">
+                    <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold block">
+                      Contribution Highlights
+                    </span>
+                    <ul className="list-none p-0 m-0 space-y-1.5 text-[10.5px] text-muted-foreground font-sans">
+                      {analysisResult.cvSynthesis.highlights.slice(0, 3).map((item: any, idx: number) => (
+                        <li key={idx} className="flex items-start gap-1.5 leading-relaxed">
+                          <span className="text-accent text-[12px] leading-[14px] select-none">•</span>
+                          <span>{item.signal}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
+                )}
+
+                {/* Risk profile highlights */}
+                <div className="flex flex-col p-3 rounded-xl border border-tertiary bg-surface-secondary/20 w-full justify-between">
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[9.5px] text-muted uppercase tracking-wider font-extrabold">Risk Profile</span>
+                    <Chip size="sm" color={riskLevel === "high" ? "danger" : riskLevel === "medium" ? "warning" : "success"} variant="soft" className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md">
+                      {riskLevel} Risk
+                    </Chip>
+                  </div>
+                  {analysisResult.risk?.reasons && analysisResult.risk.reasons.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground flex flex-wrap gap-1 mt-2">
+                      {analysisResult.risk.reasons.slice(0, 3).map((reason: string) => (
+                        <Chip key={reason} color="default" variant="soft" className="h-5 px-1.5 text-[8px] uppercase truncate rounded-md border border-border">{reason}</Chip>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
-
-          {/* AI Summary Compartment - moved outside the grid to span full-width and balance layout */}
-          <Accordion className="w-full mt-4 border border-tertiary bg-surface-secondary/30 rounded-xl" variant="surface">
-            <Accordion.Item key="ai-summary" id="ai-summary" aria-label="AI Summary">
-              <Accordion.Heading>
-                <Accordion.Trigger className="text-[10.5px] font-bold text-foreground flex items-center justify-between w-full py-2 px-2 cursor-pointer select-none rounded-md transition-all duration-300 hover:bg-surface-secondary/70">
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="size-3.5 text-accent shrink-0" />
-                    AI Detailed Report
-                  </span>
-                  <Accordion.Indicator />
-                </Accordion.Trigger>
-              </Accordion.Heading>
-              <Accordion.Panel>
-                <Accordion.Body className="text-[11.5px] text-muted-foreground leading-relaxed pl-5.5 font-light pt-2 pb-3 select-text markdown-summary">
-                  <div dangerouslySetInnerHTML={{ __html: parseAndSanitizeMarkdown(analysisResult.narrative?.recruiter_summary || (analysisResult.risk?.reasons && analysisResult.risk.reasons.join(", ")) || "No summary available.") }} />
-                </Accordion.Body>
-              </Accordion.Panel>
-            </Accordion.Item>
-          </Accordion>
         </div>
       );
     }
@@ -957,10 +942,7 @@ export default function SourceCodeProvidersPage() {
                   size="sm"
                   variant="outline"
                   className="h-5 px-1.5 text-[8.5px] font-extrabold uppercase rounded-md flex items-center gap-1 border-border/40 hover:bg-surface-secondary text-warning"
-                  onClick={() => {
-                    setSelectedRepoId(repo.id);
-                    setIsModalOpen(true);
-                  }}
+                  onClick={() => openAnalysisDetails(repo.id)}
                 >
                   <Terminal size={10} className="shrink-0" />
                   <span>Monitor Logs</span>
@@ -984,10 +966,7 @@ export default function SourceCodeProvidersPage() {
                       variant="secondary"
                       className="text-xs font-bold rounded-xl border-border/40"
                       isDisabled={isResetting}
-                      onClick={() => {
-                        setSelectedRepoId(repo.id);
-                        setIsModalOpen(true);
-                      }}
+                      onClick={() => openAnalysisDetails(repo.id)}
                     >
                       <span>Logs</span>
                     </Button>
@@ -1646,12 +1625,7 @@ export default function SourceCodeProvidersPage() {
         </div>
       )}
 
-      {/* Detailed Analysis Modal */}
-      <DetailedAnalysisModal
-        isOpen={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        repoId={selectedRepoId}
-      />
+
 
       {/* Reanalyze Confirmation Modal */}
       <AlertDialog.Backdrop
@@ -1664,7 +1638,10 @@ export default function SourceCodeProvidersPage() {
         }}
       >
         <AlertDialog.Container>
-          <AlertDialog.Dialog className="sm:max-w-[400px]">
+          <AlertDialog.Dialog 
+            aria-label="Confirm Reanalysis"
+            className="sm:max-w-[400px]"
+          >
             {(renderProps) => (
               <>
                 <AlertDialog.CloseTrigger />
@@ -1728,7 +1705,10 @@ export default function SourceCodeProvidersPage() {
         }}
       >
         <AlertDialog.Container>
-          <AlertDialog.Dialog className="sm:max-w-[400px]">
+          <AlertDialog.Dialog 
+            aria-label="Confirm Repository Reset"
+            className="sm:max-w-[400px]"
+          >
             {(renderProps) => (
               <>
                 <AlertDialog.CloseTrigger />

@@ -3,9 +3,16 @@ using System.Collections.Generic;
 
 namespace CVerify.API.Modules.Profiles.DTOs;
 
+public record MissingFieldDto(
+    string FieldKey,
+    string DisplayLabel,
+    string RecommendationMessage,
+    bool IsRequired
+);
+
 public record CandidateReadinessDto(
     bool IsReady,
-    List<string> MissingFields,
+    List<MissingFieldDto> MissingFields,
     double CompletenessScore,
     bool RequiresReassessment,
     DateTimeOffset? LastAssessmentAt,
@@ -49,3 +56,16 @@ public record CandidateAssessmentDetailResponse(
     CandidateAssessmentResponse Assessment,
     List<CandidateAssessmentArtifactDto> Artifacts
 );
+
+public class CandidateSkillTreeNodeResponse
+{
+    public Guid Id { get; set; }
+    public Guid? ParentId { get; set; }
+    public string DisplayName { get; set; } = null!;
+    public string Category { get; set; } = null!;
+    public string ProficiencyLevel { get; set; } = null!;
+    public double ConfidenceScore { get; set; }
+    public double EstimatedExperienceMonths { get; set; }
+    public string? SupportingEvidence { get; set; }
+    public List<CandidateSkillTreeNodeResponse> Children { get; set; } = new();
+}

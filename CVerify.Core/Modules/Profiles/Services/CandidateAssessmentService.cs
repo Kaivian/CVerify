@@ -28,6 +28,10 @@ public class CandidateAssessmentService : ICandidateAssessmentService
     private readonly ICandidateRepositoryProvider _repositoryProvider;
     private readonly ILogger<CandidateAssessmentService> _logger;
     private readonly ICandidateEvaluationService _evaluationService;
+    private readonly ISkillTreeValidationService _validationService;
+    private readonly IAiStreamingSessionService _streamingSessionService;
+    private readonly IAiCancellationManager _cancellationManager;
+    private readonly ICandidateRankingProjectionService _rankingProjectionService;
 
     public CandidateAssessmentService(
         ApplicationDbContext context,
@@ -37,7 +41,11 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         IConnectionMultiplexer redis,
         ICandidateRepositoryProvider repositoryProvider,
         ILogger<CandidateAssessmentService> _logger,
-        ICandidateEvaluationService evaluationService)
+        ICandidateEvaluationService evaluationService,
+        ISkillTreeValidationService validationService,
+        IAiStreamingSessionService streamingSessionService,
+        IAiCancellationManager cancellationManager,
+        ICandidateRankingProjectionService rankingProjectionService)
     {
         _context = context;
         _queue = queue;
@@ -47,6 +55,10 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         _repositoryProvider = repositoryProvider;
         this._logger = _logger;
         _evaluationService = evaluationService;
+        _validationService = validationService;
+        _streamingSessionService = streamingSessionService;
+        _cancellationManager = cancellationManager;
+        _rankingProjectionService = rankingProjectionService;
     }
 
     public async Task<CandidateReadinessDto> GetReadinessStatusAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -59,42 +71,80 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
         }
 
-        var missingFields = new List<string>();
+        var missingFields = new List<MissingFieldDto>();
+
+        var hasCompletedRepos = await _repositoryProvider.HasCompletedRepositoriesAsync(userId, cancellationToken);
+        if (!hasCompletedRepos)
+        {
+            missingFields.Add(new MissingFieldDto(
+                "Repositories",
+                "CV-Linked Source Code Repositories",
+                "At least one analyzed repository that is linked to your CV is required for AI code capability & engineering telemetry evaluation.",
+                IsRequired: true
+            ));
+        }
 
         if (string.IsNullOrWhiteSpace(profile.Headline))
         {
-            missingFields.Add("Headline");
+            missingFields.Add(new MissingFieldDto(
+                "Headline",
+                "Professional Headline",
+                "A professional headline helps direct the AI assessment on your targeted career orientation.",
+                IsRequired: false
+            ));
         }
 
         if (string.IsNullOrWhiteSpace(profile.Bio))
         {
-            missingFields.Add("Bio");
+            missingFields.Add(new MissingFieldDto(
+                "Bio",
+                "Professional Bio / Summary",
+                "A brief professional summary contextualizes your technical experience and engineering background.",
+                IsRequired: false
+            ));
         }
 
         var hasSkills = await _context.UserSkills.AnyAsync(us => us.UserId == userId, cancellationToken);
+        bool hasTargetSkills = false;
         if (!hasSkills)
         {
             var careerPref = await _context.CareerPreferences.FirstOrDefaultAsync(cp => cp.UserId == userId, cancellationToken);
-            if (careerPref?.TargetSkills == null || careerPref.TargetSkills.Count == 0)
-            {
-                missingFields.Add("Skills");
-            }
+            hasTargetSkills = careerPref?.TargetSkills != null && careerPref.TargetSkills.Count > 0;
+        }
+        if (!hasSkills && !hasTargetSkills)
+        {
+            missingFields.Add(new MissingFieldDto(
+                "Skills",
+                "Target Technical Skills",
+                "Declaring core skills helps the AI verify and cross-reference your expertise against codebase telemetry.",
+                IsRequired: false
+            ));
         }
 
         var hasEducation = await _context.EducationEntries.AnyAsync(ee => ee.UserId == userId, cancellationToken);
         if (!hasEducation)
         {
-            missingFields.Add("Education");
+            missingFields.Add(new MissingFieldDto(
+                "Education",
+                "Education History",
+                "Education history adds credential weight and establishes academic background context.",
+                IsRequired: false
+            ));
         }
 
         var hasExperience = await _context.WorkExperiences.AnyAsync(we => we.UserId == userId, cancellationToken);
         if (!hasExperience)
         {
-            missingFields.Add("Experiences");
+            missingFields.Add(new MissingFieldDto(
+                "Experiences",
+                "Work Experience History",
+                "Work experience is critical to map your codebase telemetry and technical contributions to real-world employment.",
+                IsRequired: false
+            ));
         }
 
-        double completenessScore = (5.0 - missingFields.Count) * 20.0;
-        bool isReady = missingFields.Count == 0;
+        double completenessScore = Math.Round((6.0 - missingFields.Count) * 100.0 / 6.0, 1);
+        bool isReady = !missingFields.Any(mf => mf.IsRequired);
 
         var latestAssessment = await _context.CandidateAssessments
             .Where(ca => ca.UserId == userId && ca.Status == "Completed")
@@ -141,15 +191,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         var readiness = await GetReadinessStatusAsync(userId, cancellationToken);
         if (!readiness.IsReady)
         {
-            throw new BusinessRuleException("PROFILE_INCOMPLETE", "Please complete your biography, headline, skills, education, and work experience before starting the assessment.");
-        }
-
-        // 3. Check repo eligibility (need at least one connected completed repo)
-        var hasCompletedRepos = await _repositoryProvider.HasCompletedRepositoriesAsync(userId, cancellationToken);
-
-        if (!hasCompletedRepos)
-        {
-            throw new BusinessRuleException("NO_COMPLETED_REPOS", "No completed repository analysis found. Please connect and analyze at least one repository first.");
+            throw new BusinessRuleException("PROFILE_INCOMPLETE", "At least one analyzed repository linked to your CV is required. Please connect, analyze, and link a repository to your CV first.");
         }
 
         var lastRepoAnalysisAt = await _repositoryProvider.GetLastRepositoryAnalysisAtAsync(userId, cancellationToken);
@@ -168,7 +210,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             PipelineVersion = "2.2.0",
             AssessmentSchemaVersion = "1.2.0",
             PromptVersion = "v2.2.0",
-            ModelVersion = "gemini-1.5-flash",
+            ModelVersion = "claude-haiku-4-5-20251001",
             LastProfileUpdateAt = profile.LastProfileUpdateAt,
             LastRepositoryAnalysisAt = lastRepoAnalysisAt,
             Version = maxVersion + 1,
@@ -177,6 +219,18 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
         _context.CandidateAssessments.Add(assessment);
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Create unified AI Streaming Session
+        await _streamingSessionService.CreateSessionAsync(
+            sessionId: assessment.Id,
+            pipelineId: "candidate-assessment",
+            userId: userId,
+            workspaceId: null,
+            modelName: "claude-haiku-4-5-20251001",
+            provider: "Google",
+            pipelineVersion: "2.2.0",
+            expectedOutputsJson: "[\"CandidateProfile\", \"SkillsList\", \"Maturity\", \"Recommendations\", \"StrengthsGaps\", \"SkillTree\", \"ImprovementPlan\"]"
+        );
 
         // 5. Enqueue job
         await _queue.EnqueueAssessmentAsync(assessment.Id);
@@ -254,9 +308,13 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
     public async Task ProcessAssessmentJobAsync(Guid assessmentId, CancellationToken cancellationToken = default)
     {
+        var managerToken = _cancellationManager.Register(assessmentId, cancellationToken);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(managerToken);
+        linkedCts.CancelAfter(TimeSpan.FromMinutes(10));
+
         var assessment = await _context.CandidateAssessments
             .Include(ca => ca.User)
-            .FirstOrDefaultAsync(ca => ca.Id == assessmentId, cancellationToken);
+            .FirstOrDefaultAsync(ca => ca.Id == assessmentId, linkedCts.Token);
 
         if (assessment == null)
         {
@@ -287,10 +345,13 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             assessment.Status = "Running";
             await _context.SaveChangesAsync(cancellationToken);
 
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Running");
+            await _streamingSessionService.AddLogAsync(assessment.Id, "Initialize", "Info", "Orchestrator", "Initiated candidate assessment execution pipeline.");
+
             await PublishProgressAsync(assessment.UserId, "Running", "Initialize", "Starting candidate assessment...", 0.0);
 
             const string targetPipelineVersion = "2.2.0";
-            const string targetModelVersion = "gemini-1.5-flash";
+            const string targetModelVersion = "claude-haiku-4-5-20251001";
             const string targetPromptVersion = "v2.1.0-scoringV2-projectionV2";
             const string targetSchemaVersion = "1.1.0";
 
@@ -611,6 +672,33 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     var progressEvent = JsonSerializer.Deserialize<FastApiProgressEvent>(eventData, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     if (progressEvent != null)
                     {
+                        var status = progressEvent.Status ?? "Running";
+                        var step = progressEvent.Step ?? "Process";
+                        var msg = progressEvent.Message ?? "";
+                        var pct = progressEvent.Percentage;
+
+                        // Update unified session progress and log/stage in database
+                        await _streamingSessionService.UpdateSessionProgressAsync(assessment.Id, pct, step);
+                        await _streamingSessionService.UpsertStageAsync(assessment.Id, step, step, status, pct, msg, detailsJson: progressEvent.JsonData);
+                        await _streamingSessionService.AddLogAsync(assessment.Id, step, status == "Failed" ? "Error" : "Info", "FastApiStream", msg);
+
+                        if (progressEvent.InputTokens.HasValue)
+                            await _streamingSessionService.AddMetricAsync(assessment.Id, step, "input_tokens", progressEvent.InputTokens.Value);
+                        if (progressEvent.OutputTokens.HasValue)
+                            await _streamingSessionService.AddMetricAsync(assessment.Id, step, "output_tokens", progressEvent.OutputTokens.Value);
+                        if (progressEvent.CostUsd.HasValue)
+                            await _streamingSessionService.AddMetricAsync(assessment.Id, step, "cost_usd", (double)progressEvent.CostUsd.Value);
+
+                        if (!string.IsNullOrEmpty(progressEvent.ModelName))
+                        {
+                            var session = await _context.AiStreamingSessions.FirstOrDefaultAsync(s => s.Id == assessment.Id, cancellationToken);
+                            if (session != null && session.ModelName != progressEvent.ModelName)
+                            {
+                                session.ModelName = progressEvent.ModelName;
+                                await _context.SaveChangesAsync(cancellationToken);
+                            }
+                        }
+
                         if (progressEvent.Status == "Failed")
                         {
                             assessment.FailedStage = progressEvent.Step;
@@ -672,11 +760,77 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             // Save structured relational profile collections
             await SaveCandidateRelationalProfileAsync(assessment.Id, root, cancellationToken);
 
+            var skillTreeArtifact = await _context.CandidateAssessmentArtifacts
+                .FirstOrDefaultAsync(a => a.AssessmentId == assessment.Id && a.ArtifactType == "SkillTree", cancellationToken);
+            if (skillTreeArtifact != null)
+            {
+                using var treeDoc = JsonDocument.Parse(skillTreeArtifact.JsonData);
+                await SaveCandidateSkillTreeAsync(assessment.UserId, assessment.Id, treeDoc.RootElement, cancellationToken);
+            }
+
             // Touch UserProfile.LastAssessmentAt / Update
             userProfile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == assessment.UserId, cancellationToken);
             if (userProfile != null)
             {
                 userProfile.UpdatedAt = DateTimeOffset.UtcNow;
+
+                // Update AI Suggestions JSON
+                Dictionary<string, AiSuggestionItem>? suggestions = null;
+                if (!string.IsNullOrEmpty(userProfile.AiSuggestionsJson))
+                {
+                    try
+                    {
+                        suggestions = JsonSerializer.Deserialize<Dictionary<string, AiSuggestionItem>>(
+                            userProfile.AiSuggestionsJson,
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                        );
+                    }
+                    catch { /* Ignore parsing errors and recreate */ }
+                }
+
+                suggestions ??= new Dictionary<string, AiSuggestionItem>();
+
+                // 1. Headline suggestion
+                if (!string.IsNullOrEmpty(assessment.SummaryHeadline))
+                {
+                    if (!suggestions.TryGetValue("headline", out var headlineItem))
+                    {
+                        headlineItem = new AiSuggestionItem { Source = "user" };
+                        suggestions["headline"] = headlineItem;
+                    }
+                    headlineItem.AiValue = assessment.SummaryHeadline;
+                    headlineItem.GeneratedAt = DateTimeOffset.UtcNow;
+                }
+
+                // 2. Bio suggestion
+                if (!string.IsNullOrEmpty(assessment.SummaryParagraph))
+                {
+                    if (!suggestions.TryGetValue("bio", out var bioItem))
+                    {
+                        bioItem = new AiSuggestionItem { Source = "user" };
+                        suggestions["bio"] = bioItem;
+                    }
+                    bioItem.AiValue = assessment.SummaryParagraph;
+                    bioItem.GeneratedAt = DateTimeOffset.UtcNow;
+                }
+
+                userProfile.AiSuggestionsJson = JsonSerializer.Serialize(
+                    suggestions,
+                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
+                );
+            }
+
+            var dbStatus = await _context.CandidateAssessments
+                .AsNoTracking()
+                .Where(ca => ca.Id == assessment.Id)
+                .Select(ca => ca.Status)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (dbStatus == "Cancelled")
+            {
+                assessment.Status = "Cancelled";
+                await _context.SaveChangesAsync(cancellationToken);
+                throw new OperationCanceledException("Assessment was cancelled by the user.");
             }
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -684,23 +838,58 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             // Recalculate candidate evaluation snapshot and capability projection
             await _evaluationService.EvaluateAndSnapshotCandidateAsync(assessment.UserId, cancellationToken);
 
+            // Rebuild global ranking projections immediately
+            _logger.LogInformation("Rebuilding candidate ranking projections for completed assessment. CandidateId: {CandidateId}, Action: Rebuild", assessment.UserId);
+            await _rankingProjectionService.RebuildRankingProjectionsAsync(cancellationToken).ConfigureAwait(false);
+
+            var profileArtifactJson = profileArtifact?.JsonData;
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Completed", summaryData: profileArtifactJson);
+            await _streamingSessionService.AddLogAsync(assessment.Id, "CandidateProfileComposer", "Success", "Orchestrator", "Candidate Assessment pipeline completed successfully.");
+
             // Publish final completion
             await PublishProgressAsync(assessment.UserId, "Completed", "CandidateProfileComposer", "Candidate Assessment completed successfully.", 100.0);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("Candidate assessment job {AssessmentId} was cancelled.", assessment.Id);
+
+            var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id);
+            if (freshAssess != null && freshAssess.Status != "Cancelled")
+            {
+                freshAssess.Status = "Cancelled";
+                freshAssess.CompletedAtUtc = DateTimeOffset.UtcNow;
+                await _context.SaveChangesAsync(CancellationToken.None);
+            }
+
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
+            await PublishProgressAsync(assessment.UserId, "Cancelled", "Cancelled", "Assessment cancelled by user.", 100.0);
+        }
         catch (Exception ex)
         {
+            var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id);
+            if (freshAssess != null && freshAssess.Status == "Cancelled")
+            {
+                await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
+                await PublishProgressAsync(assessment.UserId, "Cancelled", "Cancelled", "Assessment cancelled by user.", 100.0);
+                return;
+            }
+
             _logger.LogError(ex, "Error processing candidate assessment job {AssessmentId}", assessment.Id);
 
             assessment.Status = "Failed";
             assessment.FailureReason ??= ex.Message;
             assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
+            await _context.SaveChangesAsync(CancellationToken.None);
+
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Failed", errorMessage: ex.Message);
+            await _streamingSessionService.AddLogAsync(assessment.Id, "Failed", "Error", "Orchestrator", $"Pipeline failed: {ex.Message}");
 
             // Publish failure
             await PublishProgressAsync(assessment.UserId, "Failed", assessment.FailedStage ?? "Failed", ex.Message, 100.0);
         }
         finally
         {
+            _cancellationManager.Unregister(assessmentId);
             await db.LockReleaseAsync(lockKey, token);
         }
     }
@@ -1333,6 +1522,92 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<List<CandidateSkillTreeNodeResponse>?> GetSkillTreeAsync(Guid userId, Guid assessmentId, CancellationToken cancellationToken = default)
+    {
+        var assessment = await _context.CandidateAssessments
+            .FirstOrDefaultAsync(a => a.Id == assessmentId && a.UserId == userId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (assessment == null) return null;
+
+        return await BuildSkillTreeFromDbAsync(assessmentId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<List<CandidateSkillTreeNodeResponse>?> GetPublicSkillTreeAsync(string username, CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Username.ToLower() == username.ToLower(), cancellationToken)
+            .ConfigureAwait(false);
+
+        if (user == null) return null;
+
+        var latestAssessment = await _context.CandidateAssessments
+            .Where(a => a.UserId == user.Id && a.Status == "Completed")
+            .OrderByDescending(a => a.CompletedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (latestAssessment == null) return null;
+
+        return await BuildSkillTreeFromDbAsync(latestAssessment.Id, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<List<CandidateSkillTreeNodeResponse>> BuildSkillTreeFromDbAsync(Guid assessmentId, CancellationToken cancellationToken)
+    {
+        var nodes = await _context.CandidateSkillTreeNodes
+            .Where(n => n.CandidateAssessmentId == assessmentId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!nodes.Any()) return new List<CandidateSkillTreeNodeResponse>();
+
+        var nodeMap = nodes.Select(n => new CandidateSkillTreeNodeResponse
+        {
+            Id = n.Id,
+            ParentId = n.ParentId,
+            DisplayName = n.DisplayName,
+            Category = n.Category,
+            ProficiencyLevel = n.ProficiencyLevel,
+            ConfidenceScore = n.ConfidenceScore,
+            EstimatedExperienceMonths = n.EstimatedExperienceMonths,
+            SupportingEvidence = n.SupportingEvidence,
+            Children = new List<CandidateSkillTreeNodeResponse>()
+        }).ToDictionary(n => n.Id);
+
+        var rootNodes = new List<CandidateSkillTreeNodeResponse>();
+
+        foreach (var node in nodeMap.Values)
+        {
+            if (node.ParentId.HasValue && nodeMap.TryGetValue(node.ParentId.Value, out var parentNode))
+            {
+                parentNode.Children.Add(node);
+            }
+            else
+            {
+                rootNodes.Add(node);
+            }
+        }
+
+        return rootNodes;
+    }
+
+    private async Task SaveCandidateSkillTreeAsync(Guid candidateId, Guid assessmentId, JsonElement skillTreeRoot, CancellationToken cancellationToken)
+    {
+        var validatedNodes = await _validationService.ValidateAndNormalizeTreeAsync(candidateId, assessmentId, skillTreeRoot);
+
+        var oldNodes = await _context.CandidateSkillTreeNodes
+            .Where(n => n.CandidateAssessmentId == assessmentId)
+            .ToListAsync(cancellationToken);
+        _context.CandidateSkillTreeNodes.RemoveRange(oldNodes);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        if (validatedNodes.Any())
+        {
+            _context.CandidateSkillTreeNodes.AddRange(validatedNodes);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     private class FastApiProgressEvent
     {
         public string Status { get; set; } = null!;
@@ -1341,5 +1616,58 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         public double Percentage { get; set; }
         public string? ArtifactType { get; set; }
         public string? JsonData { get; set; }
+        public string? EventType { get; set; }
+        public int? InputTokens { get; set; }
+        public int? OutputTokens { get; set; }
+        public decimal? CostUsd { get; set; }
+        public long? DurationMs { get; set; }
+        public string? ModelName { get; set; }
+    }
+
+    private class AiSuggestionItem
+    {
+        public string? AiValue { get; set; }
+        public string? Source { get; set; }
+        public DateTimeOffset? GeneratedAt { get; set; }
+    }
+
+    public async Task<bool> CancelAssessmentAsync(Guid userId, Guid assessmentId)
+    {
+        var assessment = await _context.CandidateAssessments
+            .FirstOrDefaultAsync(ca => ca.Id == assessmentId && ca.UserId == userId);
+
+        if (assessment == null) return false;
+
+        var activeStates = new[] { "Queued", "Running" };
+        if (!activeStates.Contains(assessment.Status))
+        {
+            return false;
+        }
+
+        assessment.Status = "Cancelled";
+        assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
+        await _context.SaveChangesAsync();
+
+        // 1. Set Redis cancellation key for Python AI service
+        try
+        {
+            var db = _redis.GetDatabase();
+            await db.StringSetAsync($"ai:cancel:{assessmentId}", "true", TimeSpan.FromMinutes(5));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set Redis cancellation key for assessment {AssessmentId}", assessmentId);
+        }
+
+        // 2. Cancel C# token via IAiCancellationManager
+        _cancellationManager.Cancel(assessmentId);
+
+        // 3. Update unified streaming session so client-side and server-side state is synchronized
+        await _streamingSessionService.UpdateSessionStatusAsync(assessmentId, "Cancelled");
+
+        // Broadcast to Redis Pub/Sub to notify listening SSE connections
+        await PublishProgressAsync(userId, "Cancelled", "Cancelled", "Assessment cancelled by user.", 100.0);
+
+        return true;
     }
 }

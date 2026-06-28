@@ -100,6 +100,7 @@ class PipelineContext(BaseModel):
     # Composites
     candidateProfile: Optional[Dict[str, Any]] = None
     improvementPlan: Optional[Dict[str, Any]] = None
+    skillTree: Optional[Dict[str, Any]] = None
 
     def update(self, **kwargs) -> "PipelineContext":
         """Creates a new instance of PipelineContext with updated attributes, enforcing immutability."""
@@ -112,7 +113,7 @@ class PipelineContext(BaseModel):
             
             # Check immutability for normal fields
             if key in current_data:
-                if current_data[key] is not None and key not in ["candidateProfile", "cvImprovementSuggestions", "keyStrengths", "watchPoints", "watchpoints", "problemSolvingScore"]:
+                if current_data[key] is not None and key not in ["candidateProfile", "cvImprovementSuggestions", "keyStrengths", "watchPoints", "watchpoints", "problemSolvingScore", "skillTree"]:
                     raise ValueError(f"State key '{key}' has already been written and is immutable.")
         
         # Merge values for normal fields

@@ -24,8 +24,8 @@ public interface IHiringRequirementService
         int page,
         int pageSize,
         CancellationToken cancellationToken);
-    Task GenerateArtifactsAsync(Guid id, CancellationToken cancellationToken);
-    Task GenerateArtifactAsync(Guid id, string artifactType, CancellationToken cancellationToken);
+    Task GenerateArtifactsAsync(Guid id, Guid userId, CancellationToken cancellationToken);
+    Task GenerateArtifactAsync(Guid id, string artifactType, Guid userId, CancellationToken cancellationToken);
     Task CancelGenerationAsync(Guid id, string artifactType);
     Dictionary<string, float> CalculateWeights(HiringRequirement req);
     float[] CalculateRequirementVector(HiringRequirement req, Dictionary<string, float> normalizedWeights);

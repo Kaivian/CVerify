@@ -232,7 +232,7 @@ function mapToViewModel(
   const pipelineVersion = assessment.pipelineVersion || '3.0.0';
   const calculationDate = assessment.completedAtUtc || null;
   const rawModelName = assessment.modelVersion || 'Gemini';
-  const modelName = rawModelName === 'gemini-1.5-flash' || rawModelName === 'Gemini' ? 'claude-haiku-4-5-20251001' : rawModelName;
+  const modelName = rawModelName === 'claude-haiku-4-5-20251001' || rawModelName === 'Gemini' ? 'claude-haiku-4-5-20251001' : rawModelName;
   const promptVersion = assessment.promptVersion || 'v2.1';
   const schemaVersion = profileData?.schemaVersion || 'candidate-profile-v1';
 
@@ -530,9 +530,9 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
         {/* Left: General Assessment Info */}
         <div className="flex flex-col gap-3 min-w-0 w-full lg:max-w-xl text-center lg:text-left">
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 select-none">
-            <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-success/10 text-success border border-success/20 rounded-full flex items-center gap-1">
+            <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase bg-accent/10 text-accent border border-accent/20 rounded-full flex items-center gap-1">
               <ShieldCheck className="size-2.5" />
-              AI Verified
+              AI Suggested
             </span>
             <span className="text-[10px] text-muted font-medium">
               Pipeline v{vm.pipelineVersion}
@@ -540,7 +540,7 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
           </div>
 
           <h3 className="text-2xl font-black text-foreground tracking-tight leading-none mt-1 flex items-center justify-center lg:justify-start gap-1.5">
-            AI-Verified Talent Assessment
+            AI-Suggested Talent Assessment
             {renderTooltip("A composite score of engineering depth, ownership, architecture, and complexity normalized against peer cohort values.")}
           </h3>
           <p className="text-xs text-muted leading-relaxed">
