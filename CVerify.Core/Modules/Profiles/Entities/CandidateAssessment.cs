@@ -91,4 +91,5 @@ public class CandidateAssessment
     public virtual ICollection<CandidateIntelligenceSignal> IntelligenceSignals { get; set; } = new List<CandidateIntelligenceSignal>();
     public virtual ICollection<CandidateBestFitRole> BestFitRoles { get; set; } = new List<CandidateBestFitRole>();
     public virtual ICollection<CandidateStrengthWeakness> StrengthsWeaknesses { get; set; } = new List<CandidateStrengthWeakness>();
+    public virtual ICollection<CandidateSkillTreeNode> SkillTreeNodes { get; set; } = new List<CandidateSkillTreeNode>();
 }

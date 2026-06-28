@@ -61,6 +61,7 @@ const FALLBACK_STAGES: AssessmentStageDto[] = [
   { id: 'L2-011', name: 'Experience Confidence Calibration', description: 'Adjusts assessment confidence scores based on codebase age, volume, and contributor density.' },
   { id: 'L2-012', name: 'Role Recommendation Engine', description: 'Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect).' },
   { id: 'L2-013', name: 'Executive Summary Generation', description: 'Generates a comprehensive recruiter-friendly assessment narrative and executive summary.' },
+  { id: 'L2-016', name: 'Skill Tree Generation', description: 'Constructs a validated, hierarchical taxonomy of skills and capabilities based on code and profile evidence.' },
   { id: 'L2-014', name: 'AI Profile Composition', description: 'Assembles and serializes the final verified candidate profile and calibrated score index.' },
   { id: 'L2-015', name: 'Candidate Improvement Engine', description: 'Formulates targeted vector-improvement recommendations and prioritizes progression paths.' }
 ];

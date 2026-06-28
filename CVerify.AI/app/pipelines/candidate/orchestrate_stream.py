@@ -25,6 +25,7 @@ STAGES = [
     ("L2-011", "ExperienceConfidenceMultiplier", None),
     ("L2-012", "MultiRoleRecommendationEngine", "Recommendations"),
     ("L2-013", "CandidateSummaryGenerator", None),
+    ("L2-016", "SkillTreeGenerator", "SkillTree"),
     ("L2-014", "CandidateProfileComposer", "CandidateProfile"),
     ("L2-015", "CandidateImprovementEngine", "ImprovementPlan"),
 ]

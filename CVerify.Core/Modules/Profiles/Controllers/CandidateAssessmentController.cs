@@ -75,6 +75,7 @@ public class CandidateAssessmentController : ControllerBase
             new { Id = "L2-011", Name = "Experience Confidence Calibration", Description = "Adjusts assessment confidence scores based on codebase age, volume, and contributor density." },
             new { Id = "L2-012", Name = "Role Recommendation Engine", Description = "Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect)." },
             new { Id = "L2-013", Name = "Executive Summary Generation", Description = "Generates a comprehensive recruiter-friendly assessment narrative and executive summary." },
+            new { Id = "L2-016", Name = "Skill Tree Generation", Description = "Constructs a validated, hierarchical taxonomy of skills and capabilities based on code and profile evidence." },
             new { Id = "L2-014", Name = "AI Profile Composition", Description = "Assembles and serializes the final verified candidate profile and calibrated score index." }
         };
         return Ok(stages);
@@ -141,6 +142,53 @@ public class CandidateAssessmentController : ControllerBase
             return NotFound(new { Message = "Assessment details not found or access denied." });
         }
         return Ok(details);
+    }
+
+    [HttpGet("v1/candidate-assessments/{assessmentId}/skill-tree")]
+    [ProducesResponseType(typeof(System.Collections.Generic.List<CandidateSkillTreeNodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSkillTree(Guid assessmentId, CancellationToken cancellationToken)
+    {
+        var skillTree = await _assessmentService.GetSkillTreeAsync(CurrentUserId, assessmentId, cancellationToken);
+        if (skillTree == null)
+        {
+            return NotFound(new { Message = "Skill tree not found or access denied." });
+        }
+        return Ok(skillTree);
+    }
+
+    [HttpGet("v1/candidate-assessments/latest/skill-tree")]
+    [ProducesResponseType(typeof(System.Collections.Generic.List<CandidateSkillTreeNodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetLatestSkillTree(CancellationToken cancellationToken)
+    {
+        var latest = await _assessmentService.GetLatestAssessmentAsync(CurrentUserId, cancellationToken);
+        if (latest == null)
+        {
+            return NoContent();
+        }
+        var skillTree = await _assessmentService.GetSkillTreeAsync(CurrentUserId, latest.Id, cancellationToken);
+        if (skillTree == null)
+        {
+            return NoContent();
+        }
+        return Ok(skillTree);
+    }
+
+    [HttpGet("v1/candidate-assessments/public/{username}/skill-tree")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(System.Collections.Generic.List<CandidateSkillTreeNodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPublicSkillTree(string username, CancellationToken cancellationToken)
+    {
+        var skillTree = await _assessmentService.GetPublicSkillTreeAsync(username, cancellationToken);
+        if (skillTree == null)
+        {
+            return NotFound(new { Message = "Skill tree not found." });
+        }
+        return Ok(skillTree);
     }
 
     [HttpGet("v1/candidate-assessments/public/{username}")]

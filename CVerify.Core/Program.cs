@@ -430,6 +430,7 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ICvRepositoryIndexer, CvRepositoryIndexer>();
 builder.Services.AddScoped<ICandidateMatchService, CandidateMatchService>();
 builder.Services.AddScoped<ICandidateAssessmentService, CandidateAssessmentService>();
+builder.Services.AddScoped<ISkillTreeValidationService, SkillTreeValidationService>();
 builder.Services.AddSingleton<ICandidateAssessmentQueue, BackgroundCandidateAssessmentQueue>();
 
 // Register Public Workspace Seeder Plugins

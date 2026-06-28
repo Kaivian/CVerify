@@ -381,7 +381,7 @@ export default function JobsPage() {
             Trust-Based Job Discovery
           </h1>
           <p className="text-muted text-sm max-w-2xl leading-relaxed">
-            Browse job postings aligned with the CVerify Capability Graph. Apply with verified skill evidence, credentials, and real repository signals.
+            Browse job postings aligned with the CVerify Skill Tree. Apply with verified skill evidence, credentials, and real repository signals.
           </p>
         </div>
 

@@ -124,9 +124,9 @@ export const isActiveRoute = (
     return cleanPath === '/user/profile' || cleanPath.startsWith('/user/profile/');
   }
 
-  // 4. Capability Graph matching
-  if (itemId === 'intelligence-capability-graph' || cleanHref === '/intelligence/capability-graph') {
-    return cleanPath === '/intelligence/capability-graph' || cleanPath.startsWith('/intelligence/capability-graph/');
+  // 4. Skill Tree matching
+  if (itemId === 'intelligence-skill-tree' || cleanHref === '/intelligence/skill-tree') {
+    return cleanPath === '/intelligence/skill-tree' || cleanPath.startsWith('/intelligence/skill-tree/');
   }
 
   // 5. Trust Score matching

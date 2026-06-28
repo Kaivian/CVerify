@@ -219,6 +219,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<CandidateIntelligenceSignal> CandidateIntelligenceSignals => Set<CandidateIntelligenceSignal>();
     public DbSet<CandidateBestFitRole> CandidateBestFitRoles => Set<CandidateBestFitRole>();
     public DbSet<CandidateStrengthWeakness> CandidateStrengthsWeaknesses => Set<CandidateStrengthWeakness>();
+    public DbSet<CandidateSkillTreeNode> CandidateSkillTreeNodes => Set<CandidateSkillTreeNode>();
 
 
     public DbSet<ProjectEntry> ProjectEntries => Set<ProjectEntry>();
@@ -545,6 +546,21 @@ public class ApplicationDbContext : DbContext
         {
             entity.Property(me => me.Id).ValueGeneratedNever();
             entity.HasIndex(me => me.MatchingEvaluationId);
+        });
+
+        modelBuilder.Entity<CandidateSkillTreeNode>(entity =>
+        {
+            entity.Property(n => n.Id).ValueGeneratedNever();
+            
+            entity.HasOne(n => n.Assessment)
+                  .WithMany(a => a.SkillTreeNodes)
+                  .HasForeignKey(n => n.CandidateAssessmentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.Parent)
+                  .WithMany()
+                  .HasForeignKey(n => n.ParentId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
 
