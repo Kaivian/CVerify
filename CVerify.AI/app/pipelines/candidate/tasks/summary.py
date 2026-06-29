@@ -52,10 +52,24 @@ class CandidateSummaryGenerator(BaseTask):
         data = self._extract_json(raw)
         return {
             "recruiterHeadline": data.get("recruiterHeadline", ""),
-            "fullSummary": data.get("fullSummary", ""),
+            "fullSummary": self._cap_summary(data.get("fullSummary", "")),
             "keyStrengths": data.get("keyStrengths", []),
             "watchPoints": data.get("watchPoints", [])
         }
+
+    def _cap_summary(self, text: str) -> str:
+        if not text:
+            return ""
+        # Cap at 450 characters (about 3-4 sentences max), ensuring we end with a complete sentence
+        if len(text) <= 450:
+            return text
+        import re
+        truncated = text[:450]
+        # Find last sentence boundary (. ! ?)
+        match = re.search(r'.*[\.\!\?]', truncated)
+        if match:
+            return match.group(0).strip()
+        return truncated.strip()
 
     def _extract_json(self, text: str) -> dict:
         text = text.strip()

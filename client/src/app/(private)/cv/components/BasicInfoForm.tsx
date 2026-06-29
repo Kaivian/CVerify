@@ -24,6 +24,7 @@ interface BasicInfoFormProps {
   isDirty: boolean;
   avatarUrl?: string | null;
   latestAssessment?: CandidateAssessmentResponse | null;
+  parsedProfile?: any | null;
 }
 
 export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
@@ -36,6 +37,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
   isDirty,
   avatarUrl,
   latestAssessment,
+  parsedProfile,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -44,6 +46,22 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
   const suggestionsMap = parseAiSuggestions(draft.aiSuggestionsJson);
   const headlineSuggestion = getFieldSuggestion(suggestionsMap, "headline", latestAssessment?.summaryHeadline);
   const bioSuggestion = getFieldSuggestion(suggestionsMap, "bio", latestAssessment?.summaryParagraph);
+
+  const rawRoles = parsedProfile?.bestFitRoles || [];
+  const bestFitRoles = rawRoles.map((r: any) => ({
+    title: r.roleTitle || '',
+    matchScore: typeof r.matchScore === 'number' ? r.matchScore : 0,
+    rank: typeof r.rank === 'number' ? r.rank : 1,
+  }));
+
+  const rolesList: Array<{ title: string; matchScore: number }> = [];
+  if (bestFitRoles.length > 0) {
+    bestFitRoles.forEach((role: any) => {
+      rolesList.push({ title: role.title, matchScore: role.matchScore });
+    });
+  } else if (headlineSuggestion.aiValue) {
+    rolesList.push({ title: headlineSuggestion.aiValue, matchScore: 90 });
+  }
 
   const [userHeadline, setUserHeadline] = useState(() => {
     return suggestionsMap.headline?.source === 'user' ? (draft.headline || "") : "";
@@ -88,6 +106,25 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
     const updatedMap = selectSuggestion(suggestionsMap, "headline", headlineSuggestion.aiValue);
     onChange({
       headline: headlineSuggestion.aiValue,
+      aiSuggestionsJson: stringifyAiSuggestions(updatedMap)
+    });
+  };
+
+  const handleSelectHeadlineRole = (roleTitle: string, matchScore: number) => {
+    if (headlineSuggestion.source === 'user') {
+      setUserHeadline(draft.headline || "");
+    }
+    const updatedMap = {
+      ...suggestionsMap,
+      headline: {
+        aiValue: roleTitle,
+        source: 'ai' as const,
+        generatedAt: new Date().toISOString(),
+        matchScore: matchScore
+      }
+    };
+    onChange({
+      headline: roleTitle,
       aiSuggestionsJson: stringifyAiSuggestions(updatedMap)
     });
   };
@@ -167,6 +204,10 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
       if (!phoneRegex.test(draft.phoneNumber)) {
         newErrors.phoneNumber = "Required";
       }
+    }
+
+    if (draft.bio && draft.bio.length > 1000) {
+      newErrors.bio = "Bio cannot exceed 1000 characters.";
     }
 
     // Verify all social links are valid URLs
@@ -352,18 +393,48 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
                 </Tooltip>
               </div>
 
-              {headlineSuggestion.aiValue && (
+              {rolesList.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   {headlineSuggestion.source === 'user' ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="rounded-lg h-6 px-2 text-[10px] font-bold text-primary hover:bg-primary/10 border-none cursor-pointer flex items-center gap-1"
-                      onPress={handleUseHeadlineSuggestion}
-                    >
-                      <Sparkles className="size-3" />
-                      <span>Use AI Suggestion</span>
-                    </Button>
+                    <Dropdown>
+                      <Dropdown.Trigger>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="inline-flex items-center gap-1 rounded-lg h-6 px-2 text-[10px] font-bold text-primary hover:bg-primary/10 border-none cursor-pointer bg-transparent select-none focus:outline-none"
+                        >
+                          <Sparkles className="size-3" />
+                          <span>Use AI Suggestion</span>
+                        </span>
+                      </Dropdown.Trigger>
+                      <Dropdown.Popover className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[240px] outline-hidden animate-in fade-in duration-100 z-50 font-outfit">
+                        <Dropdown.Menu
+                          aria-label="AI Headline Suggestions"
+                          onAction={(key) => {
+                            const idx = parseInt(key as string, 10);
+                            const selectedRole = rolesList[idx];
+                            if (selectedRole) {
+                              handleSelectHeadlineRole(selectedRole.title, selectedRole.matchScore);
+                            }
+                          }}
+                        >
+                          {rolesList.map((role, idx) => (
+                            <Dropdown.Item
+                              key={idx.toString()}
+                              onClick={() => handleSelectHeadlineRole(role.title, role.matchScore)}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center justify-between gap-4 w-full text-xs font-semibold">
+                                <span className="truncate max-w-[150px]">{role.title}</span>
+                                <Chip size="sm" className="bg-accent/10 text-accent font-bold font-outfit border-none h-5 shrink-0">
+                                  {role.matchScore}% Match
+                                </Chip>
+                              </div>
+                            </Dropdown.Item>
+                          ))}
+                        </Dropdown.Menu>
+                      </Dropdown.Popover>
+                    </Dropdown>
                   ) : (
                     <Button
                       size="sm"
@@ -440,7 +511,12 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
               aria-label="Professional Bio"
               maxLength={1000}
             />
-            <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+            <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+              {errors.bio ? (
+                <span className="text-danger">{errors.bio}</span>
+              ) : (
+                <span />
+              )}
               <span>{(draft.bio || "").length}/1000 characters</span>
             </div>
           </div>

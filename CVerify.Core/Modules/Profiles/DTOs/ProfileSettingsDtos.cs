@@ -8,7 +8,7 @@ public record UpdateProfileRequest(
     [MaxLength(100)]
     string? FullName,
 
-    [MaxLength(160)]
+    [MaxLength(1000)]
     string? Bio,
 
     [MaxLength(50)]
