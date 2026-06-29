@@ -83,7 +83,7 @@ public class EmailTemplateServiceTests : IDisposable
         var model = new Dictionary<string, object>();
 
         // Act & Assert
-        var act = async () => await _service.RenderTemplateAsync(templateName, model).ConfigureAwait(false);
+        var act = async () => await _service.RenderTemplateAsync(templateName, model);
         await act.Should().ThrowAsync<EmailSendingException>()
             .WithMessage("*not found at physical path*");
     }
@@ -100,7 +100,7 @@ public class EmailTemplateServiceTests : IDisposable
         var model = new Dictionary<string, object>();
 
         // Act & Assert
-        var act = async () => await _service.RenderTemplateAsync(templateName, model).ConfigureAwait(false);
+        var act = async () => await _service.RenderTemplateAsync(templateName, model);
         await act.Should().ThrowAsync<EmailSendingException>()
             .WithMessage("*Compilation errors in Scriban template*");
     }
@@ -163,7 +163,7 @@ public class EmailTemplateServiceTests : IDisposable
         };
 
         // Act
-        var result = await service.RenderTemplateAsync("VerificationEmail.html", model).ConfigureAwait(false);
+        var result = await service.RenderTemplateAsync("VerificationEmail.html", model);
 
         // Assert
         result.Should().Be("<html>[Layout] HeaderContent - VerificationContent: Bob - FooterContent</html>");
@@ -212,7 +212,7 @@ public class EmailTemplateServiceTests : IDisposable
         var model = new Dictionary<string, object>();
 
         // Act
-        var result = await service.RenderTemplateAsync("VerificationEmail.html", model).ConfigureAwait(false);
+        var result = await service.RenderTemplateAsync("VerificationEmail.html", model);
 
         // Assert
         result.Should().Be("<html>Layout [CVerifyTest] - Accent: #ff9900, Text: #333333</html>");
