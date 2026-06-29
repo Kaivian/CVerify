@@ -2746,6 +2746,10 @@ public static class DbInitializer
                 technical_breadth DOUBLE PRECISION NOT NULL DEFAULT 0.0,
                 technical_depth DOUBLE PRECISION NOT NULL DEFAULT 0.0,
                 trust_level DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                calculation_mode VARCHAR(50),
+                input_feature_set_hash VARCHAR(100),
+                evidence_completeness VARCHAR(50),
+                clone_risk_classification VARCHAR(50),
                 CONSTRAINT fk_candidate_assessments_users_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_candidate_assessments_user_id ON candidate_assessments(user_id);
@@ -2768,6 +2772,18 @@ public static class DbInitializer
                 END IF;
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'trust_level') THEN
                     ALTER TABLE candidate_assessments ADD COLUMN trust_level DOUBLE PRECISION NOT NULL DEFAULT 0.0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'calculation_mode') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN calculation_mode VARCHAR(50);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'input_feature_set_hash') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN input_feature_set_hash VARCHAR(100);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'evidence_completeness') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN evidence_completeness VARCHAR(50);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'candidate_assessments' AND column_name = 'clone_risk_classification') THEN
+                    ALTER TABLE candidate_assessments ADD COLUMN clone_risk_classification VARCHAR(50);
                 END IF;
             END $$;
 

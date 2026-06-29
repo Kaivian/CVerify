@@ -18,4 +18,6 @@ public interface ICandidateAssessmentService
     Task<List<CandidateSkillTreeNodeResponse>?> GetPublicSkillTreeAsync(string username, CancellationToken cancellationToken = default);
     Task ProcessAssessmentJobAsync(Guid assessmentId, CancellationToken cancellationToken = default);
     Task<bool> CancelAssessmentAsync(Guid userId, Guid assessmentId);
+    Task ReprocessAssessmentAsync(Guid assessmentId, CancellationToken cancellationToken = default);
+    Task ReprocessAllAssessmentsAsync(CancellationToken cancellationToken = default);
 }

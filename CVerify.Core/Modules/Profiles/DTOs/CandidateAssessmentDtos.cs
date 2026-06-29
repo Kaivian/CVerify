@@ -43,7 +43,11 @@ public record CandidateAssessmentResponse(
     string? FailedStage,
     string? FailureReason,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? CompletedAtUtc
+    DateTimeOffset? CompletedAtUtc,
+    string? CalculationMode,
+    string? InputFeatureSetHash,
+    string? EvidenceCompleteness,
+    string? CloneRiskClassification
 );
 
 public record CandidateAssessmentArtifactDto(
