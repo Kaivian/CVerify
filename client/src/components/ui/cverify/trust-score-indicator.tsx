@@ -70,8 +70,8 @@ export const TrustScoreDial: React.FC<TrustScoreDialProps> = ({
           />
         </svg>
         <div className="flex flex-col items-center">
-          <span className="text-xl font-black font-outfit leading-none">{normalizedScore}</span>
-          <span className="text-[7px] font-bold text-muted uppercase tracking-widest mt-0.5">SCORE</span>
+          <span className="text-xl font-black font-outfit leading-none">{normalizedScore}%</span>
+          <span className="text-[7px] font-bold text-muted uppercase tracking-widest mt-0.5">TRUST</span>
         </div>
       </div>
     </div>

@@ -48,7 +48,7 @@ export default function TrustScorePage() {
   const suggestions = parsedProfile?.cvImprovementSuggestions || [];
 
   // Parse Trust Value (0 - 100)
-  const trustScoreRaw = trustMetrics?.candidateTrustScore ?? 0;
+  const trustScoreRaw = latestAssessment?.trustLevel ?? trustMetrics?.candidateTrustScore ?? 0;
   const trustScore = trustScoreRaw <= 1 ? Math.round(trustScoreRaw * 100) : Math.round(trustScoreRaw);
 
   const getTrustBadgeColor = (level: any) => {
@@ -171,21 +171,31 @@ export default function TrustScorePage() {
                 <span className="text-[8px] text-muted-foreground uppercase font-black tracking-wider mt-0.5">Trust Score</span>
               </div>
             </div>
-            {parsedProfile?.trustLevel && (
+            {latestAssessment?.trustLevel !== undefined && latestAssessment?.trustLevel !== null && (
               <Chip
                 size="sm"
-                color={getTrustBadgeColor(parsedProfile.trustLevel)}
+                color={getTrustBadgeColor(latestAssessment.trustLevel)}
                 variant="soft"
                 className="mt-4 font-black uppercase text-[10px] px-3 h-6 border-none bg-default/10"
               >
-                Credibility Band: {parsedProfile.trustLevel}
+                Credibility Band: {latestAssessment.trustLevel.toFixed(1)}%
               </Chip>
             )}
           </div>
 
-          <div className="p-3 bg-surface-secondary/40 border border-border/30 rounded-xl flex items-start gap-2.5 text-[10px] leading-relaxed text-muted-foreground font-light">
-            <Info size={14} className="text-accent shrink-0 mt-0.5" />
-            <span>Scores above 70 indicate verified code consistency, matching git emails, and zero clone classifications.</span>
+          <div className="p-3 bg-surface-secondary/40 border border-border/30 rounded-xl flex flex-col gap-2 text-[10px] leading-relaxed text-muted-foreground font-light w-full">
+            <div className="flex items-start gap-2.5">
+              <Info size={14} className="text-accent shrink-0 mt-0.5" />
+              <span>
+                <strong>Evidence Trust Score:</strong> This page shows your code verification coverage ({latestAssessment?.trustLevel?.toFixed(1) ?? "0.0"}%). Scores above 70 indicate verified code consistency, matching git emails, and zero clone classifications.
+              </span>
+            </div>
+            <div className="border-t border-border/20 pt-2 flex items-start gap-2.5">
+              <ShieldCheck size={14} className="text-primary shrink-0 mt-0.5" />
+              <span>
+                <strong>Leaderboard Identity Trust:</strong> Note that this differs from your Identity Trust score displayed on the Leaderboard, which also factors in KYC verification, SMS/OTP validation, and DNS domain ownership.
+              </span>
+            </div>
           </div>
         </Card>
 

@@ -368,7 +368,8 @@ public class ProfileService : IProfileService
         double? avgTrustScore = null;
         if (hasCompletedAssessment && latestAssessment != null)
         {
-            avgTrustScore = latestAssessment.OverallScore;
+            // Maps to EvidenceTrustScore (TrustLevel) according to domain naming contract
+            avgTrustScore = latestAssessment.TrustLevel;
         }
 
         var publicRepoDtos = publicRepos.Select(r => new PublicRepositoryDto(

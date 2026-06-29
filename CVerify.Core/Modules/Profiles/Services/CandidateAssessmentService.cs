@@ -838,6 +838,9 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             // Recalculate candidate evaluation snapshot and capability projection
             await _evaluationService.EvaluateAndSnapshotCandidateAsync(assessment.UserId, cancellationToken);
 
+            // Sync search profile projection immediately
+            await _evaluationService.UpdateSearchProfileAsync(assessment.UserId, cancellationToken);
+
             // Rebuild global ranking projections immediately
             _logger.LogInformation("Rebuilding candidate ranking projections for completed assessment. CandidateId: {CandidateId}, Action: Rebuild", assessment.UserId);
             await _rankingProjectionService.RebuildRankingProjectionsAsync(cancellationToken).ConfigureAwait(false);
@@ -945,6 +948,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             entity.UserId,
             entity.Status,
             entity.OverallScore,
+            entity.TrustLevel,
             entity.CareerLevel,
             entity.CareerLevelLabel,
             entity.PrimaryTendency,
