@@ -1136,7 +1136,7 @@ export default function CvManagementCenter() {
               <span className="text-3xl font-black text-foreground tracking-tight">
                 {Math.round(activeData.candidateScore || activeData.overallScore || 0)}
               </span>
-              <span className="text-[8px] text-muted-foreground uppercase font-extrabold tracking-wider mt-0.5">Calibrated Index</span>
+              <span className="text-[8px] text-muted-foreground uppercase font-extrabold tracking-wider mt-0.5">Index</span>
             </div>
           </div>
 
