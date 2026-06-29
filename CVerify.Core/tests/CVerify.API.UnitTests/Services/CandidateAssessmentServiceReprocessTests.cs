@@ -17,7 +17,7 @@ using CVerify.API.Modules.Intelligence.Services;
 using StackExchange.Redis;
 using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.Shared.Domain.Entities;
-
+using CVerify.API.Modules.Profiles.DTOs;
 namespace CVerify.API.UnitTests.Services
 {
     public class CandidateAssessmentServiceReprocessTests
@@ -132,6 +132,7 @@ namespace CVerify.API.UnitTests.Services
                 ""primaryWorkingStyle"": ""System Designer"",
                 ""recruiterHeadline"": ""Experienced backend dev"",
                 ""fullSummary"": ""A detailed summary of candidate experience."",
+                ""professionalBio"": ""A professional bio suggestion."",
                 ""technicalDepth"": 80.0,
                 ""technicalBreadth"": 70.0,
                 ""leadershipPotential"": 75.0,
@@ -161,6 +162,7 @@ namespace CVerify.API.UnitTests.Services
             updated.PrimaryWorkingStyle.Should().Be("System Designer");
             updated.SummaryHeadline.Should().Be("Experienced backend dev");
             updated.SummaryParagraph.Should().Be("A detailed summary of candidate experience.");
+            updated.ProfessionalBio.Should().Be("A professional bio suggestion.");
             updated.TechnicalDepth.Should().Be(80.0);
             updated.TechnicalBreadth.Should().Be(70.0);
             updated.LeadershipPotential.Should().Be(75.0);
@@ -283,6 +285,7 @@ namespace CVerify.API.UnitTests.Services
                 ""schemaVersion"": ""candidate-profile-v2"",
                 ""recruiterHeadline"": ""Original AI Headline"",
                 ""fullSummary"": ""Original AI Narrative Summary"",
+                ""professionalBio"": ""Original AI Professional Bio"",
                 ""keyStrengths"": [""Original Strength 1"", ""Original Strength 2""],
                 ""watchPoints"": [""Original Warning 1""],
                 ""evidenceGovernance"": [
@@ -339,6 +342,7 @@ namespace CVerify.API.UnitTests.Services
             // Qualitative fields are preserved
             root.GetProperty("recruiterHeadline").GetString().Should().Be("Original AI Headline");
             root.GetProperty("fullSummary").GetString().Should().Be("Original AI Narrative Summary");
+            root.GetProperty("professionalBio").GetString().Should().Be("Original AI Professional Bio");
             
             var strengths = root.GetProperty("keyStrengths");
             strengths.GetArrayLength().Should().Be(2);
@@ -376,7 +380,8 @@ namespace CVerify.API.UnitTests.Services
             {
                 ""schemaVersion"": ""candidate-profile-v2"",
                 ""recruiterHeadline"": ""Headline"",
-                ""fullSummary"": ""Summary""
+                ""fullSummary"": ""Summary"",
+                ""professionalBio"": ""Bio""
             }";
 
             var priorArtifact = new CandidateAssessmentArtifact
@@ -420,6 +425,32 @@ namespace CVerify.API.UnitTests.Services
             updated.EvidenceCompleteness.Should().Be("FULL");
             updated.CloneRiskClassification.Should().Be("low_risk");
             updated.InputFeatureSetHash.Should().NotBeNullOrEmpty();
+        }
+
+        [Fact]
+        public void MapToResponse_ShouldGenerateFallbackBio_WhenProfessionalBioIsNull()
+        {
+            // Arrange
+            var assessment = new CandidateAssessment
+            {
+                Id = Guid.NewGuid(),
+                UserId = Guid.NewGuid(),
+                CareerLevelLabel = "Senior",
+                PrimaryTendency = "Frontend",
+                PrimaryWorkingStyle = "UI Architect",
+                SummaryHeadline = "Headline",
+                SummaryParagraph = "Paragraph",
+                ProfessionalBio = null
+            };
+
+            // Act
+            var method = typeof(CandidateAssessmentService).GetMethod("MapToResponse", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            method.Should().NotBeNull();
+            var response = (CandidateAssessmentResponse)method.Invoke(null, new object[] { assessment })!;
+
+            // Assert
+            response.Should().NotBeNull();
+            response.ProfessionalBio.Should().Be("Senior Frontend Engineer specializing in robust system development, operating primarily as a UI Architect. Proven capability in designing, building, and deploying clean, maintainable software architectures.");
         }
 
         private void SetupMockHttpClient(string responseContent, HttpStatusCode statusCode)

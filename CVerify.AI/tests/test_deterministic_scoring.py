@@ -1,6 +1,6 @@
 import pytest
 from app.pipelines.candidate.scoring_engine import score_candidate_deterministic
-from app.pipelines.candidate.contracts import CandidateAssessmentV2Contract
+from app.pipelines.candidate.contracts import CandidateAssessmentV3Contract
 
 def test_empty_candidate_profile():
     # Empty skills, empty repository assessments
@@ -12,7 +12,7 @@ def test_empty_candidate_profile():
     
     profile = score_candidate_deterministic(cv, repository_assessments)
     
-    assert profile["schemaVersion"] == "candidate-profile-v2"
+    assert profile["schemaVersion"] == "candidate-profile-v3"
     assert "trustScoreMetrics" in profile
     metrics = profile["trustScoreMetrics"]
     assert metrics["verifiedSkillRatio"] == 0.0  # Reset to 0 when no repos
@@ -23,7 +23,7 @@ def test_empty_candidate_profile():
     assert profile["evidenceCompleteness"] == "NONE"
     assert profile["cloneRiskClassification"] == "clean"
 
-    # Validate against CandidateAssessmentV2Contract (SSOT)
+    # Validate against CandidateAssessmentV3Contract (SSOT)
     try:
         # Mock missing LLM-owned fields needed for contract validation
         mock_full_profile = profile.copy()
@@ -32,11 +32,12 @@ def test_empty_candidate_profile():
             "primaryWorkingStyle": "Consistent",
             "recruiterHeadline": "Experienced Engineer",
             "fullSummary": "Full summary here",
+            "professionalBio": "Professional bio summary here",
             "keyStrengths": ["Coding"],
             "watchPoints": ["Testing"],
             "displayConfidence": 0.85
         })
-        CandidateAssessmentV2Contract.model_validate(mock_full_profile)
+        CandidateAssessmentV3Contract.model_validate(mock_full_profile)
     except Exception as ex:
         pytest.fail(f"Profile failed schema contract validation: {ex}")
 
@@ -183,4 +184,43 @@ def test_domain_seniority_cascade_and_historical_metrics():
     # Since 90 >= 85, domain level should be L5 (Principal)
     domain_backend = next(d for d in profile["domainProfiles"] if d["domainName"] == "Backend Development")
     assert domain_backend["seniority"] == "Principal"
+
+
+def test_candidate_summary_validation():
+    from app.pipelines.candidate.tasks.summary import CandidateSummaryGenerator
+    from app.pipelines.candidate.context import PipelineContext
+
+    generator = CandidateSummaryGenerator()
+    context = PipelineContext(
+        cv={},
+        repositoryAssessments=[],
+        finalLevelLabel="Senior",
+        primaryTendency="Backend",
+        primaryWorkingStyle="System Designer"
+    )
+
+    # Test Case 1: Valid bio (passes validations, is capped)
+    valid_bio = "Senior Backend Engineer with deep experience designing microservices and optimizing database layers. Highly proficient in Python and Go, focused on clean architecture and high system stability."
+    full_summary = "Analytical vetting report of the candidate. Strong evidence of architecture design in repository assessments."
+    res = generator._validate_and_fallback_bio(full_summary, valid_bio, context)
+    assert res == valid_bio
+
+    # Test Case 2: Bio too similar to summary (should fallback)
+    similar_bio = "Analytical vetting report of the candidate. Strong evidence of architecture design in repository assessments."
+    res_similar = generator._validate_and_fallback_bio(similar_bio, similar_bio, context)
+    assert "specializing in robust system development" in res_similar
+    assert "System Designer" in res_similar
+
+    # Test Case 3: Bio contains banned words (should fallback)
+    banned_bio = "Senior Backend Engineer with a trust score of 95% and L3 career level according to CVerify evaluation metrics."
+    res_banned = generator._validate_and_fallback_bio(full_summary, banned_bio, context)
+    assert "specializing in robust system development" in res_banned
+    assert "L3" not in res_banned
+    assert "CVerify" not in res_banned
+
+    # Test Case 4: Bio too short (should fallback)
+    short_bio = "Short summary."
+    res_short = generator._validate_and_fallback_bio(full_summary, short_bio, context)
+    assert "specializing in robust system development" in res_short
+
 

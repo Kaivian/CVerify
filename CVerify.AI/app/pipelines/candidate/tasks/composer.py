@@ -5,7 +5,7 @@ import os
 import logging
 from app.pipelines.candidate.base_task import BaseTask
 from app.pipelines.candidate.context import PipelineContext
-from app.pipelines.candidate.contracts import CandidateAssessmentV2Contract
+from app.pipelines.candidate.contracts import CandidateAssessmentV3Contract
 from app.pipelines.candidate import scoring_engine
 
 logger = logging.getLogger("candidate_profile_composer")
@@ -28,7 +28,7 @@ class CandidateProfileComposer(BaseTask):
     def input_keys(self) -> List[str]:
         return [
             "cv", "repositoryAssessments", "skillProficiencies", "finalLevel", "finalLevelLabel",
-            "primaryTendency", "primaryWorkingStyle", "recruiterHeadline", "fullSummary",
+            "primaryTendency", "primaryWorkingStyle", "recruiterHeadline", "fullSummary", "professionalBio",
             "keyStrengths", "watchPoints", "suggestedRoles", "topMatch", "suggestedCvTitles",
             "cvImprovementSuggestions", "confidenceMultiplier", "totalExperienceMonths",
             "confidenceInLevel", "backgroundRepositories", "skillDepthScore", "ownershipScore",
@@ -546,9 +546,9 @@ class CandidateProfileComposer(BaseTask):
             }
         }
 
-        # Output payload compatible with schema v2 requirements
+        # Output payload compatible with schema v3 requirements
         data = {
-            "schemaVersion": "candidate-profile-v2",
+            "schemaVersion": "candidate-profile-v3",
             "candidateScore": s_candidate,  # Legacy scalar compatibility fallback
             "candidateScoreLabel": context.finalLevelLabel or "Middle",
             "careerLevel": context.finalLevel or "L2",
@@ -564,6 +564,7 @@ class CandidateProfileComposer(BaseTask):
             
             "recruiterHeadline": context.recruiterHeadline or "",
             "fullSummary": context.fullSummary or "",
+            "professionalBio": context.professionalBio or "",
             "keyStrengths": context.keyStrengths or [],
             "watchPoints": context.watchPoints or [],
  
@@ -616,10 +617,10 @@ class CandidateProfileComposer(BaseTask):
             "cvImprovementSuggestions": context.cvImprovementSuggestions or [],
             "scoreBreakdown": score_breakdown_out
         }
-        # Validate against CandidateAssessmentV2Contract (SSOT)
+        # Validate against CandidateAssessmentV3Contract (SSOT)
         try:
-            CandidateAssessmentV2Contract.model_validate(data)
-            logger.info("[CONTRACT_VALIDATION_SUCCESS] CandidateProfile successfully validated against CandidateAssessmentV2Contract.")
+            CandidateAssessmentV3Contract.model_validate(data)
+            logger.info("[CONTRACT_VALIDATION_SUCCESS] CandidateProfile successfully validated against CandidateAssessmentV3Contract.")
         except Exception as ex:
             logger.error(f"[CONTRACT_VALIDATION_FAILED] CandidateProfile validation failed: {str(ex)}")
             raise

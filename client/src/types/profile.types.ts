@@ -335,6 +335,7 @@ export interface CandidateAssessmentResponse {
   primaryWorkingStyle: string | null;
   summaryHeadline: string | null;
   summaryParagraph: string | null;
+  professionalBio: string | null;
   pipelineVersion: string;
   assessmentSchemaVersion: string;
   cvId: string | null;

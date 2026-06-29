@@ -100,6 +100,7 @@ class PipelineContext(BaseModel):
     cvImprovementSuggestions: Optional[List[Dict[str, Any]]] = None
     recruiterHeadline: Optional[str] = None
     fullSummary: Optional[str] = None
+    professionalBio: Optional[str] = None
     keyStrengths: Optional[List[str]] = None
     watchPoints: Optional[List[str]] = None
     

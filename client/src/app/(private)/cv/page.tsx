@@ -1228,16 +1228,31 @@ export default function CvManagementCenter() {
 
         {/* AI Narrative & Strengths Split Grid (2-Column) */}
         <div id="section-narrative" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Narrative Text */}
-          <div className="lg:col-span-7 p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-4 shadow-xs select-text">
-            <div className="flex items-center gap-2">
-              <FileText className="size-4.5 text-accent" />
-              <h4 className="font-extrabold text-xs uppercase tracking-wider text-foreground">AI Evaluation Narrative</h4>
+          {/* Narrative & Bio Suggestions Column */}
+          <div className="lg:col-span-7 flex flex-col gap-6">
+            {/* Narrative Card */}
+            <div className="p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-4 shadow-xs select-text">
+              <div className="flex items-center gap-2 select-none">
+                <FileText className="size-4.5 text-accent" />
+                <h4 className="font-extrabold text-xs uppercase tracking-wider text-foreground">AI Evaluation Narrative</h4>
+              </div>
+              <div className="w-full h-px bg-border/10" />
+              <p className="text-xs md:text-sm text-foreground/90 leading-relaxed text-justify font-sans font-light whitespace-pre-wrap">
+                {activeData.fullSummary || activeData.summaryParagraph || "No assessment narrative generated."}
+              </p>
             </div>
-            <div className="w-full h-px bg-border/10" />
-            <p className="text-xs md:text-sm text-foreground/90 leading-relaxed text-justify font-sans font-light whitespace-pre-wrap">
-              {activeData.fullSummary || activeData.summaryParagraph || "No assessment narrative generated."}
-            </p>
+
+            {/* AI Professional Bio Suggestion Card */}
+            <div className="p-6 border border-border/40 bg-surface rounded-2xl flex flex-col gap-4 shadow-xs select-text">
+              <div className="flex items-center gap-2 select-none">
+                <Sparkles className="size-4.5 text-success" />
+                <h4 className="font-extrabold text-xs uppercase tracking-wider text-foreground">AI Professional Bio Suggestion</h4>
+              </div>
+              <div className="w-full h-px bg-border/10" />
+              <p className="text-xs md:text-sm text-foreground/90 leading-relaxed text-justify font-sans font-light whitespace-pre-wrap">
+                {activeData.professionalBio || "No professional bio suggestion generated."}
+              </p>
+            </div>
           </div>
 
           {/* Vetting Checklists */}

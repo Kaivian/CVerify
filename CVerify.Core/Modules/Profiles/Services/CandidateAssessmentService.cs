@@ -731,10 +731,11 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             using var doc = JsonDocument.Parse(profileArtifact.JsonData);
             var root = doc.RootElement;
 
-            // Enforce strict schema validation and fail-fast streaming logic (composer v2 enforcement)
-            if (!root.TryGetProperty("schemaVersion", out var schemaProp) || schemaProp.GetString() != "candidate-profile-v2")
+            // Enforce strict schema validation and fail-fast streaming logic (composer v2/v3 enforcement)
+            if (!root.TryGetProperty("schemaVersion", out var schemaProp) || 
+                (schemaProp.GetString() != "candidate-profile-v2" && schemaProp.GetString() != "candidate-profile-v3"))
             {
-                throw new InvalidDataException("Invalid assessment schema. Stream requires 'candidate-profile-v2'.");
+                throw new InvalidDataException("Invalid assessment schema. Stream requires 'candidate-profile-v2' or 'candidate-profile-v3'.");
             }
 
             if (!root.TryGetProperty("trustScoreMetrics", out var trustMetricsProp) || trustMetricsProp.ValueKind != JsonValueKind.Object)
@@ -763,6 +764,10 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             if (root.TryGetProperty("fullSummary", out var sumProp))
             {
                 assessment.SummaryParagraph = sumProp.GetString();
+            }
+            if (root.TryGetProperty("professionalBio", out var bioProp))
+            {
+                assessment.ProfessionalBio = bioProp.GetString();
             }
 
             // Populate Indexing ranking columns
@@ -832,14 +837,14 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 }
 
                 // 2. Bio suggestion
-                if (!string.IsNullOrEmpty(assessment.SummaryParagraph))
+                if (!string.IsNullOrEmpty(assessment.ProfessionalBio))
                 {
                     if (!suggestions.TryGetValue("bio", out var bioItem))
                     {
                         bioItem = new AiSuggestionItem { Source = "user" };
                         suggestions["bio"] = bioItem;
                     }
-                    bioItem.AiValue = assessment.SummaryParagraph;
+                    bioItem.AiValue = assessment.ProfessionalBio;
                     bioItem.GeneratedAt = DateTimeOffset.UtcNow;
                 }
 
@@ -970,6 +975,14 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         await subscriber.PublishAsync(channel, rawJson);
     }
 
+    private static string GenerateDeterministicFallbackBio(CandidateAssessment entity)
+    {
+        var level = entity.CareerLevelLabel ?? "Experienced";
+        var tendency = entity.PrimaryTendency ?? "Software";
+        var style = entity.PrimaryWorkingStyle ?? "Feature Builder";
+        return $"{level} {tendency} Engineer specializing in robust system development, operating primarily as a {style}. Proven capability in designing, building, and deploying clean, maintainable software architectures.";
+    }
+
     private static CandidateAssessmentResponse MapToResponse(CandidateAssessment entity)
     {
         return new CandidateAssessmentResponse(
@@ -984,6 +997,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             entity.PrimaryWorkingStyle,
             entity.SummaryHeadline,
             entity.SummaryParagraph,
+            string.IsNullOrEmpty(entity.ProfessionalBio) ? GenerateDeterministicFallbackBio(entity) : entity.ProfessionalBio,
             entity.PipelineVersion,
             entity.AssessmentSchemaVersion,
             entity.CvId,
@@ -1966,7 +1980,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     var newObj = System.Text.Json.Nodes.JsonNode.Parse(resultJson)?.AsObject();
                     if (oldObj != null && newObj != null)
                     {
-                        var keysToPreserve = new[] { "recruiterHeadline", "fullSummary", "keyStrengths", "watchPoints", "cvImprovementSuggestions", "strengthsWeaknesses", "evidenceGovernance" };
+                        var keysToPreserve = new[] { "recruiterHeadline", "fullSummary", "professionalBio", "keyStrengths", "watchPoints", "cvImprovementSuggestions", "strengthsWeaknesses", "evidenceGovernance" };
                         _logger.LogInformation("[REPROCESS_MERGE] Assessment: {AssessmentId}, Preserved Keys: {Keys}", ca.Id, string.Join(", ", keysToPreserve));
                         foreach (var key in keysToPreserve)
                         {
@@ -2000,6 +2014,10 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             if (root.TryGetProperty("fullSummary", out var sumProp))
             {
                 ca.SummaryParagraph = sumProp.GetString();
+            }
+            if (root.TryGetProperty("professionalBio", out var bioProp))
+            {
+                ca.ProfessionalBio = bioProp.GetString();
             }
 
             ca.CompletedAtUtc = DateTimeOffset.UtcNow;
