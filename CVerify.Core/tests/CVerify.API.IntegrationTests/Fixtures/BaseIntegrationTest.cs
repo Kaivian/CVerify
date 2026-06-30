@@ -42,7 +42,8 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                                    "GOOGLE_CLIENT_ID", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "AI_SERVICE_URL", "AI_SERVICE_SHARED_SECRET",
                                    "AI_SERVICE_CLIENT_ID", "CLAUDE_MODEL", "EMAIL_SENDER_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME",
                                    "SMTP_PASSWORD", "SENDGRID_API_KEY", "Auth__DisableCsrf", "DISABLE_RATE_LIMITS", "SUPER_ADMIN_PASSWORD",
-                                   "SUPER_ADMIN_USERNAME", "SUPER_ADMIN_FULL_NAME", "SEED_TEST_ACCOUNTS", "ASPNETCORE_ENVIRONMENT" };
+                                   "SUPER_ADMIN_USERNAME", "SUPER_ADMIN_FULL_NAME", "SEED_TEST_ACCOUNTS", "ASPNETCORE_ENVIRONMENT",
+                                   "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "R2_ENDPOINT", "R2_BUCKET" };
 
         foreach (var v in varsToBackup)
         {
@@ -89,6 +90,10 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("SUPER_ADMIN_USERNAME", "mockadmin");
         Environment.SetEnvironmentVariable("SUPER_ADMIN_FULL_NAME", "Mock Administrator");
         Environment.SetEnvironmentVariable("SEED_TEST_ACCOUNTS", "false");
+        Environment.SetEnvironmentVariable("ACCESS_KEY_ID", "mock-access-key-id");
+        Environment.SetEnvironmentVariable("SECRET_ACCESS_KEY", "mock-secret-access-key");
+        Environment.SetEnvironmentVariable("R2_ENDPOINT", "https://mock-endpoint.r2.cloudflarestorage.com");
+        Environment.SetEnvironmentVariable("R2_BUCKET", "mock-bucket");
 
         // Apply custom environment overrides if provided (e.g., stress test rate limit overrides)
         if (envOverrides != null)
@@ -128,7 +133,11 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                 { "RateLimit:ResetPasswordPermitLimit", "1000" },
                 { "RateLimit:ResendVerificationPermitLimit", "1000" },
                 { "RateLimit:VerifyEmailPermitLimit", "1000" },
-                { "RateLimit:RegisterPermitLimit", "1000" }
+                { "RateLimit:RegisterPermitLimit", "1000" },
+                { "R2:AccessKeyId", "mock-access-key-id" },
+                { "R2:SecretAccessKey", "mock-secret-access-key" },
+                { "R2:Endpoint", "https://mock-endpoint.r2.cloudflarestorage.com" },
+                { "R2:BucketName", "mock-bucket" }
             });
         });
         builder.ConfigureServices(services =>
