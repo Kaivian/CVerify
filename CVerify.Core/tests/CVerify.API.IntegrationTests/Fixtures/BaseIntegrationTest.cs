@@ -95,6 +95,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("R2_ENDPOINT", "https://mock-endpoint.r2.cloudflarestorage.com");
         Environment.SetEnvironmentVariable("R2_BUCKET", "mock-bucket");
         Environment.SetEnvironmentVariable("TOKEN_ENCRYPTION_KEY", "h7X8k2P9q4W1v5Z0y3N6s9B2m5C8x1R4");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
 
         // Apply custom environment overrides if provided (e.g., stress test rate limit overrides)
         if (envOverrides != null)
