@@ -333,4 +333,9 @@ export const forumApi = {
   resolveReport: async (id: string, status: 'RESOLVED' | 'DISMISSED', resolutionNotes?: string): Promise<void> => {
     await axiosClient.post(`/v1/forum/moderation/resolve/${id}`, { status, resolutionNotes });
   },
+
+  getCurrentUserProfile: async (): Promise<UserMiniDto> => {
+    const response = await axiosClient.get<UserMiniDto>('/v1/forum/user/me');
+    return response.data;
+  },
 };

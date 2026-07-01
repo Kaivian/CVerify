@@ -105,6 +105,11 @@ public class ForumService : IForumService
         }
     }
 
+    public async Task<UserMiniDto> GetUserMiniProfileAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        return await MapUserToMiniDtoAsync(userId, cancellationToken);
+    }
+
     private async Task<UserMiniDto> MapUserToMiniDtoAsync(Guid userId, CancellationToken cancellationToken)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);

@@ -49,4 +49,7 @@ public interface IForumService
     Task ReportContentAsync(CreateReportRequest request, Guid reporterId, CancellationToken cancellationToken);
     Task<ForumPagedResult<ReportResponse>> GetReportsAsync(int page, int pageSize, CancellationToken cancellationToken);
     Task ResolveReportAsync(Guid reportId, ResolveReportRequest request, Guid moderatorId, CancellationToken cancellationToken);
+
+    // User Profile
+    Task<UserMiniDto> GetUserMiniProfileAsync(Guid userId, CancellationToken cancellationToken);
 }

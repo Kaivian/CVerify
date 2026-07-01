@@ -302,5 +302,13 @@ public class ForumController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("user/me")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCurrentUserForumProfile(CancellationToken cancellationToken)
+    {
+        var profile = await _forumService.GetUserMiniProfileAsync(CurrentUserId, cancellationToken);
+        return Ok(profile);
+    }
+
     #endregion
 }
