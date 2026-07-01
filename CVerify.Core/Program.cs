@@ -18,6 +18,7 @@ using CVerify.API.Modules.Auth.Services.OtpPolicies;
 using CVerify.API.Modules.Auth.Services.PasswordPolicies;
 using CVerify.API.Modules.Profiles.Services;
 using CVerify.API.Modules.Profiles.BackgroundWorkers;
+using CVerify.API.Modules.Forum.Services;
 using CVerify.API.Modules.Recovery.BackgroundWorkers;
 using CVerify.API.Modules.Recovery.Services;
 using CVerify.API.Modules.Shared.Configuration;
@@ -428,6 +429,9 @@ builder.Services.AddScoped<IAttachmentService, AttachmentService>();
 builder.Services.AddScoped<IWorkExperienceService, WorkExperienceService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ICvRepositoryIndexer, CvRepositoryIndexer>();
+
+// Register Forum Services
+builder.Services.AddScoped<IForumService, ForumService>();
 builder.Services.AddScoped<ICandidateMatchService, CandidateMatchService>();
 builder.Services.AddScoped<ICandidateAssessmentService, CandidateAssessmentService>();
 builder.Services.AddSingleton<CVerify.API.Modules.Shared.System.Services.IAiCancellationManager, CVerify.API.Modules.Shared.System.Services.AiCancellationManager>();

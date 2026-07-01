@@ -40,4 +40,10 @@ public static class ActivityEventTypes
     
     public const string PasswordChanged = "PASSWORD_CHANGED";
     public const string IpVerified = "IP_VERIFIED";
+
+    public const string ForumTopicCreated = "FORUM_TOPIC_CREATED";
+    public const string ForumTopicModerated = "FORUM_TOPIC_MODERATED";
+    public const string ForumReplyCreated = "FORUM_REPLY_CREATED";
+    public const string ForumAnswerAccepted = "FORUM_ANSWER_ACCEPTED";
+    public const string ForumContentReported = "FORUM_CONTENT_REPORTED";
 }

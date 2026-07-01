@@ -6,9 +6,10 @@ using Microsoft.EntityFrameworkCore.Storage;
 using CVerify.API.Modules.AiChat.Entities;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Exceptions.Catalogs;
+using CVerify.API.Modules.Shared.Configuration;
+using CVerify.API.Modules.Forum.Entities;
 using CVerify.API.Modules.Shared.Security;
 using CVerify.API.Modules.Profiles.Entities;
-using CVerify.API.Modules.Shared.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -83,6 +84,24 @@ public static class DbInitializer
         if (shouldReset)
         {
             const string dropSql = @"
+                DROP TABLE IF EXISTS forum_reply_histories CASCADE;
+                DROP TABLE IF EXISTS forum_topic_histories CASCADE;
+                DROP TABLE IF EXISTS forum_moderation_logs CASCADE;
+                DROP TABLE IF EXISTS forum_user_badges CASCADE;
+                DROP TABLE IF EXISTS forum_badges CASCADE;
+                DROP TABLE IF EXISTS forum_reputations CASCADE;
+                DROP TABLE IF EXISTS forum_reports CASCADE;
+                DROP TABLE IF EXISTS forum_follows CASCADE;
+                DROP TABLE IF EXISTS forum_bookmarks CASCADE;
+                DROP TABLE IF EXISTS forum_reactions CASCADE;
+                DROP TABLE IF EXISTS forum_votes CASCADE;
+                DROP TABLE IF EXISTS forum_topic_tags CASCADE;
+                DROP TABLE IF EXISTS forum_tags CASCADE;
+                DROP TABLE IF EXISTS forum_replies CASCADE;
+                DROP TABLE IF EXISTS forum_topics CASCADE;
+                DROP TABLE IF EXISTS forum_category_moderators CASCADE;
+                DROP TABLE IF EXISTS forum_categories CASCADE;
+
                 DROP TABLE IF EXISTS candidate_strengths_weaknesses CASCADE;
                 DROP TABLE IF EXISTS candidate_best_fit_roles CASCADE;
                 DROP TABLE IF EXISTS candidate_intelligence_signals CASCADE;
@@ -3158,6 +3177,7 @@ public static class DbInitializer
         await RoleSeeder.SeedAsync(context, seedingPolicy);
         await MembershipMigrationSeeder.SeedAsync(context, seedingPolicy);
         await CapabilityCatalogSeeder.SeedAsync(context, seedingPolicy);
+        await SeedForumDataAsync(context, seedingPolicy);
 
         global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder> moduleSeeders;
         Microsoft.Extensions.Logging.ILoggerFactory loggerFactory;
@@ -3189,6 +3209,79 @@ public static class DbInitializer
 
         // One-time compatibility migration to backfill repository classification & authenticity columns
         await MigrateLegacyRepositoryMetadataAsync(context);
+    }
+
+    private static async Task SeedForumDataAsync(ApplicationDbContext context, SeedingPolicy policy)
+    {
+        if (context == null) throw new ArgumentNullException(nameof(context));
+        if (policy == null) throw new ArgumentNullException(nameof(policy));
+
+        // Seed Forum Categories
+        var defaultCategories = new List<(string Name, string Slug, string Description, string IconName, int DisplayOrder, string? RequiredRole)>
+        {
+            ("General Discussion", "general-discussion", "Discuss anything tech, life, or CVerify related.", "MessageSquare", 1, null),
+            ("Programming", "programming", "Share code snippets, software design patterns, and programming advice.", "Code", 2, null),
+            ("Frontend Development", "frontend", "Discuss HTML, CSS, React, Next.js, Tailwind and UI/UX.", "Layout", 3, null),
+            ("Backend Development", "backend", "Discuss C#, .NET, Go, Python, databases, API design, and system architecture.", "Server", 4, null),
+            ("DevOps & Cloud", "devops-cloud", "Discuss CI/CD, Docker, Kubernetes, AWS, Cloudflare, and automation.", "Cloud", 5, null),
+            ("Security", "security", "Discuss penetration testing, cryptography, auth safety, and cybersecurity guidelines.", "Shield", 6, null),
+            ("Career Discussion", "career", "Career development advice, resume reviews, salary negotiations, and advice.", "TrendingUp", 7, null),
+            ("Hiring & Open Positions", "hiring", "Official hiring posts, job openings, and employer branding updates.", "Briefcase", 8, "BUSINESS"),
+            ("Projects & Showcase", "projects-showcase", "Showcase your side projects, open source contributions, and web products.", "Folder", 9, null),
+            ("Announcements", "announcements", "Platform news, official updates, and maintenance announcements from CVerify.", "Megaphone", 10, "ADMIN")
+        };
+
+        foreach (var dc in defaultCategories)
+        {
+            var exists = await context.ForumCategories.AnyAsync(c => c.Slug == dc.Slug && c.OrganizationId == null);
+            if (!exists)
+            {
+                context.ForumCategories.Add(new ForumCategory
+                {
+                    Id = Guid.CreateVersion7(),
+                    Name = dc.Name,
+                    Slug = dc.Slug,
+                    Description = dc.Description,
+                    IconName = dc.IconName,
+                    DisplayOrder = dc.DisplayOrder,
+                    RequiredRole = dc.RequiredRole,
+                    IsPrivate = false,
+                    IsArchived = false,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }
+
+        // Seed Forum Badges
+        var defaultBadges = new List<(string Name, string Description, string IconName, string CriteriaCode)>
+        {
+            ("First Post", "Awarded for posting your first discussion topic or reply.", "Award", "first_post"),
+            ("Top Contributor", "Awarded for reaching 1000 reputation points.", "Trophy", "top_contributor"),
+            ("AI Expert", "Awarded for contributions to AI discussions and insights.", "Sparkles", "ai_expert"),
+            ("Open Source Contributor", "Awarded for sharing open source projects in showcase.", "GitFork", "open_source_contributor"),
+            ("Hiring Expert", "Awarded to verified businesses with helpful hiring discussions.", "Briefcase", "hiring_expert"),
+            ("Community Helper", "Awarded for having 5 accepted solutions.", "Heart", "community_helper")
+        };
+
+        foreach (var db in defaultBadges)
+        {
+            var exists = await context.ForumBadges.AnyAsync(b => b.CriteriaCode == db.CriteriaCode);
+            if (!exists)
+            {
+                context.ForumBadges.Add(new ForumBadge
+                {
+                    Id = Guid.CreateVersion7(),
+                    Name = db.Name,
+                    Description = db.Description,
+                    IconName = db.IconName,
+                    CriteriaCode = db.CriteriaCode,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)
