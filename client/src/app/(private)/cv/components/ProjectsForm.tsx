@@ -866,7 +866,7 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                     <Tooltip.Trigger>
                       <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                     </Tooltip.Trigger>
-                    <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-normal wrap-break-word">
+                    <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
                       Explain key tasks or improvements you built (e.g., 'Implemented real-time synchronization between frontend and database').
                     </Tooltip.Content>
                   </Tooltip>

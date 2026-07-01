@@ -562,7 +562,7 @@ export default function WorkspacePostsTab() {
                             <span className="font-semibold text-foreground block text-[11px] leading-tight">
                               {comment.authorName}
                             </span>
-                            <p className="text-foreground font-normal leading-normal whitespace-pre-line wrap-break-word text-[11px] mt-0.5">
+                            <p className="text-foreground font-normal leading-normal whitespace-pre-line break-words text-[11px] mt-0.5">
                               {comment.content}
                             </p>
                           </div>

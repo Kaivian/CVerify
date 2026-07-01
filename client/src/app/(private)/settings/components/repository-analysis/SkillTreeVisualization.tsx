@@ -70,7 +70,7 @@ export const SkillTreeVisualization: React.FC<SkillTreeProps> = ({ analysis }) =
                     <div className="space-y-1 text-left min-w-0 flex flex-col gap-1 w-full">
                       <div className="flex items-start gap-2 w-full">
                         <CheckCircle2 className="size-4 text-success shrink-0 mt-0.5" />
-                        <Typography className="text-xs font-semibold text-foreground whitespace-normal wrap-break-word">
+                        <Typography className="text-xs font-semibold text-foreground whitespace-normal break-words">
                           {displayTitle}
                         </Typography>
                       </div>

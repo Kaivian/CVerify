@@ -182,7 +182,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                 <div className="flex flex-col min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span
-                      className="text-sm font-black text-foreground hover:text-accent cursor-pointer line-clamp-2 wrap-break-word"
+                      className="text-sm font-black text-foreground hover:text-accent cursor-pointer line-clamp-2 break-words"
                       onClick={() => router.push(`/${candidate.username || candidate.candidateId}`)}
                     >
                       {candidate.fullName}
@@ -198,7 +198,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
                       @{candidate.username}
                     </span>
                   )}
-                  <span className="text-[11px] text-muted-foreground font-semibold line-clamp-2 wrap-break-word mt-0.5 leading-normal">
+                  <span className="text-[11px] text-muted-foreground font-semibold line-clamp-2 break-words mt-0.5 leading-normal">
                     {candidate.headline || "Verified Talent"}
                   </span>
                 </div>
