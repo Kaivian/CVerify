@@ -1,0 +1,63 @@
+# Báo Cáo Thiết Kế Ca Kiểm Thử Tích Hợp Candidate Readiness & AI Capability Assessment
+
+Báo cáo này thiết kế chi tiết các ca kiểm thử tích hợp (Integration Test Cases) cho hệ thống kiểm tra sự sẵn sàng và kích hoạt đánh giá năng lực ứng viên bằng AI của **CVerify**.
+
+## Định nghĩa 3 mốc thời gian đánh giá trạng thái kiểm thử (3 Cột Status):
+1. **Lần 1 (Thiết kế - 10/07/2026)**: Trạng thái khi các ca kiểm thử vừa được phác thảo thiết kế.
+2. **Lần 2 (Triển khai - 10/07/2026)**: Trạng thái sau khi hoàn thành phần lớn unit tests cho các service logic cốt lõi.
+3. **Lần 3 (Hiện tại - 10/07/2026)**: Trạng thái hiện tại sau khi đã phủ toàn bộ kiểm thử tích hợp cho cả Service, Controller và các bộ lọc bảo mật.
+
+* **Passed**: Ca kiểm thử đã có mã kiểm thử tự động (Unit Test hoặc Integration Test) trong mã nguồn và chạy thành công.
+* **Failed**: Ca kiểm thử đã được triển khai mã kiểm thử tự động nhưng kết quả chạy bị lỗi.
+* **Pending**: Tính năng chưa được viết mã kiểm thử tự động cụ thể (cần kiểm thử thủ công).
+* **N/A**: Không áp dụng do tính năng không nằm trong phạm vi thiết kế của mã nguồn.
+
+---
+
+## 1. Check candidate readiness status (Kiểm tra trạng thái sẵn sàng của ứng viên)
+
+| Test Case ID | Test Case Description | Test Case Procedure | Expected Results | Pre-conditions | Lần 1 (Thiết kế) | Lần 2 (Triển khai) | Lần 3 (Hiện tại) | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **CAD-READ-001** | Kiểm tra sự sẵn sàng khi hồ sơ đầy đủ và có ít nhất một kho lưu trữ được liên kết (Happy Path). | 1. Đăng nhập hệ thống CVerify.<br>2. Gửi request `GET` đến endpoint `api/v1/candidate-assessments/readiness`. | 1. Trả về HTTP `200 OK` kèm dữ liệu `CandidateReadinessDto`.<br>2. `isReady` trả về `true`.<br>3. Mảng `missingFields` trống.<br>4. Điểm hoàn thiện `completenessScore` đạt `100.0`%. | - Ứng viên đã liên kết, phân tích và map ít nhất 1 Repo vào CV.<br>- Các trường Headline, Bio, Skills, Education, Experience đầy đủ. | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.GetReadinessStatusAsync_Should_Return_IsReady_True_When_Profile_And_Repos_Are_Complete` và `CandidateAssessmentControllerTests.GetReadinessStatus_Should_Return_Ok_With_ReadinessDto` |
+| **CAD-READ-002** | Kiểm tra sự sẵn sàng khi thiếu trường bắt buộc (Không có Repo nào được liên kết CV). | 1. Gửi request `GET` đến endpoint `api/v1/candidate-assessments/readiness`. | 1. Trả về HTTP `200 OK`.<br>2. `isReady` trả về `false`.<br>3. Mảng `missingFields` chứa 1 phần tử với `field = "Repositories"`, `isRequired = true` và hướng dẫn kết nối Repo.<br>4. Điểm hoàn thiện `completenessScore` giảm tương ứng. | - Tài khoản ứng viên chưa liên kết hoặc chưa hoàn thành phân tích tĩnh bất kỳ Repo nào. | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.GetReadinessStatusAsync_Should_Return_IsReady_False_When_NoLinkedRepositories` |
+| **CAD-READ-003** | Kiểm tra sự sẵn sàng khi chỉ thiếu các trường thông tin tùy chọn (Bio, Headline, v.v.). | 1. Xóa Headline và Bio trong hồ sơ của ứng viên.<br>2. Gửi request `GET` kiểm tra sự sẵn sàng. | 1. Trả về HTTP `200 OK`.<br>2. `isReady` trả về `true` (do các trường bị thiếu đều có `isRequired = false`).<br>3. Mảng `missingFields` chứa thông tin về "Headline" và "Bio".<br>4. Điểm hoàn thiện `completenessScore` giảm xuống tương ứng (ví dụ: còn `66.7`%). | - Ứng viên đã liên kết và phân tích thành công Repo. | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.GetReadinessStatusAsync_Should_Return_IsReady_True_With_MissingFields_When_OptionalFields_Are_Missing` |
+| **CAD-READ-004** | Kiểm định tính toán sự sẵn sàng tự động (Reassessment check) khi có cập nhật mới. | 1. Tiến hành phân tích thêm một Repo mới hoặc cập nhật trường học vấn/kinh nghiệm sau khi đã có một Đánh giá hoàn tất.<br>2. Gửi request kiểm tra sự sẵn sàng. | 1. Trả về `requiresReassessment = true`.<br>2. Cờ này được đặt thành `true` do thời gian hoàn thành đánh giá cuối cùng (`latestAssessment.CompletedAtUtc`) cũ hơn thời điểm cập nhật hồ sơ mới hoặc thời điểm phân tích Repo gần nhất. | - Đã có ít nhất một Đánh giá (Assessment) ở trạng thái `Completed`. | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.GetReadinessStatusAsync_Should_Return_RequiresReassessment_True_When_NewRepoAnalysis_Completed_Since_LastAssessment` |
+| **CAD-READ-005** | Truy cập thông tin sự sẵn sàng khi chưa đăng nhập. | 1. Không gửi Header Authorization Bearer.<br>2. Gửi request `GET` đến endpoint `api/v1/candidate-assessments/readiness`. | 1. Backend từ chối xử lý và trả về HTTP `401 Unauthorized`. | - Chưa xác thực thông tin người dùng. | **Pending** | **Pending** | **Passed** | Security: Khai báo bộ lọc `[Authorize]` trên `CandidateAssessmentController` |
+
+---
+
+## 2. Retrieve list of assessment stages and descriptions (Lấy danh sách các giai đoạn đánh giá)
+
+| Test Case ID | Test Case Description | Test Case Procedure | Expected Results | Pre-conditions | Lần 1 (Thiết kế) | Lần 2 (Triển khai) | Lần 3 (Hiện tại) | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **CAD-STG-001** | Lấy danh sách các giai đoạn đánh giá năng lực thành công (Happy Path). | 1. Đăng nhập hệ thống CVerify.<br>2. Gửi request `GET` đến endpoint `api/v1/candidate-assessments/stages`. | 1. Trả về HTTP `200 OK`.<br>2. Response trả về danh sách 19 giai đoạn từ `Initialize`, `FetchLine1`, `ConsolidateLine1`, `L2-001` đến `L2-015`.<br>3. Mỗi giai đoạn chứa đầy đủ các trường `Id`, `Name`, `Description`. | - Đăng nhập tài khoản hợp lệ. | **Pending** | **Pending** | **Passed** | Unit Test: `CandidateAssessmentControllerTests.GetStages_Should_Return_Ok_With_StagesList` |
+| **CAD-STG-002** | Truy cập endpoint danh sách giai đoạn khi chưa đăng nhập. | 1. Không gửi Header Authorization Bearer.<br>2. Gửi request `GET` đến endpoint `api/v1/candidate-assessments/stages`. | 1. Backend trả về HTTP `401 Unauthorized`. | - Chưa xác thực thông tin người dùng. | **Pending** | **Pending** | **Passed** | Security: Khai báo bộ lọc `[Authorize]` trên `CandidateAssessmentController` |
+
+---
+
+## 3. Trigger full candidate capability assessment (Kích hoạt đánh giá năng lực ứng viên)
+
+| Test Case ID | Test Case Description | Test Case Procedure | Expected Results | Pre-conditions | Lần 1 (Thiết kế) | Lần 2 (Triển khai) | Lần 3 (Hiện tại) | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **CAD-TRIG-001** | Kích hoạt đánh giá năng lực ứng viên hợp lệ thành công (Happy Path). | 1. Đăng nhập bằng tài khoản ứng viên hợp lệ.<br>2. Gửi request `POST` đến endpoint `api/v1/candidate-assessments`. | 1. Trả về HTTP `202 Accepted` kèm chi tiết thực thể Đánh giá mới tạo.<br>2. Bản ghi `CandidateAssessment` được ghi vào CSDL ở trạng thái `"Queued"`, phiên bản tăng thêm 1.<br>3. Khởi tạo session AI Streaming Session với danh sách outputs mong muốn.<br>4. Đẩy tác vụ vào hàng đợi `_queue.EnqueueAssessmentAsync(assessment.Id)` để worker nền tiếp nhận. | - Tài khoản ứng viên đầy đủ điều kiện sẵn sàng (`IsReady = true`).<br>- Không có Đánh giá nào đang chạy nền cho ứng viên này. | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.TriggerAssessmentAsync_Should_Succeed_When_CandidateIsReady` và `CandidateAssessmentControllerTests.TriggerAssessment_Should_Return_Accepted_With_Response` |
+| **CAD-TRIG-002** | Chặn kích hoạt khi đang có một Đánh giá khác đang chạy nền. | 1. Gửi yêu cầu kích hoạt đánh giá lần một.<br>2. Gửi yêu cầu kích hoạt đánh giá lần hai ngay lập tức khi Đánh giá đầu tiên chưa kết thúc. | 1. Yêu cầu thứ hai bị chặn và trả về lỗi HTTP `400 BadRequest`.<br>2. Response chứa thông điệp lỗi: `"An assessment is already queued or running for this candidate."` (Mã lỗi: `ASSESSMENT_ALREADY_ACTIVE`). | - Ứng viên có Đánh giá đang hoạt động (trạng thái `Queued` hoặc `Running`). | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.TriggerAssessmentAsync_Should_Throw_BusinessRuleException_When_AssessmentAlreadyActive` |
+| **CAD-TRIG-003** | Kích hoạt đánh giá năng lực ứng viên khi chưa đăng nhập. | 1. Không gửi Header Authorization Bearer.<br>2. Gửi request `POST` đến endpoint `api/v1/candidate-assessments`. | 1. Hệ thống từ chối truy cập và trả về HTTP `401 Unauthorized`. | - Chưa xác thực thông tin người dùng. | **Pending** | **Pending** | **Passed** | Security: Khai báo bộ lọc `[Authorize]` trên `CandidateAssessmentController` |
+
+---
+
+## 4. Cancel active candidate assessment run (Hủy bỏ đánh giá năng lực đang chạy)
+
+| Test Case ID | Test Case Description | Test Case Procedure | Expected Results | Pre-conditions | Lần 1 (Thiết kế) | Lần 2 (Triển khai) | Lần 3 (Hiện tại) | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **CAD-CNCL-001** | Hủy bỏ đánh giá năng lực đang chạy nền thành công (Happy Path). | 1. Gửi request `POST` đến endpoint `api/v1/candidate-assessments/{assessmentId}/cancel` của Job đang hoạt động. | 1. Cập nhật trạng thái `CandidateAssessment` trong CSDL sang `"Cancelled"`.<br>2. Thiết lập khóa Redis hủy bỏ `ai:cancel:{assessmentId}` với giá trị `"true"` hết hạn sau 5 phút.<br>3. Kích hoạt hủy token C# `_cancellationManager.Cancel(assessmentId)`.<br>4. Cập nhật trạng thái session streaming AI sang `"Cancelled"`. | - Người dùng sở hữu Đánh giá.<br>- Đánh giá ở trạng thái hoạt động (`Queued` hoặc `Running`). | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.CancelAssessmentAsync_Should_Succeed_When_AssessmentIsActive` và `CandidateAssessmentControllerTests.CancelAssessment_Should_Return_Ok_When_Successful` |
+| **CAD-CNCL-002** | Chặn hủy bỏ khi Đánh giá đã hoàn tất hoặc đã bị hủy trước đó. | 1. Gửi request `POST` cancel đối với một Đánh giá đã hoàn thành (`Completed`) hoặc đã bị hủy (`Cancelled`). | 1. Hệ thống từ chối hủy và trả về lỗi HTTP `400 BadRequest`.<br>2. Bản ghi CSDL giữ nguyên trạng thái cũ. | - Đánh giá có trạng thái không thuộc nhóm active (`Completed`, `Failed`, `Cancelled`, `TimedOut`). | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.CancelAssessmentAsync_Should_Return_False_When_AssessmentIsAlreadyCompleted` và `CandidateAssessmentControllerTests.CancelAssessment_Should_Return_BadRequest_When_Failed` |
+| **CAD-CNCL-003** | Yêu cầu hủy bỏ Đánh giá không tồn tại hoặc thuộc sở hữu của ứng viên khác. | 1. Đăng nhập bằng tài khoản Ứng viên A.<br>2. Gửi request `POST` cancel với `assessmentId` của một đánh giá thuộc về Ứng viên B. | 1. Trả về HTTP `400 BadRequest` hoặc `404 NotFound` kèm lỗi tương ứng.<br>2. Không thay đổi dữ liệu của Ứng viên B. | - ID đánh giá đích thuộc sở hữu của người dùng khác hoặc không tồn tại. | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.CancelAssessmentAsync_Should_Return_False_When_AssessmentDoesNotExist` |
+
+---
+
+## 5. Handle trigger requests when candidate is not ready (Xử lý kích hoạt khi chưa sẵn sàng)
+
+| Test Case ID | Test Case Description | Test Case Procedure | Expected Results | Pre-conditions | Lần 1 (Thiết kế) | Lần 2 (Triển khai) | Lần 3 (Hiện tại) | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **CAD-ERR-001** | Kích hoạt đánh giá khi ứng viên chưa sẵn sàng (chưa liên kết kho mã nguồn). | 1. Gửi yêu cầu `POST` kích hoạt đánh giá năng lực `api/v1/candidate-assessments` khi chưa map Repo nào vào CV. | 1. Backend chặn yêu cầu và trả về HTTP `400 BadRequest`.<br>2. Response chứa thông điệp lỗi: `"At least one analyzed repository linked to your CV is required. Please connect, analyze, and link a repository to your CV first."` (Mã lỗi: `PROFILE_INCOMPLETE`). | - Trạng thái sẵn sàng của ứng viên trả về `IsReady = false`. | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.TriggerAssessmentAsync_Should_Throw_BusinessRuleException_When_ProfileIncomplete` |
+| **CAD-ERR-002** | Bỏ qua lỗi và cho phép kích hoạt khi chỉ thiếu các thông tin không bắt buộc. | 1. Để trống Bio, Experiences trong hồ sơ của ứng viên (nhưng vẫn có Repo liên kết hợp lệ).<br>2. Gửi yêu cầu `POST` kích hoạt đánh giá năng lực. | 1. Trả về HTTP `202 Accepted` giống Happy Path.<br>2. Pipeline được kích hoạt bình thường do các trường thiếu đều có `IsRequired = false` trong cấu trúc sẵn sàng. | - Ứng viên đáp ứng các điều kiện bắt buộc (Có Repo liên kết). | **Pending** | **Passed** | **Passed** | Unit Test: `CandidateAssessmentServiceTests.GetReadinessStatusAsync_Should_Return_IsReady_True_With_MissingFields_When_OptionalFields_Are_Missing` |
