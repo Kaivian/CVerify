@@ -1,0 +1,33 @@
+# Skip Python virtual environments and caches
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ipynb_checkpoints
+
+# Skip local clone workspaces
+temp_clones
+traces
+
+# Skip environment variables and configurations
+.env
+.env.example
+
+# Skip Git and IDE configs
+.git
+.gitignore
+.vscode
+docs
+
+# Skip Dockerfiles
+Dockerfile
+docker-compose.yml
+.dockerignore
+bootstrap.sh
+bootstrap.ps1
+tests
+pytest.ini
+pyrefly.toml
+README.md
