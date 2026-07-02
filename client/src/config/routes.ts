@@ -180,6 +180,28 @@ export const routesConfig: Record<string, RouteMetadata> = {
   },
 };
 
+const BASE_RESERVED_WORDS = [
+  "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
+  "chat", "business", "user", "organization", "auth", "system", "unauthorized", "company-onboarding",
+  "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email",
+  "workspace-setup", "company-setup", "cv", "ranking", "forum", "jobs", "invitations"
+];
+
+export const RESERVED_USERNAMES = new Set<string>(
+  [
+    ...BASE_RESERVED_WORDS,
+    ...Object.keys(routesConfig).map((path) => {
+      const firstSegment = path.split('/')[1];
+      return firstSegment ? firstSegment.toLowerCase() : '';
+    }).filter((segment) => segment && !segment.startsWith('[') && !segment.startsWith(':'))
+  ]
+);
+
+export const isReservedUsername = (username: string): boolean => {
+  return RESERVED_USERNAMES.has(username.toLowerCase().trim());
+};
+
+
 /**
  * Checks if a string is a standard UUID.
  */
