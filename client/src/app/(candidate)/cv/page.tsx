@@ -80,50 +80,89 @@ import { RequiredFieldsMissingModal } from "@/components/ui/RequiredFieldsMissin
 // Mock Sample Data for testing the standard A4 template
 const SAMPLE_DATA = {
   profile: {
-    fullName: "Nguyễn Văn A",
+    fullName: "Alex Rivera",
     headline: "Senior Fullstack Engineer",
-    bio: "Đam mê xây dựng các sản phẩm phần mềm chất lượng cao và có thể mở rộng. Hơn 5 năm kinh nghiệm làm việc với các hệ thống phân tán, React, Node.js, .NET Core và thiết kế cơ sở dữ liệu lớn.",
-    location: "Hà Nội, Việt Nam",
-    publicEmail: "nguyenvana@cverify.com",
-    phoneNumber: "0987654321",
-    socialLinks: ["github.com/nguyenvana", "linkedin.com/in/nguyenvana"],
+    bio: "Passionate about building scalable, high-performance web applications and distributed systems. Over 6 years of professional experience specializing in React, Next.js, Node.js, and .NET Core, with a strong focus on system architecture, database optimization, and cloud deployments.",
+    location: "Austin, Texas, United States",
+    publicEmail: "alex.rivera@cverify.dev",
+    phoneNumber: "+1-512-555-0199",
+    socialLinks: ["github.com/alexrivera-dev", "linkedin.com/in/alexrivera-dev"],
   },
   education: [
     {
       id: "sample-edu-1",
-      schoolName: "Đại học FPT",
-      label: "Cử nhân Kỹ thuật phần mềm",
-      startDate: "2018-09-01",
-      endDate: "2022-06-30",
-      gpa: 3.6,
+      schoolName: "University of Texas at Austin",
+      label: "Bachelor of Science in Computer Science",
+      startDate: "2015-09-01",
+      endDate: "2019-05-30",
+      gpa: 3.8,
       gpaScale: 4.0,
-      description: "Thủ khoa đầu ra, học bổng 100% toàn khóa học.",
+      description: "Graduated with Honors. Recipient of the Academic Excellence Scholarship. Active member of the Computer Science Undergraduate Association.",
     },
   ],
   experience: [
     {
       id: "sample-exp-1",
-      company: "CVerify AI Technology",
+      company: "CVerify AI Systems",
       jobTitle: "Lead Fullstack Engineer",
       startDate: "2022-07-01",
       endDate: null,
       isCurrentlyWorking: true,
-      description: "Kiến trúc và triển khai giải pháp xác minh danh tính lập trình viên bằng AI. Tối ưu hóa hiệu năng cơ sở dữ liệu giúp tốc độ phân tích tăng 40%.",
-      technologies: ["React", ".NET Core", "PostgreSQL", "Docker"],
+      experienceCategory: 1, // Professional Work
+      employmentType: 1, // Full-time
+      location: "Austin, TX (Hybrid)",
+      description: "Architect and implement AI-driven identity verification solutions for developer portfolios. Lead a team of 4 software engineers in building robust Next.js frontends and ASP.NET Core backends. Optimize PostgreSQL query performance, reducing analysis overhead by 40%.",
+      technologies: ["React", "Next.js", ".NET Core", "PostgreSQL", "Docker", "AWS"],
       achievements: [
-        { title: "Optimize DB", description: "Tối ưu hóa thành công truy vấn lớn giúp giảm tải CPU 25%" }
+        { title: "Database Optimization", description: "Optimized complex historical query execution plans, reducing CPU utilization by 25%." },
+        { title: "CI/CD Pipeline Redesign", description: "Rebuilt GitHub Actions CI/CD pipelines to run test suites in parallel, slashing deployment time from 18 to 6 minutes." }
       ],
-      links: []
+      links: [
+        { linkType: 1, url: "github.com/cverify/auth-engine" }
+      ]
     },
+    {
+      id: "sample-exp-2",
+      company: "Code for Good Austin",
+      jobTitle: "Volunteer Frontend Developer",
+      startDate: "2020-01-15",
+      endDate: "2021-12-20",
+      isCurrentlyWorking: false,
+      experienceCategory: 4, // Open Source / Volunteer Work
+      employmentType: 6, // Volunteer
+      location: "Austin, TX (Remote)",
+      description: "Contributed to building open-source community platforms for local non-profit organizations. Collaborated with designers and product managers to improve accessibility and responsive design of charity websites.",
+      technologies: ["React", "JavaScript", "HTML5", "CSS3"],
+      achievements: [
+        { title: "Accessible UI Refactor", description: "Audited and refactored UI components to meet WCAG 2.1 AA compliance, improving platform accessibility." }
+      ],
+      links: [
+        { linkType: 1, url: "github.com/codeforgood/community-board" }
+      ]
+    }
   ],
   achievements: [
     {
       id: "sample-ach-1",
-      title: "AWS Certified Solutions Architect",
+      title: "AWS Certified Solutions Architect - Professional",
       issuer: "Amazon Web Services (AWS)",
       issueDate: "2023-05-15",
-      description: "Chứng chỉ thiết kế hệ thống điện toán đám mây cấp độ chuyên nghiệp.",
+      description: "Professional level credential certifying expertise in designing and deploying scalable, highly available, and fault-tolerant systems on AWS.",
+      credentialUrl: "https://aws.amazon.com/verification/12345",
+      attachmentId: "sample-attachment-1",
+      attachmentName: "aws_solutions_architect_cert.pdf",
+      attachmentSize: 245760,
+      attachmentUrl: "https://cverify.dev/attachments/aws_solutions_architect_cert.pdf",
     },
+    {
+      id: "sample-ach-2",
+      title: "Outstanding Computer Science Graduate Award",
+      issuer: "University of Texas at Austin",
+      issueDate: "2019-05-25",
+      description: "Received recognition for graduating in the top 5% of the computer science class with exceptional senior design project work.",
+      credentialUrl: "",
+      attachmentId: null,
+    }
   ],
   projects: [
     {
@@ -131,34 +170,61 @@ const SAMPLE_DATA = {
       name: "CVerify AI Portal",
       startDate: "2025-04-01",
       endDate: null,
-      description: "Hệ thống tự động xác thực thông tin ứng viên và lịch sử hoạt động lập trình dựa trên phân tích mã nguồn bằng trí tuệ nhân tạo.",
-      technologies: ["React.js", "Tailwind CSS", "TypeScript", "Node.js"],
+      description: "Automated verification portal that authenticates developer credentials and programming history through advanced AI analysis of public source code contributions.",
+      technologies: ["React.js", "Tailwind CSS", "TypeScript", "Node.js", "Docker"],
       role: "Lead Front-end Developer",
       contributions: [
-        "Xây dựng giao diện xem trước CV trực quan theo chuẩn A4, hỗ trợ in ấn và xuất PDF tự động.",
-        "Thiết kế và triển khai cơ chế đồng bộ hóa dữ liệu thời gian thực giữa cài đặt tài khoản và CV.",
-        "Tối ưu hóa tài nguyên hình ảnh và script giúp giảm 35% dung lượng bundle đầu ra."
-      ]
+        "Architected standard A4-compliant interactive CV preview layout with print-optimized styling and PDF export pipelines.",
+        "Implemented real-time local draft synchronization, preventing data loss during form edits.",
+        "Optimized web resources and bundle-splitting, reducing client bundle size by 35%."
+      ],
+      verificationLevel: 1, // AI Analyzed
+      verificationStatus: 1, // Verified
     },
     {
       id: "sample-proj-2",
-      name: "OpenSource Analytics",
+      name: "OpenSource Developer Analytics",
       startDate: "2024-10-01",
       endDate: "2025-02-15",
-      description: "Hệ thống phân tích hiệu năng đóng góp mã nguồn mở trên GitHub.",
-      technologies: ["Next.js", "PostgreSQL", "D3.js", "Docker"],
+      description: "High-performance analytics engine that tracks and analyzes developer contribution velocity and code quality across open-source GitHub repositories.",
+      technologies: ["Next.js", "PostgreSQL", "D3.js", "Docker", "GraphQL"],
       role: "Full-stack Developer",
       contributions: [
-        "Tích hợp API GitHub REST & GraphQL để thu thập thông tin hoạt động commits và pull requests.",
-        "Xây dựng các biểu đồ tương tác trực quan hóa tần suất đóng góp mã nguồn của lập trình viên.",
-        "Triển khai Docker hóa toàn bộ ứng dụng và thiết lập pipeline CI/CD tự động lên AWS."
-      ]
+        "Integrated GitHub GraphQL API to ingest, parse, and store complex commit history, PRs, and review actions.",
+        "Created interactive data visualizations with D3.js showing developer activity heatmaps and coding patterns.",
+        "Deployed the analytics container stack onto AWS ECS Fargate and configured CI/CD deployment pipelines.",
+      ],
+      verificationLevel: 2, // Repo Linked
+      verificationStatus: 1, // Verified
     }
   ],
   career: {
-    targetSkills: ["React", "TypeScript", "Node.js", ".NET Core", "Kubernetes"],
-    desiredJobPositions: ["Software Architect", "Fullstack Tech Lead"],
+    targetSkills: ["React", "TypeScript", "Node.js", ".NET Core", "Kubernetes", "AWS", "Next.js", "PostgreSQL", "Docker"],
+    desiredJobPositions: ["Senior Fullstack Engineer", "Software Architect", "Fullstack Tech Lead"],
   },
+  preferences: {
+    availableForHire: true,
+    openToWorkStatus: "active",
+    preferredLanguage: "en",
+    remotePreference: "hybrid",
+    openToRelocation: true,
+    preferredLocations: ["Austin, TX", "Remote", "San Francisco, CA"],
+    employmentPreferences: ["full_time", "contract"],
+    expectedSalaryMin: 120000,
+    expectedSalaryMax: 160000,
+    expectedSalaryCurrency: "USD",
+    expectedSalaryType: "Yearly",
+    expectedSalaryNegotiable: true,
+    isExpectedSalaryVisible: true,
+    desiredJobPositions: ["Senior Fullstack Engineer", "Software Architect", "Fullstack Tech Lead"],
+    leadershipTrack: "ic",
+    companyStagePreferences: ["Growth", "Late Stage", "Enterprise"],
+    preferredIndustries: ["Fintech", "Developer Tools", "AI / Machine Learning"],
+    preferredWorkEnvironments: ["Collaborative", "Fast-paced"],
+    workStyles: ["Asynchronous", "Agile"],
+    companyValues: ["Transparency", "Integrity", "Innovation"],
+    workPreferenceNotes: "Looking for a role that offers technical challenge, architectural ownership, and hybrid work flexibility. Authorized to work in the US, no visa sponsorship required.",
+  }
 };
 
 type ViewState = "overview" | "editor" | "assessment";
@@ -998,7 +1064,7 @@ export default function CvManagementCenter() {
     desiredJobPositions: drafts["preferences"].desiredJobPositions || [],
   };
 
-  const activePreferences = useSampleData ? INITIAL_DRAFT_STATE["preferences"] : drafts["preferences"];
+  const activePreferences = useSampleData ? SAMPLE_DATA.preferences : drafts["preferences"];
   const activeProjects = useSampleData ? SAMPLE_DATA.projects : drafts["projects"];
 
   const renderAssessmentDashboard = () => {
