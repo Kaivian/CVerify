@@ -147,7 +147,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                   Toggle whether your public CV displays an 'Open to Work' badge
                 </Tooltip.Content>
               </Tooltip>
@@ -160,11 +160,11 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             aria-label="Available for hire toggle"
             className="cursor-pointer"
           >
-            {() => (
+            <Switch.Content>
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>
-            )}
+            </Switch.Content>
           </Switch>
         </div>
 
@@ -176,16 +176,16 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                   Your current job search status (active, browsing, or closed)
                 </Tooltip.Content>
               </Tooltip>
             </div>
             <Select
               placeholder="Select search status"
-              selectedKey={draft.openToWorkStatus || "casual"}
-              onSelectionChange={(key) => {
-                onChange({ openToWorkStatus: key as string });
+              value={draft.openToWorkStatus || "casual"}
+              onChange={(value) => {
+                onChange({ openToWorkStatus: value as string });
               }}
               aria-label="Search status"
             >
@@ -213,16 +213,16 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 <Tooltip.Trigger>
                   <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                 </Tooltip.Trigger>
-                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                   Preferred work model: Remote, Hybrid, Onsite, or any arrangements
                 </Tooltip.Content>
               </Tooltip>
             </div>
             <Select
               placeholder="Select arrangement"
-              selectedKey={draft.remotePreference || "any"}
-              onSelectionChange={(key) => {
-                onChange({ remotePreference: key as string });
+              value={draft.remotePreference || "any"}
+              onChange={(value) => {
+                onChange({ remotePreference: value as string });
               }}
               aria-label="Work arrangement"
             >
@@ -276,9 +276,9 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">Currency</label>
               <Select
-                selectedKey={draft.expectedSalaryCurrency || "USD"}
-                onSelectionChange={(key) => {
-                  onChange({ expectedSalaryCurrency: key as string });
+                value={draft.expectedSalaryCurrency || "USD"}
+                onChange={(value) => {
+                  onChange({ expectedSalaryCurrency: value as string });
                 }}
                 isDisabled={draft.expectedSalaryNegotiable}
                 aria-label="Expected salary currency"
@@ -302,9 +302,9 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             <div className="flex flex-col gap-1.5">
               <label className="font-bold text-foreground">Salary Type</label>
               <Select
-                selectedKey={draft.expectedSalaryType || "Monthly"}
-                onSelectionChange={(key) => {
-                  onChange({ expectedSalaryType: key as string });
+                value={draft.expectedSalaryType || "Monthly"}
+                onChange={(value) => {
+                  onChange({ expectedSalaryType: value as string });
                 }}
                 isDisabled={draft.expectedSalaryNegotiable}
                 aria-label="Expected salary type"
@@ -332,13 +332,15 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 aria-label="Negotiable salary"
                 className="cursor-pointer"
               >
-                <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
-                  <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
-                    <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </Checkbox.Indicator>
-                </Checkbox.Control>
+                <Checkbox.Content>
+                  <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                    <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                      <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </Checkbox.Indicator>
+                  </Checkbox.Control>
+                </Checkbox.Content>
               </Checkbox>
               <div className="flex items-center gap-1">
                 <span className="font-semibold text-foreground">Negotiable</span>
@@ -346,7 +348,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   <Tooltip.Trigger>
                     <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                   </Tooltip.Trigger>
-                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                     Specify if your salary requirements are open to negotiation
                   </Tooltip.Content>
                 </Tooltip>
@@ -360,13 +362,15 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                 aria-label="Show salary publicly"
                 className="cursor-pointer"
               >
-                <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
-                  <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
-                    <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </Checkbox.Indicator>
-                </Checkbox.Control>
+                <Checkbox.Content>
+                  <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                    <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                      <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </Checkbox.Indicator>
+                  </Checkbox.Control>
+                </Checkbox.Content>
               </Checkbox>
               <div className="flex items-center gap-1">
                 <span className="font-semibold text-foreground">Show salary publicly</span>
@@ -374,7 +378,7 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                   <Tooltip.Trigger>
                     <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                   </Tooltip.Trigger>
-                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                  <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                     Toggle whether recruiters can see your expected salary range on your public developer card
                   </Tooltip.Content>
                 </Tooltip>
@@ -454,13 +458,15 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
                     aria-label={opt.label}
                     className="cursor-pointer"
                   >
-                    <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
-                      <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
-                        <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </Checkbox.Indicator>
-                    </Checkbox.Control>
+                    <Checkbox.Content>
+                      <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus">
+                        <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                          <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </Checkbox.Indicator>
+                      </Checkbox.Control>
+                    </Checkbox.Content>
                   </Checkbox>
                   <span className="font-semibold text-foreground">{opt.label}</span>
                 </label>
@@ -481,11 +487,11 @@ export const PreferencesForm: React.FC<PreferencesFormProps> = ({
             aria-label="Open to relocation toggle"
             className="cursor-pointer"
           >
-            {() => (
+            <Switch.Content>
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>
-            )}
+            </Switch.Content>
           </Switch>
         </div>
 

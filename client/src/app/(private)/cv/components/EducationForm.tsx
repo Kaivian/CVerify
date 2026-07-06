@@ -46,7 +46,7 @@ const ClickToEditLabel: React.FC<ClickToEditLabelProps> = ({ value, onChange }) 
         ref={inputRef}
         type="text"
         aria-label="Edit education label"
-        className="text-xs font-bold text-foreground w-full uppercase tracking-wider px-2 py-0.5 border border-accent bg-field rounded-md focus:outline-none"
+        className="text-[11px] font-bold text-foreground w-full uppercase tracking-wider px-2 py-0.5 border border-accent bg-field rounded-md focus:outline-none"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commitEdit}
@@ -67,11 +67,11 @@ const ClickToEditLabel: React.FC<ClickToEditLabelProps> = ({ value, onChange }) 
       className="group flex items-center text-[11px] cursor-pointer pb-1 bg-transparent border-0 p-0 text-left outline-none focus:outline-none focus:ring-0"
       aria-label={`Edit school label: ${value}`}
     >
-      <span className="cursor-pointer hover:text-muted transition-colors select-none font-bold uppercase text-xs tracking-wider text-muted-foreground">
+      <span className="whitespace-nowrap cursor-pointer hover:text-muted transition-colors select-none font-bold uppercase text-[11px] tracking-wider text-muted-foreground">
         {value || "School / University"}
       </span>
       <Edit2 className="size-3 text-muted/60 opacity-0 group-hover:opacity-100 transition-all ml-1.5 shrink-0" />
-      <span className="text-[10px] text-muted/50 opacity-0 group-hover:opacity-100 transition-opacity font-normal normal-case ml-1">
+      <span className="whitespace-nowrap text-[10px] text-muted/50 opacity-0 group-hover:opacity-100 transition-opacity font-normal normal-case ml-1">
         (Click to edit)
       </span>
     </button>
@@ -90,17 +90,20 @@ const GPAFieldHeader: React.FC<GPAFieldHeaderProps> = ({ gpaScale, onChange }) =
 
   return (
     <div className="flex justify-between items-center w-full select-none">
-      <span className="text-xs font-bold text-foreground">GPA</span>
+      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">GPA</span>
       <Switch
         aria-label="GPA Scale"
         isSelected={isSelected}
-        onChange={(selected) => {
-          onChange(selected ? 10 : 4);
+        onChange={(val: boolean) => {
+          onChange(val ? 10 : 4);
         }}
+        className="cursor-pointer"
       >
-        <Switch.Control className="h-4">
-          <Switch.Thumb className="h-3" />
-        </Switch.Control>
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch.Content>
       </Switch>
     </div>
   );
@@ -217,25 +220,12 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
             value={item.school || ""}
             onChange={(e) => onChangeItem(index, { ...item, school: e.target.value })}
           />
-          {isUniversity && (
-            <div className="mt-2 animate-fade-in flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                Major
-              </span>
-              <Input
-                aria-label="Major"
-                placeholder="e.g. Computer Science"
-                value={item.major || ""}
-                onChange={(e) => onChangeItem(index, { ...item, major: e.target.value })}
-              />
-            </div>
-          )}
         </div>
 
         {/* Date Fields */}
         <div className="flex flex-col gap-2 w-full">
           <div className="h-6 flex items-center">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
               {isCurrentlyStudying ? "Study Period (Start)" : "Study Period"}
             </span>
           </div>
@@ -391,9 +381,25 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
         </div>
       </div>
 
+      {/* Major Input (full width) */}
+      {isUniversity && (
+        <div className="flex flex-col gap-1 w-full">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+            Major
+          </span>
+          <Input
+            className="w-full"
+            aria-label="Major"
+            placeholder="e.g. Computer Science"
+            value={item.major || ""}
+            onChange={(e) => onChangeItem(index, { ...item, major: e.target.value })}
+          />
+        </div>
+      )}
+
       {/* Description List Editor */}
       <div className="border-t border-border/40 pt-4 flex flex-col gap-2">
-        <span className="text-xs font-bold text-foreground font-outfit uppercase tracking-wider block">
+        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
           Description
         </span>
         <div className="flex gap-2 items-start">
@@ -462,10 +468,10 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
         </div>
         <Switch
           isSelected={isCurrentlyStudying}
-          onChange={(checked) => {
+          onChange={(val: boolean) => {
             onChangeItem(index, {
               ...item,
-              isCurrentlyStudying: checked,
+              isCurrentlyStudying: val,
               period: {
                 start: item.period?.start || null,
                 end: null,
@@ -475,11 +481,11 @@ const EducationEntryItem: React.FC<EducationEntryItemProps> = ({
           aria-label="Currently studying toggle"
           className="cursor-pointer"
         >
-          {({ isSelected }) => (
+          <Switch.Content>
             <Switch.Control>
               <Switch.Thumb />
             </Switch.Control>
-          )}
+          </Switch.Content>
         </Switch>
       </div>
     </div>

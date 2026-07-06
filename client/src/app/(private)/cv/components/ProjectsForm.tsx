@@ -425,13 +425,12 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                         key={repo.id}
                         rounded="xl"
                         glow={false}
-                        className={`p-3 border transition-all flex items-center justify-between gap-3 text-left ${
-                          isAlreadyLinked 
-                            ? "border-secondary/20 bg-secondary/5 opacity-70 cursor-not-allowed" 
-                            : isSelected 
-                              ? "border-accent bg-accent/5 cursor-pointer" 
+                        className={`p-3 border transition-all flex items-center justify-between gap-3 text-left ${isAlreadyLinked
+                            ? "border-secondary/20 bg-secondary/5 opacity-70 cursor-not-allowed"
+                            : isSelected
+                              ? "border-accent bg-accent/5 cursor-pointer"
                               : "border-border/40 bg-surface cursor-pointer"
-                        }`}
+                          }`}
                         onClick={handleToggle}
                       >
                         <div className="flex flex-col min-w-0">
@@ -573,13 +572,12 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                             key={repo.id}
                             rounded="xl"
                             glow={false}
-                            className={`p-3 border transition-all flex items-center justify-between gap-3 text-left ${
-                              isAlreadyLinked 
+                            className={`p-3 border transition-all flex items-center justify-between gap-3 text-left ${isAlreadyLinked
                                 ? "border-secondary/20 bg-secondary/5 opacity-70 cursor-not-allowed"
-                                : isLinked 
-                                  ? "border-accent bg-accent/5 cursor-pointer" 
+                                : isLinked
+                                  ? "border-accent bg-accent/5 cursor-pointer"
                                   : "border-border/40 bg-surface cursor-pointer"
-                            } ${isAiAnalyzed ? "cursor-not-allowed opacity-80" : ""}`}
+                              } ${isAiAnalyzed ? "cursor-not-allowed opacity-80" : ""}`}
                             onClick={() => {
                               if (isAlreadyLinked) return;
                               if (!isAiAnalyzed) handleToggleRepoSelection(repo);
@@ -767,13 +765,15 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                   aria-label="Currently working on this project"
                   className={isAiAnalyzed ? "cursor-not-allowed" : "cursor-pointer"}
                 >
-                  <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus group-data-[disabled=true]:opacity-50">
-                    <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
-                      <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </Checkbox.Indicator>
-                  </Checkbox.Control>
+                  <Checkbox.Content>
+                    <Checkbox.Control className="w-4 h-4 rounded border border-field-border flex items-center justify-center bg-field group-data-[selected=true]:bg-accent group-data-[selected=true]:border-accent transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-focus group-data-[disabled=true]:opacity-50">
+                      <Checkbox.Indicator className="text-accent-foreground flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 fill-none stroke-current stroke-3" viewBox="0 0 24 24">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </Checkbox.Indicator>
+                    </Checkbox.Control>
+                  </Checkbox.Content>
                 </Checkbox>
                 <span className="text-xs font-semibold text-foreground">Currently working on this project</span>
               </label>
@@ -866,7 +866,7 @@ export const ProjectsForm: React.FC<ProjectsFormProps> = ({
                     <Tooltip.Trigger>
                       <Info className="size-3.5 text-muted-foreground hover:text-foreground cursor-help" />
                     </Tooltip.Trigger>
-                    <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground break-words">
+                    <Tooltip.Content showArrow className="bg-surface border border-border rounded-xl p-2 text-xs max-w-xs text-foreground wrap-break-word">
                       Explain key tasks or improvements you built (e.g., 'Implemented real-time synchronization between frontend and database').
                     </Tooltip.Content>
                   </Tooltip>
