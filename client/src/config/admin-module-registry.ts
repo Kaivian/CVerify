@@ -10,6 +10,10 @@ import {
   BarChart3, 
   Settings, 
   BookOpen,
+  Activity,
+  Cpu,
+  History,
+  Briefcase,
   type LucideIcon 
 } from 'lucide-react';
 import { type ResourceActionPermission } from '../types/auth.types';
@@ -80,13 +84,40 @@ export const adminModuleRegistry: AdminModuleMetadata[] = [
   },
   // 4. Repository Intelligence
   {
-    id: 'admin-repositories',
-    name: 'Repository Index',
+    id: 'admin-ai-repository',
+    name: 'Repository AI',
     icon: GitFork,
-    path: '/admin/repositories',
-    requiredPermission: 'admin:repositories:view',
+    path: '/admin/ai/repository',
+    requiredPermission: 'admin:ai:audit',
     parentGroupId: 'intelligence',
     order: 1,
+  },
+  {
+    id: 'admin-ai-cv',
+    name: 'CV Intelligence',
+    icon: FileText,
+    path: '/admin/ai/cv',
+    requiredPermission: 'admin:ai:audit',
+    parentGroupId: 'intelligence',
+    order: 2,
+  },
+  {
+    id: 'admin-ai-job',
+    name: 'Job Intelligence',
+    icon: Briefcase,
+    path: '/admin/ai/job',
+    requiredPermission: 'admin:ai:audit',
+    parentGroupId: 'intelligence',
+    order: 3,
+  },
+  {
+    id: 'admin-ai-matching',
+    name: 'Matching Intelligence',
+    icon: Users,
+    path: '/admin/ai/matching',
+    requiredPermission: 'admin:ai:audit',
+    parentGroupId: 'intelligence',
+    order: 4,
   },
   // 5. Security
   {

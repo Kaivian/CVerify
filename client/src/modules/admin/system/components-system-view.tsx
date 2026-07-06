@@ -88,9 +88,9 @@ export const ComponentsSystemView: React.FC = () => {
     const stable = allNodes.filter(n => n.status === "stable").length;
     const beta = allNodes.filter(n => n.status === "beta").length;
     const experimental = allNodes.filter(n => n.status === "experimental").length;
-    
+
     // Average Risk score
-    const avgRisk = total > 0 
+    const avgRisk = total > 0
       ? (allNodes.reduce((acc, val) => acc + val.dependencyRisk, 0) / total).toFixed(1)
       : "0";
 
@@ -368,7 +368,7 @@ export const ComponentsSystemView: React.FC = () => {
                       <span className={[
                         "text-[9px] font-bold px-1.5 py-0.5 rounded-md border",
                         item.status === "stable" ? "bg-success/15 border-success/20 text-success" :
-                        item.status === "beta" ? "bg-warning/15 border-warning/20 text-warning" : "bg-purple-500/15 border-purple-500/20 text-purple-400"
+                          item.status === "beta" ? "bg-warning/15 border-warning/20 text-warning" : "bg-purple-500/15 border-purple-500/20 text-purple-400"
                       ].join(" ")}>
                         {item.status}
                       </span>
@@ -437,7 +437,7 @@ export const ComponentsSystemView: React.FC = () => {
                     <span className={[
                       "text-[9px] font-bold px-1.5 py-0.5 rounded-md border",
                       activeComponent.status === "stable" ? "bg-success/15 border-success/20 text-success" :
-                      activeComponent.status === "beta" ? "bg-warning/15 border-warning/20 text-warning" : "bg-purple-500/15 border-purple-500/20 text-purple-400"
+                        activeComponent.status === "beta" ? "bg-warning/15 border-warning/20 text-warning" : "bg-purple-500/15 border-purple-500/20 text-purple-400"
                     ].join(" ")}>
                       {activeComponent.status}
                     </span>
@@ -448,7 +448,7 @@ export const ComponentsSystemView: React.FC = () => {
                 </div>
                 <button
                   onClick={() => selectComponent(null)}
-                  className="w-8 h-8 rounded-full bg-surface hover:bg-border/20 border border-border/60 flex items-center justify-center text-muted hover:text-foreground transition-all duration-200 cursor-pointer border-0"
+                  className="w-8 h-8 rounded-full bg-surface hover:bg-border/20 border-border/60 flex items-center justify-center text-muted hover:text-foreground transition-all duration-200 cursor-pointer border-0"
                 >
                   <X size={16} />
                 </button>
@@ -610,7 +610,7 @@ export const ComponentsSystemView: React.FC = () => {
       {/* 6. Floating CMD-K Command Finder Panel */}
       <AnimatePresence>
         {cmdKOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
             {/* Modal mask overlay */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -646,7 +646,7 @@ export const ComponentsSystemView: React.FC = () => {
                 <div className="text-[10px] font-bold text-muted/60 uppercase tracking-wider px-3 py-1 select-none">
                   Quick Actions & Views
                 </div>
-                
+
                 <button
                   onClick={() => {
                     setView("overview");

@@ -30,6 +30,7 @@ using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Exceptions.Catalogs;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security;
+using CVerify.API.Modules.Shared.System.Pipelines;
 using CVerify.API.Modules.Shared.Storage.Interfaces;
 using CVerify.API.Modules.Shared.Storage.Services;
 using CVerify.API.Modules.Shared.System.DTOs;
@@ -482,6 +483,13 @@ builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueu
 builder.Services.AddScoped<IRepositoryAnalysisService, RepositoryAnalysisService>();
 builder.Services.AddSingleton<IRepositoryAnalysisQueue, BackgroundRepositoryAnalysisQueue>();
 builder.Services.AddScoped<ICandidateRepositoryProvider, CandidateRepositoryProvider>();
+
+// Register AI Pipeline Orchestrators & Dispatcher
+builder.Services.AddScoped<IPipelineOrchestrator, RepositoryAnalysisPipelineOrchestrator>();
+builder.Services.AddScoped<IPipelineOrchestrator, CandidateAssessmentPipelineOrchestrator>();
+builder.Services.AddScoped<IPipelineOrchestrator, HiringRequirementPipelineOrchestrator>();
+builder.Services.AddScoped<IPipelineDispatcher, PipelineDispatcher>();
+builder.Services.AddScoped<IQueueDiscoveryService, QueueDiscoveryService>();
 builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Storage.IArtifactStorageProvider, CVerify.API.Pipelines.Shared.Storage.ArtifactStorageProvider>();
 builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Artifacts.IArtifactRegistry, CVerify.API.Pipelines.Shared.Artifacts.ArtifactRegistry>();
 builder.Services.AddScoped<CVerify.API.Pipelines.RepositoryIntelligence.Readers.IRepositoryArtifactReader, CVerify.API.Pipelines.RepositoryIntelligence.Readers.RepositoryArtifactReader>();

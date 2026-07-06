@@ -3,11 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function RepositoryIndexPage() {
+export default function RedirectToRepository() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/admin/ai/operations");
+    router.replace("/admin/ai/repository");
   }, [router]);
 
   return (

@@ -322,6 +322,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<AnalysisExecution> AnalysisExecutions => Set<AnalysisExecution>();
     public DbSet<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineJob> PipelineJobs => Set<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineJob>();
     public DbSet<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineTask> PipelineTasks => Set<CVerify.API.Pipelines.Shared.Orchestration.Entities.PipelineTask>();
+    public DbSet<PipelineExecution> PipelineExecutions => Set<PipelineExecution>();
+    public DbSet<PipelineStage> PipelineStages => Set<PipelineStage>();
+    public DbSet<PipelineTaskEntity> PipelineTasksDurable => Set<PipelineTaskEntity>();
+    public DbSet<PipelineEvent> PipelineEventsDurable => Set<PipelineEvent>();
     public DbSet<CVerify.API.Pipelines.Shared.AI.Entities.PromptDeployment> PromptDeployments => Set<CVerify.API.Pipelines.Shared.AI.Entities.PromptDeployment>();
     public DbSet<CVerify.API.Pipelines.Shared.Artifacts.Entities.ArtifactRegistryEntry> ArtifactRegistryEntries => Set<CVerify.API.Pipelines.Shared.Artifacts.Entities.ArtifactRegistryEntry>();
     public DbSet<CareerPreference> CareerPreferences => Set<CareerPreference>();
