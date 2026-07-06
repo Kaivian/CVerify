@@ -6,17 +6,15 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
-public static class PermissionSeeder
+public class PermissionSeeder : IValidatableSeeder
 {
-    public static async Task SeedAsync(ApplicationDbContext context, SeedingPolicy policy)
+    public string ModuleId => "PermissionSeeder";
+    public string Version => "1.0.0";
+    public IReadOnlyCollection<string> Dependencies => Array.Empty<string>();
+
+    public async Task<SeederResult> SeedAsync(ApplicationDbContext context, SeedingConfig config)
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
-        if (policy == null) throw new ArgumentNullException(nameof(policy));
-
-        if (!policy.SeedInfrastructure)
-        {
-            return;
-        }
 
         var permissions = new List<(string Name, string DisplayName, string Description, string Module)>
         {
@@ -52,6 +50,7 @@ public static class PermissionSeeder
             ("organization:audit:view", "View Audit Logs", "Read organization roles and membership audit log streams", "Audit Logs")
         };
 
+        int affected = 0;
         foreach (var perm in permissions)
         {
             var existing = await context.Permissions.FirstOrDefaultAsync(p => p.Name == perm.Name);
@@ -68,15 +67,29 @@ public static class PermissionSeeder
                     CreatedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow
                 });
+                affected++;
             }
-            else
+            else if (existing.DisplayName != perm.DisplayName || existing.Description != perm.Description || existing.Module != perm.Module)
             {
                 existing.DisplayName = perm.DisplayName;
                 existing.Description = perm.Description;
                 existing.Module = perm.Module;
                 existing.UpdatedAt = DateTimeOffset.UtcNow;
+                context.Permissions.Update(existing);
+                affected++;
             }
         }
         await context.SaveChangesAsync();
+        return new SeederResult(ModuleId, SeedingStatus.Success, "Permissions seeded successfully.", affected);
+    }
+
+    public async Task<ValidationResult> ValidateAsync(ApplicationDbContext context)
+    {
+        var count = await context.Permissions.CountAsync();
+        if (count == 0)
+        {
+            return new ValidationResult(false, "No permissions were seeded in the database.");
+        }
+        return new ValidationResult(true);
     }
 }

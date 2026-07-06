@@ -388,6 +388,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<SecurityIncident> SecurityIncidents => Set<SecurityIncident>();
     public DbSet<SecurityEventComment> SecurityEventComments => Set<SecurityEventComment>();
     public DbSet<SecurityRule> SecurityRules => Set<SecurityRule>();
+    public DbSet<SeedingHistory> SeedingHistories => Set<SeedingHistory>();
 
 
 
@@ -2385,6 +2386,18 @@ public class ApplicationDbContext : DbContext
         {
             entity.Property(r => r.Id).ValueGeneratedNever();
             entity.HasIndex(r => r.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<SeedingHistory>(entity =>
+        {
+            entity.HasKey(sh => sh.ModuleId);
+            entity.ToTable("seeding_history");
+            entity.Property(sh => sh.ModuleId).HasMaxLength(100);
+            entity.Property(sh => sh.Version).HasMaxLength(20).IsRequired();
+            entity.Property(sh => sh.EnvironmentName).HasMaxLength(50).IsRequired();
+            entity.Property(sh => sh.AppliedAtUtc).IsRequired();
+            entity.Property(sh => sh.DurationMs).IsRequired();
+            entity.Property(sh => sh.RecordsAffected).IsRequired();
         });
     }
 

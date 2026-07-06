@@ -5,38 +5,21 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
-using CVerify.API.Modules.Shared.Configuration;
 using CVerify.API.Modules.Shared.Domain.Entities;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
-/// <summary>
-/// Seeds the system administrator user, roles, permissions, and administrative mapping.
-/// </summary>
-public static class SuperAdminSeeder
+public class SystemRoleSeeder : IValidatableSeeder
 {
-    public static async Task SeedAsync(ApplicationDbContext context, SuperAdminSettings settings, SeedingPolicy policy)
+    public string ModuleId => "SystemRoleSeeder";
+    public string Version => "1.0.0";
+    public IReadOnlyCollection<string> Dependencies => new[] { "PermissionSeeder" };
+
+    public async Task<SeederResult> SeedAsync(ApplicationDbContext context, SeedingConfig config)
     {
-        if (context == null)
-        {
-            throw new ArgumentNullException(nameof(context));
-        }
+        if (context == null) throw new ArgumentNullException(nameof(context));
 
-        if (settings == null)
-        {
-            throw new ArgumentNullException(nameof(settings));
-        }
-
-        if (policy == null)
-        {
-            throw new ArgumentNullException(nameof(policy));
-        }
-
-        if (!policy.SeedInfrastructure)
-        {
-            return;
-        }
-
+        // 1. Seed standard system roles and wildcard
         const string sql = @"
             -- Seed standard system roles
             INSERT INTO roles (id, name, display_name, description, is_system)
@@ -58,50 +41,64 @@ public static class SuperAdminSeeder
             SELECT r.id, p.id FROM roles r, permissions p 
             WHERE r.name = 'SUPER_ADMIN' AND p.name = '*:*:*'
             ON CONFLICT DO NOTHING;
-
-            -- Provision the master administrator account if it doesn't exist
-            INSERT INTO users (
-                id,
-                email, 
-                username,
-                password_hash, 
-                full_name, 
-                status, 
-                email_verified_at
-            )
-            SELECT 
-                '018fc35b-1c5f-7b8a-9a2d-3e4f5a6b7c8d'::uuid,
-                @adminEmail,
-                @adminUsername,
-                crypt(@adminPassword, gen_salt('bf', 10)),
-                @adminFullName,
-                'ACTIVE',
-                NOW()
-            WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = @adminEmail);
-
-            -- Seed the master administrator role mapping if not present
-            INSERT INTO user_roles (user_id, role_id)
-            SELECT 
-                (SELECT id FROM users WHERE email = @adminEmail),
-                (SELECT id FROM roles WHERE name = 'SUPER_ADMIN')
-            ON CONFLICT DO NOTHING;
         ";
+        await context.Database.ExecuteSqlRawAsync(sql);
 
-        await context.Database.ExecuteSqlRawAsync(sql,
-            new NpgsqlParameter("@adminEmail", settings.Email.Trim().ToLowerInvariant()),
-            new NpgsqlParameter("@adminUsername", settings.Username.Trim()),
-            new NpgsqlParameter("@adminFullName", settings.FullName.Trim()),
-            new NpgsqlParameter("@adminPassword", settings.Password.Trim())
-        );
-
-        // Dynamic seed from permissions-registry.json
+        // 2. Dynamic seed from permissions-registry.json
         await SeedRegistryPermissionsAsync(context);
 
-        // Seed Admin Roles, Permissions and migrate existing platform administrators
+        // 3. Seed Admin Roles, Permissions and migrate existing platform administrators
         await SeedAdminRolesAndPermissionsAsync(context);
+
+        // 4. Provision local developer administrator only in Development
+        int affected = 2; // Basic roles
+        if (string.Equals(config.Environment, "Development", StringComparison.OrdinalIgnoreCase) || config.GenerateDemoData)
+        {
+            var email = config.SuperAdminEmail ?? "admin@system.com";
+            var username = config.SuperAdminUsername ?? "admin";
+            var fullName = config.SuperAdminFullName ?? "System Administrator";
+            var password = config.SuperAdminPassword ?? "admin123";
+
+            const string userSql = @"
+                INSERT INTO users (
+                    id,
+                    email, 
+                    username,
+                    password_hash, 
+                    full_name, 
+                    status, 
+                    email_verified_at
+                )
+                SELECT 
+                    '018fc35b-1c5f-7b8a-9a2d-3e4f5a6b7c8d'::uuid,
+                    @adminEmail,
+                    @adminUsername,
+                    crypt(@adminPassword, gen_salt('bf', 10)),
+                    @adminFullName,
+                    'ACTIVE',
+                    NOW()
+                WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = @adminEmail);
+
+                -- Seed the master administrator role mapping if not present
+                INSERT INTO user_roles (user_id, role_id)
+                SELECT 
+                    (SELECT id FROM users WHERE email = @adminEmail),
+                    (SELECT id FROM roles WHERE name = 'SUPER_ADMIN')
+                ON CONFLICT DO NOTHING;
+            ";
+            await context.Database.ExecuteSqlRawAsync(userSql,
+                new NpgsqlParameter("@adminEmail", email.Trim().ToLowerInvariant()),
+                new NpgsqlParameter("@adminUsername", username.Trim()),
+                new NpgsqlParameter("@adminPassword", password.Trim()),
+                new NpgsqlParameter("@adminFullName", fullName.Trim())
+            );
+            affected += 1;
+        }
+
+        return new SeederResult(ModuleId, SeedingStatus.Success, "System roles and core mappings seeded successfully.", affected);
     }
 
-    private static async Task SeedRegistryPermissionsAsync(ApplicationDbContext context)
+    private async Task SeedRegistryPermissionsAsync(ApplicationDbContext context)
     {
         var registryPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources", "permissions-registry.json");
         if (!File.Exists(registryPath))
@@ -175,7 +172,6 @@ public static class SuperAdminSeeder
 
                     if (roleId != Guid.Empty)
                     {
-                        // Parse permissions assigned to this role in registry
                         var permissionsList = new List<string>();
                         if (roleProperty.Value.TryGetProperty("permissions", out var permsElement))
                         {
@@ -185,13 +181,11 @@ public static class SuperAdminSeeder
                             }
                         }
 
-                        // Get all permission IDs for this role
                         var dbPermissionIds = await context.Permissions
                             .Where(p => permissionsList.Contains(p.Name))
                             .Select(p => p.Id)
                             .ToListAsync();
 
-                        // Clear existing role-permissions mapping for this role, then rebuild it
                         var sqlClear = "DELETE FROM role_permissions WHERE role_id = @roleId;";
                         await context.Database.ExecuteSqlRawAsync(sqlClear, new Npgsql.NpgsqlParameter("@roleId", roleId));
 
@@ -212,11 +206,10 @@ public static class SuperAdminSeeder
         }
     }
 
-    private static async Task SeedAdminRolesAndPermissionsAsync(ApplicationDbContext context)
+    private async Task SeedAdminRolesAndPermissionsAsync(ApplicationDbContext context)
     {
         try
         {
-            // Migrate existing platform administrators from legacy user_roles
             var legacyAdmins = await context.Database.SqlQueryRaw<LegacyUserRoleDto>(
                 @"SELECT ur.user_id as ""user_id"", r.name as ""role_name"" 
                   FROM user_roles ur 
@@ -270,6 +263,16 @@ public static class SuperAdminSeeder
             Console.WriteLine($"[SeedAdminRolesAndPermissions] Error executing migration/seeding: {ex.Message}");
             throw;
         }
+    }
+
+    public async Task<ValidationResult> ValidateAsync(ApplicationDbContext context)
+    {
+        var hasSuperAdmin = await context.Roles.AnyAsync(r => r.Name == "SUPER_ADMIN");
+        if (!hasSuperAdmin)
+        {
+            return new ValidationResult(false, "SUPER_ADMIN system role is missing.");
+        }
+        return new ValidationResult(true);
     }
 
     private class LegacyUserRoleDto

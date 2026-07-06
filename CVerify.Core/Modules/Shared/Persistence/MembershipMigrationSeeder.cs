@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -6,20 +7,18 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
-public static class MembershipMigrationSeeder
+public class MembershipMigrationSeeder : ISeederModule
 {
-    public static async Task SeedAsync(ApplicationDbContext context, SeedingPolicy policy)
+    public string ModuleId => "MembershipMigrationSeeder";
+    public string Version => "1.0.0";
+    public IReadOnlyCollection<string> Dependencies => new[] { "TenantRoleSeeder" };
+
+    public async Task<SeederResult> SeedAsync(ApplicationDbContext context, SeedingConfig config)
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
-        if (policy == null) throw new ArgumentNullException(nameof(policy));
 
-        if (!policy.RunDataMigrations)
-        {
-            return;
-        }
-
-        // Migrate existing memberships from organization_memberships
         var memberships = await context.OrganizationMemberships.ToListAsync();
+        int affected = 0;
         foreach (var mem in memberships)
         {
             var roleName = mem.Role.ToLower() switch
@@ -52,6 +51,7 @@ public static class MembershipMigrationSeeder
                         AssignedAt = DateTimeOffset.UtcNow
                     };
                     context.RoleAssignments.Add(assignment);
+                    affected++;
                 }
             }
         }
@@ -92,10 +92,12 @@ public static class MembershipMigrationSeeder
                         AssignedAt = DateTimeOffset.UtcNow
                     };
                     context.RoleAssignments.Add(assignment);
+                    affected++;
                 }
             }
         }
 
         await context.SaveChangesAsync();
+        return new SeederResult(ModuleId, SeedingStatus.Success, "Membership compatibility migration completed.", affected);
     }
 }

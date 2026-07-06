@@ -3188,35 +3188,59 @@ public static class DbInitializer
         // Apply all pending migrations (e.g., Talent Intelligence migrations)
         await context.Database.MigrateAsync();
 
-        // Invoke modular seeders
-        await SuperAdminSeeder.SeedAsync(context, config.SuperAdmin, seedingPolicy);
-        await PermissionSeeder.SeedAsync(context, seedingPolicy);
-        await BusinessAccountSeeder.SeedAsync(context, config.Seeding, seedingPolicy);
-        await RoleSeeder.SeedAsync(context, seedingPolicy);
-        await MembershipMigrationSeeder.SeedAsync(context, seedingPolicy);
-        await CapabilityCatalogSeeder.SeedAsync(context, seedingPolicy);
-        await SeedForumDataAsync(context, seedingPolicy);
+        // Resolve or construct SeedRunner and modules
+        var loggerFactory = serviceProvider?.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
+            ?? context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
+            ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+        var runnerLogger = loggerFactory.CreateLogger<SeedRunner>();
 
-        global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder> moduleSeeders;
-        Microsoft.Extensions.Logging.ILoggerFactory loggerFactory;
-
+        var modulesList = new List<ISeederModule>();
         if (serviceProvider != null)
         {
-            moduleSeeders = serviceProvider.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
-                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            loggerFactory = serviceProvider.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
-                ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
-        }
-        else
-        {
-            moduleSeeders = context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
-                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            loggerFactory = context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
-                ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+            modulesList.AddRange(serviceProvider.GetServices<ISeederModule>());
         }
 
-        var seederLogger = loggerFactory.CreateLogger("PublicWorkspaceSeeder");
-        await PublicWorkspaceSeeder.SeedAsync(context, config.Seeding, moduleSeeders, seederLogger, seedingPolicy);
+        if (!modulesList.Any())
+        {
+            var forumSeeders = serviceProvider?.GetServices<IPublicWorkspaceModuleSeeder>()
+                ?? context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
+                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
+            var forumPostLogger = loggerFactory.CreateLogger<DemoForumPostSeeder>();
+
+            modulesList.AddRange(new ISeederModule[]
+            {
+                new PermissionSeeder(),
+                new SystemRoleSeeder(),
+                new CapabilityCatalogSeeder(),
+                new ForumMetadataSeeder(),
+                new TenantRoleSeeder(),
+                new DemoOrganizationSeeder(),
+                new DemoUserSeeder(),
+                new DemoRepositorySeeder(),
+                new DemoCvSeeder(),
+                new DemoAiPipelineSeeder(),
+                new DemoForumPostSeeder(forumSeeders, forumPostLogger)
+            });
+        }
+
+        var seedingConfig = new SeedingConfig
+        {
+            Enabled = true,
+            Environment = resolvedEnv?.EnvironmentName ?? "Development",
+            GenerateDemoData = seedingPolicy.SeedDemoContent,
+            ResetDatabase = shouldReset,
+            VerboseLogging = true,
+            SuperAdminEmail = config.SuperAdmin?.Email,
+            SuperAdminUsername = config.SuperAdmin?.Username,
+            SuperAdminFullName = config.SuperAdmin?.FullName,
+            SuperAdminPassword = config.SuperAdmin?.Password,
+            BusinessPassword = config.Seeding?.BusinessPassword,
+            SeedDataPath = config.Seeding?.SeedDataPath ?? "resources/seed-business-data.json",
+            PublicDemoDataPath = config.Seeding?.PublicDemoDataPath ?? "resources/public-workspace-demo-content.json"
+        };
+
+        var seedRunner = new SeedRunner(modulesList, runnerLogger);
+        await seedRunner.RunAsync(context, seedingConfig);
 
         // One-time compatibility migration for Google OAuth users created under the old normalization rules
         await MigrateLegacyGoogleEmailsAsync(context);
@@ -3230,82 +3254,6 @@ public static class DbInitializer
 
         // One-time compatibility migration to migrate historical security audit logs to security_events
         await MigrateLegacySecurityEventsAsync(context);
-
-        // Seed development pipeline executions for local dashboard testing
-        await SeedDevelopmentPipelineExecutionsAsync(context, seedingPolicy);
-    }
-
-    private static async Task SeedForumDataAsync(ApplicationDbContext context, SeedingPolicy policy)
-    {
-        if (context == null) throw new ArgumentNullException(nameof(context));
-        if (policy == null) throw new ArgumentNullException(nameof(policy));
-
-        // Seed Forum Categories
-        var defaultCategories = new List<(string Name, string Slug, string Description, string IconName, int DisplayOrder, string? RequiredRole)>
-        {
-            ("General Discussion", "general-discussion", "Discuss anything tech, life, or CVerify related.", "MessageSquare", 1, null),
-            ("Programming", "programming", "Share code snippets, software design patterns, and programming advice.", "Code", 2, null),
-            ("Frontend Development", "frontend", "Discuss HTML, CSS, React, Next.js, Tailwind and UI/UX.", "Layout", 3, null),
-            ("Backend Development", "backend", "Discuss C#, .NET, Go, Python, databases, API design, and system architecture.", "Server", 4, null),
-            ("DevOps & Cloud", "devops-cloud", "Discuss CI/CD, Docker, Kubernetes, AWS, Cloudflare, and automation.", "Cloud", 5, null),
-            ("Security", "security", "Discuss penetration testing, cryptography, auth safety, and cybersecurity guidelines.", "Shield", 6, null),
-            ("Career Discussion", "career", "Career development advice, resume reviews, salary negotiations, and advice.", "TrendingUp", 7, null),
-            ("Hiring & Open Positions", "hiring", "Official hiring posts, job openings, and employer branding updates.", "Briefcase", 8, "BUSINESS"),
-            ("Projects & Showcase", "projects-showcase", "Showcase your side projects, open source contributions, and web products.", "Folder", 9, null),
-            ("Announcements", "announcements", "Platform news, official updates, and maintenance announcements from CVerify.", "Megaphone", 10, "ADMIN")
-        };
-
-        foreach (var dc in defaultCategories)
-        {
-            var exists = await context.ForumCategories.AnyAsync(c => c.Slug == dc.Slug && c.OrganizationId == null);
-            if (!exists)
-            {
-                context.ForumCategories.Add(new ForumCategory
-                {
-                    Id = Guid.CreateVersion7(),
-                    Name = dc.Name,
-                    Slug = dc.Slug,
-                    Description = dc.Description,
-                    IconName = dc.IconName,
-                    DisplayOrder = dc.DisplayOrder,
-                    RequiredRole = dc.RequiredRole,
-                    IsPrivate = false,
-                    IsArchived = false,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                });
-            }
-        }
-
-        // Seed Forum Badges
-        var defaultBadges = new List<(string Name, string Description, string IconName, string CriteriaCode)>
-        {
-            ("First Post", "Awarded for posting your first discussion topic or reply.", "Award", "first_post"),
-            ("Top Contributor", "Awarded for reaching 1000 reputation points.", "Trophy", "top_contributor"),
-            ("AI Expert", "Awarded for contributions to AI discussions and insights.", "Sparkles", "ai_expert"),
-            ("Open Source Contributor", "Awarded for sharing open source projects in showcase.", "GitFork", "open_source_contributor"),
-            ("Hiring Expert", "Awarded to verified businesses with helpful hiring discussions.", "Briefcase", "hiring_expert"),
-            ("Community Helper", "Awarded for having 5 accepted solutions.", "Heart", "community_helper")
-        };
-
-        foreach (var db in defaultBadges)
-        {
-            var exists = await context.ForumBadges.AnyAsync(b => b.CriteriaCode == db.CriteriaCode);
-            if (!exists)
-            {
-                context.ForumBadges.Add(new ForumBadge
-                {
-                    Id = Guid.CreateVersion7(),
-                    Name = db.Name,
-                    Description = db.Description,
-                    IconName = db.IconName,
-                    CriteriaCode = db.CriteriaCode,
-                    CreatedAt = DateTimeOffset.UtcNow
-                });
-            }
-        }
-
-        await context.SaveChangesAsync();
     }
 
     private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)
@@ -3575,569 +3523,6 @@ public static class DbInitializer
         catch (Exception ex)
         {
             Console.WriteLine($"[Migration] Error running MigrateLegacyRepositoryMetadataAsync: {ex.Message}");
-        }
-    }
-
-    private static async Task SeedDevelopmentPipelineExecutionsAsync(ApplicationDbContext context, SeedingPolicy policy)
-    {
-        if (!policy.SeedDemoContent)
-        {
-            return;
-        }
-
-        try
-        {
-            // Clear existing seeded data to ensure clean refresh for all pipeline types
-            context.PipelineEventsDurable.RemoveRange(context.PipelineEventsDurable);
-            context.PipelineTasksDurable.RemoveRange(context.PipelineTasksDurable);
-            context.PipelineStages.RemoveRange(context.PipelineStages);
-            context.PipelineExecutions.RemoveRange(context.PipelineExecutions);
-            await context.SaveChangesAsync();
-
-            Console.WriteLine("[Seeder] Seeding development-only AI Pipeline Executions for all modules...");
-
-            var repos = await context.SourceCodeRepositories.ToListAsync();
-            if (!repos.Any())
-            {
-                Console.WriteLine("[Seeder] No source code repositories found. Skipping pipeline seeding.");
-                return;
-            }
-
-            var user = await context.Users.FirstOrDefaultAsync(u => u.Email == "admin@system.com")
-                       ?? await context.Users.FirstOrDefaultAsync();
-            var userId = user?.Id;
-
-            var workspace = await context.Workspaces.FirstOrDefaultAsync();
-            var workspaceId = workspace?.Id;
-
-            Guid GetRepoId(string name)
-            {
-                var r = repos.FirstOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-                return r?.Id ?? repos.First().Id;
-            }
-
-            var utcNow = DateTimeOffset.UtcNow;
-
-            var executions = new List<PipelineExecution>
-            {
-                // ==================== Repository Analysis ====================
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d4-7d28-9391-da9d81d7c646"),
-                    PipelineType = "repository-analysis",
-                    ReferenceId = GetRepoId("CVerify"),
-                    Status = "Completed",
-                    Progress = 100.00m,
-                    CurrentStep = "Trust Score Gen",
-                    StartedAt = utcNow.AddDays(-2),
-                    CompletedAt = utcNow.AddDays(-2).AddMinutes(5),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 5.00m,
-                    CumulativeCostUsd = 0.455000m,
-                    TotalInputTokens = 68000,
-                    TotalOutputTokens = 18000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "claude-haiku-4-5-20251001",
-                    Provider = "Claude",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddDays(-2),
-                    LastUpdatedAtUtc = utcNow.AddDays(-2).AddMinutes(5)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-753d-8a1b-1616f7b7eb9b"),
-                    PipelineType = "repository-analysis",
-                    ReferenceId = GetRepoId("kaivian.github.io"),
-                    Status = "Completed",
-                    Progress = 100.00m,
-                    CurrentStep = "Trust Score Gen",
-                    StartedAt = utcNow.AddDays(-1),
-                    CompletedAt = utcNow.AddDays(-1).AddMinutes(3),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 5.00m,
-                    CumulativeCostUsd = 0.185000m,
-                    TotalInputTokens = 45000,
-                    TotalOutputTokens = 12000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gemini-3.5-flash",
-                    Provider = "Google Gemini",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddDays(-1),
-                    LastUpdatedAtUtc = utcNow.AddDays(-1).AddMinutes(3)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d4-703f-8c76-d64c0212c7df"),
-                    PipelineType = "repository-analysis",
-                    ReferenceId = GetRepoId("ExploreWorld"),
-                    Status = "Failed",
-                    Progress = 70.00m,
-                    CurrentStep = "AI Code Detect",
-                    StartedAt = utcNow.AddHours(-4),
-                    CompletedAt = utcNow.AddHours(-4).AddMinutes(2),
-                    ErrorMessage = "Rate limit exceeded for provider Google Gemini. Falling back to OpenAI failed due to context length limits.",
-                    RetryCount = 1,
-                    MaxBudgetUsd = 5.00m,
-                    CumulativeCostUsd = 0.220000m,
-                    TotalInputTokens = 35000,
-                    TotalOutputTokens = 9000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gemini-3.5-flash",
-                    Provider = "Google Gemini",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddHours(-4),
-                    LastUpdatedAtUtc = utcNow.AddHours(-4).AddMinutes(2)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74b5-7b4a-bf6d-e497bfdb1eed"),
-                    PipelineType = "repository-analysis",
-                    ReferenceId = GetRepoId("Icicle"),
-                    Status = "Running",
-                    Progress = 45.00m,
-                    CurrentStep = "Stack Extractor",
-                    StartedAt = utcNow.AddMinutes(-5),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 5.00m,
-                    CumulativeCostUsd = 0.120000m,
-                    TotalInputTokens = 18000,
-                    TotalOutputTokens = 5000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gpt-4o",
-                    Provider = "OpenAI",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddMinutes(-5),
-                    LastUpdatedAtUtc = utcNow.AddMinutes(-5)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-71f7-b091-8f8d340b274e"),
-                    PipelineType = "repository-analysis",
-                    ReferenceId = GetRepoId("KWardrobe"),
-                    Status = "Queued",
-                    Progress = 0.00m,
-                    CurrentStep = "Queued",
-                    RetryCount = 0,
-                    MaxBudgetUsd = 5.00m,
-                    CumulativeCostUsd = 0.000000m,
-                    TotalInputTokens = 0,
-                    TotalOutputTokens = 0,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddMinutes(-1),
-                    LastUpdatedAtUtc = utcNow.AddMinutes(-1)
-                },
-
-                // ==================== CV Analysis ====================
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-1234-56789abcdef0"),
-                    PipelineType = "cv-analysis",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000001"),
-                    Status = "Completed",
-                    Progress = 100.00m,
-                    CurrentStep = "Save Results",
-                    StartedAt = utcNow.AddDays(-3),
-                    CompletedAt = utcNow.AddDays(-3).AddSeconds(15),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 1.00m,
-                    CumulativeCostUsd = 0.050000m,
-                    TotalInputTokens = 8000,
-                    TotalOutputTokens = 2000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gemini-3.5-flash",
-                    Provider = "Google Gemini",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddDays(-3),
-                    LastUpdatedAtUtc = utcNow.AddDays(-3).AddSeconds(15)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-1234-56789abcdef1"),
-                    PipelineType = "cv-analysis",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000002"),
-                    Status = "Completed",
-                    Progress = 100.00m,
-                    CurrentStep = "Save Results",
-                    StartedAt = utcNow.AddDays(-1),
-                    CompletedAt = utcNow.AddDays(-1).AddSeconds(12),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 1.00m,
-                    CumulativeCostUsd = 0.040000m,
-                    TotalInputTokens = 6000,
-                    TotalOutputTokens = 1800,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gpt-4o",
-                    Provider = "OpenAI",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddDays(-1),
-                    LastUpdatedAtUtc = utcNow.AddDays(-1).AddSeconds(12)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-1234-56789abcdef2"),
-                    PipelineType = "cv-analysis",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000003"),
-                    Status = "Failed",
-                    Progress = 60.00m,
-                    CurrentStep = "Parse Experience",
-                    StartedAt = utcNow.AddHours(-2),
-                    CompletedAt = utcNow.AddHours(-2).AddSeconds(8),
-                    ErrorMessage = "Context length limit exceeded for Google Gemini on CV document of size 12MB.",
-                    RetryCount = 0,
-                    MaxBudgetUsd = 1.00m,
-                    CumulativeCostUsd = 0.020000m,
-                    TotalInputTokens = 10000,
-                    TotalOutputTokens = 500,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gemini-3.5-flash",
-                    Provider = "Google Gemini",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddHours(-2),
-                    LastUpdatedAtUtc = utcNow.AddHours(-2).AddSeconds(8)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-1234-56789abcdef3"),
-                    PipelineType = "cv-analysis",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000004"),
-                    Status = "Running",
-                    Progress = 40.00m,
-                    CurrentStep = "Extract Skills",
-                    StartedAt = utcNow.AddSeconds(-30),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 1.00m,
-                    CumulativeCostUsd = 0.010000m,
-                    TotalInputTokens = 4000,
-                    TotalOutputTokens = 100,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gemini-3.5-flash",
-                    Provider = "Google Gemini",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddSeconds(-30),
-                    LastUpdatedAtUtc = utcNow.AddSeconds(-30)
-                },
-
-                // ==================== JD Generation ====================
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-5678-56789abcdef0"),
-                    PipelineType = "jd-generation",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000005"),
-                    Status = "Completed",
-                    Progress = 100.00m,
-                    CurrentStep = "Draft JD Complete",
-                    StartedAt = utcNow.AddDays(-4),
-                    CompletedAt = utcNow.AddDays(-4).AddSeconds(8),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 2.00m,
-                    CumulativeCostUsd = 0.150000m,
-                    TotalInputTokens = 12000,
-                    TotalOutputTokens = 4000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gpt-4o",
-                    Provider = "OpenAI",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddDays(-4),
-                    LastUpdatedAtUtc = utcNow.AddDays(-4).AddSeconds(8)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-5678-56789abcdef1"),
-                    PipelineType = "jd-generation",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000006"),
-                    Status = "Completed",
-                    Progress = 100.00m,
-                    CurrentStep = "Draft JD Complete",
-                    StartedAt = utcNow.AddDays(-2),
-                    CompletedAt = utcNow.AddDays(-2).AddSeconds(9),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 2.00m,
-                    CumulativeCostUsd = 0.120000m,
-                    TotalInputTokens = 10000,
-                    TotalOutputTokens = 3500,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "gpt-4o",
-                    Provider = "OpenAI",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddDays(-2),
-                    LastUpdatedAtUtc = utcNow.AddDays(-2).AddSeconds(9)
-                },
-
-                // ==================== Candidate Match ====================
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-9999-56789abcdef0"),
-                    PipelineType = "candidate-match",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000007"),
-                    Status = "Completed",
-                    Progress = 100.00m,
-                    CurrentStep = "Ranking Generated",
-                    StartedAt = utcNow.AddDays(-5),
-                    CompletedAt = utcNow.AddDays(-5).AddSeconds(22),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 3.00m,
-                    CumulativeCostUsd = 0.320000m,
-                    TotalInputTokens = 22000,
-                    TotalOutputTokens = 8000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "claude-haiku-4-5-20251001",
-                    Provider = "Claude",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddDays(-5),
-                    LastUpdatedAtUtc = utcNow.AddDays(-5).AddSeconds(22)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-9999-56789abcdef1"),
-                    PipelineType = "candidate-match",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000008"),
-                    Status = "Completed",
-                    Progress = 100.00m,
-                    CurrentStep = "Ranking Generated",
-                    StartedAt = utcNow.AddDays(-3),
-                    CompletedAt = utcNow.AddDays(-3).AddSeconds(18),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 3.00m,
-                    CumulativeCostUsd = 0.280000m,
-                    TotalInputTokens = 20000,
-                    TotalOutputTokens = 7000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "claude-haiku-4-5-20251001",
-                    Provider = "Claude",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddDays(-3),
-                    LastUpdatedAtUtc = utcNow.AddDays(-3).AddSeconds(18)
-                },
-                new PipelineExecution
-                {
-                    Id = Guid.Parse("019f12f7-74d5-7abc-9999-56789abcdef2"),
-                    PipelineType = "candidate-match",
-                    ReferenceId = Guid.Parse("019f12f7-74d5-7abc-0000-000000000009"),
-                    Status = "Running",
-                    Progress = 80.00m,
-                    CurrentStep = "Ranking Candidates",
-                    StartedAt = utcNow.AddSeconds(-20),
-                    RetryCount = 0,
-                    MaxBudgetUsd = 3.00m,
-                    CumulativeCostUsd = 0.150000m,
-                    TotalInputTokens = 15000,
-                    TotalOutputTokens = 4000,
-                    UserId = userId,
-                    WorkspaceId = workspaceId,
-                    ModelName = "claude-haiku-4-5-20251001",
-                    Provider = "Claude",
-                    PipelineVersion = "1.0.0",
-                    CreatedAtUtc = utcNow.AddSeconds(-20),
-                    LastUpdatedAtUtc = utcNow.AddSeconds(-20)
-                }
-            };
-
-            await context.PipelineExecutions.AddRangeAsync(executions);
-
-            // ==================== STAGES AND TASKS SEEDING ====================
-
-            // 1. Repository Analysis stages/tasks/events (CVerify)
-            var cverifyExecId = executions[0].Id;
-            var cverifyStages = new List<PipelineStage>
-            {
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, StageId = "L1-001", StageName = "Git Ingest", Status = "Completed", Progress = 100.00m, Description = "Cloning and parsing git layout", StartedAt = utcNow.AddDays(-2), CompletedAt = utcNow.AddDays(-2).AddMinutes(1), DurationMs = 60000 },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, StageId = "L1-002", StageName = "Commit Extractor", Status = "Completed", Progress = 100.00m, Description = "Extracting git logs and metadata", StartedAt = utcNow.AddDays(-2).AddMinutes(1), CompletedAt = utcNow.AddDays(-2).AddMinutes(2), DurationMs = 60000 },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, StageId = "L1-004", StageName = "Stack Extractor", Status = "Completed", Progress = 100.00m, Description = "Identifying stack dependencies", StartedAt = utcNow.AddDays(-2).AddMinutes(2), CompletedAt = utcNow.AddDays(-2).AddMinutes(3), DurationMs = 60000 },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, StageId = "L1-012", StageName = "Blame Authorship", Status = "Completed", Progress = 100.00m, Description = "Attributing authorship via git blame", StartedAt = utcNow.AddDays(-2).AddMinutes(3), CompletedAt = utcNow.AddDays(-2).AddMinutes(4), DurationMs = 60000 },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, StageId = "L1-018", StageName = "Trust Score Gen", Status = "Completed", Progress = 100.00m, Description = "Evaluating trust scoring matrix", StartedAt = utcNow.AddDays(-2).AddMinutes(4), CompletedAt = utcNow.AddDays(-2).AddMinutes(5), DurationMs = 60000 }
-            };
-            await context.PipelineStages.AddRangeAsync(cverifyStages);
-
-            var cverifyTasks = new List<PipelineTaskEntity>
-            {
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, TaskIdentifier = "L1-001", TaskName = "Git Ingest", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-2), CompletedAt = utcNow.AddDays(-2).AddMinutes(1), DurationMs = 60000, CreatedAtUtc = utcNow.AddDays(-2) },
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, TaskIdentifier = "L1-002", TaskName = "Commit Extractor", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-2), CompletedAt = utcNow.AddDays(-2).AddMinutes(1).AddSeconds(45), DurationMs = 60000, CreatedAtUtc = utcNow.AddDays(-2).AddMinutes(1) },
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, TaskIdentifier = "L1-004", TaskName = "Stack Extractor", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-2).AddMinutes(2), CompletedAt = utcNow.AddDays(-2).AddMinutes(3), DurationMs = 60000, CreatedAtUtc = utcNow.AddDays(-2).AddMinutes(2) },
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, TaskIdentifier = "L1-018", TaskName = "Trust Score Gen", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-2).AddMinutes(4), CompletedAt = utcNow.AddDays(-2).AddMinutes(5), DurationMs = 60000, CreatedAtUtc = utcNow.AddDays(-2).AddMinutes(4), PromptTokens = 68000, CompletionTokens = 18000, EstimatedCostUsd = 0.455000m, ModelName = "claude-haiku-4-5-20251001" }
-            };
-            await context.PipelineTasksDurable.AddRangeAsync(cverifyTasks);
-
-            var cverifyEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, LogLevel = "Info", Component = "GitIngest", Message = "Started git ingest stage...", Timestamp = utcNow.AddDays(-2) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, LogLevel = "Success", Component = "GitIngest", Message = "Successfully cloned CVerify repository default branch (main).", Timestamp = utcNow.AddDays(-2).AddSeconds(20) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, LogLevel = "Info", Component = "CommitExtractor", Message = "Processing 14,281 changesets for blame authorship...", Timestamp = utcNow.AddDays(-2).AddMinutes(1) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, LogLevel = "Success", Component = "CommitExtractor", Message = "Commit authorship attributed successfully.", Timestamp = utcNow.AddDays(-2).AddMinutes(1).AddSeconds(45) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, LogLevel = "Info", Component = "StackExtractor", Message = "Analyzing packages, dependencies, and codebases...", Timestamp = utcNow.AddDays(-2).AddMinutes(2) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, LogLevel = "Info", Component = "TrustScoreGen", Message = "Starting LLM trust validation flow...", Timestamp = utcNow.AddDays(-2).AddMinutes(4) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cverifyExecId, LogLevel = "Success", Component = "TrustScoreGen", Message = "Trust score generated successfully: 0.74", Timestamp = utcNow.AddDays(-2).AddMinutes(5) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(cverifyEvents);
-
-            // ExploreWorld (Failed Repo Analysis)
-            var exploreWorldExecId = executions[2].Id;
-            var exploreWorldStages = new List<PipelineStage>
-            {
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = exploreWorldExecId, StageId = "L1-001", StageName = "Git Ingest", Status = "Completed", Progress = 100.00m, Description = "Cloning and parsing git layout", StartedAt = utcNow.AddHours(-4), CompletedAt = utcNow.AddHours(-4).AddMinutes(1), DurationMs = 60000 },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = exploreWorldExecId, StageId = "L1-014", StageName = "AI Code Detect", Status = "Failed", Progress = 0.00m, Description = "Running simhash clone analysis", StartedAt = utcNow.AddHours(-4).AddMinutes(1), CompletedAt = utcNow.AddHours(-4).AddMinutes(2), DurationMs = 60000 }
-            };
-            await context.PipelineStages.AddRangeAsync(exploreWorldStages);
-
-            var exploreWorldTasks = new List<PipelineTaskEntity>
-            {
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = exploreWorldExecId, TaskIdentifier = "L1-001", TaskName = "Git Ingest", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddHours(-4), CompletedAt = utcNow.AddHours(-4).AddMinutes(1), DurationMs = 60000, CreatedAtUtc = utcNow.AddHours(-4) },
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = exploreWorldExecId, TaskIdentifier = "L1-014", TaskName = "AI Code Detect", Status = "Failed", Progress = 50.00m, StartedAt = utcNow.AddHours(-4).AddMinutes(1), CompletedAt = utcNow.AddHours(-4).AddMinutes(2), DurationMs = 60000, CreatedAtUtc = utcNow.AddHours(-4).AddMinutes(1), ErrorMessage = "Rate limit exceeded for provider Google Gemini." }
-            };
-            await context.PipelineTasksDurable.AddRangeAsync(exploreWorldTasks);
-
-            var exploreWorldEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = exploreWorldExecId, LogLevel = "Info", Component = "GitIngest", Message = "Started git ingest stage...", Timestamp = utcNow.AddHours(-4) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = exploreWorldExecId, LogLevel = "Info", Component = "AICodeDetect", Message = "Detecting external third-party copy-paste clones...", Timestamp = utcNow.AddHours(-4).AddMinutes(1) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = exploreWorldExecId, LogLevel = "Error", Component = "AICodeDetect", Message = "Google Gemini provider returned status code 429: Resource exhausted.", Timestamp = utcNow.AddHours(-4).AddMinutes(1).AddSeconds(30) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = exploreWorldExecId, LogLevel = "Error", Component = "AICodeDetect", Message = "Rate limit exceeded for provider Google Gemini. Falling back to OpenAI failed due to context length limits.", Timestamp = utcNow.AddHours(-4).AddMinutes(2) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(exploreWorldEvents);
-
-            // Icicle (Running Repo Analysis)
-            var icicleExecId = executions[3].Id;
-            var icicleEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = icicleExecId, LogLevel = "Info", Component = "GitIngest", Message = "Started git ingest stage...", Timestamp = utcNow.AddMinutes(-5) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = icicleExecId, LogLevel = "Success", Component = "GitIngest", Message = "Successfully cloned Icicle repository default branch (master).", Timestamp = utcNow.AddMinutes(-3) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = icicleExecId, LogLevel = "Info", Component = "StackExtractor", Message = "Analyzing packages, dependencies, and codebases...", Timestamp = utcNow.AddMinutes(-2) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(icicleEvents);
-
-            // 2. CV Analysis completed stages/tasks/events
-            var cvExecId = executions[5].Id;
-            var cvStages = new List<PipelineStage>
-            {
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cvExecId, StageId = "CV-001", StageName = "Document Parse", Status = "Completed", Progress = 100.00m, Description = "Parsing PDF CV document layout", StartedAt = utcNow.AddDays(-3), CompletedAt = utcNow.AddDays(-3).AddSeconds(5) },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cvExecId, StageId = "CV-002", StageName = "Skills Extraction", Status = "Completed", Progress = 100.00m, Description = "Extracting technical capabilities", StartedAt = utcNow.AddDays(-3).AddSeconds(5), CompletedAt = utcNow.AddDays(-3).AddSeconds(10) },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cvExecId, StageId = "CV-003", StageName = "Generate Summary", Status = "Completed", Progress = 100.00m, Description = "Writing brief profile overview", StartedAt = utcNow.AddDays(-3).AddSeconds(10), CompletedAt = utcNow.AddDays(-3).AddSeconds(15) }
-            };
-            await context.PipelineStages.AddRangeAsync(cvStages);
-
-            var cvTasks = new List<PipelineTaskEntity>
-            {
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = cvExecId, TaskIdentifier = "CV-001", TaskName = "Parse PDF", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-3), CompletedAt = utcNow.AddDays(-3).AddSeconds(5), CreatedAtUtc = utcNow.AddDays(-3) },
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = cvExecId, TaskIdentifier = "CV-003", TaskName = "Generate Summary", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-3).AddSeconds(10), CompletedAt = utcNow.AddDays(-3).AddSeconds(15), CreatedAtUtc = utcNow.AddDays(-3).AddSeconds(10), PromptTokens = 8000, CompletionTokens = 2000, EstimatedCostUsd = 0.050000m, ModelName = "gemini-3.5-flash" }
-            };
-            await context.PipelineTasksDurable.AddRangeAsync(cvTasks);
-
-            var cvEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvExecId, LogLevel = "Info", Component = "PdfParser", Message = "Initiating parsing on CV PDF document...", Timestamp = utcNow.AddDays(-3) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvExecId, LogLevel = "Info", Component = "SkillExtractor", Message = "Analyzing CV work history for skills matching...", Timestamp = utcNow.AddDays(-3).AddSeconds(5) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvExecId, LogLevel = "Success", Component = "SummaryGen", Message = "Candidate CV parsed and summarized successfully.", Timestamp = utcNow.AddDays(-3).AddSeconds(15) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(cvEvents);
-
-            // CV Analysis failed
-            var cvFailedId = executions[7].Id;
-            var cvFailedStages = new List<PipelineStage>
-            {
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cvFailedId, StageId = "CV-001", StageName = "Document Parse", Status = "Completed", Progress = 100.00m, Description = "Parsing PDF CV document layout", StartedAt = utcNow.AddHours(-2), CompletedAt = utcNow.AddHours(-2).AddSeconds(4) },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = cvFailedId, StageId = "CV-002", StageName = "Skills Extraction", Status = "Failed", Progress = 0.00m, Description = "Extracting technical capabilities", StartedAt = utcNow.AddHours(-2).AddSeconds(4), CompletedAt = utcNow.AddHours(-2).AddSeconds(8) }
-            };
-            await context.PipelineStages.AddRangeAsync(cvFailedStages);
-
-            var cvFailedTasks = new List<PipelineTaskEntity>
-            {
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = cvFailedId, TaskIdentifier = "CV-001", TaskName = "Parse PDF", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddHours(-2), CompletedAt = utcNow.AddHours(-2).AddSeconds(4), CreatedAtUtc = utcNow.AddHours(-2) },
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = cvFailedId, TaskIdentifier = "CV-002", TaskName = "Skills Extraction", Status = "Failed", Progress = 50.00m, StartedAt = utcNow.AddHours(-2).AddSeconds(4), CompletedAt = utcNow.AddHours(-2).AddSeconds(8), ErrorMessage = "Context length limit exceeded for Google Gemini on CV document of size 12MB." }
-            };
-            await context.PipelineTasksDurable.AddRangeAsync(cvFailedTasks);
-
-            var cvFailedEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvFailedId, LogLevel = "Info", Component = "PdfParser", Message = "Initiating parsing on CV PDF document...", Timestamp = utcNow.AddHours(-2) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvFailedId, LogLevel = "Error", Component = "SkillExtractor", Message = "Google Gemini returned status code 400: Context length limit exceeded.", Timestamp = utcNow.AddHours(-2).AddSeconds(6) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvFailedId, LogLevel = "Error", Component = "SkillExtractor", Message = "Context length limit exceeded for Google Gemini on CV document of size 12MB.", Timestamp = utcNow.AddHours(-2).AddSeconds(8) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(cvFailedEvents);
-
-            // CV Analysis running
-            var cvRunningId = executions[8].Id;
-            var cvRunningEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvRunningId, LogLevel = "Info", Component = "PdfParser", Message = "Initiating parsing on CV PDF document...", Timestamp = utcNow.AddSeconds(-30) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvRunningId, LogLevel = "Success", Component = "PdfParser", Message = "PDF document text extracted successfully.", Timestamp = utcNow.AddSeconds(-15) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = cvRunningId, LogLevel = "Info", Component = "SkillExtractor", Message = "Analyzing candidate experience history...", Timestamp = utcNow.AddSeconds(-5) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(cvRunningEvents);
-
-            // 3. JD Generation completed
-            var jdExecId = executions[9].Id;
-            var jdStages = new List<PipelineStage>
-            {
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = jdExecId, StageId = "JD-001", StageName = "JD Draft Outline", Status = "Completed", Progress = 100.00m, Description = "Drafting job requirements shell", StartedAt = utcNow.AddDays(-4), CompletedAt = utcNow.AddDays(-4).AddSeconds(4) },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = jdExecId, StageId = "JD-002", StageName = "Requirement Enrich", Status = "Completed", Progress = 100.00m, Description = "Refining required skillset bullet points", StartedAt = utcNow.AddDays(-4).AddSeconds(4), CompletedAt = utcNow.AddDays(-4).AddSeconds(8) }
-            };
-            await context.PipelineStages.AddRangeAsync(jdStages);
-
-            var jdTasks = new List<PipelineTaskEntity>
-            {
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = jdExecId, TaskIdentifier = "JD-001", TaskName = "JD Draft Outline", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-4), CompletedAt = utcNow.AddDays(-4).AddSeconds(4), CreatedAtUtc = utcNow.AddDays(-4) },
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = jdExecId, TaskIdentifier = "JD-002", TaskName = "Requirement Enrich", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-4).AddSeconds(4), CompletedAt = utcNow.AddDays(-4).AddSeconds(8), CreatedAtUtc = utcNow.AddDays(-4).AddSeconds(4), PromptTokens = 12000, CompletionTokens = 4000, EstimatedCostUsd = 0.150000m, ModelName = "gpt-4o" }
-            };
-            await context.PipelineTasksDurable.AddRangeAsync(jdTasks);
-
-            var jdEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = jdExecId, LogLevel = "Info", Component = "DraftShell", Message = "Drafting JD requirements draft outline...", Timestamp = utcNow.AddDays(-4) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = jdExecId, LogLevel = "Success", Component = "Enricher", Message = "JD requirement drafted successfully.", Timestamp = utcNow.AddDays(-4).AddSeconds(8) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(jdEvents);
-
-            // 4. Candidate Match completed
-            var matchExecId = executions[11].Id;
-            var matchStages = new List<PipelineStage>
-            {
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = matchExecId, StageId = "M-001", StageName = "Semantic Score", Status = "Completed", Progress = 100.00m, Description = "Matching candidates with job description", StartedAt = utcNow.AddDays(-5), CompletedAt = utcNow.AddDays(-5).AddSeconds(10) },
-                new PipelineStage { Id = Guid.CreateVersion7(), ExecutionId = matchExecId, StageId = "M-002", StageName = "Authenticity Verify", Status = "Completed", Progress = 100.00m, Description = "Auditing matching author trust score", StartedAt = utcNow.AddDays(-5).AddSeconds(10), CompletedAt = utcNow.AddDays(-5).AddSeconds(22) }
-            };
-            await context.PipelineStages.AddRangeAsync(matchStages);
-
-            var matchTasks = new List<PipelineTaskEntity>
-            {
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = matchExecId, TaskIdentifier = "M-001", TaskName = "Semantic Score", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-5), CompletedAt = utcNow.AddDays(-5).AddSeconds(10), CreatedAtUtc = utcNow.AddDays(-5) },
-                new PipelineTaskEntity { Id = Guid.CreateVersion7(), ExecutionId = matchExecId, TaskIdentifier = "M-002", TaskName = "Authenticity Verify", Status = "Completed", Progress = 100.00m, StartedAt = utcNow.AddDays(-5).AddSeconds(10), CompletedAt = utcNow.AddDays(-5).AddSeconds(22), CreatedAtUtc = utcNow.AddDays(-5).AddSeconds(10), PromptTokens = 22000, CompletionTokens = 8000, EstimatedCostUsd = 0.320000m, ModelName = "claude-haiku-4-5-20251001" }
-            };
-            await context.PipelineTasksDurable.AddRangeAsync(matchTasks);
-
-            var matchEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = matchExecId, LogLevel = "Info", Component = "MatchEngine", Message = "Calculating semantic matching scores...", Timestamp = utcNow.AddDays(-5) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = matchExecId, LogLevel = "Info", Component = "MatchEngine", Message = "Performing authenticity and trust ranking adjustments...", Timestamp = utcNow.AddDays(-5).AddSeconds(10) },
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = matchExecId, LogLevel = "Success", Component = "MatchEngine", Message = "Matches ranking completed successfully.", Timestamp = utcNow.AddDays(-5).AddSeconds(22) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(matchEvents);
-
-            // Candidate Match running
-            var matchRunningId = executions[13].Id;
-            var matchRunningEvents = new List<PipelineEvent>
-            {
-                new PipelineEvent { Id = Guid.CreateVersion7(), ExecutionId = matchRunningId, LogLevel = "Info", Component = "MatchEngine", Message = "Calculating semantic matching scores...", Timestamp = utcNow.AddSeconds(-20) }
-            };
-            await context.PipelineEventsDurable.AddRangeAsync(matchRunningEvents);
-
-            await context.SaveChangesAsync();
-            Console.WriteLine("[Seeder] Successfully seeded 14 development AI pipeline executions across all pipeline modules.");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Seeder Error] Failed to seed Repository AI pipeline executions: {ex.Message}");
         }
     }
 
