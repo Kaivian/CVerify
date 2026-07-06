@@ -104,7 +104,13 @@ public class MailKitSmtpSender : IEmailSender
 
                 if (!string.IsNullOrWhiteSpace(_settings.Smtp.Username))
                 {
-                    await client.AuthenticateAsync(_settings.Smtp.Username, _settings.Smtp.Password, ct.CancellationToken).ConfigureAwait(false);
+                    var password = _settings.Smtp.Password;
+                    // Strip spaces for Gmail App Passwords if copied directly with formatting spaces
+                    if (!string.IsNullOrEmpty(password) && _settings.Smtp.Host.Contains("gmail.com", StringComparison.OrdinalIgnoreCase))
+                    {
+                        password = password.Replace(" ", "");
+                    }
+                    await client.AuthenticateAsync(_settings.Smtp.Username, password, ct.CancellationToken).ConfigureAwait(false);
                 }
 
                 await client.SendAsync(mimeMessage, ct.CancellationToken).ConfigureAwait(false);

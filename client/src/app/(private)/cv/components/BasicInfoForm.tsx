@@ -701,7 +701,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
 
           <div className="flex flex-col gap-3">
             {draft.socialLinks.map((link, index) => (
-              <div key={index} className="flex gap-2 items-center">
+              <div key={index} className="flex gap-2 items-start">
                 <div className="flex-1 flex flex-col gap-0.5">
                   <Input
                     value={link}
@@ -723,7 +723,7 @@ export const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
                   isIconOnly
                   size="sm"
                   variant="secondary"
-                  className="rounded-xl border border-border/30 h-10 w-10 text-danger"
+                  className="rounded-xl border border-border/30 h-10 w-10 text-danger mt-0.5"
                   onPress={() => removeSocialLink(index)}
                   type="button"
                   aria-label={`Remove social link ${index + 1}`}
