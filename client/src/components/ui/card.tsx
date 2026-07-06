@@ -44,7 +44,7 @@ export const Card: React.FC<CardProps> = ({
         <div className="absolute top-0 left-1/4 right-1/4 h-px bg-linear-to-r from-transparent via-border/30 to-transparent pointer-events-none" />
       )}
 
-      <div className="relative z-10 flex flex-col h-full w-full">
+      <div className="relative z-10 flex flex-col h-full w-full min-h-0">
         {children}
       </div>
     </Component>

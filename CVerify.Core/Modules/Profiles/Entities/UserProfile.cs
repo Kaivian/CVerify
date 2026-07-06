@@ -18,7 +18,7 @@ public class UserProfile
     [MaxLength(32)]
     public string? Username { get; set; }
 
-    [MaxLength(160)]
+    [MaxLength(1000)]
     public string? Bio { get; set; }
 
     [MaxLength(50)]

@@ -25,12 +25,14 @@ public record CandidateAssessmentResponse(
     Guid UserId,
     string Status,
     double OverallScore,
+    double TrustLevel,
     string? CareerLevel,
     string? CareerLevelLabel,
     string? PrimaryTendency,
     string? PrimaryWorkingStyle,
     string? SummaryHeadline,
     string? SummaryParagraph,
+    string? ProfessionalBio,
     string PipelineVersion,
     string AssessmentSchemaVersion,
     Guid? CvId,
@@ -42,7 +44,11 @@ public record CandidateAssessmentResponse(
     string? FailedStage,
     string? FailureReason,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? CompletedAtUtc
+    DateTimeOffset? CompletedAtUtc,
+    string? CalculationMode,
+    string? InputFeatureSetHash,
+    string? EvidenceCompleteness,
+    string? CloneRiskClassification
 );
 
 public record CandidateAssessmentArtifactDto(

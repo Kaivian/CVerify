@@ -213,6 +213,7 @@ public class UsernameFlowTests : BaseIntegrationTest
                 UserId = userId,
                 Status = "Completed",
                 OverallScore = 85.0,
+                TrustLevel = 85.0,
                 CreatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
                 CompletedAtUtc = DateTimeOffset.UtcNow,
                 LastProfileUpdateAt = DateTimeOffset.UtcNow,

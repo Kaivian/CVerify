@@ -23,6 +23,12 @@ class PipelineContext(BaseModel):
     problemSolvingScore: Optional[float] = None
     impactScore: Optional[float] = None
 
+    rawSkillDepth: Optional[float] = None
+    rawOwnership: Optional[float] = None
+    rawArchitecture: Optional[float] = None
+    rawProblemSolving: Optional[float] = None
+    rawImpact: Optional[float] = None
+
     # Step Outputs (CamelCase to match prompt requirements & payload JSON)
     mappedSkills: Optional[List[Dict[str, Any]]] = None
     unmatchedCvSkills: Optional[List[str]] = None
@@ -94,6 +100,7 @@ class PipelineContext(BaseModel):
     cvImprovementSuggestions: Optional[List[Dict[str, Any]]] = None
     recruiterHeadline: Optional[str] = None
     fullSummary: Optional[str] = None
+    professionalBio: Optional[str] = None
     keyStrengths: Optional[List[str]] = None
     watchPoints: Optional[List[str]] = None
     

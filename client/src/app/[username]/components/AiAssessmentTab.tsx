@@ -58,6 +58,7 @@ export interface NormalizedRecommendation {
 
 export interface NormalizedAssessmentViewModel {
   status: 'Completed' | 'Failed' | 'Running' | 'Legacy';
+  completenessState: 'COMPUTED' | 'INCOMPLETE' | 'MISSING';
   failureReason: string | null;
   pipelineVersion: string;
   calculationDate: string | null;
@@ -73,6 +74,7 @@ export interface NormalizedAssessmentViewModel {
   workingStyle: string;
   headline: string;
   summary: string;
+  professionalBio: string;
 
   trustScore: number;
   verifiedSkillRatio: number;
@@ -191,6 +193,7 @@ function mapToViewModel(
   if (!assessmentDetail || !assessmentDetail.assessment) {
     return {
       status: 'Running',
+      completenessState: 'MISSING',
       failureReason: null,
       pipelineVersion: '3.0.0',
       calculationDate: null,
@@ -205,6 +208,7 @@ function mapToViewModel(
       workingStyle: '',
       headline: '',
       summary: '',
+      professionalBio: '',
       trustScore: 0,
       verifiedSkillRatio: 0,
       verifiedRepositoryRatio: 0,
@@ -239,16 +243,16 @@ function mapToViewModel(
   // Determine if it is a legacy version (e.g. candidate-profile-v1 which lacked detailed capability vector or other dimensions)
   const isLegacy = schemaVersion !== 'candidate-profile-v2' || !profileData?.capabilityVector;
 
-  const score = assessment.overallScore ?? profileData?.candidateScore ?? 0;
-  const careerLevel = assessment.careerLevel ?? profileData?.careerLevel ?? 'L2';
-  const careerLevelLabel = assessment.careerLevelLabel ?? profileData?.careerLevelLabel ?? 'Middle';
+  const score = assessment?.overallScore ?? profileData?.candidateScore ?? 0;
+  const careerLevel = assessment?.careerLevel ?? profileData?.careerLevel ?? 'L2';
+  const careerLevelLabel = assessment?.careerLevelLabel ?? profileData?.careerLevelLabel ?? 'Middle';
   const careerLevelConfidence = profileData?.careerLevelConfidence ?? profileData?.displayConfidence ?? 0.8;
-  const primaryAffinity = assessment.primaryTendency ?? profileData?.primaryTendency ?? '';
-  const workingStyle = assessment.primaryWorkingStyle ?? profileData?.primaryWorkingStyle ?? '';
-  const headline = assessment.summaryHeadline ?? profileData?.recruiterHeadline ?? '';
-  const summary = assessment.summaryParagraph ?? profileData?.fullSummary ?? '';
+  const primaryAffinity = assessment?.primaryTendency ?? profileData?.primaryTendency ?? '';
+  const workingStyle = assessment?.primaryWorkingStyle ?? profileData?.primaryWorkingStyle ?? '';
+  const headline = assessment?.summaryHeadline ?? profileData?.recruiterHeadline ?? '';
+  const summary = assessment?.summaryParagraph ?? profileData?.fullSummary ?? '';
 
-  const trustScore = profileData?.trustLevel ?? profileData?.trustScoreMetrics?.candidateTrustScore ?? 0;
+  const trustScore = assessment?.trustLevel ?? profileData?.trustLevel ?? profileData?.trustScoreMetrics?.candidateTrustScore ?? 0;
   const verifiedSkillRatio = profileData?.trustScoreMetrics?.verifiedSkillRatio ?? 0;
   const verifiedRepositoryRatio = profileData?.trustScoreMetrics?.verifiedRepositoryRatio ?? 0;
   const verifiedEvidenceRatio = profileData?.trustScoreMetrics?.verifiedEvidenceRatio ?? 0;
@@ -348,8 +352,14 @@ function mapToViewModel(
     finalStatus = 'Legacy';
   }
 
+  const evidenceCompleteness = assessment?.evidenceCompleteness ?? profileData?.evidenceCompleteness ?? 'NONE';
+  const completenessState: NormalizedAssessmentViewModel['completenessState'] = 
+    evidenceCompleteness === 'FULL' ? 'COMPUTED' : 
+    (evidenceCompleteness === 'PARTIAL' ? 'INCOMPLETE' : 'MISSING');
+
   return {
     status: finalStatus,
+    completenessState,
     failureReason,
     pipelineVersion,
     calculationDate,
@@ -364,6 +374,7 @@ function mapToViewModel(
     workingStyle,
     headline,
     summary,
+    professionalBio: assessment?.professionalBio ?? profileData?.professionalBio ?? '',
     trustScore,
     verifiedSkillRatio,
     verifiedRepositoryRatio,
@@ -502,9 +513,13 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
   );
 
   // Group skills by verification level
-  const aiVerifiedSkills = filteredSkills.filter(s => s.verificationLevel === 'AiAnalyzed');
-  const selfDeclaredSkills = filteredSkills.filter(s => s.verificationLevel === 'SelfDeclared');
-  const unverifiedSkills = filteredSkills.filter(s => s.verificationLevel === 'Unverified');
+  const rawAiVerified = filteredSkills.filter(s => s.verificationLevel === 'AiAnalyzed').sort((a, b) => (b.score || 0) - (a.score || 0));
+  const rawSelfDeclared = filteredSkills.filter(s => s.verificationLevel === 'SelfDeclared').sort((a, b) => (b.score || 0) - (a.score || 0));
+  const rawUnverified = filteredSkills.filter(s => s.verificationLevel === 'Unverified').sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  const aiVerifiedSkills = skillSearch ? rawAiVerified : rawAiVerified.slice(0, 5);
+  const selfDeclaredSkills = skillSearch ? rawSelfDeclared : rawSelfDeclared.slice(0, 5);
+  const unverifiedSkills = skillSearch ? rawUnverified : rawUnverified.slice(0, 5);
 
   return (
     <div className="flex flex-col gap-8 text-left py-4">
@@ -517,6 +532,19 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
             <h5 className="text-xs font-bold text-warning">Legacy Assessment Version</h5>
             <p className="text-[11px] text-muted leading-relaxed">
               This assessment was calculated using a previous pipeline version ({vm.pipelineVersion}). Some multi-dimensional capability metrics, pillars, and recommendations are not fully mapped. We recommend re-running the talent assessment.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Incomplete / Limited Trust Warning Banner */}
+      {vm.completenessState === 'INCOMPLETE' && (
+        <div className="p-4 border border-warning/30 bg-warning/5 rounded-xl flex items-start gap-3 select-none">
+          <AlertTriangle className="size-5 text-warning shrink-0 mt-0.5" />
+          <div className="flex flex-col gap-1">
+            <h5 className="text-xs font-bold text-warning">Limited Trust Level</h5>
+            <p className="text-[11px] text-muted leading-relaxed">
+              Assessment has connected codebases but lacks sufficient verified ownership. Trust score is limited.
             </p>
           </div>
         </div>
@@ -578,32 +606,44 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
           </div>
 
           {/* Trust breakdown card */}
-          <div className="p-4 rounded-xl bg-surface-secondary/35 flex flex-col gap-3 min-w-[200px] w-full sm:w-auto">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-black text-foreground tracking-wider flex items-center gap-1.5">
-                AI Trust Score
-                {renderTooltip("Reliability index indicating how well the candidate's CV matches their verifiable code contributions.")}
+          {vm.completenessState === 'MISSING' ? (
+            <div className="p-4 rounded-xl border border-dashed border-border bg-surface-secondary/20 flex flex-col gap-1.5 max-w-xs text-left select-none">
+              <span className="text-[10px] uppercase font-black text-warning tracking-wider flex items-center gap-1.5">
+                <AlertTriangle className="size-3.5" />
+                AI Trust Unverified
               </span>
-              <span className="text-xs font-black text-accent font-outfit">{vm.trustScore}%</span>
+              <p className="text-[10px] text-muted leading-relaxed">
+                No connected codebases analyzed. Trust metrics could not be computed. Connect a repository to verify authenticity.
+              </p>
             </div>
-            <div className="flex flex-col gap-2">
-              {TRUST_SCORE_METRICS.map((metric) => {
-                const val = (vm as any)[metric.key];
-                return (
-                  <div key={metric.key} className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-[9px]">
-                      <span className="text-muted font-semibold flex items-center gap-1">
-                        {metric.label}
-                        {renderTooltip(metric.tooltip)}
-                      </span>
-                      <span className="text-foreground font-bold">{metric.format(val)}</span>
+          ) : (
+            <div className="p-4 rounded-xl bg-surface-secondary/35 flex flex-col gap-3 min-w-[200px] w-full sm:w-auto">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-black text-foreground tracking-wider flex items-center gap-1.5">
+                  AI Trust Score
+                  {renderTooltip("Reliability index indicating how well the candidate's CV matches their verifiable code contributions.")}
+                </span>
+                <span className="text-xs font-black text-accent font-outfit">{vm.trustScore}%</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {TRUST_SCORE_METRICS.map((metric) => {
+                  const val = (vm as any)[metric.key];
+                  return (
+                    <div key={metric.key} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-muted font-semibold flex items-center gap-1">
+                          {metric.label}
+                          {renderTooltip(metric.tooltip)}
+                        </span>
+                        <span className="text-foreground font-bold">{metric.format(val)}</span>
+                      </div>
+                      <ProgressBar aria-label={metric.label} value={val * 100} size="sm" className="h-1 bg-border rounded-full" />
                     </div>
-                    <ProgressBar aria-label={metric.label} value={val * 100} size="sm" className="h-1 bg-border rounded-full" />
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
       </div>
@@ -683,9 +723,20 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
                 </h3>
               )}
               {vm.summary && (
-                <p className="text-muted text-xs leading-relaxed whitespace-pre-line">
-                  {vm.summary}
-                </p>
+                <div className="space-y-1.5 text-left">
+                  <span className="text-[9px] uppercase font-extrabold text-accent/80 tracking-wider">AI Evaluation Narrative</span>
+                  <p className="text-muted text-xs leading-relaxed whitespace-pre-line text-justify">
+                    {vm.summary}
+                  </p>
+                </div>
+              )}
+              {vm.professionalBio && (
+                <div className="space-y-1.5 text-left border-t border-separator pt-4 mt-2">
+                  <span className="text-[9px] uppercase font-extrabold text-success/80 tracking-wider">AI Professional Bio Suggestion</span>
+                  <p className="text-muted text-xs leading-relaxed whitespace-pre-line text-justify">
+                    {vm.professionalBio}
+                  </p>
+                </div>
               )}
 
               {/* Snapshot Metrics */}
@@ -832,8 +883,8 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
               {/* Group A: AI Verified (Evidence backed) */}
               <div className="flex flex-col gap-3">
                 <span className="text-[10px] uppercase font-black text-success tracking-wider select-none flex items-center gap-1.5">
-                  AI-Verified Skills
-                  <Chip size="sm" className="bg-success/10 text-success text-[8px] h-4 min-h-4 border-none font-bold">{aiVerifiedSkills.length}</Chip>
+                  AI-Verified Skills {!skillSearch && "(Top 5)"}
+                  <Chip size="sm" className="bg-success/10 text-success text-[8px] h-4 min-h-4 border-none font-bold">{rawAiVerified.length}</Chip>
                 </span>
                 <div className="flex flex-col gap-2.5">
                   {aiVerifiedSkills.length > 0 ? (
@@ -847,8 +898,8 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
               {/* Group B: Self Declared (Linked project only) */}
               <div className="flex flex-col gap-3">
                 <span className="text-[10px] uppercase font-black text-accent tracking-wider select-none flex items-center gap-1.5">
-                  Self-Declared (Linked)
-                  <Chip size="sm" className="bg-accent/10 text-accent text-[8px] h-4 min-h-4 border-none font-bold">{selfDeclaredSkills.length}</Chip>
+                  Self-Declared (Linked) {!skillSearch && "(Top 5)"}
+                  <Chip size="sm" className="bg-accent/10 text-accent text-[8px] h-4 min-h-4 border-none font-bold">{rawSelfDeclared.length}</Chip>
                 </span>
                 <div className="flex flex-col gap-2.5">
                   {selfDeclaredSkills.length > 0 ? (
@@ -862,8 +913,8 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
               {/* Group C: Unverified */}
               <div className="flex flex-col gap-3">
                 <span className="text-[10px] uppercase font-black text-muted tracking-wider select-none flex items-center gap-1.5">
-                  Unverified / Declarative Only
-                  <Chip size="sm" className="bg-default text-muted-foreground text-[8px] h-4 min-h-4 border-none font-bold">{unverifiedSkills.length}</Chip>
+                  Unverified / Declarative Only {!skillSearch && "(Top 5)"}
+                  <Chip size="sm" className="bg-default text-muted-foreground text-[8px] h-4 min-h-4 border-none font-bold">{rawUnverified.length}</Chip>
                 </span>
                 <div className="flex flex-col gap-2.5">
                   {unverifiedSkills.length > 0 ? (
@@ -995,92 +1046,94 @@ export function AiAssessmentTab({ assessmentDetail, fullName, repositories }: Ai
       {/* ==========================================
           SECTION 6: Evidence Governance Ledger
           ========================================== */}
-      <div className="flex flex-col gap-4 text-left border-t border-separator pt-8">
-        <h4 className="text-xs font-black uppercase tracking-wider text-foreground select-none flex items-center gap-1.5">
-          Audited Code Evidence Governance Ledger
-          {renderTooltip("The underlying commit ledger. Lists all repositories connected by the candidate, direct authorship percentage, and total score contribution weight.")}
-        </h4>
+      {vm.completenessState !== 'MISSING' && (
+        <div className="flex flex-col gap-4 text-left border-t border-separator pt-8">
+          <h4 className="text-xs font-black uppercase tracking-wider text-foreground select-none flex items-center gap-1.5">
+            Audited Code Evidence Governance Ledger
+            {renderTooltip("The underlying commit ledger. Lists all repositories connected by the candidate, direct authorship percentage, and total score contribution weight.")}
+          </h4>
 
-        {vm.evidenceGovernance.length > 0 ? (
-          <div className="flex flex-col gap-3">
-            <div className="border border-border rounded-xl bg-surface overflow-hidden shadow-xs">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-surface-secondary/50 border-b border-border text-muted font-bold select-none text-[10px] uppercase tracking-wider">
-                    <th className="p-4.5">Repository Source</th>
-                    <th className="p-4.5">Verification Layer</th>
-                    <th className="p-4.5">
-                      Authorship Ownership
-                      {renderTooltip("Calculated as the percentage of commits matching the candidate's verified identity. A minimum of 30% is required for score inclusion.")}
-                    </th>
-                    <th className="p-4.5">
-                      Score Weight
-                      {renderTooltip("The relative weight this repository contributes to the overall capability score dimensions.")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const items = showAllRepos
-                      ? vm.evidenceGovernance
-                      : vm.evidenceGovernance.slice(0, 4);
+          {vm.evidenceGovernance.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <div className="border border-border rounded-xl bg-surface overflow-hidden shadow-xs">
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="bg-surface-secondary/50 border-b border-border text-muted font-bold select-none text-[10px] uppercase tracking-wider">
+                      <th className="p-4.5">Repository Source</th>
+                      <th className="p-4.5">Verification Layer</th>
+                      <th className="p-4.5">
+                        Authorship Ownership
+                        {renderTooltip("Calculated as the percentage of commits matching the candidate's verified identity. A minimum of 30% is required for score inclusion.")}
+                      </th>
+                      <th className="p-4.5">
+                        Score Weight
+                        {renderTooltip("The relative weight this repository contributes to the overall capability score dimensions.")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const items = showAllRepos
+                        ? vm.evidenceGovernance
+                        : vm.evidenceGovernance.slice(0, 4);
 
-                    return items.map((repo) => (
-                      <tr key={repo.id} className="border-b border-border/60 last:border-none hover:bg-surface-secondary/15 transition-colors">
-                        <td className="p-4.5 font-bold text-foreground">
-                          {repo.name}
-                        </td>
-                        <td className="p-4.5">
-                          <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${repo.verificationLevel === 'AiAnalyzed'
-                            ? 'bg-success/10 text-success border-success/15'
-                            : repo.verificationLevel === 'RepositoryLinked'
-                              ? 'bg-primary/10 text-primary border-primary/15'
-                              : 'bg-default text-muted-foreground border-border'
-                            }`}>
-                            {repo.verificationLevel === 'AiAnalyzed' ? 'AI Audited' : repo.verificationLevel === 'RepositoryLinked' ? 'Repo Linked' : 'Background'}
-                          </span>
-                        </td>
-                        <td className="p-4.5 font-semibold text-foreground/80">
-                          {repo.ownershipPercent > 0 ? `${repo.ownershipPercent}%` : '—'}
-                        </td>
-                        <td className="p-4.5 font-black text-accent font-outfit">
-                          {repo.contributionPercent > 0 ? `${repo.contributionPercent}%` : '0.0%'}
-                        </td>
-                      </tr>
-                    ));
-                  })()}
-                </tbody>
-              </table>
+                      return items.map((repo) => (
+                        <tr key={repo.id} className="border-b border-border/60 last:border-none hover:bg-surface-secondary/15 transition-colors">
+                          <td className="p-4.5 font-bold text-foreground">
+                            {repo.name}
+                          </td>
+                          <td className="p-4.5">
+                            <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full border ${repo.verificationLevel === 'AiAnalyzed'
+                              ? 'bg-success/10 text-success border-success/15'
+                              : repo.verificationLevel === 'RepositoryLinked'
+                                ? 'bg-primary/10 text-primary border-primary/15'
+                                : 'bg-default text-muted-foreground border-border'
+                              }`}>
+                              {repo.verificationLevel === 'AiAnalyzed' ? 'AI Audited' : repo.verificationLevel === 'RepositoryLinked' ? 'Repo Linked' : 'Background'}
+                            </span>
+                          </td>
+                          <td className="p-4.5 font-semibold text-foreground/80">
+                            {repo.ownershipPercent > 0 ? `${repo.ownershipPercent}%` : '—'}
+                          </td>
+                          <td className="p-4.5 font-black text-accent font-outfit">
+                            {repo.contributionPercent > 0 ? `${repo.contributionPercent}%` : '0.0%'}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Progressive Disclosure Toggle */}
+              {vm.evidenceGovernance.length > 4 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="font-bold text-xs text-accent hover:text-accent/80 flex items-center justify-center gap-1 mx-auto"
+                  onClick={() => setShowAllRepos(!showAllRepos)}
+                >
+                  {showAllRepos ? (
+                    <>
+                      Collapse Repositories
+                      <ChevronUp className="size-4" />
+                    </>
+                  ) : (
+                    <>
+                      Show All ({vm.evidenceGovernance.length}) Repositories
+                      <ChevronDown className="size-4" />
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
-
-            {/* Progressive Disclosure Toggle */}
-            {vm.evidenceGovernance.length > 4 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="font-bold text-xs text-accent hover:text-accent/80 flex items-center justify-center gap-1 mx-auto"
-                onClick={() => setShowAllRepos(!showAllRepos)}
-              >
-                {showAllRepos ? (
-                  <>
-                    Collapse Repositories
-                    <ChevronUp className="size-4" />
-                  </>
-                ) : (
-                  <>
-                    Show All ({vm.evidenceGovernance.length}) Repositories
-                    <ChevronDown className="size-4" />
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="p-8 border border-border border-dashed rounded-xl text-center text-xs text-muted italic">
-            No repository evidence parsed for this assessment.
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="p-8 border border-border border-dashed rounded-xl text-center text-xs text-muted italic">
+              No repository evidence parsed for this assessment.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Metadata signals footer */}
       <div className="text-[9px] text-muted/65 flex flex-wrap gap-x-6 gap-y-2 pt-6 border-t border-separator select-none">

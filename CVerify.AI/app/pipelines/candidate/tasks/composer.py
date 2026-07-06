@@ -2,9 +2,13 @@ from typing import Dict, Any, List
 import json
 import math
 import os
+import logging
 from app.pipelines.candidate.base_task import BaseTask
 from app.pipelines.candidate.context import PipelineContext
+from app.pipelines.candidate.contracts import CandidateAssessmentV3Contract
 from app.pipelines.candidate import scoring_engine
+
+logger = logging.getLogger("candidate_profile_composer")
 
 class CandidateProfileComposer(BaseTask):
     @property
@@ -24,7 +28,7 @@ class CandidateProfileComposer(BaseTask):
     def input_keys(self) -> List[str]:
         return [
             "cv", "repositoryAssessments", "skillProficiencies", "finalLevel", "finalLevelLabel",
-            "primaryTendency", "primaryWorkingStyle", "recruiterHeadline", "fullSummary",
+            "primaryTendency", "primaryWorkingStyle", "recruiterHeadline", "fullSummary", "professionalBio",
             "keyStrengths", "watchPoints", "suggestedRoles", "topMatch", "suggestedCvTitles",
             "cvImprovementSuggestions", "confidenceMultiplier", "totalExperienceMonths",
             "confidenceInLevel", "backgroundRepositories", "skillDepthScore", "ownershipScore",
@@ -154,6 +158,7 @@ class CandidateProfileComposer(BaseTask):
             max_difficulty_score = 3.0
 
         # Trust score calculation
+        has_repos = len(repository_assessments) > 0
         verified_skills_set = set()
         for ra in repository_assessments:
             for attr in ra.get("skillAttributions", []):
@@ -162,7 +167,12 @@ class CandidateProfileComposer(BaseTask):
                     verified_skills_set.add(sname.lower())
 
         matched_skills_count = sum(1 for s in cv_skills if str(s).lower() in verified_skills_set)
-        r_skills = matched_skills_count / len(cv_skills) if cv_skills else 1.0
+        
+        if has_repos:
+            r_skills = float(matched_skills_count) / float(len(cv_skills)) if cv_skills else 1.0
+        else:
+            r_skills = 0.0
+        r_skills = min(1.0, max(0.0, r_skills))
 
         verified_repos_count = 0
         for ra in repository_assessments:
@@ -173,16 +183,52 @@ class CandidateProfileComposer(BaseTask):
             if ownership == 0.0:
                 ownership = float(ra.get("overallScore", 100.0)) / 100.0
                 
-            quality_metrics = ra.get("qualityMetrics") or {}
-            clone_classification = quality_metrics.get("cloneRiskClassification", "clean")
-            # Always count repository as verified regardless of readiness gates
-            verified_repos_count += 1
+            # Verify repository gate: authorship >= 30%
+            if ownership >= 0.30:
+                verified_repos_count += 1
 
-        r_repos = verified_repos_count / len(repository_assessments) if repository_assessments else 1.0
-        r_evidence = (context.ownershipScore or 0.60) / s_candidate if s_candidate > 0 else 0.0
+        if has_repos:
+            r_repos = float(verified_repos_count) / float(len(repository_assessments))
+        else:
+            r_repos = 0.0
+        r_repos = min(1.0, max(0.0, r_repos))
 
-        t_candidate = ((r_skills * 0.30) + (r_repos * 0.30) + (r_evidence * 0.40)) * 100.0
+        ownership_val = context.ownershipScore if context.ownershipScore is not None else 60.0
+        
+        if has_repos and s_candidate > 0:
+            r_evidence = float(ownership_val) / float(s_candidate)
+        else:
+            r_evidence = 0.0
+        r_evidence = min(1.0, max(0.0, r_evidence))
+
+        if has_repos:
+            t_candidate = ((r_skills * 0.30) + (r_repos * 0.30) + (r_evidence * 0.40)) * 100.0
+        else:
+            t_candidate = 10.0
         t_candidate = round(max(min(t_candidate, 100.0), 0.0), 2)
+
+        has_type1 = any(ra.get("cvVerificationLevel") == "AiAnalyzed" or ra.get("trustLevel", 2) >= 3 for ra in repository_assessments)
+        if has_repos and t_candidate >= 70.0 and has_type1 and r_skills >= 0.5 and r_repos >= 0.5:
+            evidence_completeness = "FULL"
+        elif has_repos and t_candidate >= 30.0:
+            evidence_completeness = "PARTIAL"
+        else:
+            evidence_completeness = "NONE"
+
+        clone_risks = []
+        for ra in repository_assessments:
+            quality_metrics = ra.get("qualityMetrics") or {}
+            if isinstance(quality_metrics, dict):
+                clone_risks.append(quality_metrics.get("cloneRiskClassification", "clean"))
+                
+        if "high_risk" in clone_risks:
+            clone_risk = "high_risk"
+        elif "medium_risk" in clone_risks:
+            clone_risk = "medium_risk"
+        elif "low_risk" in clone_risks:
+            clone_risk = "low_risk"
+        else:
+            clone_risk = "clean"
 
         candidate_complexity = max_difficulty_score * 10.0
         candidate_leadership = max(leaderships) if leaderships else 0.0
@@ -192,7 +238,11 @@ class CandidateProfileComposer(BaseTask):
         # 6. Candidate Skill Profiles
         from app.pipelines.candidate.helpers import _get_normalized_name
         skill_proficiencies_out = []
-        for skill_name in cv_skills:
+        skills_to_process = cv_skills if cv_skills else [p.get("skill") for p in skill_proficiencies if p.get("skill")]
+        seen_skills = set()
+        skills_to_process = [x for x in skills_to_process if not (x.lower() in seen_skills or seen_skills.add(x.lower()))]
+
+        for skill_name in skills_to_process:
             prof = next((p for p in skill_proficiencies if p.get("skill", "").lower() == skill_name.lower()), None)
             supporting_repos = []
             norm_skill_name = _get_normalized_name(skill_name)
@@ -313,9 +363,9 @@ class CandidateProfileComposer(BaseTask):
             
             # Simple level classifier
             dom_level = "L2"
-            if dom_complexity >= 55: dom_level = "L3"
+            if dom_complexity >= 85: dom_level = "L5"
             elif dom_complexity >= 75: dom_level = "L4"
-            elif dom_complexity >= 85: dom_level = "L5"
+            elif dom_complexity >= 55: dom_level = "L3"
             
             domain_profiles_out.append({
                 "domainName": dname,
@@ -373,11 +423,26 @@ class CandidateProfileComposer(BaseTask):
                 "engineMetadata": json.dumps({
                     "matchingEngine": "VectorArchetypeMatchingV2",
                     "capabilityVector": {
+                        "version": "2.0.0",
                         "skillDepth": context.skillDepthScore,
                         "ownership": context.ownershipScore,
                         "architecture": context.architectureScore,
                         "problemSolving": context.problemSolvingScore,
-                        "impact": context.impactScore
+                        "impact": context.impactScore,
+                        "dimensions": {
+                            "skillDepth": context.skillDepthScore,
+                            "ownership": context.ownershipScore,
+                            "architecture": context.architectureScore,
+                            "problemSolving": context.problemSolvingScore,
+                            "impact": context.impactScore
+                        },
+                        "rawSignals": {
+                            "rawSkillDepth": context.rawSkillDepth or 0.0,
+                            "rawOwnership": context.rawOwnership or 0.0,
+                            "rawArchitecture": context.rawArchitecture or 0.0,
+                            "rawProblemSolving": context.rawProblemSolving or 0.0,
+                            "rawImpact": context.rawImpact or 0.0
+                        }
                     }
                 })
             })
@@ -446,9 +511,44 @@ class CandidateProfileComposer(BaseTask):
 
         display_confidence = min((context.confidenceInLevel or 0.85) * (context.confidenceMultiplier or 1.0), 1.0)
 
-        # Output payload compatible with schema v2 requirements
+        # Normalize and format scoreBreakdown to comply with ScoreBreakdownV2 contract schema
+        raw_breakdown = context.scoreBreakdown or {}
+        def get_score_from_breakdown(key_variants: list, fallback: float) -> float:
+            for k in key_variants:
+                if k in raw_breakdown:
+                    val = raw_breakdown[k]
+                    if isinstance(val, dict):
+                        return val.get("score", fallback)
+                    if isinstance(val, (int, float)):
+                        return float(val)
+            return fallback
+
+        score_breakdown_out = {
+            "skillDepth": {
+                "score": get_score_from_breakdown(["skillDepth", "skillDepthScore"], context.skillDepthScore or 0.0),
+                "weight": 0.35
+            },
+            "ownership": {
+                "score": get_score_from_breakdown(["ownership", "ownershipScore"], context.ownershipScore or 0.0),
+                "weight": 0.25
+            },
+            "architecture": {
+                "score": get_score_from_breakdown(["architecture", "architectureScore"], context.architectureScore or 0.0),
+                "weight": 0.20
+            },
+            "problemSolving": {
+                "score": get_score_from_breakdown(["problemSolving", "problemSolvingScore"], context.problemSolvingScore or 0.0),
+                "weight": 0.12
+            },
+            "impact": {
+                "score": get_score_from_breakdown(["impact", "impactScore"], context.impactScore or 0.0),
+                "weight": 0.08
+            }
+        }
+
+        # Output payload compatible with schema v3 requirements
         data = {
-            "schemaVersion": "candidate-profile-v2",
+            "schemaVersion": "candidate-profile-v3",
             "candidateScore": s_candidate,  # Legacy scalar compatibility fallback
             "candidateScoreLabel": context.finalLevelLabel or "Middle",
             "careerLevel": context.finalLevel or "L2",
@@ -464,6 +564,7 @@ class CandidateProfileComposer(BaseTask):
             
             "recruiterHeadline": context.recruiterHeadline or "",
             "fullSummary": context.fullSummary or "",
+            "professionalBio": context.professionalBio or "",
             "keyStrengths": context.keyStrengths or [],
             "watchPoints": context.watchPoints or [],
  
@@ -471,11 +572,26 @@ class CandidateProfileComposer(BaseTask):
             
             # The newly introduced multi-dimensional capability vector space outputs
             "capabilityVector": {
-                "skillDepth": context.skillDepthScore,
-                "ownership": context.ownershipScore,
-                "architecture": context.architectureScore,
-                "problemSolving": context.problemSolvingScore,
-                "impact": context.impactScore
+                "version": "2.0.0",
+                "skillDepth": context.skillDepthScore or 0.0,
+                "ownership": context.ownershipScore or 0.0,
+                "architecture": context.architectureScore or 0.0,
+                "problemSolving": context.problemSolvingScore or 0.0,
+                "impact": context.impactScore or 0.0,
+                "dimensions": {
+                    "skillDepth": context.skillDepthScore or 0.0,
+                    "ownership": context.ownershipScore or 0.0,
+                    "architecture": context.architectureScore or 0.0,
+                    "problemSolving": context.problemSolvingScore or 0.0,
+                    "impact": context.impactScore or 0.0
+                },
+                "rawSignals": {
+                    "rawSkillDepth": context.rawSkillDepth or 0.0,
+                    "rawOwnership": context.rawOwnership or 0.0,
+                    "rawArchitecture": context.rawArchitecture or 0.0,
+                    "rawProblemSolving": context.rawProblemSolving or 0.0,
+                    "rawImpact": context.rawImpact or 0.0
+                }
             },
  
             "technicalDepth": context.architectureScore or 0.0,
@@ -483,6 +599,8 @@ class CandidateProfileComposer(BaseTask):
             "leadershipPotential": round(candidate_leadership, 2),
             "executionStrength": round((candidate_consistency + candidate_problem_solving) / 2.0, 2),
             "trustLevel": t_candidate,
+            "evidenceCompleteness": evidence_completeness,
+            "cloneRiskClassification": clone_risk,
  
             "trustScoreMetrics": {
                 "verifiedSkillRatio": round(r_skills, 2),
@@ -496,8 +614,17 @@ class CandidateProfileComposer(BaseTask):
             "bestFitRoles": best_fit_roles_out,
             "strengthsWeaknesses": strengths_weaknesses_out,
             "evidenceGovernance": evidence_governance_out,
-            "cvImprovementSuggestions": context.cvImprovementSuggestions or []
+            "cvImprovementSuggestions": context.cvImprovementSuggestions or [],
+            "scoreBreakdown": score_breakdown_out
         }
+        # Validate against CandidateAssessmentV3Contract (SSOT)
+        try:
+            CandidateAssessmentV3Contract.model_validate(data)
+            logger.info("[CONTRACT_VALIDATION_SUCCESS] CandidateProfile successfully validated against CandidateAssessmentV3Contract.")
+        except Exception as ex:
+            logger.error(f"[CONTRACT_VALIDATION_FAILED] CandidateProfile validation failed: {str(ex)}")
+            raise
+
         return {
             "candidateProfile": data
         }

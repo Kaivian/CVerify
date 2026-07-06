@@ -679,7 +679,7 @@ class TestCandidateProfileComposer(unittest.IsolatedAsyncioTestCase):
     async def test_schema_version_present(self):
         result = await self._run({})
         data = __import__("json").loads(result["resultData"])
-        self.assertEqual(data["schemaVersion"], "candidate-profile-v2")
+        self.assertEqual(data["schemaVersion"], "candidate-profile-v3")
 
     async def test_best_fit_roles_deduplicated_and_capped(self):
         inputs = self._build_mock_inputs()

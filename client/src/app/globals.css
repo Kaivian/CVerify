@@ -167,4 +167,11 @@ body {
     outline-color: var(--focus);
     outline-offset: 2px;
   }
-}
+}
+
+/* Fix tooltip text wrapping: prevent mid-word line breaks and ensure normal word wrapping */
+.tooltip {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+}
+

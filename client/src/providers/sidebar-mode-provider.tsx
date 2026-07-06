@@ -1,9 +1,10 @@
 "use client";
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { resolveNavigationContext, type SidebarMode } from "../lib/navigation-utils";
+import { useSidebarStore } from "../stores/use-sidebar-store";
 
-export type SidebarMode = "COMPANY" | "WORKSPACE" | "CANDIDATE" | "SYSTEM_ADMIN" | "COMPONENTS";
+export type { SidebarMode };
 
 interface SidebarModeContextProps {
   sidebarMode: SidebarMode;
@@ -13,25 +14,32 @@ interface SidebarModeContextProps {
 const SidebarModeContext = createContext<SidebarModeContextProps | undefined>(undefined);
 
 export const SidebarModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [sidebarMode, setSidebarModeState] = useState<SidebarMode>("COMPANY");
   const pathname = usePathname();
+  
+  // Resolve navigation context synchronously on initial render
+  const context = resolveNavigationContext(pathname || "");
+  const [sidebarMode, setSidebarModeState] = useState<SidebarMode>(context.sidebarMode);
+  const [prevPathname, setPrevPathname] = useState(pathname);
+
+  // Sync state synchronously during render if pathname changes
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setSidebarModeState(context.sidebarMode);
+  }
+
+  const switchPortal = useSidebarStore((s) => s.switchPortal);
 
   const setSidebarMode = (mode: SidebarMode) => {
     setSidebarModeState(mode);
   };
 
-  // Synchronize based on global route sections outside /business/
+  // Perform portal state transition/restore in-memory inside an effect
   useEffect(() => {
-    if (!pathname) return;
-
-    if (pathname.startsWith("/admin/components")) {
-      setSidebarModeState("COMPONENTS");
-    } else if (pathname.startsWith("/admin")) {
-      setSidebarModeState("SYSTEM_ADMIN");
-    } else if (pathname === "/user" || pathname.startsWith("/user/") || pathname.startsWith("/cv")) {
-      setSidebarModeState("CANDIDATE");
+    if (pathname) {
+      const currentContext = resolveNavigationContext(pathname);
+      switchPortal(currentContext.portal);
     }
-  }, [pathname]);
+  }, [pathname, switchPortal]);
 
   return (
     <SidebarModeContext.Provider value={{ sidebarMode, setSidebarMode }}>

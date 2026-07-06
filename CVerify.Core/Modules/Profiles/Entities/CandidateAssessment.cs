@@ -42,6 +42,9 @@ public class CandidateAssessment
     [MaxLength(2000)]
     public string? SummaryParagraph { get; set; }
 
+    [MaxLength(1000)]
+    public string? ProfessionalBio { get; set; }
+
     [Required]
     [MaxLength(20)]
     public string PipelineVersion { get; set; } = "2.0.0";
@@ -84,6 +87,18 @@ public class CandidateAssessment
     public double LeadershipPotential { get; set; } = 0.0;
     public double ExecutionStrength { get; set; } = 0.0;
     public double TrustLevel { get; set; } = 0.0;
+
+    [MaxLength(50)]
+    public string? CalculationMode { get; set; }
+
+    [MaxLength(100)]
+    public string? InputFeatureSetHash { get; set; }
+
+    [MaxLength(50)]
+    public string? EvidenceCompleteness { get; set; }
+
+    [MaxLength(50)]
+    public string? CloneRiskClassification { get; set; }
 
     public virtual ICollection<CandidateAssessmentArtifact> Artifacts { get; set; } = new List<CandidateAssessmentArtifact>();
     public virtual ICollection<CandidateSkill> Skills { get; set; } = new List<CandidateSkill>();

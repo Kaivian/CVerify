@@ -690,6 +690,738 @@ namespace CVerify.API.Migrations
                     b.ToTable("verification_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumBadge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CriteriaCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("criteria_code");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("IconName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("icon_name");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_badges");
+
+                    b.ToTable("forum_badges", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumBookmark", b =>
+                {
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("topic_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("TopicId", "UserId")
+                        .HasName("pk_forum_bookmarks");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_forum_bookmarks_user_id");
+
+                    b.ToTable("forum_bookmarks", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("display_order");
+
+                    b.Property<string>("IconName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("icon_name");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived");
+
+                    b.Property<bool>("IsPrivate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_private");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("RequiredRole")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("required_role");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("slug");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_categories");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_forum_categories_organization_id");
+
+                    b.ToTable("forum_categories", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumCategoryModerator", b =>
+                {
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("AssignedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("assigned_at");
+
+                    b.HasKey("CategoryId", "UserId")
+                        .HasName("pk_forum_category_moderators");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_forum_category_moderators_user_id");
+
+                    b.ToTable("forum_category_moderators", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumFollow", b =>
+                {
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("topic_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("TopicId", "UserId")
+                        .HasName("pk_forum_follows");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_forum_follows_user_id");
+
+                    b.ToTable("forum_follows", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumModerationLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("action");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("ModeratorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("moderator_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_id");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("target_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_moderation_logs");
+
+                    b.HasIndex("ModeratorId")
+                        .HasDatabaseName("ix_forum_moderation_logs_moderator_id");
+
+                    b.ToTable("forum_moderation_logs", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ReactionType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("reaction_type");
+
+                    b.Property<Guid?>("ReplyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reply_id");
+
+                    b.Property<Guid?>("TopicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("topic_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_reactions");
+
+                    b.HasIndex("ReplyId")
+                        .HasDatabaseName("ix_forum_reactions_reply_id");
+
+                    b.HasIndex("TopicId")
+                        .HasDatabaseName("ix_forum_reactions_topic_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_forum_reactions_user_id");
+
+                    b.ToTable("forum_reactions", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReply", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsAcceptedSolution")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_accepted_solution");
+
+                    b.Property<Guid?>("ParentReplyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_reply_id");
+
+                    b.Property<string>("QuoteText")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("quote_text");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer")
+                        .HasColumnName("score");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("topic_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_replies");
+
+                    b.HasIndex("AuthorId")
+                        .HasDatabaseName("ix_forum_replies_author_id");
+
+                    b.HasIndex("ParentReplyId")
+                        .HasDatabaseName("ix_forum_replies_parent_reply_id");
+
+                    b.HasIndex("TopicId", "ParentReplyId", "CreatedAt")
+                        .HasDatabaseName("ix_forum_replies_topic_id_parent_reply_id_created_at");
+
+                    b.ToTable("forum_replies", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReplyHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("EditedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("edited_at");
+
+                    b.Property<Guid>("EditedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("edited_by_id");
+
+                    b.Property<Guid>("ReplyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reply_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_reply_histories");
+
+                    b.HasIndex("EditedById")
+                        .HasDatabaseName("ix_forum_reply_histories_edited_by_id");
+
+                    b.HasIndex("ReplyId")
+                        .HasDatabaseName("ix_forum_reply_histories_reply_id");
+
+                    b.ToTable("forum_reply_histories", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("ReplyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reply_id");
+
+                    b.Property<Guid?>("ReportedUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reported_user_id");
+
+                    b.Property<Guid>("ReporterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reporter_user_id");
+
+                    b.Property<string>("ResolutionNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("resolution_notes");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("TopicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("topic_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_reports");
+
+                    b.HasIndex("ReplyId")
+                        .HasDatabaseName("ix_forum_reports_reply_id");
+
+                    b.HasIndex("ReportedUserId")
+                        .HasDatabaseName("ix_forum_reports_reported_user_id");
+
+                    b.HasIndex("ReporterUserId")
+                        .HasDatabaseName("ix_forum_reports_reporter_user_id");
+
+                    b.HasIndex("ResolvedById")
+                        .HasDatabaseName("ix_forum_reports_resolved_by_id");
+
+                    b.HasIndex("TopicId")
+                        .HasDatabaseName("ix_forum_reports_topic_id");
+
+                    b.ToTable("forum_reports", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReputation", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("integer")
+                        .HasColumnName("points");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_forum_reputations");
+
+                    b.ToTable("forum_reputations", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("slug");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_tags");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_forum_tags_name");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_forum_tags_slug");
+
+                    b.ToTable("forum_tags", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTopic", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AiExcerpt")
+                        .HasColumnType("text")
+                        .HasColumnName("ai_excerpt");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("author_id");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("category_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived");
+
+                    b.Property<bool>("IsFeatured")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_featured");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_locked");
+
+                    b.Property<bool>("IsPendingReview")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_pending_review");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_pinned");
+
+                    b.Property<bool>("IsSolved")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_solved");
+
+                    b.Property<DateTimeOffset>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_activity_at");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<int>("ReplyCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("reply_count");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer")
+                        .HasColumnName("score");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("slug");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("ViewCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("view_count");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_topics");
+
+                    b.HasIndex("AuthorId")
+                        .HasDatabaseName("ix_forum_topics_author_id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_forum_topics_slug");
+
+                    b.HasIndex("OrganizationId", "CreatedAt")
+                        .HasDatabaseName("ix_forum_topics_organization_id_created_at");
+
+                    b.HasIndex("CategoryId", "IsPinned", "CreatedAt")
+                        .HasDatabaseName("ix_forum_topics_category_id_is_pinned_created_at");
+
+                    b.ToTable("forum_topics", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTopicHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("EditedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("edited_at");
+
+                    b.Property<Guid>("EditedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("edited_by_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("title");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("topic_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_topic_histories");
+
+                    b.HasIndex("EditedById")
+                        .HasDatabaseName("ix_forum_topic_histories_edited_by_id");
+
+                    b.HasIndex("TopicId")
+                        .HasDatabaseName("ix_forum_topic_histories_topic_id");
+
+                    b.ToTable("forum_topic_histories", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTopicTag", b =>
+                {
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("topic_id");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tag_id");
+
+                    b.HasKey("TopicId", "TagId")
+                        .HasName("pk_forum_topic_tags");
+
+                    b.HasIndex("TagId")
+                        .HasDatabaseName("ix_forum_topic_tags_tag_id");
+
+                    b.ToTable("forum_topic_tags", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumUserBadge", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("BadgeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("badge_id");
+
+                    b.Property<DateTimeOffset>("AwardedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("awarded_at");
+
+                    b.HasKey("UserId", "BadgeId")
+                        .HasName("pk_forum_user_badges");
+
+                    b.HasIndex("BadgeId")
+                        .HasDatabaseName("ix_forum_user_badges_badge_id");
+
+                    b.ToTable("forum_user_badges", (string)null);
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumVote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("ReplyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reply_id");
+
+                    b.Property<Guid?>("TopicId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("topic_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("VoteType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("vote_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_forum_votes");
+
+                    b.HasIndex("ReplyId")
+                        .HasDatabaseName("ix_forum_votes_reply_id");
+
+                    b.HasIndex("TopicId")
+                        .HasDatabaseName("ix_forum_votes_topic_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_forum_votes_user_id");
+
+                    b.ToTable("forum_votes", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.AcademicAchievement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -845,6 +1577,11 @@ namespace CVerify.API.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("assessment_schema_version");
 
+                    b.Property<string>("CalculationMode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("calculation_mode");
+
                     b.Property<string>("CareerLevel")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
@@ -854,6 +1591,11 @@ namespace CVerify.API.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("career_level_label");
+
+                    b.Property<string>("CloneRiskClassification")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("clone_risk_classification");
 
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -867,6 +1609,11 @@ namespace CVerify.API.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("cv_id");
 
+                    b.Property<string>("EvidenceCompleteness")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("evidence_completeness");
+
                     b.Property<double>("ExecutionStrength")
                         .HasColumnType("double precision")
                         .HasColumnName("execution_strength");
@@ -879,6 +1626,11 @@ namespace CVerify.API.Migrations
                     b.Property<string>("FailureReason")
                         .HasColumnType("text")
                         .HasColumnName("failure_reason");
+
+                    b.Property<string>("InputFeatureSetHash")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("input_feature_set_hash");
 
                     b.Property<DateTimeOffset?>("LastAssessmentAt")
                         .HasColumnType("timestamp with time zone")
@@ -920,6 +1672,11 @@ namespace CVerify.API.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("primary_working_style");
+
+                    b.Property<string>("ProfessionalBio")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("professional_bio");
 
                     b.Property<string>("PromptVersion")
                         .HasMaxLength(50)
@@ -2204,8 +2961,8 @@ namespace CVerify.API.Migrations
                         .HasColumnName("ai_talent_discovery");
 
                     b.Property<string>("Bio")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("bio");
 
                     b.Property<DateTimeOffset?>("BirthDate")
@@ -7923,6 +8680,339 @@ namespace CVerify.API.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumBookmark", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTopic", "Topic")
+                        .WithMany("Bookmarks")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_bookmarks_forum_topics_topic_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_bookmarks_users_user_id");
+
+                    b.Navigation("Topic");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumCategory", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .HasConstraintName("fk_forum_categories_organizations_organization_id");
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumCategoryModerator", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumCategory", "Category")
+                        .WithMany("Moderators")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_category_moderators_forum_categories_category_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_category_moderators_users_user_id");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumFollow", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTopic", "Topic")
+                        .WithMany("Follows")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_follows_forum_topics_topic_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_follows_users_user_id");
+
+                    b.Navigation("Topic");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumModerationLog", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Moderator")
+                        .WithMany()
+                        .HasForeignKey("ModeratorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_moderation_logs_users_moderator_id");
+
+                    b.Navigation("Moderator");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReaction", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumReply", "Reply")
+                        .WithMany("Reactions")
+                        .HasForeignKey("ReplyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_forum_reactions_forum_replies_reply_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTopic", "Topic")
+                        .WithMany("Reactions")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_forum_reactions_forum_topics_topic_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_reactions_users_user_id");
+
+                    b.Navigation("Reply");
+
+                    b.Navigation("Topic");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReply", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_replies_users_author_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumReply", "ParentReply")
+                        .WithMany("ChildReplies")
+                        .HasForeignKey("ParentReplyId")
+                        .HasConstraintName("fk_forum_replies_forum_replies_parent_reply_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTopic", "Topic")
+                        .WithMany("Replies")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_replies_forum_topics_topic_id");
+
+                    b.Navigation("Author");
+
+                    b.Navigation("ParentReply");
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReplyHistory", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "EditedBy")
+                        .WithMany()
+                        .HasForeignKey("EditedById")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_reply_histories_users_edited_by_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumReply", "Reply")
+                        .WithMany("EditHistory")
+                        .HasForeignKey("ReplyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_reply_histories_forum_replies_reply_id");
+
+                    b.Navigation("EditedBy");
+
+                    b.Navigation("Reply");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReport", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumReply", "Reply")
+                        .WithMany()
+                        .HasForeignKey("ReplyId")
+                        .HasConstraintName("fk_forum_reports_forum_replies_reply_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "ReportedUser")
+                        .WithMany()
+                        .HasForeignKey("ReportedUserId")
+                        .HasConstraintName("fk_forum_reports_users_reported_user_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "ReporterUser")
+                        .WithMany()
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_reports_users_reporter_user_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "ResolvedBy")
+                        .WithMany()
+                        .HasForeignKey("ResolvedById")
+                        .HasConstraintName("fk_forum_reports_users_resolved_by_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .HasConstraintName("fk_forum_reports_forum_topics_topic_id");
+
+                    b.Navigation("Reply");
+
+                    b.Navigation("ReportedUser");
+
+                    b.Navigation("ReporterUser");
+
+                    b.Navigation("ResolvedBy");
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReputation", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_reputations_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTopic", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_topics_users_author_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumCategory", "Category")
+                        .WithMany("Topics")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_topics_forum_categories_category_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .HasConstraintName("fk_forum_topics_organizations_organization_id");
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTopicHistory", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "EditedBy")
+                        .WithMany()
+                        .HasForeignKey("EditedById")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_topic_histories_users_edited_by_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTopic", "Topic")
+                        .WithMany("EditHistory")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_topic_histories_forum_topics_topic_id");
+
+                    b.Navigation("EditedBy");
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTopicTag", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTag", "Tag")
+                        .WithMany("TopicTags")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_topic_tags_forum_tags_tag_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTopic", "Topic")
+                        .WithMany("TopicTags")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_topic_tags_forum_topics_topic_id");
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumUserBadge", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumBadge", "Badge")
+                        .WithMany()
+                        .HasForeignKey("BadgeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_user_badges_forum_badges_badge_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_user_badges_users_user_id");
+
+                    b.Navigation("Badge");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumVote", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumReply", "Reply")
+                        .WithMany("Votes")
+                        .HasForeignKey("ReplyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_forum_votes_forum_replies_reply_id");
+
+                    b.HasOne("CVerify.API.Modules.Forum.Entities.ForumTopic", "Topic")
+                        .WithMany("Votes")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_forum_votes_forum_topics_topic_id");
+
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_forum_votes_users_user_id");
+
+                    b.Navigation("Reply");
+
+                    b.Navigation("Topic");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.AcademicAchievement", b =>
                 {
                     b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
@@ -9604,6 +10694,46 @@ namespace CVerify.API.Migrations
             modelBuilder.Entity("CVerify.API.Modules.AiChat.Entities.Conversation", b =>
                 {
                     b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumCategory", b =>
+                {
+                    b.Navigation("Moderators");
+
+                    b.Navigation("Topics");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumReply", b =>
+                {
+                    b.Navigation("ChildReplies");
+
+                    b.Navigation("EditHistory");
+
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTag", b =>
+                {
+                    b.Navigation("TopicTags");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Forum.Entities.ForumTopic", b =>
+                {
+                    b.Navigation("Bookmarks");
+
+                    b.Navigation("EditHistory");
+
+                    b.Navigation("Follows");
+
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Replies");
+
+                    b.Navigation("TopicTags");
+
+                    b.Navigation("Votes");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.CandidateAssessment", b =>

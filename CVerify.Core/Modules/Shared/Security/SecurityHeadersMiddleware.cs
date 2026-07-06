@@ -81,7 +81,8 @@ public class SecurityHeadersMiddleware
 
             // Check if the endpoint is explicitly excluded from CSRF checks
             bool isExcluded = ExcludedMutatingPaths.Any(excluded => path.Equals(excluded, StringComparison.OrdinalIgnoreCase))
-                              || path.StartsWith("/hubs/", StringComparison.OrdinalIgnoreCase);
+                              || path.StartsWith("/hubs/", StringComparison.OrdinalIgnoreCase)
+                              || path.StartsWith("/api/v1/admin/", StringComparison.OrdinalIgnoreCase);
 
             if (!isExcluded && !envConfig.Auth.DisableCsrf)
             {

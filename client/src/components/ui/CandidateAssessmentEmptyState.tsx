@@ -23,12 +23,50 @@ export function CandidateAssessmentEmptyState() {
     triggerAssessment,
     isTriggering,
     error: assessmentError,
-    clearError
+    clearError,
+    fetchReadiness
   } = useAssessment();
   const [isPrereqModalOpen, setIsPrereqModalOpen] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  if (isLoadingReadiness || !readiness) {
+  const activeError = localError || assessmentError;
+
+  if (isLoadingReadiness) {
+    return (
+      <Card className="flex flex-col items-center justify-center p-16 space-y-4 border border-border/40 bg-surface">
+        <Spinner size="lg" color="accent" />
+        <p className="text-sm text-muted-foreground font-light">Checking profile readiness status...</p>
+      </Card>
+    );
+  }
+
+  if (activeError && !readiness) {
+    return (
+      <Card className="flex flex-col items-center justify-center p-16 text-center space-y-6 max-w-2xl mx-auto border border-danger/35 bg-danger/5 text-danger rounded-2xl shadow-xs font-sans select-none">
+        <div className="p-4 rounded-full bg-danger/10 text-danger shrink-0">
+          <AlertCircle size={36} />
+        </div>
+        <div className="space-y-2 max-w-md">
+          <h3 className="text-lg font-bold text-foreground tracking-tight">Failed to Load Profile Readiness</h3>
+          <p className="text-xs md:text-sm text-muted-foreground font-light leading-relaxed">
+            {activeError}
+          </p>
+        </div>
+        <Button
+          className="bg-accent text-accent-foreground font-bold rounded-xl border-none cursor-pointer px-6 h-10 w-fit"
+          onPress={() => {
+            setLocalError(null);
+            clearError();
+            fetchReadiness();
+          }}
+        >
+          Retry Connection
+        </Button>
+      </Card>
+    );
+  }
+
+  if (!readiness) {
     return (
       <Card className="flex flex-col items-center justify-center p-16 space-y-4 border border-border/40 bg-surface">
         <Spinner size="lg" color="accent" />
@@ -54,8 +92,6 @@ export function CandidateAssessmentEmptyState() {
     }
     await triggerVettingEngine();
   };
-
-  const activeError = localError || assessmentError;
 
   const requiredFields = readiness.missingFields.filter(f => f.isRequired);
   const optionalFields = readiness.missingFields.filter(f => !f.isRequired);

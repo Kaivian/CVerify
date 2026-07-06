@@ -30,7 +30,7 @@ import {
   Home,
   CheckCircle2
 } from 'lucide-react';
-import { type NavigationNode } from '../types/navigation.types';
+import { type NavigationNode, type NavigationSectionItem } from '../types/navigation.types';
 
 // 1. COMPANY-SCOPED NAVIGATION
 export const companyNavigationConfig: NavigationNode[] = [
@@ -478,53 +478,147 @@ export const candidateNavigationConfig: NavigationNode[] = [
   },
 ];
 
-// 4. SYSTEM ADMIN-SCOPED NAVIGATION
-export const adminNavigationConfig: NavigationNode[] = [
-  {
-    id: 'admin-section',
+// 4. SYSTEM ADMIN-SCOPED NAVIGATION (Dynamically generated from Admin Module Registry)
+import { adminModuleRegistry } from './admin-module-registry';
+
+const createAdminSection = (
+  id: string,
+  label: string,
+  groupId: 'overview' | 'identity' | 'verification' | 'intelligence' | 'security' | 'system'
+): NavigationSectionItem => {
+  const children = adminModuleRegistry
+    .filter((m) => m.parentGroupId === groupId)
+    .sort((a, b) => a.order - b.order)
+    .map((m) => {
+      const node: NavigationNode = {
+        id: m.id,
+        type: 'item',
+        label: m.name,
+        href: m.path,
+        icon: m.icon,
+        requiredPermissions: [m.requiredPermission],
+        requiredRoles: ['ADMIN'],
+        exactMatch: m.path === '/admin',
+        featureFlag: m.featureFlag,
+      };
+
+      if (m.subModules && m.subModules.length > 0) {
+        return {
+          id: m.id,
+          type: 'group',
+          label: m.name,
+          icon: m.icon,
+          requiredPermissions: [m.requiredPermission],
+          requiredRoles: ['ADMIN'],
+          featureFlag: m.featureFlag,
+          children: m.subModules
+            .sort((a, b) => a.order - b.order)
+            .map((sm) => ({
+              id: sm.id,
+              type: 'item',
+              label: sm.name,
+              href: sm.path,
+              requiredPermissions: [sm.requiredPermission],
+              requiredRoles: ['ADMIN'],
+              featureFlag: sm.featureFlag,
+            })),
+        } as NavigationNode;
+      }
+
+      return node;
+    });
+
+  return {
+    id: id,
     type: 'section',
-    label: 'Administration',
+    label: label,
+    requiredRoles: ['ADMIN'],
+    children: children,
+  };
+};
+
+export const adminNavigationConfig: NavigationNode[] = [
+  createAdminSection('admin-overview-section', 'Overview', 'overview'),
+  createAdminSection('admin-identity-section', 'Identity & Access', 'identity'),
+  createAdminSection('admin-verification-section', 'Verification', 'verification'),
+  createAdminSection('admin-intelligence-section', 'Repository Intelligence', 'intelligence'),
+  createAdminSection('admin-security-section', 'Security', 'security'),
+  createAdminSection('admin-system-section', 'System & Configuration', 'system'),
+].filter((section) => section.children.length > 0);
+
+export const adminCompanyNavigationConfig: NavigationNode[] = [
+  {
+    id: 'admin-company-management-section',
+    type: 'section',
+    label: 'Company Management',
     requiredRoles: ['ADMIN'],
     children: [
       {
-        id: 'admin-group',
-        type: 'group',
-        label: 'System Admin',
-        icon: ShieldAlert,
-        children: [
-          {
-            id: 'admin-overview',
-            type: 'item',
-            label: 'Admin',
-            href: '/admin',
-            exactMatch: true,
-            icon: LayoutDashboard,
-          },
-          {
-            id: 'admin-users',
-            type: 'item',
-            label: 'Users',
-            href: '/admin/users',
-            icon: Users,
-            requiredPermissions: ['users:view:list'],
-          },
-          {
-            id: 'admin-roles',
-            type: 'item',
-            label: 'Roles Matrix',
-            href: '/admin/roles',
-            icon: Shield,
-            requiredPermissions: ['roles:view:list'],
-          },
-          {
-            id: 'admin-audit-logs',
-            type: 'item',
-            label: 'Audit Trail',
-            href: '/admin/audit-logs',
-            icon: FileText,
-            requiredPermissions: ['ai:audit:view'],
-          },
-        ],
+        id: 'admin-company-directory',
+        type: 'item',
+        label: 'Company Directory',
+        href: '/business/companies',
+        icon: Building2,
+      },
+      {
+        id: 'admin-employer-directory',
+        type: 'item',
+        label: 'Employer Directory',
+        href: '/business/employers',
+        icon: Users,
+      },
+      {
+        id: 'admin-job-moderation',
+        type: 'item',
+        label: 'Job Moderation',
+        href: '/business/jobs',
+        icon: Briefcase,
+      },
+      {
+        id: 'admin-verification-workflows',
+        type: 'item',
+        label: 'Verification Workflows',
+        href: '/business/verification',
+        icon: ShieldCheck,
+      },
+      {
+        id: 'admin-company-analytics',
+        type: 'item',
+        label: 'Company Analytics',
+        href: '/business/analytics',
+        icon: BarChart3,
+      },
+    ],
+  },
+];
+
+export const adminCandidateNavigationConfig: NavigationNode[] = [
+  {
+    id: 'admin-candidate-management-section',
+    type: 'section',
+    label: 'Candidate Management',
+    requiredRoles: ['ADMIN'],
+    children: [
+      {
+        id: 'admin-candidate-directory',
+        type: 'item',
+        label: 'Candidate Directory',
+        href: '/admin/users',
+        icon: Users,
+      },
+      {
+        id: 'admin-repository-index',
+        type: 'item',
+        label: 'Repository Index',
+        href: '/admin/repositories',
+        icon: GitFork,
+      },
+      {
+        id: 'admin-verification-queue',
+        type: 'item',
+        label: 'Verification Queue',
+        href: '/admin/verification',
+        icon: ShieldCheck,
       },
     ],
   },

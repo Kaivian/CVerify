@@ -55,7 +55,7 @@
     "liveBadge": "Tính năng xác thực & phân quyền cấp doanh nghiệp đã sẵn sàng",
     "headline": "Bảo mật phân vai phi tập trung cho ứng dụng TravelTech hiện đại.",
     "description": "CVerify AI tích hợp quản lý trạng thái đồng bộ với Zustand, mã hóa JWT, chống tấn công CSRF, đồng bộ phiên bằng Broadcast và khóa cảnh báo không hoạt động.",
-    "enterHub": "Vào Traveler Hub",
+    "enterHub": "Vào Bảng điều khiển",
     "accessConsole": "Vào Bảng Điều Khiển",
     "goConsole": "Đến Bảng Điều Khiển",
     "roles": {
@@ -69,7 +69,7 @@
     "footerNote": "Tích hợp Cổng Xác thực CVerify AI. Đã xác thực cho Next.js 16 + HeroUI v3 + Tailwind v4."
   },
   "dashboard": {
-    "travelerHub": "Traveler Hub",
+    "travelerHub": "Bảng điều khiển Nhà phát triển",
     "aiPlanner": "AI Planner Chat",
     "partnerConsole": "Partner Console",
     "systemAdmin": "System Admin",

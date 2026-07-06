@@ -328,12 +328,14 @@ export interface CandidateAssessmentResponse {
   userId: string;
   status: string;
   overallScore: number;
+  trustLevel: number;
   careerLevel: string | null;
   careerLevelLabel: string | null;
   primaryTendency: string | null;
   primaryWorkingStyle: string | null;
   summaryHeadline: string | null;
   summaryParagraph: string | null;
+  professionalBio: string | null;
   pipelineVersion: string;
   assessmentSchemaVersion: string;
   cvId: string | null;
@@ -346,6 +348,10 @@ export interface CandidateAssessmentResponse {
   failureReason: string | null;
   createdAtUtc: string;
   completedAtUtc: string | null;
+  calculationMode: string | null;
+  inputFeatureSetHash: string | null;
+  evidenceCompleteness: string | null;
+  cloneRiskClassification: string | null;
 }
 
 export interface CandidateAssessmentArtifactDto {

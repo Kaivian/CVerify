@@ -42,7 +42,7 @@ export const routesConfig: Record<string, RouteMetadata> = {
   '/user': {
     path: '/user',
     translationKey: 'common:dashboard.travelerHub',
-    fallbackLabel: 'Traveler Hub',
+    fallbackLabel: 'Developer Dashboard',
     icon: LayoutDashboard,
   },
   '/chat': {
@@ -128,6 +128,48 @@ export const routesConfig: Record<string, RouteMetadata> = {
     icon: FileText,
     parentPath: '/admin',
   },
+  '/admin/recovery-claims': {
+    path: '/admin/recovery-claims',
+    translationKey: 'common:admin.recoveryClaims',
+    fallbackLabel: 'Recovery Claims',
+    parentPath: '/admin',
+  },
+  '/admin/recovery/level2': {
+    path: '/admin/recovery/level2',
+    translationKey: 'common:admin.recoveryLevel2',
+    fallbackLabel: 'Level 2 Recovery',
+    parentPath: '/admin',
+  },
+  '/admin/verification': {
+    path: '/admin/verification',
+    translationKey: 'common:admin.verification',
+    fallbackLabel: 'Verification Queue',
+    parentPath: '/admin',
+  },
+  '/admin/security': {
+    path: '/admin/security',
+    translationKey: 'common:admin.security',
+    fallbackLabel: 'Security Events',
+    parentPath: '/admin',
+  },
+  '/admin/analytics': {
+    path: '/admin/analytics',
+    translationKey: 'common:admin.analytics',
+    fallbackLabel: 'Analytics',
+    parentPath: '/admin',
+  },
+  '/admin/system': {
+    path: '/admin/system',
+    translationKey: 'common:admin.system',
+    fallbackLabel: 'System Diagnostics',
+    parentPath: '/admin',
+  },
+  '/admin/settings': {
+    path: '/admin/settings',
+    translationKey: 'common:admin.settings',
+    fallbackLabel: 'Portal Settings',
+    parentPath: '/admin',
+  },
   '/business/[organizationSlug]/dashboard': {
     path: '/business/[organizationSlug]/dashboard',
     translationKey: 'common:dashboard.businessDashboard',
@@ -179,6 +221,28 @@ export const routesConfig: Record<string, RouteMetadata> = {
     fallbackLabel: 'Workspace Settings',
   },
 };
+
+const BASE_RESERVED_WORDS = [
+  "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
+  "chat", "business", "user", "organization", "auth", "system", "unauthorized", "company-onboarding",
+  "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email",
+  "workspace-setup", "company-setup", "cv", "ranking", "forum", "jobs", "invitations"
+];
+
+export const RESERVED_USERNAMES = new Set<string>(
+  [
+    ...BASE_RESERVED_WORDS,
+    ...Object.keys(routesConfig).map((path) => {
+      const firstSegment = path.split('/')[1];
+      return firstSegment ? firstSegment.toLowerCase() : '';
+    }).filter((segment) => segment && !segment.startsWith('[') && !segment.startsWith(':'))
+  ]
+);
+
+export const isReservedUsername = (username: string): boolean => {
+  return RESERVED_USERNAMES.has(username.toLowerCase().trim());
+};
+
 
 /**
  * Checks if a string is a standard UUID.

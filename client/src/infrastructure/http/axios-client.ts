@@ -4,8 +4,12 @@ import { AUTH_KEYS } from '@/infrastructure/config/constants';
 
 /**
  * Configured base URL for API, using standard environment settings.
+ * Resolves to the internal Docker service URL on the server for container-to-container communication,
+ * and to the public gateway URL on the client browser.
  */
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+export const API_URL = typeof window === 'undefined'
+  ? (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api')
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api');
 
 /**
  * Central Axios HTTP client instance.
