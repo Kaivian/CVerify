@@ -128,6 +128,48 @@ export const routesConfig: Record<string, RouteMetadata> = {
     icon: FileText,
     parentPath: '/admin',
   },
+  '/admin/recovery-claims': {
+    path: '/admin/recovery-claims',
+    translationKey: 'common:admin.recoveryClaims',
+    fallbackLabel: 'Recovery Claims',
+    parentPath: '/admin',
+  },
+  '/admin/recovery/level2': {
+    path: '/admin/recovery/level2',
+    translationKey: 'common:admin.recoveryLevel2',
+    fallbackLabel: 'Level 2 Recovery',
+    parentPath: '/admin',
+  },
+  '/admin/verification': {
+    path: '/admin/verification',
+    translationKey: 'common:admin.verification',
+    fallbackLabel: 'Verification Queue',
+    parentPath: '/admin',
+  },
+  '/admin/security': {
+    path: '/admin/security',
+    translationKey: 'common:admin.security',
+    fallbackLabel: 'Security Events',
+    parentPath: '/admin',
+  },
+  '/admin/analytics': {
+    path: '/admin/analytics',
+    translationKey: 'common:admin.analytics',
+    fallbackLabel: 'Analytics',
+    parentPath: '/admin',
+  },
+  '/admin/system': {
+    path: '/admin/system',
+    translationKey: 'common:admin.system',
+    fallbackLabel: 'System Diagnostics',
+    parentPath: '/admin',
+  },
+  '/admin/settings': {
+    path: '/admin/settings',
+    translationKey: 'common:admin.settings',
+    fallbackLabel: 'Portal Settings',
+    parentPath: '/admin',
+  },
   '/business/[organizationSlug]/dashboard': {
     path: '/business/[organizationSlug]/dashboard',
     translationKey: 'common:dashboard.businessDashboard',

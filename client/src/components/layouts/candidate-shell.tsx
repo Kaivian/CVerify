@@ -12,15 +12,14 @@ import { AssessmentProvider } from "@/providers/assessment-provider";
 import { AssessmentProgressModal } from "@/components/ui/AssessmentProgressModal";
 import { AssessmentMiniWidget } from "@/components/ui/AssessmentMiniWidget";
 
-interface PlatformShellProps {
+interface CandidateShellProps {
   children: React.ReactNode;
 }
 
-export function PlatformShell({ children }: PlatformShellProps) {
+export function CandidateShell({ children }: CandidateShellProps) {
   const { logout } = useAuth();
   const { showWarning, secondsRemaining, extendSession } = useSessionTimeout();
 
-  // Handle logout with redirection
   const handleSignOut = async () => {
     await logout(true);
   };
@@ -30,7 +29,7 @@ export function PlatformShell({ children }: PlatformShellProps) {
       <SidebarModeProvider>
         <AssessmentProvider>
           <div className="grid min-h-screen w-full grid-cols-1 md:grid-cols-[auto_1fr] bg-[#ffffff] dark:bg-[#000000] text-foreground transition-colors duration-300">
-            {/* 1. Dynamic Recursive Sidebar (Desktop + Mobile overlay drawer) */}
+            {/* 1. Candidate Navigation Sidebar */}
             <Sidebar />
 
             {/* 2. Main content viewport section */}
@@ -62,4 +61,4 @@ export function PlatformShell({ children }: PlatformShellProps) {
   );
 }
 
-export default PlatformShell;
+export default CandidateShell;

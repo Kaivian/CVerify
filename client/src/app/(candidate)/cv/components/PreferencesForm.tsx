@@ -3,7 +3,7 @@ import { Input, Button, Checkbox, Switch, Chip, TextArea, Tooltip } from "@herou
 import { PlusCircle, X, Info } from "lucide-react";
 import { type PreferencesDraft } from "./types";
 import { BaseUnsavedChangesBar } from "@/components/ui/unsaved-changes-bar";
-import { TagChipMultiSelect } from "@/app/(private)/settings/components/TagChipMultiSelect";
+import { TagChipMultiSelect } from "@/app/(candidate)/settings/components/TagChipMultiSelect";
 import { SelectDropdown } from "@/components/ui/select-dropdown";
 
 interface PreferencesFormProps {

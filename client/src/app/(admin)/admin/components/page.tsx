@@ -2,7 +2,7 @@
 
 import React from "react";
 import { PermissionGuard } from "../../../../features/auth/guards/permission-guard";
-import { ComponentsSystemView } from "../../../../modules/admin/views/components-system-view";
+import { ComponentsSystemView } from "@/modules/admin/system/components-system-view";
 import { Card } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
