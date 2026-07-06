@@ -145,7 +145,7 @@ export const navigationConfig: NavigationNode[] = [
             translationKey: 'common:admin.auditTrail',
             href: '/admin/audit-logs',
             icon: FileText,
-            requiredPermissions: ['ai:audit:view'],
+            requiredPermissions: ['admin:ai:audit'],
           },
         ],
       },

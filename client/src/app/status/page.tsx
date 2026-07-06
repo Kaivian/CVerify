@@ -18,8 +18,8 @@ import {
   Gauge,
   Cloud
 } from 'lucide-react';
-import { systemApi } from '../../../services/system.service';
-import { type SystemTelemetryData } from '../../../types/system.types';
+import { systemApi } from '@/services/system.service';
+import { type SystemTelemetryData } from '@/types/system.types';
 
 // Helper to log telemetry updates in development environment only
 const logDev = (message: string, data?: unknown) => {

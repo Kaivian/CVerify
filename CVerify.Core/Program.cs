@@ -231,6 +231,22 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString();
+        var path = context.HttpContext.Request.Path;
+        var publisher = context.HttpContext.RequestServices.GetService<CVerify.API.Modules.Shared.Domain.Services.ISecurityEventPublisher>();
+        if (publisher != null)
+        {
+            await publisher.PublishAsync(
+                CVerify.API.Modules.Shared.Domain.Constants.SecurityEventTypes.ApiRateLimitExceeded,
+                CVerify.API.Modules.Shared.Domain.Enums.SecurityEventCategory.Api,
+                $"IP {ip ?? "unknown"} exceeded rate limits on endpoint {path}.",
+                overrideSeverity: CVerify.API.Modules.Shared.Domain.Enums.SecuritySeverity.Medium
+            );
+        }
+    };
+
 
     options.AddPolicy("ForgotPasswordLimit", context =>
     {
@@ -427,6 +443,13 @@ builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliverySer
 builder.Services.AddScoped<INotificationChannel, InAppNotificationChannel>();
 builder.Services.AddSingleton<INotificationDispatcher, RedisNotificationDispatcher>();
 
+// Register Security Events Core Services
+builder.Services.AddSingleton<CVerify.API.Modules.Shared.Domain.Services.SecurityEventChannel>();
+builder.Services.AddScoped<CVerify.API.Modules.Shared.Domain.Services.ISecurityDetectionEngine, CVerify.API.Modules.Shared.Domain.Services.SecurityDetectionEngine>();
+builder.Services.AddScoped<CVerify.API.Modules.Shared.Domain.Services.ISecurityEventPublisher, CVerify.API.Modules.Shared.Domain.Services.SecurityEventPublisher>();
+builder.Services.AddHostedService<CVerify.API.Modules.Shared.System.BackgroundWorkers.SecurityEventProcessorJob>();
+
+
 // Register Profile Settings Services
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IEducationService, EducationService>();
@@ -611,6 +634,26 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseExceptionHandler();
 app.UseCors("AllowFrontend");
 app.UseMiddleware<SecurityHeadersMiddleware>();
+app.Use(async (context, next) =>
+{
+    var ip = context.Connection.RemoteIpAddress?.ToString();
+    if (!string.IsNullOrEmpty(ip) && ip != "127.0.0.1" && ip != "::1")
+    {
+        var redis = context.RequestServices.GetService<IConnectionMultiplexer>();
+        if (redis != null)
+        {
+            var isBanned = await redis.GetDatabase().KeyExistsAsync($"sec:ip_ban:{ip}");
+            if (isBanned)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new { message = "Access Denied: Your IP address has been temporarily blocked for security reasons." });
+                return;
+            }
+        }
+    }
+    await next();
+});
+
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<CVerify.API.Modules.Auth.Middleware.SessionValidationMiddleware>();

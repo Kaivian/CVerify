@@ -94,7 +94,7 @@ export const adminModuleRegistry: AdminModuleMetadata[] = [
     name: 'Audit Trail',
     icon: FileText,
     path: '/admin/audit-logs',
-    requiredPermission: 'ai:audit:view',
+    requiredPermission: 'admin:ai:audit',
     parentGroupId: 'security',
     order: 1,
   },

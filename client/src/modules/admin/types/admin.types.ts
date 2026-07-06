@@ -38,9 +38,55 @@ export interface AuditLogListItem {
   userEmail: string | null;
   eventType: string;
   description: string;
+  resourceType: string | null;
+  resourceDisplayName: string | null;
+  resourceId: string | null;
+  workspaceName: string | null;
   ipAddress: string | null;
   userAgent: string | null;
+  device: string | null;
+  browser: string | null;
   createdAt: string;
+}
+
+export interface AuditLogDetail {
+  id: string;
+  userEmail: string | null;
+  eventType: string;
+  category: string;
+  description: string;
+  resourceType: string | null;
+  resourceDisplayName: string | null;
+  resourceId: string | null;
+  workspaceName: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  device: string | null;
+  browser: string | null;
+  requestId: string | null;
+  correlationId: string | null;
+  httpPath: string | null;
+  httpMethod: string | null;
+  clientApp: string | null;
+  detailsJson: string | null;
+  oldStateJson: string | null;
+  newStateJson: string | null;
+  createdAt: string;
+}
+
+export interface AuditDashboardMetricItem {
+  name: string;
+  count: number;
+}
+
+export interface AuditLogsStats {
+  configChangesCount: number;
+  roleChangesCount: number;
+  pendingVerificationActionsCount: number;
+  exportsCount: number;
+  trends: AuditDashboardMetricItem[];
+  topAdmins: AuditDashboardMetricItem[];
+  topResources: AuditDashboardMetricItem[];
 }
 
 export interface PaginatedResult<T> {

@@ -117,11 +117,11 @@ public class CandidateAssessmentServiceTests : IDisposable
             .ReturnsAsync(true);
         _context.UserSkills.Add(new UserSkill { Id = Guid.NewGuid(), UserId = _userId, Skill = "C#" });
         _context.EducationEntries.Add(new EducationEntry { Id = Guid.NewGuid(), UserId = _userId, Label = "University", SchoolName = "MIT" });
-        _context.WorkExperiences.Add(new WorkExperienceEntry 
-        { 
-            Id = Guid.NewGuid(), 
-            UserId = _userId, 
-            JobTitle = "Developer", 
+        _context.WorkExperiences.Add(new WorkExperienceEntry
+        {
+            Id = Guid.NewGuid(),
+            UserId = _userId,
+            JobTitle = "Developer",
             Company = "Corp",
             Description = "Work",
             EmploymentType = EmploymentType.FullTime,
@@ -148,11 +148,11 @@ public class CandidateAssessmentServiceTests : IDisposable
             .ReturnsAsync(false);
         _context.UserSkills.Add(new UserSkill { Id = Guid.NewGuid(), UserId = _userId, Skill = "C#" });
         _context.EducationEntries.Add(new EducationEntry { Id = Guid.NewGuid(), UserId = _userId, Label = "University", SchoolName = "MIT" });
-        _context.WorkExperiences.Add(new WorkExperienceEntry 
-        { 
-            Id = Guid.NewGuid(), 
-            UserId = _userId, 
-            JobTitle = "Developer", 
+        _context.WorkExperiences.Add(new WorkExperienceEntry
+        {
+            Id = Guid.NewGuid(),
+            UserId = _userId,
+            JobTitle = "Developer",
             Company = "Corp",
             Description = "Work",
             EmploymentType = EmploymentType.FullTime,
@@ -235,7 +235,7 @@ public class CandidateAssessmentServiceTests : IDisposable
 
         var assessmentInDb = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == response.Id);
         assessmentInDb.Should().NotBeNull();
-        
+
         _mockQueue.Verify(q => q.EnqueueAssessmentAsync(response.Id), Times.Once);
         _mockStreamingSessionService.Verify(s => s.CreateSessionAsync(
             response.Id, "candidate-assessment", _userId, null, "claude-haiku-4-5-20251001", "Google", "2.2.0", It.IsAny<string>()

@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714050836_AddSecurityEventsModule")]
+    partial class AddSecurityEventsModule
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4264,24 +4267,6 @@ namespace CVerify.API.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("anonymized_actor_hash");
 
-                    b.Property<string>("Browser")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("browser");
-
-                    b.Property<int>("Category")
-                        .HasColumnType("integer")
-                        .HasColumnName("category");
-
-                    b.Property<string>("ClientApp")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("client_app");
-
-                    b.Property<Guid?>("CorrelationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("correlation_id");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -4295,35 +4280,16 @@ namespace CVerify.API.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("details_json");
 
-                    b.Property<string>("Device")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("device");
-
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("event_type");
 
-                    b.Property<string>("HttpMethod")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("http_method");
-
-                    b.Property<string>("HttpPath")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("http_path");
-
                     b.Property<string>("IpAddress")
                         .HasMaxLength(45)
                         .HasColumnType("character varying(45)")
                         .HasColumnName("ip_address");
-
-                    b.Property<bool>("IsLegacySecurityEvent")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_legacy_security_event");
 
                     b.Property<string>("NewStateJson")
                         .HasColumnType("jsonb")
@@ -4336,24 +4302,6 @@ namespace CVerify.API.Migrations
                     b.Property<Guid?>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
-
-                    b.Property<Guid?>("RequestId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("request_id");
-
-                    b.Property<string>("ResourceDisplayName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("resource_display_name");
-
-                    b.Property<Guid?>("ResourceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("resource_id");
-
-                    b.Property<string>("ResourceType")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("resource_type");
 
                     b.Property<Guid?>("ScopeId")
                         .HasColumnType("uuid")

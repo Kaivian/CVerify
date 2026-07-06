@@ -3227,6 +3227,9 @@ public static class DbInitializer
 
         // One-time compatibility migration to backfill repository classification & authenticity columns
         await MigrateLegacyRepositoryMetadataAsync(context);
+
+        // One-time compatibility migration to migrate historical security audit logs to security_events
+        await MigrateLegacySecurityEventsAsync(context);
     }
 
     private static async Task SeedForumDataAsync(ApplicationDbContext context, SeedingPolicy policy)
@@ -3335,6 +3338,108 @@ public static class DbInitializer
         {
             await context.SaveChangesAsync();
         }
+    }
+
+    private static async Task MigrateLegacySecurityEventsAsync(ApplicationDbContext context)
+    {
+        var eventTypes = new[]
+        {
+            "USER_LOGIN_SUCCESS", "USER_LOGIN_FAILED_CREDENTIALS", "USER_LOGIN_FAILED_EMAIL",
+            "USER_LOGIN_FAILED_DISABLED", "USER_LOGIN_FAILED_LOCKED", "USER_LOGIN_UNVERIFIED",
+            "USER_GOOGLE_LOGIN_SUCCESS", "USER_GOOGLE_LOGIN_BLOCKED", "TAKEOVER_ATTEMPT_BLOCKED",
+            "ORGANIZATION_LOGIN_FAILED_CREDENTIALS", "COMPANY_LOGIN_SUCCESS", "TOKEN_THEFT_DETECTED",
+            "TOKEN_ROTATED", "COMPANY_TOKEN_ROTATED", "SESSION_REVOKED", "ALL_OTHER_SESSIONS_REVOKED",
+            "SELF_REVOCATION_REJECTED", "OTP_SENT", "OTP_FAILED", "OTP_VERIFIED", "OTP_BYPASSED",
+            "SuspiciousActivity", "PASSWORD_CREDENTIAL_CREATED", "PASSWORD_CHANGED",
+            "PASSWORD_RECOVERY_COMPLETED", "PASSWORD_SETUP_COMPLETED", "PASSWORD_RECOVERY_FAILED",
+            "PASSWORD_SETUP_FAILED", "PASSWORD_REUSE_BLOCKED", "PASSWORD_SETUP_CONCURRENT_BLOCKED",
+            "CANDIDATE_PASSWORD_RECOVERY_REQUESTED", "CANDIDATE_PASSWORD_RESET_SUCCESS",
+            "ORG_PASSWORD_RECOVERY_OTP_DISPATCHED", "ORG_PASSWORD_RESET_SUCCESS", "CREDENTIAL_ROTATION"
+        };
+
+        var logsToMigrate = await context.AuditLogs
+            .Where(a => eventTypes.Contains(a.EventType) && a.IsLegacySecurityEvent == false)
+            .ToListAsync();
+
+        if (!logsToMigrate.Any())
+        {
+            return;
+        }
+
+        Console.WriteLine($"[Migration] Migrating {logsToMigrate.Count} legacy security audit logs to security_events.");
+
+        try
+        {
+            context.BypassImmutabilityEnforcement = true;
+
+            foreach (var auditLog in logsToMigrate)
+            {
+                auditLog.IsLegacySecurityEvent = true;
+
+                var upper = auditLog.EventType.ToUpperInvariant();
+                var category = "Authentication";
+                if (upper.Contains("SESSION") || upper.Contains("TOKEN"))
+                    category = "Session";
+                else if (upper.Contains("RATE") || upper.Contains("INJECTION") || upper.Contains("LIMIT"))
+                    category = "Api";
+
+                var severity = "Informational";
+                var riskScore = 0;
+                if (upper.Contains("THEFT") || upper.Contains("INJECTION") || upper.Contains("CRITICAL"))
+                {
+                    severity = "Critical";
+                    riskScore = 90;
+                }
+                else if (upper.Contains("SUSPICIOUS") || upper.Contains("BLOCKED") || upper.Contains("ABUSE") || upper.Contains("HIGH"))
+                {
+                    severity = "High";
+                    riskScore = 70;
+                }
+                else if (upper.Contains("FAILED") || upper.Contains("REJECT") || upper.Contains("MEDIUM"))
+                {
+                    severity = "Medium";
+                    riskScore = 40;
+                }
+                else if (upper.Contains("LOW"))
+                {
+                    severity = "Low";
+                    riskScore = 15;
+                }
+
+                var exists = await context.SecurityEvents.AnyAsync(se => se.Id == auditLog.Id);
+                if (!exists)
+                {
+                    var secEvent = new SecurityEvent
+                    {
+                        Id = auditLog.Id,
+                        EventType = auditLog.EventType,
+                        Category = category,
+                        Severity = severity,
+                        Status = "New",
+                        RiskScore = riskScore,
+                        ConfidenceScore = 95,
+                        Description = auditLog.Description,
+                        ActorUserId = auditLog.ActorUserId ?? auditLog.UserId,
+                        TargetUserId = auditLog.TargetUserId,
+                        OrganizationId = auditLog.OrganizationId,
+                        IpAddress = auditLog.IpAddress,
+                        DetailsJson = auditLog.DetailsJson,
+                        CorrelationId = auditLog.CorrelationId ?? Guid.Empty,
+                        CreatedAt = auditLog.CreatedAt,
+                        UpdatedAt = auditLog.CreatedAt
+                    };
+                    context.SecurityEvents.Add(secEvent);
+                }
+            }
+
+            await context.SaveChangesAsync();
+        }
+        finally
+        {
+            context.BypassImmutabilityEnforcement = false;
+        }
+
+        Console.WriteLine("[Migration] Historical security events migration complete.");
     }
 
     private static async Task MigrateLegacyUsernamesAsync(ApplicationDbContext context, IUsernameService usernameService)

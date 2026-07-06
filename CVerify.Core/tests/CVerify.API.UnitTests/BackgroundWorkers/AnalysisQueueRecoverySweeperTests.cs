@@ -31,10 +31,10 @@ public class AnalysisQueueRecoverySweeperTests : IDisposable
 
         var serviceScope = new Mock<IServiceScope>();
         var serviceScopeFactory = new Mock<IServiceScopeFactory>();
-        
+
         var serviceProvider = new Mock<IServiceProvider>();
         serviceProvider.Setup(x => x.GetService(typeof(ApplicationDbContext))).Returns(_context);
-        
+
         serviceScope.Setup(x => x.ServiceProvider).Returns(serviceProvider.Object);
         serviceScopeFactory.Setup(x => x.CreateScope()).Returns(serviceScope.Object);
 
