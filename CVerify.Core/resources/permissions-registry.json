@@ -15,6 +15,8 @@
         "admin:roles:manage",
         "admin:verification:view",
         "admin:verification:manage",
+        "admin:enterprise:view",
+        "admin:enterprise:manage",
         "admin:ai:audit",
         "admin:components:read",
         "admin:security:view",
@@ -97,6 +99,20 @@
         "name": "admin:verification:manage",
         "displayName": "Manage Audit Verifications",
         "description": "Allows overriding verification status, clearing fraud flags, and managing claims",
+        "system": true,
+        "dangerous": true
+      },
+      {
+        "name": "admin:enterprise:view",
+        "displayName": "View Enterprise Operations",
+        "description": "Allows viewing organization directory, stats, and workflow requests",
+        "system": true,
+        "dangerous": false
+      },
+      {
+        "name": "admin:enterprise:manage",
+        "displayName": "Manage Enterprise Operations",
+        "description": "Allows claiming, assigning, escalating, approving, and rejecting organization request events",
         "system": true,
         "dangerous": true
       },

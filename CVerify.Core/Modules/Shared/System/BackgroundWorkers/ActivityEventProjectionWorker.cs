@@ -185,6 +185,36 @@ public class ActivityEventProjectionWorker : BackgroundService
                 }
                 break;
 
+            case ActivityEventTypes.EnterpriseRequestSubmitted:
+                eventTypeStr = "ENTERPRISE_REQUEST_SUBMITTED";
+                description = "Enterprise request submitted.";
+                break;
+
+            case ActivityEventTypes.EnterpriseRequestClaimed:
+                eventTypeStr = "ENTERPRISE_REQUEST_CLAIMED";
+                description = "Enterprise request claimed by reviewer.";
+                break;
+
+            case ActivityEventTypes.EnterpriseRequestReleased:
+                eventTypeStr = "ENTERPRISE_REQUEST_RELEASED";
+                description = "Enterprise request released by reviewer.";
+                break;
+
+            case ActivityEventTypes.EnterpriseRequestResolved:
+                eventTypeStr = "ENTERPRISE_REQUEST_RESOLVED";
+                description = "Enterprise request resolved.";
+                break;
+
+            case ActivityEventTypes.OrganizationSuspended:
+                eventTypeStr = "ORGANIZATION_SUSPENDED";
+                description = "Organization suspended.";
+                break;
+
+            case ActivityEventTypes.OrganizationReactivated:
+                eventTypeStr = "ORGANIZATION_REACTIVATED";
+                description = "Organization reactivated.";
+                break;
+
             default:
                 // Not a workspace membership event to project
                 return;
@@ -201,6 +231,9 @@ public class ActivityEventProjectionWorker : BackgroundService
             TargetUserId = targetUserId,
             ScopeType = ae.ResourceType?.ToUpperInvariant() ?? "ORGANIZATION",
             ScopeId = ae.ResourceId ?? ae.OrganizationId,
+            Category = (ae.EventType.StartsWith("ENTERPRISE_") || ae.EventType.StartsWith("ORGANIZATION_"))
+                ? CVerify.API.Modules.Shared.Domain.Enums.AuditCategory.VerificationOperations 
+                : CVerify.API.Modules.Shared.Domain.Enums.AuditCategory.IdentityAndAccess,
             DetailsJson = detailsJson,
             CreatedAt = ae.CreatedAt
         };

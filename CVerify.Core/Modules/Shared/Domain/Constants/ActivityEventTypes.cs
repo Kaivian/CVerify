@@ -46,4 +46,12 @@ public static class ActivityEventTypes
     public const string ForumReplyCreated = "FORUM_REPLY_CREATED";
     public const string ForumAnswerAccepted = "FORUM_ANSWER_ACCEPTED";
     public const string ForumContentReported = "FORUM_CONTENT_REPORTED";
+
+    public const string EnterpriseRequestSubmitted = "ENTERPRISE_REQUEST_SUBMITTED";
+    public const string EnterpriseRequestClaimed = "ENTERPRISE_REQUEST_CLAIMED";
+    public const string EnterpriseRequestReleased = "ENTERPRISE_REQUEST_RELEASED";
+    public const string EnterpriseRequestResolved = "ENTERPRISE_REQUEST_RESOLVED";
+
+    public const string OrganizationSuspended = "ORGANIZATION_SUSPENDED";
+    public const string OrganizationReactivated = "ORGANIZATION_REACTIVATED";
 }

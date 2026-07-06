@@ -388,10 +388,11 @@ export default function TopicDetailPage({ params }: TopicDetailPageProps) {
 
                   {/* Dropdown Menu for options */}
                   <Dropdown>
-                    <DropdownTrigger>
-                      <Button variant="ghost" isIconOnly size="sm"  >
-                        <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                      </Button>
+                    <DropdownTrigger
+                      className="h-8 w-8 min-w-8 rounded-lg bg-transparent hover:bg-default-100 text-muted-foreground hover:text-foreground flex items-center justify-center cursor-pointer transition-all duration-150 border-none outline-none"
+                      aria-label="Reply options"
+                    >
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
                     </DropdownTrigger>
                     <DropdownMenu aria-label="Reply options">
                       <DropdownItem key="quote" onPress={() => handleTriggerQuote(reply)}>
@@ -493,10 +494,11 @@ export default function TopicDetailPage({ params }: TopicDetailPageProps) {
 
                   {isAuthenticated && (
                     <Dropdown>
-                      <DropdownTrigger>
-                        <Button size="sm" isIconOnly variant="ghost">
-                          <Smile className="w-4 h-4 text-muted-foreground" />
-                        </Button>
+                      <DropdownTrigger
+                        className="h-8 w-8 min-w-8 rounded-lg bg-transparent hover:bg-default-100 text-muted-foreground hover:text-foreground flex items-center justify-center cursor-pointer transition-all duration-150 border-none outline-none"
+                        aria-label="Reaction emojis"
+                      >
+                        <Smile className="w-4 h-4 text-muted-foreground" />
                       </DropdownTrigger>
                       <DropdownMenu aria-label="Reaction emojis" className="min-w-fit flex-row gap-1 p-1">
                         <DropdownItem key="thumbs_up" className="px-2" onPress={() => handleReplyReaction(reply.id, "thumbs_up")}>👍</DropdownItem>
@@ -561,10 +563,11 @@ export default function TopicDetailPage({ params }: TopicDetailPageProps) {
             {/* Moderator dropdown actions */}
             {topic && (isAuthor || isModerator) && (
               <Dropdown>
-                <DropdownTrigger>
-                  <Button variant="outline" size="sm" isIconOnly>
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
+                <DropdownTrigger
+                  className="h-8 w-8 min-w-8 rounded-lg bg-transparent border border-border text-foreground hover:bg-surface-secondary flex items-center justify-center cursor-pointer transition-all duration-150 outline-none"
+                  aria-label="Topic management options"
+                >
+                  <MoreVertical className="w-4 h-4" />
                 </DropdownTrigger>
                 <DropdownMenu aria-label="Topic management options">
                   {isAuthor && !topic.isLocked ? (
@@ -780,10 +783,11 @@ export default function TopicDetailPage({ params }: TopicDetailPageProps) {
 
                       {isAuthenticated && (
                         <Dropdown>
-                          <DropdownTrigger>
-                            <Button size="sm" isIconOnly variant="ghost">
-                              <Smile className="w-5 h-5 text-muted-foreground" />
-                            </Button>
+                          <DropdownTrigger
+                            className="h-8 w-8 min-w-8 rounded-lg bg-transparent hover:bg-default-100 text-muted-foreground hover:text-foreground flex items-center justify-center cursor-pointer transition-all duration-150 border-none outline-none"
+                            aria-label="Reaction emojis"
+                          >
+                            <Smile className="w-5 h-5 text-muted-foreground" />
                           </DropdownTrigger>
                           <DropdownMenu aria-label="Reaction emojis" className="min-w-fit flex-row gap-1 p-1">
                             <DropdownItem key="thumbs_up" className="px-2" onPress={() => handleReaction("thumbs_up")}>👍</DropdownItem>
