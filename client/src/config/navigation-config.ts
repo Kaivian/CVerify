@@ -546,5 +546,83 @@ export const adminNavigationConfig: NavigationNode[] = [
   createAdminSection('admin-system-section', 'System & Configuration', 'system'),
 ].filter((section) => section.children.length > 0);
 
+export const adminCompanyNavigationConfig: NavigationNode[] = [
+  {
+    id: 'admin-company-management-section',
+    type: 'section',
+    label: 'Company Management',
+    requiredRoles: ['ADMIN'],
+    children: [
+      {
+        id: 'admin-company-directory',
+        type: 'item',
+        label: 'Company Directory',
+        href: '/business/companies',
+        icon: Building2,
+      },
+      {
+        id: 'admin-employer-directory',
+        type: 'item',
+        label: 'Employer Directory',
+        href: '/business/employers',
+        icon: Users,
+      },
+      {
+        id: 'admin-job-moderation',
+        type: 'item',
+        label: 'Job Moderation',
+        href: '/business/jobs',
+        icon: Briefcase,
+      },
+      {
+        id: 'admin-verification-workflows',
+        type: 'item',
+        label: 'Verification Workflows',
+        href: '/business/verification',
+        icon: ShieldCheck,
+      },
+      {
+        id: 'admin-company-analytics',
+        type: 'item',
+        label: 'Company Analytics',
+        href: '/business/analytics',
+        icon: BarChart3,
+      },
+    ],
+  },
+];
+
+export const adminCandidateNavigationConfig: NavigationNode[] = [
+  {
+    id: 'admin-candidate-management-section',
+    type: 'section',
+    label: 'Candidate Management',
+    requiredRoles: ['ADMIN'],
+    children: [
+      {
+        id: 'admin-candidate-directory',
+        type: 'item',
+        label: 'Candidate Directory',
+        href: '/admin/users',
+        icon: Users,
+      },
+      {
+        id: 'admin-repository-index',
+        type: 'item',
+        label: 'Repository Index',
+        href: '/admin/repositories',
+        icon: GitFork,
+      },
+      {
+        id: 'admin-verification-queue',
+        type: 'item',
+        label: 'Verification Queue',
+        href: '/admin/verification',
+        icon: ShieldCheck,
+      },
+    ],
+  },
+];
+
 // Legacy export fallback
 export const navigationConfig = companyNavigationConfig;

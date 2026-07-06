@@ -2,15 +2,9 @@
 
 import React, { useMemo, useEffect, useState } from "react";
 import { useAuth } from "../../../features/auth/hooks/use-auth";
-import {
-  companyNavigationConfig,
-  workspaceNavigationConfig,
-  candidateNavigationConfig,
-  adminNavigationConfig
-} from "../../../config/navigation-config";
 import { useSidebarMode } from "../../../providers/sidebar-mode-provider";
 import { useActiveWorkspace } from "../../../features/workspace/hooks/use-active-workspace";
-import { filterNavigationNodes } from "../../../lib/navigation-utils";
+import { filterNavigationNodes, resolveSidebarNavigation } from "../../../lib/navigation-utils";
 import { isModuleEnabled } from "../../../lib/utils/feature-flags";
 import SidebarLink from "./sidebar-link";
 import SidebarGroup from "./sidebar-group";
@@ -217,23 +211,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         .filter((node): node is NavigationNode => node !== null);
     };
 
-    // Determine config array depending on mode
-    let targetConfig: NavigationNode[] = [];
-    if (sidebarMode === "WORKSPACE") {
-      targetConfig = workspaceNavigationConfig;
-    } else if (sidebarMode === "CANDIDATE") {
-      targetConfig = candidateNavigationConfig;
-    } else if (sidebarMode === "SYSTEM_ADMIN") {
-      targetConfig = adminNavigationConfig;
-    } else {
-      // Default mode: COMPANY
-      targetConfig = [...companyNavigationConfig];
-      if (userRole === "USER") {
-        targetConfig = [...candidateNavigationConfig];
-      } else if (userRole === "ADMIN") {
-        targetConfig = [...targetConfig, ...adminNavigationConfig];
-      }
-    }
+    const targetConfig = resolveSidebarNavigation(sidebarMode, userRole);
 
     const rawNodes = filterRecurse(targetConfig);
     return rawNodes.map(resolveNodeHref);
@@ -386,7 +364,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         )}
 
         {/* Company Quick-Jump Banner (Rendered when in Company Mode and a workspace is selected) */}
-        {!hideActiveWorkspaceBanner && sidebarMode === "COMPANY" && activeWorkspaceObj && !collapsed && (
+        {!hideActiveWorkspaceBanner && sidebarMode === "COMPANY" && userRole !== "ADMIN" && activeWorkspaceObj && !collapsed && (
           <div className="select-none">
             <Link
               href={`/business/${currentOrgSlug}/recruitment/dashboard`}
@@ -438,7 +416,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       </div>
 
       {/* Organization Switcher at the bottom */}
-      {!hideSwitcher && (userRole === "BUSINESS" || userRole === "ADMIN") && (
+      {!hideSwitcher && userRole === "BUSINESS" && (
         <div className="mt-auto pt-3 border-t border-separator/50 w-full shrink-0 min-w-0">
           <WorkspaceSwitcher collapsed={collapsed} isMobile={isMobile} />
         </div>

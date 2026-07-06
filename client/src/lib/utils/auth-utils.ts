@@ -1,4 +1,5 @@
 import { type UserRole } from '../../types/auth.types';
+import { RESERVED_USERNAMES } from '../navigation-utils';
 
 /**
  * Centrally normalizes database and JWT claim roles to the frontend UserRole type.
@@ -70,6 +71,11 @@ export function isProtectedRoute(pathname: string): boolean {
 
   const segments = pathname.split('/').filter(Boolean);
   if (segments[0] === 'business') {
+    // If the second segment is a reserved word (e.g. 'companies'), it's a static admin page, hence protected.
+    if (segments[1] && RESERVED_USERNAMES.has(segments[1])) {
+      return true;
+    }
+
     if (segments.length <= 2) {
       // /business or /business/{organizationSlug} are public
       return false;
