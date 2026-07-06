@@ -68,6 +68,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
     if (!item.title.trim()) newErrors.title = "Required";
     if (!item.issuer.trim()) newErrors.issuer = "Required";
     if (!item.issueDate) newErrors.issueDate = "Required";
+    if (!item.description.trim()) newErrors.description = "Required";
 
     if (item.credentialUrl && item.credentialUrl.trim()) {
       try {
@@ -232,7 +233,7 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
           </div>
 
           <div className="flex flex-col gap-1.5 text-xs">
-            <label className="font-bold text-foreground">Description</label>
+            <label className="font-bold text-foreground">Description *</label>
             <TextArea
               value={editingItem.description}
               onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
@@ -241,7 +242,12 @@ export const AchievementsForm: React.FC<AchievementsFormProps> = ({
               aria-label="Achievement description"
               maxLength={500}
             />
-            <div className="flex justify-end text-[10px] text-muted-foreground mt-0.5 select-none">
+            <div className="flex justify-between items-center text-[10px] text-muted-foreground mt-0.5 select-none">
+              {errors.description ? (
+                <span className="text-danger">{errors.description}</span>
+              ) : (
+                <span />
+              )}
               <span>{(editingItem.description || "").length}/500 characters</span>
             </div>
           </div>

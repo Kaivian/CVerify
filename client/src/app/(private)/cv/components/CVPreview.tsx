@@ -246,9 +246,27 @@ const CvEntryHeader: React.FC<{ data: Record<string, any> }> = ({ data }) => {
           {data.dateRange}
         </span>
       </div>
-      {(data.subtitle || data.rightSubtitle) && (
+      {(data.subtitle || data.rightSubtitle || data.credentialUrl) && (
         <div className="flex items-center justify-between text-neutral-600 text-[10px] font-medium italic">
-          <span>{data.subtitle}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span>{data.subtitle}</span>
+            {data.credentialUrl && (
+              <>
+                <span className="text-neutral-400 select-none not-italic font-normal">•</span>
+                <a
+                  href={data.credentialUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-neutral-500 hover:text-accent hover:underline flex items-center gap-0.5 not-italic font-normal"
+                >
+                  <Link2 className="size-2.5 shrink-0" />
+                  <span className="truncate max-w-[250px]">
+                    {data.credentialUrl.replace(/^(https?:\/\/)?(www\.)?/, "")}
+                  </span>
+                </a>
+              </>
+            )}
+          </div>
           {data.rightSubtitle && <span className="font-semibold text-neutral-700 pl-4">{data.rightSubtitle}</span>}
         </div>
       )}
@@ -335,6 +353,26 @@ const CvPreferencesGrid: React.FC<{ data: Record<string, any> }> = ({ data }) =>
         <div>
           <span className="font-bold text-neutral-900">Employment Types:</span>{" "}
           <span className="capitalize">{pref.employmentPreferences.join(", ")}</span>
+        </div>
+      )}
+      {pref.preferredLanguage && (
+        <div>
+          <span className="font-bold text-neutral-900">Spoken Language:</span>{" "}
+          <span>
+            {pref.preferredLanguage === "en" ? "English" :
+             pref.preferredLanguage === "vi" ? "Vietnamese" :
+             pref.preferredLanguage === "ja" ? "Japanese" :
+             pref.preferredLanguage === "ko" ? "Korean" :
+             pref.preferredLanguage === "zh" ? "Chinese" : pref.preferredLanguage}
+          </span>
+        </div>
+      )}
+      {pref.leadershipTrack && pref.leadershipTrack !== "undecided" && (
+        <div>
+          <span className="font-bold text-neutral-900">Leadership Track:</span>{" "}
+          <span>
+            {pref.leadershipTrack === "management" ? "Engineering Management" : "Individual Contributor"}
+          </span>
         </div>
       )}
       {pref.workPreferenceNotes && (
