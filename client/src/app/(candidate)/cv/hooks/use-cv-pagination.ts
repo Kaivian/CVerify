@@ -5,6 +5,7 @@ import {
   type AchievementsDraftItem,
   type PreferencesDraft,
 } from "../components/types";
+import { type TemplateLayoutConfig } from "../templates/types";
 
 export interface CvPaginationData {
   basic: Record<string, any>;
@@ -21,6 +22,7 @@ export interface LayoutBlock {
   id: string;
   type:
     | "header"
+    | "contact"
     | "section-title"
     | "entry-header"
     | "paragraph"
@@ -35,6 +37,9 @@ export interface PageModel {
   pageNumber: number;
   totalPages: number;
   blocks: LayoutBlock[];
+  topBlocks?: LayoutBlock[];
+  sidebarBlocks?: LayoutBlock[];
+  mainBlocks?: LayoutBlock[];
 }
 
 // Format date to MM/YYYY
@@ -123,7 +128,9 @@ const categorizeSkills = (skillsList: string[]): Record<string, string[]> => {
 const getFallbackHeight = (block: LayoutBlock): number => {
   switch (block.type) {
     case "header":
-      return 150;
+      return 100;
+    case "contact":
+      return 50;
     case "section-title":
       return 36;
     case "entry-header":
@@ -144,9 +151,13 @@ const getFallbackHeight = (block: LayoutBlock): number => {
 export function useCvPagination(
   cvData: CvPaginationData,
   pageHeightLimit: number = 920,
-  gapHeight: number = 12
+  gapHeight: number = 12,
+  templateId: string = "professional",
+  layoutConfig?: TemplateLayoutConfig
 ) {
   const uniqueId = useId();
+  // Use template-specific blockGap if defined, otherwise fall back to gapHeight parameter
+  const effectiveGap = layoutConfig?.blockGap ?? gapHeight;
   const [pages, setPages] = useState<PageModel[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
@@ -211,13 +222,19 @@ export function useCvPagination(
       createBlock("header", "header", {
         fullName: basic.fullName,
         headline: basic.headline,
+        isAiHeadline,
+        matchScore,
+      })
+    );
+
+    // A2. Contact block
+    items.push(
+      createBlock("contact", "contact", {
         publicEmail: basic.publicEmail,
         phoneNumber: basic.phoneNumber,
         location: basic.location,
         birthDate: basic.birthDate,
         socialLinks: basic.socialLinks,
-        isAiHeadline,
-        matchScore,
       })
     );
 
@@ -533,6 +550,11 @@ export function useCvPagination(
     return items;
   }, [cvData]);
 
+  // Reset height cache when template, fonts, or container width changes to prevent stale measurements
+  useEffect(() => {
+    heightCache.current = {};
+  }, [templateId, fontsReady, containerWidth]);
+
   // Observer to handle width scaling / zoom resets
   useEffect(() => {
     if (typeof window === "undefined" || !measurerRef.current) return;
@@ -558,12 +580,17 @@ export function useCvPagination(
   useEffect(() => {
     if (!fontsReady) return;
 
+    const isPrefixMatch = (id: string, prefixes: string[]) => {
+      return prefixes.some((p) => id.startsWith(p));
+    };
+
     const runPagination = () => {
       // Step A: DOM measurements
       const measuredHeights: Record<string, number> = {};
 
       blocks.forEach((block) => {
-        const cachedHeight = heightCache.current[block.hash];
+        const cacheKey = `${templateId}_${block.hash}`;
+        const cachedHeight = heightCache.current[cacheKey];
         if (cachedHeight !== undefined) {
           measuredHeights[block.id] = cachedHeight;
           return;
@@ -571,11 +598,10 @@ export function useCvPagination(
 
         const el = document.getElementById(`${uniqueId}-measurer-${block.id}`);
         if (el) {
-          const rect = el.getBoundingClientRect();
-          const height = rect.height || el.offsetHeight || getFallbackHeight(block);
+          const height = el.offsetHeight || el.getBoundingClientRect().height || getFallbackHeight(block);
           measuredHeights[block.id] = height;
           // Store in cache
-          heightCache.current[block.hash] = height;
+          heightCache.current[cacheKey] = height;
         } else {
           // Fallback height if element not present
           measuredHeights[block.id] = getFallbackHeight(block);
@@ -584,97 +610,207 @@ export function useCvPagination(
 
       // Step B: Partition blocks into pages
       const calculatedPages: PageModel[] = [];
-      let currentPageBlocks: LayoutBlock[] = [];
-      let currentPageHeight = 0;
 
-      for (let i = 0; i < blocks.length; i++) {
-        const block = blocks[i];
-        const blockHeight = measuredHeights[block.id] || getFallbackHeight(block);
-        const effectiveHeight =
-          currentPageBlocks.length === 0 ? blockHeight : blockHeight + gapHeight;
+      if (!layoutConfig || layoutConfig.layoutStyle === "single-column") {
+        // --- Single-Column Pagination Loop ---
+        let currentPageBlocks: LayoutBlock[] = [];
+        let currentPageHeight = 0;
 
-        // Orphan Heading Prevention Strategy
-        if (block.type === "section-title") {
-          let lookAheadHeight = effectiveHeight;
-          let nextIdx = i + 1;
+        for (let i = 0; i < blocks.length; i++) {
+          const block = blocks[i];
+          const blockHeight = measuredHeights[block.id] || getFallbackHeight(block);
+          const effectiveHeight =
+            currentPageBlocks.length === 0 ? blockHeight : blockHeight + effectiveGap;
 
-          // Pull heading + subsequent header + first item of that block
-          while (nextIdx < blocks.length && nextIdx <= i + 2) {
-            const nextBlock = blocks[nextIdx];
-            const nextHeight =
-              measuredHeights[nextBlock.id] || getFallbackHeight(nextBlock);
-            lookAheadHeight += nextHeight + gapHeight;
-            nextIdx++;
+          // Orphan Heading Prevention Strategy
+          if (block.type === "section-title") {
+            let lookAheadHeight = effectiveHeight;
+            let nextIdx = i + 1;
+
+            // Pull heading + subsequent header + first item of that block
+            while (nextIdx < blocks.length && nextIdx <= i + 2) {
+              const nextBlock = blocks[nextIdx];
+              const nextHeight =
+                measuredHeights[nextBlock.id] || getFallbackHeight(nextBlock);
+              lookAheadHeight += nextHeight + effectiveGap;
+              nextIdx++;
+            }
+
+            if (
+              currentPageHeight + lookAheadHeight > pageHeightLimit &&
+              currentPageBlocks.length > 0
+            ) {
+              calculatedPages.push({
+                pageNumber: calculatedPages.length + 1,
+                totalPages: 0,
+                blocks: currentPageBlocks,
+              });
+              currentPageBlocks = [block];
+              currentPageHeight = blockHeight;
+            } else {
+              currentPageBlocks.push(block);
+              currentPageHeight += effectiveHeight;
+            }
           }
+          // Orphan Entry Header Prevention
+          else if (block.type === "entry-header") {
+            let lookAheadHeight = effectiveHeight;
+            if (i + 1 < blocks.length) {
+              const nextBlock = blocks[i + 1];
+              const nextHeight =
+                measuredHeights[nextBlock.id] || getFallbackHeight(nextBlock);
+              lookAheadHeight += nextHeight + effectiveGap;
+            }
 
-          if (
-            currentPageHeight + lookAheadHeight > pageHeightLimit &&
-            currentPageBlocks.length > 0
-          ) {
-            calculatedPages.push({
-              pageNumber: calculatedPages.length + 1,
-              totalPages: 0,
-              blocks: currentPageBlocks,
-            });
-            currentPageBlocks = [block];
-            currentPageHeight = blockHeight;
-          } else {
-            currentPageBlocks.push(block);
-            currentPageHeight += effectiveHeight;
+            if (
+              currentPageHeight + lookAheadHeight > pageHeightLimit &&
+              currentPageBlocks.length > 0
+            ) {
+              calculatedPages.push({
+                pageNumber: calculatedPages.length + 1,
+                totalPages: 0,
+                blocks: currentPageBlocks,
+              });
+              currentPageBlocks = [block];
+              currentPageHeight = blockHeight;
+            } else {
+              currentPageBlocks.push(block);
+              currentPageHeight += effectiveHeight;
+            }
+          }
+          // Normal block
+          else {
+            if (
+              currentPageHeight + effectiveHeight > pageHeightLimit &&
+              currentPageBlocks.length > 0
+            ) {
+              calculatedPages.push({
+                pageNumber: calculatedPages.length + 1,
+                totalPages: 0,
+                blocks: currentPageBlocks,
+              });
+              currentPageBlocks = [block];
+              currentPageHeight = blockHeight;
+            } else {
+              currentPageBlocks.push(block);
+              currentPageHeight += effectiveHeight;
+            }
           }
         }
-        // Orphan Entry Header Prevention
-        else if (block.type === "entry-header") {
-          let lookAheadHeight = effectiveHeight;
-          if (i + 1 < blocks.length) {
-            const nextBlock = blocks[i + 1];
-            const nextHeight =
-              measuredHeights[nextBlock.id] || getFallbackHeight(nextBlock);
-            lookAheadHeight += nextHeight + gapHeight;
+
+        if (currentPageBlocks.length > 0) {
+          calculatedPages.push({
+            pageNumber: calculatedPages.length + 1,
+            totalPages: 0,
+            blocks: currentPageBlocks,
+          });
+        }
+      } else {
+        // --- Two-Column Layout Pagination Loop ---
+        const topPrefixes = layoutConfig.fullWidthTop || ["header"];
+        const sidebarPrefixes = layoutConfig.columnMapping.sidebar || [];
+
+        const topBlocks = blocks.filter(b => isPrefixMatch(b.id, topPrefixes));
+        const bodyBlocks = blocks.filter(b => !isPrefixMatch(b.id, topPrefixes));
+
+        const sidebarBlocks = bodyBlocks.filter(b => isPrefixMatch(b.id, sidebarPrefixes));
+        const mainBlocks = bodyBlocks.filter(b => !isPrefixMatch(b.id, sidebarPrefixes));
+
+        let sidebarIndex = 0;
+        let mainIndex = 0;
+        let pageNum = 1;
+
+        while (sidebarIndex < sidebarBlocks.length || mainIndex < mainBlocks.length) {
+          let currentPageTopBlocks: LayoutBlock[] = [];
+          let currentPageSidebarBlocks: LayoutBlock[] = [];
+          let currentPageMainBlocks: LayoutBlock[] = [];
+
+          let availableHeight = pageHeightLimit;
+
+          // Page 1 gets the header
+          if (pageNum === 1 && topBlocks.length > 0) {
+            currentPageTopBlocks = [...topBlocks];
+            let topHeight = 0;
+            topBlocks.forEach((block) => {
+              const h = measuredHeights[block.id] || getFallbackHeight(block);
+              topHeight += h + effectiveGap;
+            });
+            availableHeight -= topHeight;
           }
 
-          if (
-            currentPageHeight + lookAheadHeight > pageHeightLimit &&
-            currentPageBlocks.length > 0
-          ) {
-            calculatedPages.push({
-              pageNumber: calculatedPages.length + 1,
-              totalPages: 0,
-              blocks: currentPageBlocks,
-            });
-            currentPageBlocks = [block];
-            currentPageHeight = blockHeight;
-          } else {
-            currentPageBlocks.push(block);
-            currentPageHeight += effectiveHeight;
-          }
-        }
-        // Normal block
-        else {
-          if (
-            currentPageHeight + effectiveHeight > pageHeightLimit &&
-            currentPageBlocks.length > 0
-          ) {
-            calculatedPages.push({
-              pageNumber: calculatedPages.length + 1,
-              totalPages: 0,
-              blocks: currentPageBlocks,
-            });
-            currentPageBlocks = [block];
-            currentPageHeight = blockHeight;
-          } else {
-            currentPageBlocks.push(block);
-            currentPageHeight += effectiveHeight;
-          }
-        }
-      }
+          // Fill Sidebar column
+          let currentSidebarHeight = 0;
+          while (sidebarIndex < sidebarBlocks.length) {
+            const block = sidebarBlocks[sidebarIndex];
+            const h = measuredHeights[block.id] || getFallbackHeight(block);
+            const effH = currentSidebarHeight === 0 ? h : h + effectiveGap;
 
-      if (currentPageBlocks.length > 0) {
-        calculatedPages.push({
-          pageNumber: calculatedPages.length + 1,
-          totalPages: 0,
-          blocks: currentPageBlocks,
-        });
+            // Orphan Check within sidebar
+            let lookAhead = effH;
+            if (block.type === "section-title") {
+              let lookIdx = sidebarIndex + 1;
+              while (lookIdx < sidebarBlocks.length && lookIdx <= sidebarIndex + 2) {
+                const lb = sidebarBlocks[lookIdx];
+                lookAhead += (measuredHeights[lb.id] || getFallbackHeight(lb)) + effectiveGap;
+                lookIdx++;
+              }
+            } else if (block.type === "entry-header") {
+              if (sidebarIndex + 1 < sidebarBlocks.length) {
+                const lb = sidebarBlocks[sidebarIndex + 1];
+                lookAhead += (measuredHeights[lb.id] || getFallbackHeight(lb)) + effectiveGap;
+              }
+            }
+
+            if (currentSidebarHeight + lookAhead > availableHeight && currentPageSidebarBlocks.length > 0) {
+              break; // doesn't fit on this page
+            }
+            currentPageSidebarBlocks.push(block);
+            currentSidebarHeight += effH;
+            sidebarIndex++;
+          }
+
+          // Fill Main column
+          let currentMainHeight = 0;
+          while (mainIndex < mainBlocks.length) {
+            const block = mainBlocks[mainIndex];
+            const h = measuredHeights[block.id] || getFallbackHeight(block);
+            const effH = currentMainHeight === 0 ? h : h + effectiveGap;
+
+            // Orphan Check within main
+            let lookAhead = effH;
+            if (block.type === "section-title") {
+              let lookIdx = mainIndex + 1;
+              while (lookIdx < mainBlocks.length && lookIdx <= mainIndex + 2) {
+                const lb = mainBlocks[lookIdx];
+                lookAhead += (measuredHeights[lb.id] || getFallbackHeight(lb)) + effectiveGap;
+                lookIdx++;
+              }
+            } else if (block.type === "entry-header") {
+              if (mainIndex + 1 < mainBlocks.length) {
+                const lb = mainBlocks[mainIndex + 1];
+                lookAhead += (measuredHeights[lb.id] || getFallbackHeight(lb)) + effectiveGap;
+              }
+            }
+
+            if (currentMainHeight + lookAhead > availableHeight && currentPageMainBlocks.length > 0) {
+              break; // doesn't fit on this page
+            }
+            currentPageMainBlocks.push(block);
+            currentMainHeight += effH;
+            mainIndex++;
+          }
+
+          calculatedPages.push({
+            pageNumber: pageNum,
+            totalPages: 0,
+            blocks: [...currentPageTopBlocks, ...currentPageSidebarBlocks, ...currentPageMainBlocks],
+            topBlocks: currentPageTopBlocks,
+            sidebarBlocks: currentPageSidebarBlocks,
+            mainBlocks: currentPageMainBlocks,
+          });
+
+          pageNum++;
+        }
       }
 
       // Populate total pages
@@ -692,7 +828,7 @@ export function useCvPagination(
     }, 150);
 
     return () => clearTimeout(debounceTimer);
-  }, [blocks, fontsReady, pageHeightLimit, gapHeight, containerWidth, uniqueId]);
+  }, [blocks, fontsReady, pageHeightLimit, effectiveGap, containerWidth, uniqueId, templateId, layoutConfig]);
 
   return {
     pages,

@@ -1,6 +1,9 @@
 import React from "react";
 import { Phone, Mail, MapPin, Calendar, Link2 } from "lucide-react";
+import { Separator } from "@heroui/react";
 import { useCvPagination, type LayoutBlock } from "../hooks/use-cv-pagination";
+import { getTemplate } from "../templates/registry";
+import { type CvTemplate } from "../templates/types";
 
 const GitHubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="size-3" {...props}>
@@ -37,13 +40,53 @@ interface CVPreviewProps {
   achievements: Record<string, any>[];
   preferences: Record<string, any>;
   projects?: Record<string, any>[];
+  templateId?: string;
+  avatarUrl?: string | null;
 }
 
 // ---------------------------------------------------------
 // Sub-components mapped to LayoutBlock.type
 // ---------------------------------------------------------
 
-const CvHeader: React.FC<{ data: Record<string, any> }> = ({ data }) => {
+const CvHeader: React.FC<{ data: Record<string, any>; avatarUrl?: string | null }> = ({ data, avatarUrl }) => {
+  return (
+    <div className="flex justify-between items-start w-full pb-2 select-text text-left min-w-0">
+      <div className="flex flex-col text-left gap-1.5 min-w-0 flex-1">
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900 uppercase w-full">
+          {data.fullName || "Untitled"}
+        </h1>
+        {data.headline && (
+          <div className="flex items-center gap-1.5 flex-wrap w-full">
+            <span className="text-[11px] font-bold text-accent tracking-wider uppercase">
+              {data.headline}
+            </span>
+            {data.isAiHeadline && (
+              <div className="inline-flex items-center gap-1 select-none shrink-0 normal-case">
+                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[8px] font-black tracking-wider uppercase border border-emerald-200/50">
+                  AI
+                </span>
+                {data.matchScore !== undefined && (
+                  <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent text-[8px] font-bold border border-accent/20">
+                    {data.matchScore}% Match
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {avatarUrl && (
+        <img
+          src={avatarUrl}
+          alt="Avatar"
+          className="w-16 h-16 rounded-full object-cover border border-neutral-200 shrink-0 ml-4 shadow-xs"
+        />
+      )}
+    </div>
+  );
+};
+
+const CvContact: React.FC<{ data: Record<string, any> }> = ({ data }) => {
   const renderSocialIcon = (url: string) => {
     const lower = url.toLowerCase();
     if (lower.includes("github.com")) return <GitHubIcon className="size-3 text-neutral-600 shrink-0" />;
@@ -57,32 +100,8 @@ const CvHeader: React.FC<{ data: Record<string, any> }> = ({ data }) => {
   };
 
   return (
-    <div className="flex flex-col text-left gap-1.5 pb-4 w-full min-w-0">
-      <h1 className="text-2xl font-bold tracking-tight text-neutral-900 uppercase w-full">
-        {data.fullName || "Untitled"}
-      </h1>
-      {data.headline && (
-        <div className="flex items-center gap-1.5 flex-wrap w-full">
-          <span className="text-[11px] font-bold text-accent tracking-wider uppercase">
-            {data.headline}
-          </span>
-          {data.isAiHeadline && (
-            <div className="inline-flex items-center gap-1 select-none shrink-0 normal-case">
-              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[8px] font-black tracking-wider uppercase border border-emerald-200/50">
-                AI
-              </span>
-              {data.matchScore !== undefined && (
-                <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent text-[8px] font-bold border border-accent/20">
-                  {data.matchScore}% Match
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Contact Details Grid */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-[10px] text-neutral-700 max-w-full min-w-0">
+    <div className="flex flex-col w-full select-text text-left">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pb-4 text-[10px] text-neutral-700 max-w-full min-w-0 w-full">
         {data.phoneNumber && (
           <span className="flex items-center gap-1 min-w-0">
             <Phone className="size-3 text-neutral-600 shrink-0" />
@@ -120,6 +139,7 @@ const CvHeader: React.FC<{ data: Record<string, any> }> = ({ data }) => {
           </a>
         ))}
       </div>
+      <Separator className="bg-separator/60" />
     </div>
   );
 };
@@ -137,7 +157,7 @@ const CvSectionTitle: React.FC<{ data: Record<string, any> }> = ({ data }) => {
           </span>
         )}
       </div>
-      <div className="border-b border-separator/60 w-full mt-0.5" />
+      <Separator className="bg-separator/60 mt-0.5" />
     </div>
   );
 };
@@ -389,10 +409,17 @@ const CvPreferencesGrid: React.FC<{ data: Record<string, any> }> = ({ data }) =>
 // Template Block Mapper Component
 // ---------------------------------------------------------
 
-const CvBlockRenderer: React.FC<{ block: LayoutBlock }> = ({ block }) => {
+const CvBlockRenderer: React.FC<{ block: LayoutBlock; template: CvTemplate; avatarUrl?: string | null }> = ({ block, template, avatarUrl }) => {
+  const OverrideComponent = template.overrides?.[block.type];
+  if (OverrideComponent) {
+    return <OverrideComponent data={block.data} avatarUrl={avatarUrl} blockId={block.id} />;
+  }
+
   switch (block.type) {
     case "header":
-      return <CvHeader data={block.data} />;
+      return <CvHeader data={block.data} avatarUrl={avatarUrl} />;
+    case "contact":
+      return <CvContact data={block.data} />;
     case "section-title":
       return <CvSectionTitle data={block.data} />;
     case "paragraph":
@@ -415,18 +442,63 @@ const CvBlockRenderer: React.FC<{ block: LayoutBlock }> = ({ block }) => {
 // ---------------------------------------------------------
 
 export const CVPreview: React.FC<CVPreviewProps> = (props) => {
-  const { pages, isReady, measurerRef, blocks, uniqueId } = useCvPagination(props);
+  const template = getTemplate(props.templateId || "professional");
+  const { pages, isReady, measurerRef, blocks, uniqueId } = useCvPagination(
+    props,
+    920,
+    12,
+    template.id,
+    template.layout
+  );
+  const blockGapPx = template.layout.blockGap ?? 12;
 
   const measurerDiv = (
     <div
       ref={measurerRef}
-      className="absolute top-[-9999px] left-[-9999px] w-[794px] opacity-0 pointer-events-none select-none flex flex-col gap-3 p-[20mm] box-border bg-white text-black font-sans text-xs cv-measurer"
+      className="absolute top-[-9999px] left-[-9999px] w-[794px] opacity-0 pointer-events-none select-none flex flex-col p-[20mm] box-border bg-white text-black font-sans text-xs cv-measurer"
+      style={{ gap: `${blockGapPx}px` }}
+      data-template={template.id}
     >
-      {blocks.map((block) => (
-        <div key={block.id} id={`${uniqueId}-measurer-${block.id}`}>
-          <CvBlockRenderer block={block} />
+      {template.layout.layoutStyle === "single-column" ? (
+        blocks.map((block) => (
+          <div key={block.id} id={`${uniqueId}-measurer-${block.id}`}>
+            <CvBlockRenderer block={block} template={template} avatarUrl={props.avatarUrl} />
+          </div>
+        ))
+      ) : (
+        <div className="flex flex-col w-full" style={{ gap: `${blockGapPx}px` }}>
+          {/* Render top blocks in measurer */}
+          {blocks.filter(b => b.id === "header" || (template.layout.fullWidthTop && template.layout.fullWidthTop.some(p => b.id.startsWith(p)))).map((block) => (
+            <div key={block.id} id={`${uniqueId}-measurer-${block.id}`}>
+              <CvBlockRenderer block={block} template={template} avatarUrl={props.avatarUrl} />
+            </div>
+          ))}
+          {/* Side-by-side columns in measurer */}
+          <div
+            className="cv-modern-columns"
+            style={{
+              display: "grid",
+              gridTemplateColumns: `${template.layout.sidebarWidth}px ${template.layout.mainWidth}px`,
+              gap: `${template.layout.gapWidth}px`
+            }}
+          >
+            <div className="flex flex-col min-w-0 overflow-hidden" style={{ gap: `${blockGapPx}px` }}>
+              {blocks.filter(b => template.layout.columnMapping.sidebar.some(p => b.id.startsWith(p))).map((block) => (
+                <div key={block.id} id={`${uniqueId}-measurer-${block.id}`}>
+                  <CvBlockRenderer block={block} template={template} avatarUrl={props.avatarUrl} />
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col min-w-0 overflow-hidden" style={{ gap: `${blockGapPx}px` }}>
+              {blocks.filter(b => !b.id.startsWith("header") && !(template.layout.fullWidthTop && template.layout.fullWidthTop.some(p => b.id.startsWith(p))) && !template.layout.columnMapping.sidebar.some(p => b.id.startsWith(p))).map((block) => (
+                <div key={block.id} id={`${uniqueId}-measurer-${block.id}`}>
+                  <CvBlockRenderer block={block} template={template} avatarUrl={props.avatarUrl} />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 
@@ -545,14 +617,50 @@ export const CVPreview: React.FC<CVPreviewProps> = (props) => {
           <div
             key={page.pageNumber}
             className="cv-page w-[210mm] h-[297mm] bg-white text-black p-[20mm] box-border relative flex flex-col justify-between shadow-md border border-border select-text"
+            data-template={template.id}
           >
             {/* Page content */}
-            <div className="flex flex-col gap-3 grow">
-              {page.blocks.map((block) => (
-                <div key={block.id} className="cv-block">
-                  <CvBlockRenderer block={block} />
+            <div className="flex flex-col grow" style={{ gap: `${blockGapPx}px` }}>
+              {template.layout.layoutStyle === "single-column" ? (
+                page.blocks.map((block) => (
+                  <div key={block.id} className="cv-block">
+                    <CvBlockRenderer block={block} template={template} avatarUrl={props.avatarUrl} />
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col w-full grow" style={{ gap: `${blockGapPx}px` }}>
+                  {/* Top full-width section */}
+                  {page.topBlocks && page.topBlocks.map((block) => (
+                    <div key={block.id} className="cv-block">
+                      <CvBlockRenderer block={block} template={template} avatarUrl={props.avatarUrl} />
+                    </div>
+                  ))}
+                  {/* Two columns section */}
+                  <div
+                    className="cv-modern-columns w-full flex-1"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: `${template.layout.sidebarWidth}px ${template.layout.mainWidth}px`,
+                      gap: `${template.layout.gapWidth}px`
+                    }}
+                  >
+                    <div className="flex flex-col cv-page-sidebar min-w-0 overflow-hidden" style={{ gap: `${blockGapPx}px` }}>
+                      {page.sidebarBlocks && page.sidebarBlocks.map((block) => (
+                        <div key={block.id} className="cv-block">
+                          <CvBlockRenderer block={block} template={template} avatarUrl={props.avatarUrl} />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-col cv-page-main min-w-0 overflow-hidden" style={{ gap: `${blockGapPx}px` }}>
+                      {page.mainBlocks && page.mainBlocks.map((block) => (
+                        <div key={block.id} className="cv-block">
+                          <CvBlockRenderer block={block} template={template} avatarUrl={props.avatarUrl} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
 
             {/* Footer Area on each page */}
