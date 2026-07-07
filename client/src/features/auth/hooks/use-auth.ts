@@ -1059,5 +1059,5 @@ export const useAuth = () => {
     hasPermission: useCallback((permission: ResourceActionPermission) => storeHasPermission(permission), [storeHasPermission]),
   };
 
-  return overriddenAuth || returnedAuth;
+  return (overriddenAuth as typeof returnedAuth) || returnedAuth;
 };
