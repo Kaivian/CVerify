@@ -123,8 +123,9 @@ public static class PublicWorkspaceSeeder
                 continue;
             }
 
-            // Wrap seeding of this organization aggregate in a transaction
-            using var transaction = await context.Database.BeginTransactionAsync();
+            // Wrap seeding of this organization aggregate in a transaction if none is active
+            var hasActiveTransaction = context.Database.CurrentTransaction != null;
+            var transaction = !hasActiveTransaction ? await context.Database.BeginTransactionAsync() : null;
             try
             {
                 logger.LogInformation($"[Seeder] Seeding public profile details for organization: '{org.Name}' ({orgDto.OrganizationSlug})");
@@ -161,12 +162,18 @@ public static class PublicWorkspaceSeeder
                     await moduleSeeder.SeedModuleAsync(org.Id, orgDto, context);
                 }
 
-                await transaction.CommitAsync();
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync();
+                }
                 logger.LogInformation($"[Seeder] Successfully completed seeding public profile aggregate for '{org.Name}'");
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                if (transaction != null)
+                {
+                    await transaction.RollbackAsync();
+                }
                 logger.LogError(ex, $"[Seeder Error] Seeding aggregate failed for organization '{org.Name}'. Rolled back changes.");
                 throw;
             }
