@@ -874,22 +874,21 @@ export default function CvManagementCenter() {
       return;
     }
 
+    const targetElement = (printPortal.firstElementChild || printPortal) as HTMLElement;
+
     setIsExportingPng(true);
     toast.success("Generating CV Image, please wait...");
 
     try {
       const { toPng } = await import('html-to-image');
 
-      const dataUrl = await toPng(printPortal, {
+      const dataUrl = await toPng(targetElement, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         style: {
-          position: 'relative',
-          top: '0',
-          left: '0',
           opacity: '1',
-          zIndex: '1',
+          visibility: 'visible',
         }
       });
 
