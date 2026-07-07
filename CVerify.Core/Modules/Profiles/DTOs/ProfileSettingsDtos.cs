@@ -50,6 +50,16 @@ public record UpdateProfileRequest(
 
     string? AiSuggestionsJson,
 
+    [MaxLength(50)]
+    string? CvTemplateId,
+
+    [MaxLength(50)]
+    string? CvThemeColor,
+
+    bool? IsCvPublished,
+
+    string? CvLayoutConfigJson,
+
     [Required]
     uint Version // Optimistic concurrency token (xmin)
 );
@@ -74,7 +84,11 @@ public record ProfileResponse(
     DateTimeOffset UpdatedAt,
     uint Version,
     string? AiSuggestionsJson,
-    List<string> SocialLinks
+    List<string> SocialLinks,
+    string? CvTemplateId,
+    string? CvThemeColor,
+    bool IsCvPublished,
+    string? CvLayoutConfigJson
 );
 
 public record UpdateUsernameRequest(

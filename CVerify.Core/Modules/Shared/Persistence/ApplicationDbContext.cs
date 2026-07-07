@@ -231,6 +231,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProjectEntry> ProjectEntries => Set<ProjectEntry>();
     public DbSet<ProjectRepositoryLink> ProjectRepositoryLinks => Set<ProjectRepositoryLink>();
     public DbSet<CvRepositoryMapping> CvRepositoryMappings => Set<CvRepositoryMapping>();
+    public DbSet<UserCvSetting> UserCvSettings => Set<UserCvSetting>();
     public DbSet<ProjectTechnology> ProjectTechnologies => Set<ProjectTechnology>();
     public DbSet<ProjectContribution> ProjectContributions => Set<ProjectContribution>();
 
@@ -268,6 +269,7 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<UserProfile>().Property(up => up.UserId).ValueGeneratedNever();
         modelBuilder.Entity<CareerPreference>().Property(cp => cp.UserId).ValueGeneratedNever();
+        modelBuilder.Entity<UserCvSetting>().Property(ucs => ucs.UserId).ValueGeneratedNever();
         modelBuilder.Entity<AiInferredPreference>().Property(ap => ap.UserId).ValueGeneratedNever();
         modelBuilder.Entity<UserSkill>().Property(us => us.Id).ValueGeneratedNever();
         modelBuilder.Entity<EducationEntry>().Property(ee => ee.Id).ValueGeneratedNever();

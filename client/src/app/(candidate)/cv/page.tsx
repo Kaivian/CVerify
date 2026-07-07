@@ -11,6 +11,7 @@ import {
   ProgressBar,
   Chip,
   Dropdown,
+  Switch,
 } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import {
@@ -331,16 +332,88 @@ export default function CvManagementCenter() {
   const [isA4PreviewOpen, setIsA4PreviewOpen] = useState(false);
   const [useSampleData, setUseSampleData] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("professional");
+  const [isCvPublished, setIsCvPublished] = useState<boolean>(true);
 
-  // Load persisted template selection on mount
+  // Sync with profile from DB once loaded
   useEffect(() => {
-    const meta = cvMetadataService.getMetadata();
-    setSelectedTemplate(meta.templateId);
-  }, []);
+    if (profile) {
+      if (profile.cvTemplateId) {
+        setSelectedTemplate(profile.cvTemplateId);
+      }
+      setIsCvPublished(profile.isCvPublished ?? true);
+    }
+  }, [profile]);
 
-  const handleTemplateChange = (templateId: string) => {
+  const handleTemplateChange = async (templateId: string) => {
     setSelectedTemplate(templateId);
     cvMetadataService.saveMetadata("default", { templateId, templateVersion: 1 });
+    if (profile) {
+      try {
+        await updateProfile({
+          fullName: profile.fullName || null,
+          bio: profile.bio || null,
+          location: profile.location || null,
+          phoneNumber: profile.phoneNumber || null,
+          birthDate: profile.birthDate || null,
+          headline: profile.headline || null,
+          company: profile.company || null,
+          pronouns: profile.pronouns || null,
+          customPronouns: profile.customPronouns || null,
+          publicEmail: profile.publicEmail || null,
+          profileVisibility: profile.profileVisibility || "public",
+          recruiterVisibility: profile.recruiterVisibility ?? true,
+          aiTalentDiscovery: profile.aiTalentDiscovery || "disabled",
+          socialLinks: profile.socialLinks || [],
+          aiSuggestionsJson: profile.aiSuggestionsJson || null,
+          version: profile.version || 0,
+          cvTemplateId: templateId,
+          cvThemeColor: profile.cvThemeColor || null,
+          isCvPublished: isCvPublished,
+          cvLayoutConfigJson: profile.cvLayoutConfigJson || null,
+        });
+        toast.success("Template preference saved to profile!");
+        await refreshProfile();
+      } catch (err) {
+        console.error("Failed to sync template change to database:", err);
+      }
+    }
+  };
+
+  const handlePublishToggle = async () => {
+    const nextPublished = !isCvPublished;
+    setIsCvPublished(nextPublished);
+    if (profile) {
+      try {
+        await updateProfile({
+          fullName: profile.fullName || null,
+          bio: profile.bio || null,
+          location: profile.location || null,
+          phoneNumber: profile.phoneNumber || null,
+          birthDate: profile.birthDate || null,
+          headline: profile.headline || null,
+          company: profile.company || null,
+          pronouns: profile.pronouns || null,
+          customPronouns: profile.customPronouns || null,
+          publicEmail: profile.publicEmail || null,
+          profileVisibility: profile.profileVisibility || "public",
+          recruiterVisibility: profile.recruiterVisibility ?? true,
+          aiTalentDiscovery: profile.aiTalentDiscovery || "disabled",
+          socialLinks: profile.socialLinks || [],
+          aiSuggestionsJson: profile.aiSuggestionsJson || null,
+          version: profile.version || 0,
+          cvTemplateId: selectedTemplate,
+          cvThemeColor: profile.cvThemeColor || null,
+          isCvPublished: nextPublished,
+          cvLayoutConfigJson: profile.cvLayoutConfigJson || null,
+        });
+        toast.success(nextPublished ? "CV published to your public profile page!" : "CV unpublished from your public profile page.");
+        await refreshProfile();
+      } catch (err) {
+        console.error("Failed to sync CV publish status to database:", err);
+        setIsCvPublished(!nextPublished); // Revert state on error
+        toast.danger("Failed to update CV visibility in database.");
+      }
+    }
   };
 
 
@@ -2510,8 +2583,17 @@ export default function CvManagementCenter() {
                     <ActiveIcon className="size-4.5" />
                   </div>
                   <div className="flex flex-col gap-0.5 min-w-0">
-                    <h3 className="font-extrabold text-sm text-foreground tracking-tight uppercase truncate">
+                    <h3 className="font-extrabold text-sm text-foreground tracking-tight uppercase truncate flex items-center gap-2">
                       {activeTabName}
+                      {editorMode === "preview" && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                          isCvPublished 
+                            ? "bg-success/15 text-success border border-success/20" 
+                            : "bg-muted-foreground/15 text-muted-foreground border border-muted-foreground/20"
+                        }`}>
+                          {isCvPublished ? "Published" : "Draft"}
+                        </span>
+                      )}
                     </h3>
                     <p className="text-[10px] text-muted-foreground/80 leading-none truncate">
                       {editorMode === "edit"
@@ -2524,17 +2606,15 @@ export default function CvManagementCenter() {
                 <div className="flex items-center gap-3 shrink-0 ml-auto">
                   {editorMode === "preview" && (
                     <Dropdown>
-                      <Dropdown.Trigger>
-                        <Button
-                          variant="outline"
-                          className="rounded-xl text-xs"
-                          size="lg"
-                        >
-                          <Sliders className="size-3.5 shrink-0" />
-                          <span>Actions</span>
-                          <ChevronDown className="size-3 shrink-0 opacity-60" />
-                        </Button>
-                      </Dropdown.Trigger>
+                      <Button
+                        variant="outline"
+                        className="rounded-xl text-xs"
+                        size="lg"
+                      >
+                        <Sliders className="size-3.5 shrink-0" />
+                        <span>Actions</span>
+                        <ChevronDown className="size-3 shrink-0 opacity-60" />
+                      </Button>
                       <Dropdown.Popover
                         placement="bottom end"
                         className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[275px] z-50 font-outfit"
@@ -2583,6 +2663,29 @@ export default function CvManagementCenter() {
                               <Eye className="size-3.5 text-muted shrink-0" />
                               <span>View A4</span>
                             </div>
+                          </Dropdown.Item>
+
+                          <Dropdown.Item
+                            id="publish-toggle"
+                            textValue="Publish CV to Profile"
+                            onClick={handlePublishToggle}
+                            className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Eye className="size-3.5 text-muted shrink-0" />
+                              <span>Publish CV to Profile</span>
+                            </div>
+                            <Switch
+                              isSelected={isCvPublished}
+                              aria-label="Toggle CV publication"
+                              className="pointer-events-none"
+                            >
+                              {({ isSelected }) => (
+                                <Switch.Control>
+                                  <Switch.Thumb />
+                                </Switch.Control>
+                              )}
+                            </Switch>
                           </Dropdown.Item>
 
                           <Dropdown.SubmenuTrigger>

@@ -20,7 +20,14 @@ public record PublicCareerPreferenceDto(
     string? ExpectedSalaryType,
     bool ExpectedSalaryNegotiable,
     bool IsExpectedSalaryVisible,
-    string? WorkPreferenceNotes
+    string? WorkPreferenceNotes,
+    List<string> TargetSkills,
+    string OpenToWorkStatus,
+    string RemotePreference,
+    bool OpenToRelocation,
+    string LeadershipTrack,
+    List<string> CompanyStagePreferences,
+    List<string> PreferredIndustries
 );
 
 public record PublicRepositoryDto(
@@ -81,5 +88,10 @@ public record PublicProfileResponse(
     List<AcademicAchievementResponse>? Achievements = null,
     bool HasCompletedAssessment = false,
     DateTimeOffset? LastAssessmentDate = null,
-    List<JobVacancyDto>? Vacancies = null
+    List<JobVacancyDto>? Vacancies = null,
+    string? CvTemplateId = null,
+    string? CvThemeColor = null,
+    bool IsCvPublished = true,
+    string? CvLayoutConfigJson = null,
+    string? AiSuggestionsJson = null
 );

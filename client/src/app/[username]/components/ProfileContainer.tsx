@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Compass, Briefcase, MapPin, Link as LinkIcon, ShieldCheck, GraduationCap, Award } from 'lucide-react';
+import { Compass, Briefcase, MapPin, Link as LinkIcon, ShieldCheck, GraduationCap, Award, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button, Tabs } from '@heroui/react';
 import { type PublicProfileResponse, type CandidateAssessmentDetailResponse } from '@/types/profile.types';
+import { CVPreview } from '@/app/(candidate)/cv/components/CVPreview';
+import { mapPublicProfileToCvProps } from '@/app/(candidate)/cv/utils/cvMapper';
 import {
   normalizeScore,
   getVerifiedSkills,
@@ -24,7 +26,7 @@ interface ProfileContainerProps {
   username: string;
 }
 
-type TabId = 'overview' | 'assessment' | 'opportunities';
+type TabId = 'overview' | 'assessment' | 'opportunities' | 'cv';
 
 export function ProfileContainer({ profile, assessment, username: _username }: ProfileContainerProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -286,6 +288,10 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                 </Tabs.Tab>
                 <Tabs.Tab id="assessment" className="pb-2 font-bold text-sm cursor-pointer select-none">
                   AI Suggested Assessment
+                  <Tabs.Indicator className="bottom-0" />
+                </Tabs.Tab>
+                <Tabs.Tab id="cv" className="pb-2 font-bold text-sm cursor-pointer select-none">
+                  CV
                   <Tabs.Indicator className="bottom-0" />
                 </Tabs.Tab>
                 {profile.vacancies && profile.vacancies.length > 0 && (
@@ -885,6 +891,27 @@ export function ProfileContainer({ profile, assessment, username: _username }: P
                 </div>
               </Tabs.Panel>
             )}
+
+            {/* Tab 4: CV Panel */}
+            <Tabs.Panel id="cv" className="pt-6 font-outfit text-left">
+              {profile.isCvPublished ? (
+                <div className="flex flex-col items-center justify-start w-full gap-4 mt-2">
+                  <div className="w-full overflow-x-auto p-4 md:p-8 bg-surface-secondary/20 border border-border/80 rounded-2xl flex justify-center items-start">
+                    <div className="shadow-lg border border-border rounded-lg overflow-hidden bg-card shrink-0" style={{ width: "794px" }}>
+                      <CVPreview {...mapPublicProfileToCvProps(profile)} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-12 border border-dashed border-border rounded-xl text-center max-w-lg mx-auto gap-4 mt-6 select-none">
+                  <EyeOff className="size-12 text-muted/40" />
+                  <h3 className="text-base font-bold text-foreground">CV Unpublished</h3>
+                  <p className="text-xs text-muted leading-relaxed">
+                    This candidate has not published their CV to their public profile.
+                  </p>
+                </div>
+              )}
+            </Tabs.Panel>
           </Tabs>
 
         </div>
