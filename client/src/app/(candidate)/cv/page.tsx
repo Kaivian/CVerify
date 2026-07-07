@@ -703,25 +703,21 @@ export default function CvManagementCenter() {
     }
   };
 
-  const isVietnameseText = (text: string): boolean => {
-    if (!text) return false;
-    const viRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
-    return viRegex.test(text);
+  const formatMonthYear = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return "";
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${month}/${year}`;
+    } catch {
+      return dateStr;
+    }
   };
 
   const handleDownloadMarkdown = () => {
-    const bioText = activeProfile?.bio || "";
-    const isVi = isVietnameseText(bioText) || isVietnameseText(activeProfile?.fullName || "");
-
-    const labels = isVi ? {
-      summary: "Tóm tắt Cá nhân",
-      skills: "Kỹ năng Cốt lõi",
-      experience: "Kinh nghiệm Làm việc",
-      projects: "Dự án Liên kết",
-      education: "Học vấn",
-      achievements: "Thành tích & Chứng chỉ",
-      preferences: "Nguyện vọng Nghề nghiệp",
-    } : {
+    const labels = {
       summary: "Professional Summary",
       skills: "Core Skills",
       experience: "Work Experience",
@@ -763,8 +759,11 @@ export default function CvManagementCenter() {
     if (activeExp && activeExp.length > 0) {
       md += `## ${labels.experience}\n`;
       activeExp.forEach((exp: any) => {
-        const dateStr = exp.startDate ? `${exp.startDate} - ${exp.endDate || "Present"}` : "";
-        md += `### ${exp.companyName} - ${exp.jobTitle} (${dateStr})\n`;
+        const start = formatMonthYear(exp.startDate);
+        const end = exp.isCurrentlyWorking ? "Present" : formatMonthYear(exp.endDate);
+        const dateStr = start && end ? `(${start} - ${end})` : (start || end ? `(${start || end})` : "");
+        const company = exp.company || exp.companyName || "";
+        md += `### ${company}${exp.jobTitle ? ` - ${exp.jobTitle}` : ""} ${dateStr}\n`;
         if (exp.description) md += `${exp.description}\n`;
         md += `\n`;
       });
@@ -773,8 +772,11 @@ export default function CvManagementCenter() {
     if (activeProjects && activeProjects.length > 0) {
       md += `## ${labels.projects}\n`;
       activeProjects.forEach((proj: any) => {
-        const dateStr = proj.startDate ? `${proj.startDate} - ${proj.endDate || "Present"}` : "";
-        md += `### ${proj.projectName} - ${proj.role} (${dateStr})\n`;
+        const start = formatMonthYear(proj.startDate);
+        const end = proj.isCurrentlyWorking ? "Present" : formatMonthYear(proj.endDate);
+        const dateStr = start && end ? `(${start} - ${end})` : (start || end ? `(${start || end})` : "");
+        const projName = proj.name || proj.projectName || "";
+        md += `### ${projName}${proj.role ? ` - ${proj.role}` : ""} ${dateStr}\n`;
         if (proj.description) md += `${proj.description}\n`;
         md += `\n`;
       });
@@ -783,9 +785,19 @@ export default function CvManagementCenter() {
     if (activeEdu && activeEdu.length > 0) {
       md += `## ${labels.education}\n`;
       activeEdu.forEach((edu: any) => {
-        const dateStr = edu.startDate ? `${edu.startDate} - ${edu.endDate || "Present"}` : "";
-        md += `### ${edu.schoolName} (${dateStr})\n`;
-        md += `**${edu.label}**\n`;
+        const schoolName = edu.school || edu.schoolName || "";
+        const startDate = edu.startDate || edu.period?.start || "";
+        const endDate = edu.endDate || edu.period?.end || "";
+        const start = formatMonthYear(startDate);
+        const end = edu.isCurrentlyStudying ? "Present" : formatMonthYear(endDate);
+        const dateStr = start && end ? `(${start} - ${end})` : (start || end ? `(${start || end})` : "");
+        md += `### ${schoolName}${edu.label ? ` - ${edu.label}` : ""} ${dateStr}\n`;
+        const degreeDetails = [];
+        if (edu.degree) degreeDetails.push(edu.degree);
+        if (edu.major) degreeDetails.push(edu.major);
+        if (degreeDetails.length > 0) {
+          md += `**${degreeDetails.join(" - ")}**\n`;
+        }
         if (edu.gpa) md += `GPA: ${edu.gpa}/${edu.gpaScale || 4.0}\n`;
         if (edu.description) md += `${edu.description}\n`;
         md += `\n`;
@@ -795,7 +807,7 @@ export default function CvManagementCenter() {
     if (activeAch && activeAch.length > 0) {
       md += `## ${labels.achievements}\n`;
       activeAch.forEach((ach: any) => {
-        const dateStr = ach.date ? `(${ach.date})` : "";
+        const dateStr = ach.issueDate ? `(${formatMonthYear(ach.issueDate)})` : "";
         md += `### ${ach.title} ${dateStr}\n`;
         if (ach.issuer) md += `*Issuer: ${ach.issuer}*\n`;
         if (ach.description) md += `${ach.description}\n`;
@@ -803,14 +815,47 @@ export default function CvManagementCenter() {
       });
     }
 
-    if (activePreferences?.desiredJobPositions && activePreferences.desiredJobPositions.length > 0) {
+    const pref = activePreferences;
+    const hasPreferences =
+      pref?.openToWorkStatus ||
+      (pref?.desiredJobPositions && pref.desiredJobPositions.length > 0) ||
+      pref?.expectedSalaryMin ||
+      pref?.remotePreference ||
+      (pref?.preferredLocations && pref.preferredLocations.length > 0) ||
+      (pref?.employmentPreferences && pref.employmentPreferences.length > 0);
+
+    if (hasPreferences) {
       md += `## ${labels.preferences}\n`;
-      md += `- Job Positions: ${activePreferences.desiredJobPositions.join(", ")}\n`;
-      if (activePreferences.preferredLocations && activePreferences.preferredLocations.length > 0) {
-        md += `- Preferred Locations: ${activePreferences.preferredLocations.join(", ")}\n`;
+      if (pref.openToWorkStatus) {
+        const statusStr = pref.openToWorkStatus === "active" ? "Active Job Search" : pref.openToWorkStatus === "casual" ? "Casual Browsing" : "Not Open to Work";
+        md += `- Job Search Status: ${statusStr}\n`;
       }
-      if (activePreferences.employmentPreferences && activePreferences.employmentPreferences.length > 0) {
-        md += `- Employment Preferences: ${activePreferences.employmentPreferences.join(", ")}\n`;
+      if (pref.desiredJobPositions && pref.desiredJobPositions.length > 0) {
+        md += `- Target Roles: ${pref.desiredJobPositions.join(", ")}\n`;
+      }
+      if (pref.expectedSalaryMin || pref.expectedSalaryMax) {
+        const salStr = pref.expectedSalaryNegotiable ? "Negotiable" : `${pref.expectedSalaryMin?.toLocaleString() || "0"} - ${pref.expectedSalaryMax?.toLocaleString() || "Any"} ${pref.expectedSalaryCurrency || "USD"} (${pref.expectedSalaryType || "Monthly"})`;
+        md += `- Expected Salary: ${salStr}\n`;
+      }
+      if (pref.remotePreference) {
+        md += `- Work Arrangement: ${pref.remotePreference}\n`;
+      }
+      if (pref.preferredLocations && pref.preferredLocations.length > 0) {
+        md += `- Desired Locations: ${pref.preferredLocations.join(", ")}\n`;
+      }
+      if (pref.employmentPreferences && pref.employmentPreferences.length > 0) {
+        md += `- Employment Preferences: ${pref.employmentPreferences.join(", ")}\n`;
+      }
+      if (pref.preferredLanguage) {
+        const langStr = pref.preferredLanguage === "en" ? "English" : pref.preferredLanguage === "vi" ? "Vietnamese" : pref.preferredLanguage === "ja" ? "Japanese" : pref.preferredLanguage === "ko" ? "Korean" : pref.preferredLanguage === "zh" ? "Chinese" : pref.preferredLanguage;
+        md += `- Spoken Language: ${langStr}\n`;
+      }
+      if (pref.leadershipTrack && pref.leadershipTrack !== "undecided") {
+        const leadStr = pref.leadershipTrack === "management" ? "Engineering Management" : "Individual Contributor";
+        md += `- Leadership Track: ${leadStr}\n`;
+      }
+      if (pref.workPreferenceNotes) {
+        md += `- Notes: *${pref.workPreferenceNotes}*\n`;
       }
     }
 
