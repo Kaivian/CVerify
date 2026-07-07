@@ -10,6 +10,7 @@ import {
   toast,
   ProgressBar,
   Chip,
+  Dropdown,
 } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import {
@@ -21,6 +22,7 @@ import {
   FileDown,
   Sparkles,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
   Printer,
   FolderCode,
@@ -39,6 +41,8 @@ import {
   ExternalLink,
   Share2,
   ShieldCheck,
+  FileImage,
+  FileJson,
 } from "lucide-react";
 
 import { useProfile } from "@/hooks/use-profile";
@@ -300,11 +304,10 @@ export default function CvManagementCenter() {
     } else {
       setViewState("overview");
     }
-  }
-  const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
+  }  const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
   const [isSaving, setIsSaving] = useState(false);
+  const [isExportingPng, setIsExportingPng] = useState(false);
   const [mobileShowPreview, setMobileShowPreview] = useState(false);
-
   // Dynamic Data hooks
   const { profile, isLoading: isProfileLoading, updateProfile, updateUsername, refreshProfile } = useProfile();
   const { career, isLoading: isCareerLoading, updateCareer, refreshCareer } = useCareerPreferences();
@@ -854,11 +857,7 @@ export default function CvManagementCenter() {
         const leadStr = pref.leadershipTrack === "management" ? "Engineering Management" : "Individual Contributor";
         md += `- Leadership Track: ${leadStr}\n`;
       }
-      if (pref.workPreferenceNotes) {
-        md += `- Notes: *${pref.workPreferenceNotes}*\n`;
-      }
     }
-
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -868,7 +867,62 @@ export default function CvManagementCenter() {
     URL.revokeObjectURL(url);
   };
 
-  const isLoading = isProfileLoading || isCareerLoading || isEduLoading || isWorkLoading || isAchLoading || isProjLoading;
+  const handleDownloadPng = async () => {
+    const printPortal = document.querySelector('.cv-print-portal') as HTMLElement;
+    if (!printPortal) {
+      toast.danger("CV preview element not found. Please wait until the page is fully loaded.");
+      return;
+    }
+
+    setIsExportingPng(true);
+    toast.success("Generating CV Image, please wait...");
+
+    try {
+      const { toPng } = await import('html-to-image');
+
+      const dataUrl = await toPng(printPortal, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        style: {
+          position: 'relative',
+          top: '0',
+          left: '0',
+          opacity: '1',
+          zIndex: '1',
+        }
+      });
+
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `CV_${(activeProfile?.fullName || "Resume").replace(/\s+/g, "_")}.png`;
+      a.click();
+    } catch (err) {
+      console.error("Failed to generate image:", err);
+      toast.danger("Failed to export as Image. Please try PDF print instead.");
+    } finally {
+      setIsExportingPng(false);
+    }
+  };
+
+  const handleDownloadJson = () => {
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(drafts, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `CV_${(activeProfile?.fullName || "Resume").replace(/\s+/g, "_")}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      toast.success("CV backup downloaded as JSON successfully!");
+    } catch (err) {
+      console.error("Failed to download JSON:", err);
+      toast.danger("Failed to export as JSON.");
+    }
+  };
+
+  const isLoading =
+    isProfileLoading || isCareerLoading || isEduLoading || isWorkLoading || isAchLoading || isProjLoading;
 
   if (isLoading) {
     return (
@@ -2402,20 +2456,73 @@ export default function CvManagementCenter() {
                       >
                         View A4
                       </button>
-                      <button
-                        onClick={handlePrint}
-                        className="text-[10px] bg-surface-secondary text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-border/40 hover:bg-surface-secondary/80 outline-none transition-colors select-none flex items-center gap-1.5"
-                      >
-                        <Printer className="size-3" />
-                        PDF
-                      </button>
-                      <button
-                        onClick={handleDownloadMarkdown}
-                        className="text-[10px] bg-surface-secondary text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-border/40 hover:bg-surface-secondary/80 outline-none transition-colors select-none flex items-center gap-1.5"
-                      >
-                        <FileDown className="size-3" />
-                        Markdown
-                      </button>
+                      <Dropdown>
+                        <Dropdown.Trigger>
+                          <button
+                            disabled={isExportingPng}
+                            className="text-[10px] bg-surface-secondary text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-border/40 hover:bg-surface-secondary/80 outline-none transition-colors select-none flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isExportingPng ? (
+                              <>
+                                <Spinner size="sm" color="current" className="size-3" />
+                                <span>Exporting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>Export</span>
+                                <ChevronDown className="size-3" />
+                              </>
+                            )}
+                          </button>
+                        </Dropdown.Trigger>
+                        <Dropdown.Popover
+                          placement="bottom end"
+                          className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[150px] animate-in fade-in duration-100 z-50 font-outfit"
+                        >
+                          <Dropdown.Menu aria-label="Export Formats">
+                            <Dropdown.Item
+                              key="pdf"
+                              onClick={handlePrint}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <Printer className="size-3.5 text-muted shrink-0" />
+                                <span>PDF (.pdf)</span>
+                              </div>
+                            </Dropdown.Item>
+                            <Dropdown.Item
+                              key="markdown"
+                              onClick={handleDownloadMarkdown}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <FileDown className="size-3.5 text-muted shrink-0" />
+                                <span>Markdown (.md)</span>
+                              </div>
+                            </Dropdown.Item>
+                            <Dropdown.Item
+                              key="image"
+                              onClick={handleDownloadPng}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <FileImage className="size-3.5 text-muted shrink-0" />
+                                <span>Image (.png)</span>
+                              </div>
+                            </Dropdown.Item>
+                            <Dropdown.Item
+                              key="json"
+                              onClick={handleDownloadJson}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <FileJson className="size-3.5 text-muted shrink-0" />
+                                <span>JSON (.json)</span>
+                              </div>
+                            </Dropdown.Item>
+                          </Dropdown.Menu>
+                        </Dropdown.Popover>
+                      </Dropdown>
                     </div>
                   )}
                   <div className="flex items-center bg-surface-secondary/60 p-0.5 rounded-xl border border-border/20">
@@ -2576,24 +2683,75 @@ export default function CvManagementCenter() {
                 >
                   {useSampleData ? "Clear Sample Data" : "Load Sample Data"}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-xl text-[10px] font-bold select-none border-border/30 flex items-center gap-1.5"
-                  onPress={handlePrint}
-                >
-                  <Printer className="size-3.5" />
-                  <span>Print</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-xl text-[10px] font-bold select-none border-border/30 flex items-center gap-1.5"
-                  onPress={handleDownloadMarkdown}
-                >
-                  <FileDown className="size-3.5" />
-                  <span>Markdown</span>
-                </Button>
+                <Dropdown>
+                  <Dropdown.Trigger>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-xl text-[10px] font-bold select-none border-border/30 flex items-center gap-1.5"
+                      isDisabled={isExportingPng}
+                    >
+                      {isExportingPng ? (
+                        <>
+                          <Spinner size="sm" color="current" className="size-3" />
+                          <span>Exporting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Export</span>
+                          <ChevronDown className="size-3.5" />
+                        </>
+                      )}
+                    </Button>
+                  </Dropdown.Trigger>
+                  <Dropdown.Popover
+                    placement="bottom end"
+                    className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[150px] animate-in fade-in duration-100 z-50 font-outfit"
+                  >
+                    <Dropdown.Menu aria-label="Export Formats">
+                      <Dropdown.Item
+                        key="pdf"
+                        onClick={handlePrint}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <Printer className="size-3.5 text-muted shrink-0" />
+                          <span>PDF (.pdf)</span>
+                        </div>
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        key="markdown"
+                        onClick={handleDownloadMarkdown}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <FileDown className="size-3.5 text-muted shrink-0" />
+                          <span>Markdown (.md)</span>
+                        </div>
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        key="image"
+                        onClick={handleDownloadPng}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <FileImage className="size-3.5 text-muted shrink-0" />
+                          <span>Image (.png)</span>
+                        </div>
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        key="json"
+                        onClick={handleDownloadJson}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <FileJson className="size-3.5 text-muted shrink-0" />
+                          <span>JSON (.json)</span>
+                        </div>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
                 <Button
                   size="sm"
                   variant="secondary"
