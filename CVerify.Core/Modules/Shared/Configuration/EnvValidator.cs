@@ -7,6 +7,20 @@ public static class EnvValidator
 {
     public static EnvConfiguration Validate(IConfiguration configuration)
     {
+        // 0. Resolve and Register active Secret Provider
+        var providerType = Environment.GetEnvironmentVariable("SECRET_PROVIDER") ?? "LocalEnv";
+        SecretProvider.Active = providerType.Equals("Vault", StringComparison.OrdinalIgnoreCase)
+            ? new VaultSecretProvider(Environment.GetEnvironmentVariable("VAULT_NAME") ?? "ProductionVault")
+            : new LocalEnvSecretProvider();
+
+        // Production Lock Safety Guard
+        var cverifyEnv = Environment.GetEnvironmentVariable("CVERIFY_ENVIRONMENT") ?? configuration["ASPNETCORE_ENVIRONMENT"];
+        var prodUnlock = Environment.GetEnvironmentVariable("PRODUCTION_UNLOCK_CONFIRMATION");
+        if ("Production".Equals(cverifyEnv, StringComparison.OrdinalIgnoreCase) && !"true".Equals(prodUnlock, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Fatal: Production Lock safety triggered. PRODUCTION_UNLOCK_CONFIRMATION is not set to true in Production.");
+        }
+
         var config = new EnvConfiguration();
 
         // 1. Database

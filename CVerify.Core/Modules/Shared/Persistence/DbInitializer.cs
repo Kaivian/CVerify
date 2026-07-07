@@ -729,7 +729,14 @@ public static class DbInitializer
                  updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
              );
 
-
+             CREATE TABLE IF NOT EXISTS seeding_history (
+                 module_id VARCHAR(100) PRIMARY KEY,
+                 version VARCHAR(20) NOT NULL,
+                 environment_name VARCHAR(50) NOT NULL,
+                 applied_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
+                 duration_ms INTEGER NOT NULL,
+                 records_affected INTEGER NOT NULL
+             );
 
             -- Stores user roles for the Role-Based Access Control (RBAC) system
             CREATE TABLE IF NOT EXISTS roles (
