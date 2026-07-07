@@ -68,3 +68,6 @@ export interface PaginatedAuditLogsResponseDto {
   page: number;
   pageSize: number;
 }
+
+export type CreateOrganizationRoleDto = CreateBusinessRoleDto;
+export type OrganizationRoleDetailsDto = BusinessRoleDetailsDto;

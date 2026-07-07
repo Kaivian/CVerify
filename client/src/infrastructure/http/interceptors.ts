@@ -47,7 +47,7 @@ export function installAuthInterceptor(): void {
 
             if (isRefreshRequest && typeof window !== 'undefined') {
               const currentPath = window.location.pathname;
-              const isProtectedPage = ['/admin', '/business', '/user', '/chat', '/jobs', '/cv', '/settings', '/intelligence'].some(p => currentPath.startsWith(p));
+              const isProtectedPage = ['/admin', '/business', '/organization', '/user', '/chat', '/jobs', '/cv', '/settings', '/intelligence'].some(p => currentPath.startsWith(p));
 
               if (isProtectedPage) {
                 console.log(`[Auth Interceptor] Refresh token expired. Redirecting from: ${currentPath}`);

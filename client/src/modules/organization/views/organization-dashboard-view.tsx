@@ -9,14 +9,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   Building2, 
-  TrendingUp, 
   Plus, 
   Settings, 
   Bookmark, 
   Compass, 
-  Briefcase, 
-  Trophy,
-  Users,
   ShieldCheck,
   CreditCard,
   ArrowRight
@@ -24,7 +20,7 @@ import {
 import { Typography, Spinner } from "@heroui/react";
 import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 
-export function BusinessDashboardView() {
+export function OrganizationDashboardView() {
   const params = useParams();
   const router = useRouter();
   const organizationSlug = typeof params?.organizationSlug === "string" ? params.organizationSlug : "";
@@ -46,7 +42,7 @@ export function BusinessDashboardView() {
 
   const handleOpenWorkspace = (workspaceId: string) => {
     setActiveWorkspaceId(workspaceId);
-    router.push(`/business/${organizationSlug}/recruitment/dashboard`);
+    router.push(`/organization/${organizationSlug}/recruitment/dashboard`);
   };
 
   if (isDetailsLoading) {
@@ -211,28 +207,28 @@ export function BusinessDashboardView() {
             </Typography>
             <div className="flex flex-col gap-2.5">
               <Button
-                onClick={() => router.push(`/business/${organizationSlug}/intelligence`)}
+                onClick={() => router.push(`/organization/${organizationSlug}/intelligence`)}
                 className="w-full justify-start text-xs font-bold h-10 px-3 bg-surface-secondary/40 hover:bg-surface-secondary/80 border border-border text-foreground rounded-xl flex items-center gap-2.5 cursor-pointer text-left"
               >
                 <Compass size={16} className="text-accent shrink-0" />
                 Global Candidate Search
               </Button>
               <Button
-                onClick={() => router.push(`/business/${organizationSlug}/billing`)}
+                onClick={() => router.push(`/organization/${organizationSlug}/billing`)}
                 className="w-full justify-start text-xs font-bold h-10 px-3 bg-surface-secondary/40 hover:bg-surface-secondary/80 border border-border text-foreground rounded-xl flex items-center gap-2.5 cursor-pointer text-left"
               >
                 <CreditCard size={16} className="text-accent shrink-0" />
                 Subscription & Billing
               </Button>
               <Button
-                onClick={() => router.push(`/business/${organizationSlug}/verification`)}
+                onClick={() => router.push(`/organization/${organizationSlug}/verification`)}
                 className="w-full justify-start text-xs font-bold h-10 px-3 bg-surface-secondary/40 hover:bg-surface-secondary/80 border border-border text-foreground rounded-xl flex items-center gap-2.5 cursor-pointer text-left"
               >
                 <ShieldCheck size={16} className="text-accent shrink-0" />
                 Legal Verification Status
               </Button>
               <Button
-                onClick={() => router.push(`/business/${organizationSlug}/settings`)}
+                onClick={() => router.push(`/organization/${organizationSlug}/settings`)}
                 className="w-full justify-start text-xs font-bold h-10 px-3 bg-surface-secondary/40 hover:bg-surface-secondary/80 border border-border text-foreground rounded-xl flex items-center gap-2.5 cursor-pointer text-left"
               >
                 <Settings size={16} className="text-accent shrink-0" />

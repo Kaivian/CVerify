@@ -456,3 +456,5 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
   }
 }));
+
+export const useOrganizationStore = useWorkspaceStore;

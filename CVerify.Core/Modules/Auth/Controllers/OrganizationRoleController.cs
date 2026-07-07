@@ -16,15 +16,15 @@ namespace CVerify.API.Modules.Auth.Controllers;
 [ApiController]
 [Route("api/organizations/{orgSlug}/roles")]
 [Authorize]
-public class BusinessRoleController : ControllerBase
+public class OrganizationRoleController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly IBusinessRoleService _roleService;
+    private readonly IOrganizationRoleService _roleService;
     private readonly IOrganizationAuthorizationService _authService;
 
-    public BusinessRoleController(
+    public OrganizationRoleController(
         ApplicationDbContext context,
-        IBusinessRoleService roleService,
+        IOrganizationRoleService roleService,
         IOrganizationAuthorizationService authService)
     {
         _context = context;
@@ -48,17 +48,18 @@ public class BusinessRoleController : ControllerBase
             return (Guid.Empty, null, NotFound(new { message = "Organization not found" }));
         }
 
-        // Check platform actor type
+        // Check platform actor type (backward compatible with "business" and "organization")
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             if (org.Id != userId)
             {
                 return (Guid.Empty, null, Forbid());
             }
-            // Actor is the business account itself, so actorUserId is null.
+            // Actor is the organization/business account itself, so actorUserId is null.
             return (org.Id, null, null);
         }
         else
@@ -74,7 +75,7 @@ public class BusinessRoleController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(List<BusinessRoleDetailsDto>))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(List<OrganizationRoleDetailsDto>))]
     public async Task<IActionResult> GetRoles(string orgSlug, CancellationToken cancellationToken)
     {
         var (orgId, _, error) = await ValidateAndResolveAsync(orgSlug, "organization:roles:view");
@@ -86,7 +87,7 @@ public class BusinessRoleController : ControllerBase
 
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Guid))]
-    public async Task<IActionResult> CreateRole(string orgSlug, [FromBody] CreateBusinessRoleDto dto, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateRole(string orgSlug, [FromBody] CreateOrganizationRoleDto dto, CancellationToken cancellationToken)
     {
         var (orgId, actorUserId, error) = await ValidateAndResolveAsync(orgSlug, "organization:roles:manage");
         if (error != null) return error;
@@ -97,7 +98,7 @@ public class BusinessRoleController : ControllerBase
 
     [HttpPut("{roleId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> UpdateRole(string orgSlug, Guid roleId, [FromBody] CreateBusinessRoleDto dto, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateRole(string orgSlug, Guid roleId, [FromBody] CreateOrganizationRoleDto dto, CancellationToken cancellationToken)
     {
         var (orgId, actorUserId, error) = await ValidateAndResolveAsync(orgSlug, "organization:roles:manage");
         if (error != null) return error;
@@ -177,5 +178,19 @@ public class BusinessRoleController : ControllerBase
 
         var permissions = await _roleService.GetAvailablePermissionsAsync(cancellationToken);
         return Ok(permissions);
+    }
+}
+
+[Obsolete("Use OrganizationRoleController instead")]
+[ApiController]
+[Route("api/business/{orgSlug}/roles")]
+[Authorize]
+public class BusinessRoleController : OrganizationRoleController
+{
+    public BusinessRoleController(
+        ApplicationDbContext context,
+        IOrganizationRoleService roleService,
+        IOrganizationAuthorizationService authService) : base(context, roleService, authService)
+    {
     }
 }

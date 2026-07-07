@@ -61,8 +61,8 @@
     "roles": {
       "userTitle": "Traveler (USER)",
       "userDesc": "Standard traveler dashboard giving full access to planning, searching prompts, and reviewing personal travel history details.",
-      "businessTitle": "Service Partner (BUSINESS)",
-      "businessDesc": "Partner dashboard to manage hotel packages, list excursions, and evaluate incoming travelers reservation revenue pools.",
+      "businessTitle": "Enterprise & Workspace (ORGANIZATION)",
+      "businessDesc": "Organization dashboard to manage hiring workspaces, candidate assessments, and member role configurations.",
       "adminTitle": "System Admin (ADMIN)",
       "adminDesc": "Global system control dashboard offering server health diagnostic analytics, account registries, and direct API lock gates."
     },
@@ -78,7 +78,7 @@
     "sections": {
       "general": "General",
       "candidate": "Candidate",
-      "business": "Business"
+      "business": "Organization"
     },
     "jobBoard": "Job Board",
     "ranking": "Leaderboard",
@@ -88,7 +88,7 @@
     "appliedJobs": "Applied",
     "cv": "My CV",
     "candidateDashboard": "Candidate Dashboard",
-    "businessDashboard": "Business Dashboard"
+    "businessDashboard": "Organization Dashboard"
   },
   "admin": {
     "dashboard": "Admin",

@@ -35,9 +35,9 @@ public interface IAuthService
     Task<AuthResponse> CreatePasswordAsync(CreatePasswordRequest request, CancellationToken cancellationToken = default);
 
     // Company verification & workspace contracts
-    Task<bool> RegisterCompanyAsync(RegisterCompanyRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default);
-    Task<VerifyCompanyLinkResponse> VerifyCompanyLinkAsync(VerifyCompanyLinkRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default);
-    Task<AuthResponse?> CompanyLoginAsync(OrganizationLoginRequest request, string userAgent, string ipAddress);
+    Task<bool> RegisterOrganizationAsync(RegisterOrganizationRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default);
+    Task<VerifyOrganizationLinkResponse> VerifyOrganizationLinkAsync(VerifyOrganizationLinkRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default);
+    Task<AuthResponse?> OrganizationLoginAsync(OrganizationLoginRequest request, string userAgent, string ipAddress);
 
     Task ClaimPendingRelationshipsAsync(Guid userId);
 

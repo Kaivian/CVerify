@@ -9,12 +9,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Auth.DTOs;
-using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.Auth.Services;
 using CVerify.API.Modules.Shared.Domain.Entities;
-using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security.Authorization;
+using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.Shared.Storage.Constants;
 using CVerify.API.Modules.Shared.Storage.Enums;
 using CVerify.API.Modules.Shared.Storage.Interfaces;
@@ -22,15 +21,15 @@ using CVerify.API.Modules.Shared.Storage.Interfaces;
 namespace CVerify.API.Modules.Auth.Controllers;
 
 [ApiController]
-[Route("api/workspace")]
+[Route("api/organizations")]
 [Authorize]
-public class WorkspaceController : ControllerBase
+public class OrganizationController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IOrganizationAuthorizationService _authorizationService;
     private readonly IStorageService _storageService;
 
-    public WorkspaceController(
+    public OrganizationController(
         ApplicationDbContext context,
         IOrganizationAuthorizationService authorizationService,
         IStorageService storageService)
@@ -52,10 +51,10 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             var org = await _context.Organizations
                 .FirstOrDefaultAsync(o => o.Id == userId && o.DeletedAt == null);
@@ -75,13 +74,14 @@ public class WorkspaceController : ControllerBase
         return Ok(orgs);
     }
 
-    [HttpGet("organizations")]
+    [HttpGet]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaginatedOrganizationsResponseDto))]
     public async Task<IActionResult> GetOrganizationsList(
         [FromQuery] string? search = null,
         [FromQuery] string? industry = null,
-        [FromQuery] string? companySize = null,
+        [FromQuery] string? organizationSize = null,
+        [FromQuery] string? companySize = null, // fallback
         [FromQuery] bool? isVerified = null,
         [FromQuery] string? location = null,
         [FromQuery] string? sortBy = "recently_updated",
@@ -110,9 +110,10 @@ public class WorkspaceController : ControllerBase
             query = query.Where(o => o.IndustryTags.Any(t => t.ToLower() == industryLower));
         }
 
-        if (!string.IsNullOrWhiteSpace(companySize))
+        var targetSize = organizationSize ?? companySize;
+        if (!string.IsNullOrWhiteSpace(targetSize))
         {
-            query = query.Where(o => o.CompanySize == companySize);
+            query = query.Where(o => o.OrganizationSize == targetSize);
         }
 
         if (isVerified.HasValue)
@@ -188,8 +189,8 @@ public class WorkspaceController : ControllerBase
                 signedLogoUrl,
                 signedBannerUrl,
                 item.Organization.Description,
-                item.Organization.CompanyType,
-                item.Organization.CompanySize,
+                item.Organization.OrganizationType,
+                item.Organization.OrganizationSize,
                 item.Organization.City,
                 item.Organization.Website,
                 item.Organization.IndustryTags ?? new List<string>(),
@@ -209,7 +210,7 @@ public class WorkspaceController : ControllerBase
         return Ok(new PaginatedOrganizationsResponseDto(dtoList, totalCount, page, pageSize));
     }
 
-    [HttpGet("organizations/stats")]
+    [HttpGet("stats")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(OrganizationStatsDto))]
     public async Task<IActionResult> GetOrganizationsStats(CancellationToken cancellationToken)
@@ -231,9 +232,9 @@ public class WorkspaceController : ControllerBase
 
     [HttpGet("{organizationSlug}")]
     [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(WorkspaceDetailsDto))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(OrganizationDetailsDto))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetWorkspaceDetails(string organizationSlug)
+    public async Task<IActionResult> GetOrganizationDetails(string organizationSlug)
     {
         var org = await _context.Organizations
             .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null);
@@ -264,8 +265,7 @@ public class WorkspaceController : ControllerBase
         var userIdClaim = User?.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
         {
-            // Anonymous visitor: return basic public profile details
-            return Ok(MapToWorkspaceDetailsDto(
+            return Ok(MapToOrganizationDetailsDto(
                 org,
                 null,
                 new List<LinkedOrganizationDto>(),
@@ -280,15 +280,14 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             if (org.Id != userId)
             {
-                // Authenticated as a different business account (treat as anonymous public viewer)
-                return Ok(MapToWorkspaceDetailsDto(
+                return Ok(MapToOrganizationDetailsDto(
                     org,
                     null,
                     new List<LinkedOrganizationDto>(),
@@ -314,7 +313,7 @@ public class WorkspaceController : ControllerBase
                 "candidate:trust:override", "organization:audit:view", "billing:invoice:view", "billing:subscription:manage"
             };
 
-            return Ok(MapToWorkspaceDetailsDto(
+            return Ok(MapToOrganizationDetailsDto(
                 org,
                 "OWNER",
                 new List<LinkedOrganizationDto>(),
@@ -328,14 +327,12 @@ public class WorkspaceController : ControllerBase
             ));
         }
 
-        // Authorize membership using the centralized authorization service
         var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.ViewWorkspaces);
         if (!isAuthorized)
         {
-            // Authenticated but not authorized to view workspace (treat as public viewer)
             var isFollowingPublic = await _context.OrganizationFollowers
                 .AnyAsync(f => f.UserId == userId && f.OrganizationId == org.Id);
-            return Ok(MapToWorkspaceDetailsDto(
+            return Ok(MapToOrganizationDetailsDto(
                 org,
                 null,
                 new List<LinkedOrganizationDto>(),
@@ -349,16 +346,14 @@ public class WorkspaceController : ControllerBase
             ));
         }
 
-        // Fetch the user's role in this organization
         var membership = await _context.OrganizationMemberships
             .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == userId);
 
         if (membership == null || membership.Status != "active")
         {
-            // Fallback for safety (treat as public viewer)
             var isFollowingFallback = await _context.OrganizationFollowers
                 .AnyAsync(f => f.UserId == userId && f.OrganizationId == org.Id);
-            return Ok(MapToWorkspaceDetailsDto(
+            return Ok(MapToOrganizationDetailsDto(
                 org,
                 null,
                 new List<LinkedOrganizationDto>(),
@@ -372,7 +367,6 @@ public class WorkspaceController : ControllerBase
             ));
         }
 
-        // Resolve dynamic permissions
         var userPerms = await _authorizationService.GetPermissionsAsync(userId, org.Id, HttpContext.RequestAborted);
         var allDbPermissions = await _context.Permissions
             .Select(p => p.Name)
@@ -382,7 +376,6 @@ public class WorkspaceController : ControllerBase
             .Where(p => PermissionEvaluator.HasPermission(userPerms, p, org.Id))
             .ToList();
 
-        // Fetch other organizations the user belongs to for switching overview (Account Linking Overview)
         var linkedOrgs = await _context.OrganizationMemberships
             .Where(om => om.UserId == userId && om.OrganizationId != org.Id && om.Status == "active")
             .Include(om => om.Organization)
@@ -392,7 +385,7 @@ public class WorkspaceController : ControllerBase
         var isFollowingMember = await _context.OrganizationFollowers
             .AnyAsync(f => f.UserId == userId && f.OrganizationId == org.Id, HttpContext.RequestAborted);
 
-        return Ok(MapToWorkspaceDetailsDto(
+        return Ok(MapToOrganizationDetailsDto(
             org,
             membership.Role,
             linkedOrgs,
@@ -407,14 +400,14 @@ public class WorkspaceController : ControllerBase
     }
 
     [HttpPatch("{organizationSlug}")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(WorkspaceDetailsDto))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(OrganizationDetailsDto))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateWorkspaceDetails(
+    public async Task<IActionResult> UpdateOrganizationDetails(
         string organizationSlug,
-        [FromBody] UpdateWorkspaceDetailsRequestDto dto,
+        [FromBody] UpdateOrganizationDetailsRequestDto dto,
         CancellationToken cancellationToken)
     {
         if (dto == null)
@@ -437,10 +430,10 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             if (org.Id != userId)
             {
@@ -458,8 +451,8 @@ public class WorkspaceController : ControllerBase
 
         // Apply updates
         org.Description = dto.Description;
-        org.CompanyType = dto.CompanyType;
-        org.CompanySize = dto.CompanySize;
+        org.OrganizationType = dto.OrganizationType ?? dto.CompanyType;
+        org.OrganizationSize = dto.OrganizationSize ?? dto.CompanySize;
         org.BranchCount = dto.BranchCount;
         org.IndustryTags = dto.IndustryTags ?? new List<string>();
         org.BenefitTags = dto.BenefitTags ?? new List<string>();
@@ -481,7 +474,6 @@ public class WorkspaceController : ControllerBase
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Fetch same information to return the updated Details DTO
         var workspaces = await _context.Workspaces
             .Where(w => w.OrganizationId == org.Id && w.DeletedAt == null)
             .Select(w => new WorkspaceDto(w.Id, w.DisplayName, w.Slug))
@@ -500,12 +492,11 @@ public class WorkspaceController : ControllerBase
             }
         }
 
-        // Determine permissions and role just like GET endpoint
         string? userRole = null;
         var permissions = new List<string>();
         var linkedOrgs = new List<LinkedOrganizationDto>();
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             userRole = "OWNER";
             permissions = new List<string>
@@ -543,7 +534,7 @@ public class WorkspaceController : ControllerBase
             }
         }
 
-        var responseDto = MapToWorkspaceDetailsDto(
+        var responseDto = MapToOrganizationDetailsDto(
             org,
             userRole,
             linkedOrgs,
@@ -561,7 +552,7 @@ public class WorkspaceController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(FollowToggleResponseDto))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ToggleFollowWorkspace(string organizationSlug, CancellationToken cancellationToken)
+    public async Task<IActionResult> ToggleFollowOrganization(string organizationSlug, CancellationToken cancellationToken)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
@@ -569,7 +560,6 @@ public class WorkspaceController : ControllerBase
             return Unauthorized();
         }
 
-        // Business accounts cannot follow organizations
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
         bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
                                string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
@@ -592,7 +582,6 @@ public class WorkspaceController : ControllerBase
         bool isFollowing;
         if (existing == null)
         {
-            // Follow
             _context.OrganizationFollowers.Add(new OrganizationFollower
             {
                 UserId = userId,
@@ -604,7 +593,6 @@ public class WorkspaceController : ControllerBase
         }
         else
         {
-            // Unfollow
             _context.OrganizationFollowers.Remove(existing);
             org.FollowerCount = Math.Max(0, org.FollowerCount - 1);
             isFollowing = false;
@@ -616,134 +604,12 @@ public class WorkspaceController : ControllerBase
         return Ok(new FollowToggleResponseDto(org.FollowerCount, isFollowing));
     }
 
-    private WorkspaceDetailsDto MapToWorkspaceDetailsDto(
-        Organization org,
-        string? userRole,
-        List<LinkedOrganizationDto> linkedOrganizations,
-        List<string> permissions,
-        List<WorkspaceDto> workspaces,
-        string? signedBannerUrl,
-        string? signedLogoUrl,
-        List<string> signedGalleryUrls,
-        int followerCount = 0,
-        bool isFollowing = false)
-    {
-        return new WorkspaceDetailsDto(
-            org.Id,
-            org.Name,
-            org.Username,
-            userRole,
-            linkedOrganizations,
-            permissions,
-            workspaces,
-            signedBannerUrl,
-            signedLogoUrl,
-            org.CompanyType,
-            org.CompanySize,
-            org.BranchCount,
-            org.IndustryTags ?? new List<string>(),
-            org.Description,
-            org.BenefitTags ?? new List<string>(),
-            signedGalleryUrls,
-            org.ContactName,
-            org.ContactPhone,
-            org.ContactEmail,
-            org.City,
-            org.DetailAddress,
-            org.GoogleMapsEmbedUrl,
-            org.LinkedinUrl,
-            org.FacebookUrl,
-            org.TwitterUrl,
-            org.Website,
-            org.TaxCode,
-            org.Mission,
-            org.Vision,
-            org.CoreValues,
-            org.Founded,
-            followerCount,
-            isFollowing,
-            org.IsVerified,
-            org.VerificationLevel
-        );
-    }
-
-    private async Task<string?> GetSignedUrlAsync(string? url, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrEmpty(url))
-        {
-            return null;
-        }
-
-        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
-            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            return url;
-        }
-
-        try
-        {
-            return await _storageService.GetSignedUrlAsync(url, TimeSpan.FromHours(24), cancellationToken);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private async Task<JobVacancyDto> MapToJobVacancyDtoAsync(JobVacancy job, CancellationToken cancellationToken)
-    {
-        var signedCoverUrl = await GetSignedUrlAsync(job.CoverUrl, cancellationToken) ?? job.CoverUrl;
-        var signedImages = new List<string>();
-        if (job.Images != null)
-        {
-            foreach (var img in job.Images)
-            {
-                var signedImg = await GetSignedUrlAsync(img, cancellationToken);
-                if (signedImg != null) signedImages.Add(signedImg);
-            }
-        }
-
-        return new JobVacancyDto(
-            job.Id,
-            job.OrganizationId,
-            job.Title,
-            job.Department,
-            job.WorkplaceType,
-            job.City,
-            job.Type,
-            job.Salary,
-            job.SalaryMinMax,
-            job.Headcount,
-            job.Gender,
-            job.Experience,
-            job.Degree,
-            job.Category,
-            job.Description,
-            job.Requirements,
-            job.Benefits,
-            job.Tags,
-            job.Skills,
-            signedCoverUrl,
-            signedImages,
-            job.IsActive,
-            job.CreatedAt,
-            job.UpdatedAt,
-            job.Status,
-            job.AcquisitionStrategy,
-            job.DiscoveryProfileJson,
-            job.RequirementSnapshotId,
-            job.HiringRequirementId,
-            job.Metadata
-        );
-    }
-
     [HttpGet("{organizationSlug}/members")]
-    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaginatedMembersResponseDto))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetWorkspaceMembers(
+    public async Task<IActionResult> GetOrganizationMembers(
         string organizationSlug,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
@@ -773,10 +639,10 @@ public class WorkspaceController : ControllerBase
         if (!limitToPublic)
         {
             var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-            bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                              string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+            bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-            if (isBusiness)
+            if (isBusinessOrOrg)
             {
                 if (org.Id != userId.Value)
                 {
@@ -785,7 +651,6 @@ public class WorkspaceController : ControllerBase
             }
             else
             {
-                // Authorize permission using centralized authorization service
                 var isAuthorized = await _authorizationService.AuthorizeAsync(userId.Value, org.Id, OrganizationPermissions.ViewMembers);
                 if (!isAuthorized)
                 {
@@ -902,10 +767,10 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             if (org.Id != userId)
             {
@@ -930,13 +795,9 @@ public class WorkspaceController : ControllerBase
             {
                 await _storageService.DeleteFileAsync(org.BannerUrl, cancellationToken);
             }
-            catch
-            {
-                // Log and ignore
-            }
+            catch { }
         }
 
-        // Physical upload to R2
         using var fileStream = file.OpenReadStream();
         var uploadedFile = await _storageService.UploadFileAsync(
             fileStream,
@@ -946,12 +807,10 @@ public class WorkspaceController : ControllerBase
             null,
             cancellationToken);
 
-        // Update organization record
         org.BannerUrl = uploadedFile.ObjectKey;
         org.UpdatedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Generate signed URL
         var signedUrl = await _storageService.GetSignedUrlAsync(
             uploadedFile.ObjectKey,
             TimeSpan.FromHours(24),
@@ -1001,10 +860,10 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             if (org.Id != userId)
             {
@@ -1029,13 +888,9 @@ public class WorkspaceController : ControllerBase
             {
                 await _storageService.DeleteFileAsync(org.LogoUrl, cancellationToken);
             }
-            catch
-            {
-                // Log and ignore
-            }
+            catch { }
         }
 
-        // Physical upload to R2
         using var fileStream = file.OpenReadStream();
         var uploadedFile = await _storageService.UploadFileAsync(
             fileStream,
@@ -1045,12 +900,10 @@ public class WorkspaceController : ControllerBase
             null,
             cancellationToken);
 
-        // Update organization record
         org.LogoUrl = uploadedFile.ObjectKey;
         org.UpdatedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Generate signed URL
         var signedUrl = await _storageService.GetSignedUrlAsync(
             uploadedFile.ObjectKey,
             TimeSpan.FromHours(24),
@@ -1108,10 +961,10 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             if (org.Id != userId)
             {
@@ -1183,11 +1036,11 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         string authorRole = "Administrator";
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             if (org.Id != userId)
             {
@@ -1264,10 +1117,10 @@ public class WorkspaceController : ControllerBase
         if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId))
         {
             var actorTypeClaim = User?.FindFirst("actor_type")?.Value;
-            bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                              string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+            bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-            if (isBusiness)
+            if (isBusinessOrOrg)
             {
                 if (org.Id == userId)
                 {
@@ -1286,7 +1139,6 @@ public class WorkspaceController : ControllerBase
             .OrderByDescending(wp => wp.CreatedAt);
 
         var postsList = await postsQuery.ToListAsync(cancellationToken);
-
 
         var dtoList = new List<WorkspacePostDto>();
         foreach (var post in postsList)
@@ -1352,10 +1204,10 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
-        if (isBusiness)
+        if (isBusinessOrOrg)
         {
             if (org.Id != userId)
             {
@@ -1430,7 +1282,6 @@ public class WorkspaceController : ControllerBase
             .OrderByDescending(jv => jv.CreatedAt)
             .ToListAsync(cancellationToken);
 
-
         var dtoList = new List<JobVacancyDto>();
         foreach (var job in jobsList)
         {
@@ -1440,821 +1291,124 @@ public class WorkspaceController : ControllerBase
         return Ok(dtoList);
     }
 
-    [HttpPost("/api/organizations/{organizationSlug}/workspaces")]
-    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(WorkspaceDto))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CreateWorkspace(
-        string organizationSlug,
-        [FromBody] CreateWorkspaceRequestDto dto,
-        CancellationToken cancellationToken)
+    private OrganizationDetailsDto MapToOrganizationDetailsDto(
+        Organization org,
+        string? userRole,
+        List<LinkedOrganizationDto> linkedOrganizations,
+        List<string> permissions,
+        List<WorkspaceDto> workspaces,
+        string? signedBannerUrl,
+        string? signedLogoUrl,
+        List<string> signedGalleryUrls,
+        int followerCount = 0,
+        bool isFollowing = false)
     {
-        if (dto == null || string.IsNullOrWhiteSpace(dto.DisplayName) || string.IsNullOrWhiteSpace(dto.Slug))
+        return new OrganizationDetailsDto(
+            org.Id,
+            org.Name,
+            org.Username,
+            userRole,
+            linkedOrganizations,
+            permissions,
+            workspaces,
+            signedBannerUrl,
+            signedLogoUrl,
+            org.OrganizationType,
+            org.OrganizationSize,
+            org.BranchCount,
+            org.IndustryTags ?? new List<string>(),
+            org.Description,
+            org.BenefitTags ?? new List<string>(),
+            signedGalleryUrls,
+            org.ContactName,
+            org.ContactPhone,
+            org.ContactEmail,
+            org.City,
+            org.DetailAddress,
+            org.GoogleMapsEmbedUrl,
+            org.LinkedinUrl,
+            org.FacebookUrl,
+            org.TwitterUrl,
+            org.Website,
+            org.TaxCode,
+            org.Mission,
+            org.Vision,
+            org.CoreValues,
+            org.Founded,
+            followerCount,
+            isFollowing,
+            org.IsVerified,
+            org.VerificationLevel
+        );
+    }
+
+    private async Task<string?> GetSignedUrlAsync(string? url, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(url))
         {
-            return BadRequest("Display name and Slug are required.");
+            return null;
         }
 
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+            url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            return Unauthorized();
+            return url;
         }
 
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-
-        if (org == null)
+        try
         {
-            return NotFound(new { message = "Organization not found" });
+            return await _storageService.GetSignedUrlAsync(url, TimeSpan.FromHours(24), cancellationToken);
         }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.CreateWorkspace, cancellationToken: cancellationToken);
-        if (!isAuthorized)
+        catch
         {
-            return Forbid();
+            return null;
         }
+    }
 
-        var normalizedSlug = dto.Slug.Trim().ToLowerInvariant();
-        if (!System.Text.RegularExpressions.Regex.IsMatch(normalizedSlug, @"^[a-z0-9-]{3,50}$"))
+    private async Task<JobVacancyDto> MapToJobVacancyDtoAsync(JobVacancy job, CancellationToken cancellationToken)
+    {
+        var signedCoverUrl = await GetSignedUrlAsync(job.CoverUrl, cancellationToken) ?? job.CoverUrl;
+        var signedImages = new List<string>();
+        if (job.Images != null)
         {
-            return BadRequest("Workspace slug must be 3-50 alphanumeric or dash characters.");
-        }
-
-        var existingWorkspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.OrganizationId == org.Id && w.Slug == normalizedSlug && w.DeletedAt == null, cancellationToken);
-        if (existingWorkspace != null)
-        {
-            return BadRequest("Workspace slug is already taken under this organization.");
-        }
-
-        var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
-
-        Guid workspaceOwnerId = userId;
-        if (isBusiness)
-        {
-            var ownerMemberId = await _context.OrganizationMemberships
-                .Where(om => om.OrganizationId == org.Id && om.Status == "active")
-                .OrderBy(om => om.Role == "OWNER" ? 0 : om.Role == "REPRESENTATIVE" ? 1 : 2)
-                .Select(om => (Guid?)om.UserId)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (ownerMemberId == null)
+            foreach (var img in job.Images)
             {
-                return BadRequest(new { message = "Organization must have at least one active member/representative to create a workspace." });
+                var signedImg = await GetSignedUrlAsync(img, cancellationToken);
+                if (signedImg != null) signedImages.Add(signedImg);
             }
-            workspaceOwnerId = ownerMemberId.Value;
         }
 
-        var workspace = new Workspace
-        {
-            Id = Guid.CreateVersion7(),
-            OrganizationId = org.Id,
-            DisplayName = dto.DisplayName.Trim(),
-            Slug = normalizedSlug,
-            Description = dto.Description?.Trim(),
-            Status = "active",
-            OwnerId = workspaceOwnerId,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
-
-        _context.Workspaces.Add(workspace);
-
-        var wsMember = new WorkspaceMember
-        {
-            Id = Guid.CreateVersion7(),
-            WorkspaceId = workspace.Id,
-            UserId = workspaceOwnerId,
-            Role = "workspace_admin",
-            JoinedAt = DateTimeOffset.UtcNow
-        };
-        _context.WorkspaceMembers.Add(wsMember);
-
-        await LogAuditEventAsync(userId, "WORKSPACE_CREATED", $"Workspace '{workspace.DisplayName}' ({workspace.Slug}) was created.", org.Id);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return CreatedAtAction(nameof(GetWorkspaceDetails), new { organizationSlug = org.Username }, new WorkspaceDto(workspace.Id, workspace.DisplayName, workspace.Slug));
-    }
-
-    [HttpGet("/api/organizations/{organizationSlug}/workspaces")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaginatedWorkspacesResponseDto))]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetWorkspacesList(
-        string organizationSlug,
-        [FromQuery] string? search = null,
-        [FromQuery] string? status = null,
-        [FromQuery] string? sortBy = "name_asc",
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10,
-        CancellationToken cancellationToken = default)
-    {
-        if (page < 1) page = 1;
-        if (pageSize < 1 || pageSize > 100) pageSize = 10;
-
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.ViewWorkspaces, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var query = _context.Workspaces
-            .Include(w => w.Owner)
-            .Where(w => w.OrganizationId == org.Id && w.DeletedAt == null);
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var searchLower = search.Trim().ToLowerInvariant();
-            query = query.Where(w => w.DisplayName.ToLower().Contains(searchLower) || w.Slug.ToLower().Contains(searchLower));
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            query = query.Where(w => w.Status.ToLower() == status.Trim().ToLowerInvariant());
-        }
-
-        var list = await query.ToListAsync(cancellationToken);
-
-        var workspaceIds = list.Select(w => w.Id).ToList();
-        var memberCounts = await _context.WorkspaceMembers
-            .Where(wm => workspaceIds.Contains(wm.WorkspaceId))
-            .GroupBy(wm => wm.WorkspaceId)
-            .Select(g => new { WorkspaceId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.WorkspaceId, x => x.Count, cancellationToken);
-
-        var activePositionsCount = await _context.JobVacancies
-            .CountAsync(jv => jv.OrganizationId == org.Id && jv.IsActive && jv.Status == "Published", cancellationToken);
-
-        var items = list.Select(w => new WorkspaceListItemDto(
-            w.Id,
-            w.DisplayName,
-            w.Slug,
-            w.Description,
-            w.Status,
-            w.CreatedAt,
-            w.UpdatedAt,
-            memberCounts.TryGetValue(w.Id, out var count) ? count : 0,
-            activePositionsCount,
-            new MemberDto(
-                w.Owner.Id,
-                w.Owner.FullName,
-                w.Owner.Email,
-                "owner",
-                w.Owner.Status.ToString(),
-                null,
-                w.Owner.Username,
-                w.Owner.AvatarUrl
-            )
-        )).ToList();
-
-        items = sortBy?.ToLowerInvariant() switch
-        {
-            "name_desc" => items.OrderByDescending(i => i.DisplayName).ToList(),
-            "date_asc" => items.OrderBy(i => i.CreatedAt).ToList(),
-            "date_desc" => items.OrderByDescending(i => i.CreatedAt).ToList(),
-            "member_count_asc" => items.OrderBy(i => i.MemberCount).ToList(),
-            "member_count_desc" => items.OrderByDescending(i => i.MemberCount).ToList(),
-            _ => items.OrderBy(i => i.DisplayName).ToList()
-        };
-
-        var totalCount = items.Count;
-        var paginatedItems = items.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-
-        return Ok(new PaginatedWorkspacesResponseDto(paginatedItems, totalCount, page, pageSize));
-    }
-
-    [HttpPatch("/api/organizations/{organizationSlug}/workspaces/{workspaceId}")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(WorkspaceDto))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateWorkspace(
-        string organizationSlug,
-        Guid workspaceId,
-        [FromBody] UpdateWorkspaceRequestDto dto,
-        CancellationToken cancellationToken)
-    {
-        if (dto == null || string.IsNullOrWhiteSpace(dto.DisplayName) || string.IsNullOrWhiteSpace(dto.Slug))
-        {
-            return BadRequest("Display name and Slug are required.");
-        }
-
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.UpdateWorkspace, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        var normalizedSlug = dto.Slug.Trim().ToLowerInvariant();
-        if (!System.Text.RegularExpressions.Regex.IsMatch(normalizedSlug, @"^[a-z0-9-]{3,50}$"))
-        {
-            return BadRequest("Workspace slug must be 3-50 alphanumeric or dash characters.");
-        }
-
-        var existingWorkspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.OrganizationId == org.Id && w.Slug == normalizedSlug && w.Id != workspaceId && w.DeletedAt == null, cancellationToken);
-        if (existingWorkspace != null)
-        {
-            return BadRequest("Workspace slug is already taken under this organization.");
-        }
-
-        var oldStateJson = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            workspace.DisplayName,
-            workspace.Slug,
-            workspace.Description,
-            workspace.Status
-        });
-
-        workspace.DisplayName = dto.DisplayName.Trim();
-        workspace.Slug = normalizedSlug;
-        workspace.Description = dto.Description?.Trim();
-        workspace.Status = dto.Status.Trim();
-        workspace.UpdatedAt = DateTimeOffset.UtcNow;
-
-        var newStateJson = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            workspace.DisplayName,
-            workspace.Slug,
-            workspace.Description,
-            workspace.Status
-        });
-
-        var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
-        var realUserId = isBusiness ? null : (Guid?)userId;
-
-        var log = new AuditLog
-        {
-            Id = Guid.CreateVersion7(),
-            UserId = realUserId,
-            ActorUserId = realUserId,
-            OrganizationId = org.Id,
-            EventType = "WORKSPACE_UPDATED",
-            Description = $"Workspace '{workspace.DisplayName}' was updated.",
-            IpAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString(),
-            UserAgent = Request.Headers.UserAgent.ToString(),
-            OldStateJson = oldStateJson,
-            NewStateJson = newStateJson,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        _context.AuditLogs.Add(log);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new WorkspaceDto(workspace.Id, workspace.DisplayName, workspace.Slug));
-    }
-
-    [HttpDelete("/api/organizations/{organizationSlug}/workspaces/{workspaceId}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteWorkspace(
-        string organizationSlug,
-        Guid workspaceId,
-        CancellationToken cancellationToken)
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.DeleteWorkspace, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        workspace.DeletedAt = DateTimeOffset.UtcNow;
-        workspace.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await LogAuditEventAsync(userId, "WORKSPACE_DELETED", $"Workspace '{workspace.DisplayName}' was soft deleted.", org.Id);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new { message = "Workspace successfully deleted" });
-    }
-
-    [HttpPost("/api/organizations/{organizationSlug}/workspaces/{workspaceId}/archive")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ArchiveWorkspace(
-        string organizationSlug,
-        Guid workspaceId,
-        CancellationToken cancellationToken)
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.DeleteWorkspace, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        workspace.Status = "archived";
-        workspace.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await LogAuditEventAsync(userId, "WORKSPACE_ARCHIVED", $"Workspace '{workspace.DisplayName}' was archived.", org.Id);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new { message = "Workspace successfully archived" });
-    }
-
-    [HttpPost("/api/organizations/{organizationSlug}/workspaces/{workspaceId}/restore")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> RestoreWorkspace(
-        string organizationSlug,
-        Guid workspaceId,
-        CancellationToken cancellationToken)
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.DeleteWorkspace, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        workspace.Status = "active";
-        workspace.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await LogAuditEventAsync(userId, "WORKSPACE_RESTORED", $"Workspace '{workspace.DisplayName}' was restored.", org.Id);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new { message = "Workspace successfully restored" });
-    }
-
-    [HttpPost("/api/organizations/{organizationSlug}/workspaces/{workspaceId}/transfer-ownership")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> TransferWorkspaceOwnership(
-        string organizationSlug,
-        Guid workspaceId,
-        [FromBody] TransferWorkspaceOwnershipRequestDto dto,
-        CancellationToken cancellationToken)
-    {
-        if (dto == null || dto.NewOwnerId == Guid.Empty)
-        {
-            return BadRequest("New Owner Id is required.");
-        }
-
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        var isActorCurrentOwner = workspace.OwnerId == userId;
-        var isActorOrgOwner = await _context.OrganizationMemberships
-            .AnyAsync(om => om.OrganizationId == org.Id && om.UserId == userId && om.Role == "OWNER" && om.Status == "active", cancellationToken);
-
-        if (!isActorCurrentOwner && !isActorOrgOwner)
-        {
-            return Forbid();
-        }
-
-        var isNewOwnerMember = await _context.WorkspaceMembers
-            .AnyAsync(wm => wm.WorkspaceId == workspaceId && wm.UserId == dto.NewOwnerId, cancellationToken);
-        if (!isNewOwnerMember)
-        {
-            return BadRequest("New owner must be a member of this workspace.");
-        }
-
-        var newOwnerUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.Id == dto.NewOwnerId && u.DeletedAt == null, cancellationToken);
-        if (newOwnerUser == null)
-        {
-            return BadRequest("New owner user not found.");
-        }
-
-        var oldOwnerId = workspace.OwnerId;
-        workspace.OwnerId = dto.NewOwnerId;
-        workspace.UpdatedAt = DateTimeOffset.UtcNow;
-
-        var newOwnerMember = await _context.WorkspaceMembers
-            .FirstOrDefaultAsync(wm => wm.WorkspaceId == workspaceId && wm.UserId == dto.NewOwnerId, cancellationToken);
-        if (newOwnerMember != null)
-        {
-            newOwnerMember.Role = "workspace_admin";
-        }
-
-        var oldOwner = await _context.Users.FindAsync(new object[] { oldOwnerId }, cancellationToken);
-        await LogAuditEventAsync(userId, "WORKSPACE_OWNERSHIP_TRANSFERRED", 
-            $"Workspace '{workspace.DisplayName}' ownership transferred from '{oldOwner?.FullName ?? oldOwnerId.ToString()}' to '{newOwnerUser.FullName}'.", 
-            org.Id);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new { message = "Workspace ownership successfully transferred" });
-    }
-
-    [HttpGet("/api/organizations/{organizationSlug}/workspaces/{workspaceId}/members")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(List<WorkspaceMemberItemDto>))]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetWorkspaceLevelMembers(
-        string organizationSlug,
-        Guid workspaceId,
-        CancellationToken cancellationToken)
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.ManageWorkspaceMembers, scopeType: "WORKSPACE", scopeId: workspaceId, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var members = await _context.WorkspaceMembers
-            .Include(wm => wm.User)
-            .Where(wm => wm.WorkspaceId == workspaceId && wm.User.DeletedAt == null)
-            .OrderBy(wm => wm.User.FullName)
-            .Select(wm => new WorkspaceMemberItemDto(
-                wm.UserId,
-                wm.User.FullName,
-                wm.User.Email,
-                wm.Role,
-                wm.JoinedAt,
-                wm.User.AvatarUrl
-            ))
-            .ToListAsync(cancellationToken);
-
-        return Ok(members);
-    }
-
-    [HttpPost("/api/organizations/{organizationSlug}/workspaces/{workspaceId}/members")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> AddWorkspaceLevelMember(
-        string organizationSlug,
-        Guid workspaceId,
-        [FromBody] AddWorkspaceMemberRequestDto dto,
-        CancellationToken cancellationToken)
-    {
-        if (dto == null || dto.UserId == Guid.Empty || string.IsNullOrWhiteSpace(dto.Role))
-        {
-            return BadRequest("UserId and Role are required.");
-        }
-
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.ManageWorkspaceMembers, scopeType: "WORKSPACE", scopeId: workspaceId, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var isOrgMember = await _context.OrganizationMemberships
-            .AnyAsync(om => om.OrganizationId == org.Id && om.UserId == dto.UserId && om.Status == "active", cancellationToken);
-        if (!isOrgMember)
-        {
-            return BadRequest("User must be an active member of the organization first.");
-        }
-
-        var alreadyMember = await _context.WorkspaceMembers
-            .AnyAsync(wm => wm.WorkspaceId == workspaceId && wm.UserId == dto.UserId, cancellationToken);
-        if (alreadyMember)
-        {
-            return BadRequest("User is already a member of this workspace.");
-        }
-
-        var targetUser = await _context.Users.FindAsync(new object[] { dto.UserId }, cancellationToken);
-        if (targetUser == null)
-        {
-            return NotFound(new { message = "User not found" });
-        }
-
-        var member = new WorkspaceMember
-        {
-            Id = Guid.CreateVersion7(),
-            WorkspaceId = workspaceId,
-            UserId = dto.UserId,
-            Role = dto.Role.Trim().ToLowerInvariant(),
-            JoinedAt = DateTimeOffset.UtcNow
-        };
-        _context.WorkspaceMembers.Add(member);
-
-        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_ADDED", 
-            $"User '{targetUser.FullName}' was added to workspace '{workspace.DisplayName}' as '{member.Role}'.", 
-            org.Id);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new { message = "Member successfully added to workspace" });
-    }
-
-    [HttpPatch("/api/organizations/{organizationSlug}/workspaces/{workspaceId}/members/{targetUserId}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateWorkspaceLevelMemberRole(
-        string organizationSlug,
-        Guid workspaceId,
-        Guid targetUserId,
-        [FromBody] UpdateWorkspaceMemberRoleRequestDto dto,
-        CancellationToken cancellationToken)
-    {
-        if (dto == null || string.IsNullOrWhiteSpace(dto.Role))
-        {
-            return BadRequest("Role is required.");
-        }
-
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.ManageWorkspaceMembers, scopeType: "WORKSPACE", scopeId: workspaceId, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var member = await _context.WorkspaceMembers
-            .FirstOrDefaultAsync(wm => wm.WorkspaceId == workspaceId && wm.UserId == targetUserId, cancellationToken);
-        if (member == null)
-        {
-            return NotFound(new { message = "Workspace membership not found" });
-        }
-
-        if (workspace.OwnerId == targetUserId && dto.Role.Trim().ToLowerInvariant() != "workspace_admin")
-        {
-            return BadRequest("Cannot change role of the workspace owner. Ownership must be transferred first.");
-        }
-
-        var targetUser = await _context.Users.FindAsync(new object[] { targetUserId }, cancellationToken);
-        var oldRole = member.Role;
-        member.Role = dto.Role.Trim().ToLowerInvariant();
-
-        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_ROLE_UPDATED", 
-            $"User '{targetUser?.FullName ?? targetUserId.ToString()}' role in workspace '{workspace.DisplayName}' updated from '{oldRole}' to '{member.Role}'.", 
-            org.Id);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new { message = "Member role successfully updated" });
-    }
-
-    [HttpDelete("/api/organizations/{organizationSlug}/workspaces/{workspaceId}/members/{targetUserId}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> RemoveWorkspaceLevelMember(
-        string organizationSlug,
-        Guid workspaceId,
-        Guid targetUserId,
-        CancellationToken cancellationToken)
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var org = await _context.Organizations
-            .FirstOrDefaultAsync(o => o.Username.ToLower() == organizationSlug.ToLower() && o.DeletedAt == null, cancellationToken);
-        if (org == null)
-        {
-            return NotFound(new { message = "Organization not found" });
-        }
-
-        var workspace = await _context.Workspaces
-            .FirstOrDefaultAsync(w => w.Id == workspaceId && w.OrganizationId == org.Id && w.DeletedAt == null, cancellationToken);
-        if (workspace == null)
-        {
-            return NotFound(new { message = "Workspace not found" });
-        }
-
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.ManageWorkspaceMembers, scopeType: "WORKSPACE", scopeId: workspaceId, cancellationToken: cancellationToken);
-        if (!isAuthorized)
-        {
-            return Forbid();
-        }
-
-        var member = await _context.WorkspaceMembers
-            .FirstOrDefaultAsync(wm => wm.WorkspaceId == workspaceId && wm.UserId == targetUserId, cancellationToken);
-        if (member == null)
-        {
-            return NotFound(new { message = "Workspace membership not found" });
-        }
-
-        if (workspace.OwnerId == targetUserId)
-        {
-            return BadRequest("Cannot remove the workspace owner. Ownership must be transferred first.");
-        }
-
-        _context.WorkspaceMembers.Remove(member);
-
-        var targetUser = await _context.Users.FindAsync(new object[] { targetUserId }, cancellationToken);
-
-        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_REMOVED", 
-            $"User '{targetUser?.FullName ?? targetUserId.ToString()}' was removed from workspace '{workspace.DisplayName}'.", 
-            org.Id);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return Ok(new { message = "Member successfully removed from workspace" });
-    }
-
-    private async Task LogAuditEventAsync(Guid? userId, string eventType, string description, Guid orgId, string? detailsJson = null)
-    {
-        var ipAddress = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
-        var userAgent = Request.Headers.UserAgent.ToString();
-
-        var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
-        var realUserId = isBusiness ? null : userId;
-
-        var log = new AuditLog
-        {
-            Id = Guid.CreateVersion7(),
-            UserId = realUserId,
-            ActorUserId = realUserId,
-            OrganizationId = orgId,
-            EventType = eventType,
-            Description = description,
-            IpAddress = ipAddress,
-            UserAgent = userAgent,
-            DetailsJson = detailsJson,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-        _context.AuditLogs.Add(log);
+        return new JobVacancyDto(
+            job.Id,
+            job.OrganizationId,
+            job.Title,
+            job.Department,
+            job.WorkplaceType,
+            job.City,
+            job.Type,
+            job.Salary,
+            job.SalaryMinMax,
+            job.Headcount,
+            job.Gender,
+            job.Experience,
+            job.Degree,
+            job.Category,
+            job.Description,
+            job.Requirements,
+            job.Benefits,
+            job.Tags,
+            job.Skills,
+            signedCoverUrl,
+            signedImages,
+            job.IsActive,
+            job.CreatedAt,
+            job.UpdatedAt,
+            job.Status,
+            job.AcquisitionStrategy,
+            job.DiscoveryProfileJson,
+            job.RequirementSnapshotId,
+            job.HiringRequirementId,
+            job.Metadata
+        );
     }
 }

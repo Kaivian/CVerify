@@ -5,7 +5,7 @@ import type auth from '../locales/vi/auth.json';
 import type navbar from '../locales/vi/navbar.json';
 import type sidebar from '../locales/vi/sidebar.json';
 import type dashboardUser from '../locales/vi/dashboard-user.json';
-import type dashboardBusiness from '../locales/vi/dashboard-business.json';
+import type dashboardOrganization from '../locales/vi/dashboard-organization.json';
 import type dashboardAdmin from '../locales/vi/dashboard-admin.json';
 import type chatVerification from '../locales/vi/chat-verification.json';
 import type bookings from '../locales/vi/bookings.json';
@@ -22,7 +22,7 @@ declare module 'i18next' {
       navbar: typeof navbar;
       sidebar: typeof sidebar;
       'dashboard-user': typeof dashboardUser;
-      'dashboard-business': typeof dashboardBusiness;
+      'dashboard-organization': typeof dashboardOrganization;
       'dashboard-admin': typeof dashboardAdmin;
       'chat-verification': typeof chatVerification;
       bookings: typeof bookings;

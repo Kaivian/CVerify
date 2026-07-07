@@ -62,8 +62,16 @@ public class Organization
     public string? LogoUrl { get; set; }
 
     public string? Description { get; set; }
-    public string? CompanyType { get; set; }
-    public string? CompanySize { get; set; }
+    public string? OrganizationType { get; set; }
+    public string? OrganizationSize { get; set; }
+
+    [Obsolete("Use OrganizationType instead")]
+    [NotMapped]
+    public string? CompanyType { get => OrganizationType; set => OrganizationType = value; }
+
+    [Obsolete("Use OrganizationSize instead")]
+    [NotMapped]
+    public string? CompanySize { get => OrganizationSize; set => OrganizationSize = value; }
     public int BranchCount { get; set; } = 0;
     public int FollowerCount { get; set; } = 0;
     public List<string> IndustryTags { get; set; } = new();

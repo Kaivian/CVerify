@@ -263,6 +263,8 @@ export interface PublicProfileResponse {
   company: string | null;
   location: string | null;
   socialLinks: string[];
+  publicEmail?: string | null;
+  phoneNumber?: string | null;
   careerPreference?: PublicCareerPreference | null;
   trustScore?: number | null;
   repositories?: PublicRepository[] | null;

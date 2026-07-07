@@ -322,7 +322,8 @@ builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
     options.UseNpgsql(envConfig.Database.ConnectionString, o => o
                 .MapEnum<UserStatus>("user_status")
                 .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
-           .UseSnakeCaseNamingConvention();
+           .UseSnakeCaseNamingConvention()
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 
     options.AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>());
 
@@ -396,7 +397,10 @@ builder.Services.AddScoped<IWorkspaceProvisioningService, WorkspaceProvisioningS
 builder.Services.AddScoped<IWorkspaceMembershipService, WorkspaceMembershipService>();
 builder.Services.AddScoped<IOrganizationAuthorizationService, OrganizationAuthorizationService>();
 builder.Services.AddScoped<IOrganizationBootstrapService, OrganizationBootstrapService>();
+builder.Services.AddScoped<IOrganizationRoleService, OrganizationRoleService>();
+#pragma warning disable CS0618
 builder.Services.AddScoped<IBusinessRoleService, BusinessRoleService>();
+#pragma warning restore CS0618
 builder.Services.AddScoped<IOrganizationInvitationService, OrganizationInvitationService>();
 builder.Services.AddScoped<IPasswordRecoveryService, PasswordRecoveryService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();

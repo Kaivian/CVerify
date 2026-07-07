@@ -1125,17 +1125,18 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register-company")]
+    [HttpPost("register-organization")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> RegisterCompany([FromBody] RegisterCompanyRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> RegisterOrganization([FromBody] RegisterOrganizationRequest request, CancellationToken cancellationToken)
     {
         var userAgent = Request.Headers["User-Agent"].ToString();
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
 
         try
         {
-            var result = await _authService.RegisterCompanyAsync(request, userAgent, ipAddress, cancellationToken);
+            var result = await _authService.RegisterOrganizationAsync(request, userAgent, ipAddress, cancellationToken);
             return Ok(new { success = result });
         }
         catch (AuthException ex) when (ex.Code == AuthErrorCodes.ServiceUnavailable)
@@ -1149,17 +1150,18 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("verify-company-link")]
+    [HttpPost("verify-organization-link")]
     [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VerifyCompanyLinkResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VerifyOrganizationLinkResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> VerifyCompanyLink([FromBody] VerifyCompanyLinkRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> VerifyOrganizationLink([FromBody] VerifyOrganizationLinkRequest request, CancellationToken cancellationToken)
     {
         var userAgent = Request.Headers["User-Agent"].ToString();
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
 
         try
         {
-            var result = await _authService.VerifyCompanyLinkAsync(request, userAgent, ipAddress, cancellationToken);
+            var result = await _authService.VerifyOrganizationLinkAsync(request, userAgent, ipAddress, cancellationToken);
             return Ok(result);
         }
         catch (AuthException ex)
@@ -1189,15 +1191,16 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("company-login")]
+    [HttpPost("organization-login")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AuthResponse))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> CompanyLogin([FromBody] OrganizationLoginRequest request)
+    public async Task<IActionResult> OrganizationLogin([FromBody] OrganizationLoginRequest request)
     {
         var userAgent = Request.Headers["User-Agent"].ToString();
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
 
-        var response = await _authService.CompanyLoginAsync(request, userAgent, ipAddress);
+        var response = await _authService.OrganizationLoginAsync(request, userAgent, ipAddress);
         if (response == null)
         {
             return Unauthorized(new { code = AuthErrorCodes.InvalidCredentials, message = "Invalid workspace username or password" });
@@ -1207,16 +1210,17 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("onboarding/verify-company")]
+    [HttpPost("onboarding/verify-organization")]
     [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VerifyCompanyOnboardingResponse))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VerifyOrganizationOnboardingResponse))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> VerifyCompanyOnboarding(
-        [FromBody] VerifyCompanyOnboardingRequest request,
+    public async Task<IActionResult> VerifyOrganizationOnboarding(
+        [FromBody] VerifyOrganizationOnboardingRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await _workspaceProvisioningService.VerifyCompanyOnboardingAsync(request, cancellationToken);
+            var result = await _workspaceProvisioningService.VerifyOrganizationOnboardingAsync(request, cancellationToken);
             return Ok(result);
         }
         catch (AuthException ex) when (ex.Code == AuthErrorCodes.ServiceUnavailable)

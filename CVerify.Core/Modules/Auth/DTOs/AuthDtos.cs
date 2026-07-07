@@ -155,22 +155,56 @@ public class CreatePasswordRequest
     public CreatePasswordRequest() { }
 }
 
+public record RegisterOrganizationRequest(
+    [Required][MaxLength(255)] string OrganizationName,
+    [Required][MaxLength(50)] string TaxCode,
+    [Required][EmailAddress][MaxLength(255)] string OrganizationEmail
+)
+{
+    [Obsolete("Use OrganizationName instead")]
+    public string CompanyName => OrganizationName;
+
+    [Obsolete("Use OrganizationEmail instead")]
+    public string CompanyEmail => OrganizationEmail;
+}
+
+[Obsolete("Use RegisterOrganizationRequest instead")]
 public record RegisterCompanyRequest(
     [Required][MaxLength(255)] string CompanyName,
     [Required][MaxLength(50)] string TaxCode,
     [Required][EmailAddress][MaxLength(255)] string CompanyEmail
-);
+) : RegisterOrganizationRequest(CompanyName, TaxCode, CompanyEmail);
 
-public record VerifyCompanyLinkRequest(
+public record VerifyOrganizationLinkRequest(
     [Required] string Token
 );
 
+[Obsolete("Use VerifyOrganizationLinkRequest instead")]
+public record VerifyCompanyLinkRequest(
+    [Required] string Token
+) : VerifyOrganizationLinkRequest(Token);
+
+public record VerifyOrganizationLinkResponse(
+    string OrganizationName,
+    string TaxCode,
+    string OrganizationEmail,
+    string VerificationToken
+)
+{
+    [Obsolete("Use OrganizationName instead")]
+    public string CompanyName => OrganizationName;
+
+    [Obsolete("Use OrganizationEmail instead")]
+    public string CompanyEmail => OrganizationEmail;
+}
+
+[Obsolete("Use VerifyOrganizationLinkResponse instead")]
 public record VerifyCompanyLinkResponse(
     string CompanyName,
     string TaxCode,
     string CompanyEmail,
     string VerificationToken
-);
+) : VerifyOrganizationLinkResponse(CompanyName, TaxCode, CompanyEmail, VerificationToken);
 
 public class SetupWorkspaceRequest
 {
@@ -180,7 +214,12 @@ public class SetupWorkspaceRequest
     [Required]
     [EmailAddress]
     [MaxLength(255)]
-    public string CompanyEmail { get; init; } = null!;
+    public string OrganizationEmail { get; init; } = null!;
+
+    private string? _companyEmail;
+
+    [Obsolete("Use OrganizationEmail instead")]
+    public string CompanyEmail { get => _companyEmail ?? OrganizationEmail; init => _companyEmail = value; }
 
     [Required]
     [RegularExpression(@"^[a-z0-9_]{3,30}$", ErrorMessage = "Workspace username must be lowercase, alphanumeric/underscore, and 3-30 characters.")]
@@ -216,11 +255,36 @@ public record ResolveEmailAuthStateResponse(
     CVerify.API.Modules.Shared.Domain.Enums.EmailAuthState AuthState
 );
 
+public record VerifyOrganizationOnboardingRequest(
+    [Required][MaxLength(255)] string OrganizationName,
+    [Required][MaxLength(50)] string TaxCode
+)
+{
+    [Obsolete("Use OrganizationName instead")]
+    public string CompanyName => OrganizationName;
+}
+
+[Obsolete("Use VerifyOrganizationOnboardingRequest instead")]
 public record VerifyCompanyOnboardingRequest(
     [Required][MaxLength(255)] string CompanyName,
     [Required][MaxLength(50)] string TaxCode
-);
+) : VerifyOrganizationOnboardingRequest(CompanyName, TaxCode);
 
+public record VerifyOrganizationOnboardingResponse(
+    string? SignedToken,
+    string OfficialOrganizationName,
+    string TaxCode,
+    bool OrganizationExists = false,
+    string? OrganizationDisplayName = null,
+    string? OrganizationSlug = null,
+    bool RecoveryRequired = false
+)
+{
+    [Obsolete("Use OfficialOrganizationName instead")]
+    public string OfficialCompanyName => OfficialOrganizationName;
+}
+
+[Obsolete("Use VerifyOrganizationOnboardingResponse instead")]
 public record VerifyCompanyOnboardingResponse(
     string? SignedToken,
     string OfficialCompanyName,
@@ -229,14 +293,28 @@ public record VerifyCompanyOnboardingResponse(
     string? OrganizationDisplayName = null,
     string? OrganizationSlug = null,
     bool RecoveryRequired = false
+) : VerifyOrganizationOnboardingResponse(
+    SignedToken,
+    OfficialCompanyName,
+    TaxCode,
+    OrganizationExists,
+    OrganizationDisplayName,
+    OrganizationSlug,
+    RecoveryRequired
 );
 
 public record CompleteOnboardingRequest(
     [Required] string Step2Token,
     [Required][RegularExpression(@"^[a-z0-9-]{4,32}$", ErrorMessage = "Workspace handle must be 4-32 characters, lowercase alphanumeric or dash")] string OrganizationUsername,
-    [Required][MaxLength(255)] string CompanyDisplayName,
+    [Required][MaxLength(255)] string OrganizationDisplayName,
     [Required][MinLength(8, ErrorMessage = "Password must be at least 8 characters.")] string Password
-);
+)
+{
+    private string? _companyDisplayName;
+
+    [Obsolete("Use OrganizationDisplayName instead")]
+    public string CompanyDisplayName { get => _companyDisplayName ?? OrganizationDisplayName; init => _companyDisplayName = value; }
+}
 
 public record GoogleOnboardingLinkRequest(
     [Required] string IdToken,
