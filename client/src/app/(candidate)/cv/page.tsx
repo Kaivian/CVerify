@@ -43,6 +43,11 @@ import {
   ShieldCheck,
   FileImage,
   FileJson,
+  Layout,
+  Palette,
+  Download,
+  Keyboard,
+  Sliders,
 } from "lucide-react";
 
 import { useProfile } from "@/hooks/use-profile";
@@ -306,7 +311,7 @@ export default function CvManagementCenter() {
     } else {
       setViewState("overview");
     }
-  }  const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
+  } const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
   const [isSaving, setIsSaving] = useState(false);
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [mobileShowPreview, setMobileShowPreview] = useState(false);
@@ -2414,6 +2419,14 @@ export default function CvManagementCenter() {
               activeTab === "achievements" ? "Achievements & Certificates" :
                 "Career Preferences";
 
+    const ActiveIcon = activeTab === "basic-info" ? User :
+      activeTab === "skills" ? Sparkles :
+        activeTab === "projects" ? FolderCode :
+          activeTab === "experience" ? Briefcase :
+            activeTab === "education" ? GraduationCap :
+              activeTab === "achievements" ? Award :
+                Compass;
+
     return (
       <div className="flex flex-col gap-6 text-left w-full h-full relative">
         {/* Editor Header */}
@@ -2491,140 +2504,178 @@ export default function CvManagementCenter() {
           <div className="lg:col-span-9 min-h-0 h-full overflow-hidden flex flex-col">
             <Card rounded="2xl" glow={true} className="flex-1 min-h-0 p-5 xl:p-6 border border-border/40 bg-surface flex flex-col gap-4 xl:gap-5 text-left relative overflow-hidden h-full">
               {/* Workspace Header with mode switcher */}
-              <div className="flex border-b border-border/20 pb-3 select-none justify-between items-center shrink-0">
-                <div className="flex flex-col gap-0.5">
-                  <h3 className="font-extrabold text-sm uppercase tracking-wider text-foreground">
-                    Section: {activeTabName}
-                  </h3>
-                  <p className="text-[10px] text-muted">
-                    {editorMode === "edit"
-                      ? "Changes made here are saved directly into your CVerify CV data."
-                      : "Visual check of your current A4 CV profile details."}
-                  </p>
+              <div className="flex border-b border-border/20 pb-3.5 select-none justify-between items-center shrink-0 gap-4 flex-wrap md:flex-nowrap">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
+                    <ActiveIcon className="size-4.5" />
+                  </div>
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <h3 className="font-extrabold text-sm text-foreground tracking-tight uppercase truncate">
+                      {activeTabName}
+                    </h3>
+                    <p className="text-[10px] text-muted-foreground/80 leading-none truncate">
+                      {editorMode === "edit"
+                        ? "Changes sync automatically with your CVerify CV profile."
+                        : "Visual check of your current A4 CV profile details."}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0 ml-auto">
                   {editorMode === "preview" && (
-                    <div className="flex items-center gap-2">
-                      <Dropdown>
-                        <Dropdown.Trigger>
-                          <button
-                            className="text-[10px] bg-surface-secondary text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-border/40 hover:bg-surface-secondary/80 outline-none transition-colors select-none flex items-center gap-1.5"
-                          >
-                            <span>Template: {CV_TEMPLATES[selectedTemplate]?.name || selectedTemplate}</span>
-                            <ChevronDown className="size-3" />
-                          </button>
-                        </Dropdown.Trigger>
-                        <Dropdown.Popover
-                          placement="bottom end"
-                          className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] z-50 font-outfit"
+                    <Dropdown>
+                      <Dropdown.Trigger>
+                        <Button
+                          variant="outline"
+                          className="rounded-xl text-xs"
+                          size="lg"
                         >
-                          <Dropdown.Menu aria-label="CV Templates">
-                            {Object.values(CV_TEMPLATES).map((tmpl) => (
-                              <Dropdown.Item
-                                key={tmpl.id}
-                                onClick={() => handleTemplateChange(tmpl.id)}
-                                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-none select-none transition-colors duration-150 ${
-                                  selectedTemplate === tmpl.id
-                                    ? "bg-accent/10 text-accent font-bold"
-                                    : "text-foreground hover:bg-surface-secondary focus:bg-surface-secondary"
-                                }`}
-                              >
-                                <span>{tmpl.name}</span>
-                              </Dropdown.Item>
-                            ))}
-                          </Dropdown.Menu>
-                        </Dropdown.Popover>
-                      </Dropdown>
-                      <button
-                        onClick={() => setIsA4PreviewOpen(true)}
-                        className="text-[10px] bg-accent-soft text-accent hover:bg-accent/20 px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-accent/20 outline-none transition-colors select-none"
+                          <Sliders className="size-3.5 shrink-0" />
+                          <span>Actions</span>
+                          <ChevronDown className="size-3 shrink-0 opacity-60" />
+                        </Button>
+                      </Dropdown.Trigger>
+                      <Dropdown.Popover
+                        placement="bottom end"
+                        className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[275px] z-50 font-outfit"
                       >
-                        View A4
-                      </button>
-                      <Dropdown>
-                        <Dropdown.Trigger>
-                          <button
-                            disabled={isExportingPng}
-                            className="text-[10px] bg-surface-secondary text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-border/40 hover:bg-surface-secondary/80 outline-none transition-colors select-none flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        <Dropdown.Menu aria-label="CV Actions">
+                          <Dropdown.SubmenuTrigger>
+                            <Dropdown.Item
+                              id="template-menu"
+                              textValue="Select Template"
+                              className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Palette className="size-3.5 text-muted shrink-0" />
+                                <span>Template ({CV_TEMPLATES[selectedTemplate]?.name || selectedTemplate})</span>
+                              </div>
+                              <Dropdown.SubmenuIndicator />
+                            </Dropdown.Item>
+                            <Dropdown.Popover
+                              placement="left top"
+                              className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] z-50 font-outfit"
+                            >
+                              <Dropdown.Menu aria-label="CV Templates">
+                                {Object.values(CV_TEMPLATES).map((tmpl) => (
+                                  <Dropdown.Item
+                                    key={tmpl.id}
+                                    onClick={() => handleTemplateChange(tmpl.id)}
+                                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-none select-none transition-colors duration-150 ${selectedTemplate === tmpl.id
+                                      ? "bg-accent/10 text-accent font-bold"
+                                      : "text-foreground hover:bg-surface-secondary focus:bg-surface-secondary"
+                                      }`}
+                                  >
+                                    <span>{tmpl.name}</span>
+                                  </Dropdown.Item>
+                                ))}
+                              </Dropdown.Menu>
+                            </Dropdown.Popover>
+                          </Dropdown.SubmenuTrigger>
+
+                          <Dropdown.Item
+                            id="view-a4"
+                            textValue="View A4 Preview"
+                            onClick={() => setIsA4PreviewOpen(true)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
                           >
-                            {isExportingPng ? (
-                              <>
-                                <Spinner size="sm" color="current" className="size-3" />
-                                <span>Exporting...</span>
-                              </>
-                            ) : (
-                              <>
+                            <div className="flex items-center gap-2 w-full">
+                              <Eye className="size-3.5 text-muted shrink-0" />
+                              <span>View A4</span>
+                            </div>
+                          </Dropdown.Item>
+
+                          <Dropdown.SubmenuTrigger>
+                            <Dropdown.Item
+                              id="export-menu"
+                              textValue="Export CV"
+                              className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Download className="size-3.5 text-muted shrink-0" />
                                 <span>Export</span>
-                                <ChevronDown className="size-3" />
-                              </>
-                            )}
-                          </button>
-                        </Dropdown.Trigger>
-                        <Dropdown.Popover
-                          placement="bottom end"
-                          className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[150px] animate-in fade-in duration-100 z-50 font-outfit"
-                        >
-                          <Dropdown.Menu aria-label="Export Formats">
-                            <Dropdown.Item
-                              key="pdf"
-                              onClick={handlePrint}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
-                            >
-                              <div className="flex items-center gap-2 w-full">
-                                <Printer className="size-3.5 text-muted shrink-0" />
-                                <span>PDF (.pdf)</span>
                               </div>
+                              <Dropdown.SubmenuIndicator />
                             </Dropdown.Item>
-                            <Dropdown.Item
-                              key="markdown"
-                              onClick={handleDownloadMarkdown}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            <Dropdown.Popover
+                              placement="left top"
+                              className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[150px] z-50 font-outfit"
                             >
-                              <div className="flex items-center gap-2 w-full">
-                                <FileDown className="size-3.5 text-muted shrink-0" />
-                                <span>Markdown (.md)</span>
-                              </div>
-                            </Dropdown.Item>
-                            <Dropdown.Item
-                              key="image"
-                              onClick={handleDownloadPng}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
-                            >
-                              <div className="flex items-center gap-2 w-full">
-                                <FileImage className="size-3.5 text-muted shrink-0" />
-                                <span>Image (.png)</span>
-                              </div>
-                            </Dropdown.Item>
-                            <Dropdown.Item
-                              key="json"
-                              onClick={handleDownloadJson}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
-                            >
-                              <div className="flex items-center gap-2 w-full">
-                                <FileJson className="size-3.5 text-muted shrink-0" />
-                                <span>JSON (.json)</span>
-                              </div>
-                            </Dropdown.Item>
-                          </Dropdown.Menu>
-                        </Dropdown.Popover>
-                      </Dropdown>
-                    </div>
+                              <Dropdown.Menu aria-label="Export Formats">
+                                <Dropdown.Item
+                                  key="pdf"
+                                  onClick={handlePrint}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <Printer className="size-3.5 text-muted shrink-0" />
+                                    <span>PDF (.pdf)</span>
+                                  </div>
+                                </Dropdown.Item>
+                                <Dropdown.Item
+                                  key="markdown"
+                                  onClick={handleDownloadMarkdown}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <FileDown className="size-3.5 text-muted shrink-0" />
+                                    <span>Markdown (.md)</span>
+                                  </div>
+                                </Dropdown.Item>
+                                <Dropdown.Item
+                                  key="image"
+                                  isDisabled={isExportingPng}
+                                  onClick={handleDownloadPng}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    {isExportingPng ? (
+                                      <Spinner size="sm" color="current" className="size-3.5 shrink-0" />
+                                    ) : (
+                                      <FileImage className="size-3.5 text-muted shrink-0" />
+                                    )}
+                                    <span>{isExportingPng ? "Exporting..." : "Image (.png)"}</span>
+                                  </div>
+                                </Dropdown.Item>
+                                <Dropdown.Item
+                                  key="json"
+                                  onClick={handleDownloadJson}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <FileJson className="size-3.5 text-muted shrink-0" />
+                                    <span>JSON (.json)</span>
+                                  </div>
+                                </Dropdown.Item>
+                              </Dropdown.Menu>
+                            </Dropdown.Popover>
+                          </Dropdown.SubmenuTrigger>
+                        </Dropdown.Menu>
+                      </Dropdown.Popover>
+                    </Dropdown>
                   )}
-                  <div className="flex items-center bg-surface-secondary/60 p-0.5 rounded-xl border border-border/20">
+                  <div className="flex items-center bg-surface-secondary/80 p-1 rounded-xl border border-border/30 gap-0.5 shadow-xs select-none">
                     <button
                       type="button"
                       onClick={() => setEditorMode("edit")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${editorMode === "edit" ? "bg-surface text-accent shadow-xs font-extrabold" : "text-muted hover:text-foreground"}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 border-none cursor-pointer ${editorMode === "edit"
+                        ? "bg-surface text-accent shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                        }`}
                     >
-                      Form Editor
+                      <Keyboard className="size-3.5 shrink-0" />
+                      <span>Form Editor</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setEditorMode("preview")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${editorMode === "preview" ? "bg-surface text-accent shadow-xs font-extrabold" : "text-muted hover:text-foreground"}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 border-none cursor-pointer ${editorMode === "preview"
+                        ? "bg-surface text-accent shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                        }`}
                     >
-                      Live Preview
+                      <Layout className="size-3.5 shrink-0" />
+                      <span>Live Preview</span>
                     </button>
                   </div>
                 </div>
