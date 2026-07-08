@@ -92,5 +92,20 @@ export const DEMO_SECTIONS: DemoSection[] = [
       ssr: false,
     }),
   },
+  {
+    metadata: {
+      id: "ai-matching",
+      title: "AI Matcher",
+      description: "CVerify AI analyzes your verified history and matches you to roles.",
+      transition: "fade",
+      background: "bg-background",
+      theme: "light",
+      showNavigation: true,
+      showProgress: true,
+    },
+    component: dynamic(() => import("./sections/Section05"), {
+      ssr: false,
+    }),
+  },
 ];
 
