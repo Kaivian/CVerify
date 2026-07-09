@@ -1,6 +1,6 @@
 import React from "react";
 import { DemoContainer } from "./components/DemoContainer";
-import { Metadata } from "next";
+import { type Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "CVerify - Interactive Demo Experience",

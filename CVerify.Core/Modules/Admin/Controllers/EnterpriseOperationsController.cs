@@ -58,8 +58,8 @@ public class EnterpriseOperationsController : ControllerBase
 
         if (!string.IsNullOrEmpty(search))
         {
-            query = query.Where(o => o.Name.Contains(search) 
-                                  || o.TaxCode.Contains(search) 
+            query = query.Where(o => o.Name.Contains(search)
+                                  || o.TaxCode.Contains(search)
                                   || o.Email.Contains(search)
                                   || (o.Website != null && o.Website.Contains(search)));
         }
@@ -153,8 +153,8 @@ public class EnterpriseOperationsController : ControllerBase
     [HttpPatch("organizations/{id}/status")]
     [HasPermission("admin:enterprise:manage")]
     public async Task<IActionResult> UpdateOrganizationStatus(
-        Guid id, 
-        [FromBody] UpdateOrgStatusDto dto, 
+        Guid id,
+        [FromBody] UpdateOrgStatusDto dto,
         CancellationToken cancellationToken = default)
     {
         var org = await _context.Organizations.FindAsync(new object[] { id }, cancellationToken);
@@ -455,7 +455,7 @@ public class EnterpriseOperationsController : ControllerBase
         req.UpdatedAt = DateTimeOffset.UtcNow;
 
         // Auto-assign to senior administrators by clearing the active reviewer and setting state
-        req.AssignedReviewerId = null; 
+        req.AssignedReviewerId = null;
 
         var comment = new WorkflowComment
         {
@@ -478,8 +478,8 @@ public class EnterpriseOperationsController : ControllerBase
     [HttpPost("requests/{id}/resolve")]
     [HasPermission("admin:enterprise:manage")]
     public async Task<IActionResult> ResolveRequest(
-        Guid id, 
-        [FromBody] ResolveRequestDto dto, 
+        Guid id,
+        [FromBody] ResolveRequestDto dto,
         CancellationToken cancellationToken = default)
     {
         var req = await _context.EnterpriseWorkflowRequests
@@ -550,8 +550,8 @@ public class EnterpriseOperationsController : ControllerBase
     [HttpPost("requests/{id}/comments")]
     [HasPermission("admin:enterprise:manage")]
     public async Task<IActionResult> AddComment(
-        Guid id, 
-        [FromBody] AddCommentDto dto, 
+        Guid id,
+        [FromBody] AddCommentDto dto,
         CancellationToken cancellationToken = default)
     {
         var req = await _context.EnterpriseWorkflowRequests.FindAsync(new object[] { id }, cancellationToken);

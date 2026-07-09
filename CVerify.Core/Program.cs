@@ -626,7 +626,7 @@ using (var scope = app.Services.CreateScope())
                 logger.LogError("Greenfield SQL script schema_init.sql not found!");
             }
         }
-        
+
         string? GetArgValue(string[] arguments, string prefix)
         {
             var arg = arguments.FirstOrDefault(a => a.StartsWith(prefix + "=", StringComparison.OrdinalIgnoreCase));

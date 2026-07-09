@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { DEMO_SECTIONS, DemoTransitionType, SceneMetadata } from "../config";
+import { DEMO_SECTIONS, DemoTransitionType, type SceneMetadata } from "../config";
 
 export type SceneLifecycleState =
   | "beforeEnter"

@@ -81,7 +81,8 @@ public class DemoOrganizationSeeder : ISeederModule
                 new NpgsqlParameter("@orgId", org.Id),
                 new NpgsqlParameter("@username", org.Username),
                 new NpgsqlParameter("@password", businessPassword)
-            );        }
+            );
+        }
 
         return new SeederResult(ModuleId, SeedingStatus.Success, "Organizations seeded successfully.", affected);
     }

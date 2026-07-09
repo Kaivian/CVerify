@@ -1,5 +1,5 @@
 import dynamic from "next/dynamic";
-import { ComponentType } from "react";
+import { type ComponentType } from "react";
 
 export type DemoTransitionType = "fade" | "slide-x" | "slide-y" | "scale" | "blur" | "none";
 export type DemoThemeType = "light" | "dark" | "system";

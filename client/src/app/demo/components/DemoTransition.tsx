@@ -1,9 +1,9 @@
 "use client";
 
-import React, { ReactNode } from "react";
-import { motion, useReducedMotion, Variants } from "framer-motion";
+import React, { type ReactNode } from "react";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { useDemoStore } from "../stores/use-demo-store";
-import { DemoTransitionType } from "../config";
+import { type DemoTransitionType } from "../config";
 
 interface DemoTransitionProps {
   children: ReactNode;

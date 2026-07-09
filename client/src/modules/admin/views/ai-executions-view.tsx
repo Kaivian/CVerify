@@ -61,7 +61,7 @@ const CustomTaskNode: React.FC<NodeProps> = ({ data }) => {
         <h5 className="font-bold text-foreground text-xs truncate">{customData.taskName}</h5>
         {customData.status === "Running" && (
           <div className="w-full bg-primary/20 h-1 rounded-full overflow-hidden mt-1">
-            <div className="bg-primary h-full rounded-full" style={{ width: `${customData.progress}%` }}></div>
+            <div className="bg-primary h-full rounded-full" style={{ width: `${customData.progress}%` }} />
           </div>
         )}
       </div>

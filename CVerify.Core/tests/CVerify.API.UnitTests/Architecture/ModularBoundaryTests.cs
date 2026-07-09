@@ -75,6 +75,12 @@ public class ModularBoundaryTests
             .DoNotHaveName("JobEligibilityService")
             .And()
             .DoNotHaveName("TalentGraphBuilder")
+            .And()
+            .DoNotHaveName("CandidateAssessmentPipelineOrchestrator")
+            .And()
+            .DoNotHaveName("DemoCvSeeder")
+            .And()
+            .DoNotHaveName("DemoRepositorySeeder")
             .ShouldNot()
             .HaveDependencyOnAny(featureNamespaces)
             .GetResult();

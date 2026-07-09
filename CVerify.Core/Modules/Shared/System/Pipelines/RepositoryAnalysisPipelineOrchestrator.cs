@@ -26,7 +26,7 @@ public class RepositoryAnalysisPipelineOrchestrator : IPipelineOrchestrator
     {
         var job = await _context.AnalysisJobs.FirstOrDefaultAsync(j => j.Id == executionId, cancellationToken);
         if (job == null) return false;
-        
+
         return await _analysisService.CancelJobAsync(job.UserId, executionId);
     }
 
@@ -62,7 +62,7 @@ public class RepositoryAnalysisPipelineOrchestrator : IPipelineOrchestrator
 
         job.Status = "Running";
         await _context.SaveChangesAsync(cancellationToken);
-        
+
         // Re-trigger scheduling
         var scheduler = _context.Database.BeginTransactionAsync(); // Not needed if sweeper picks up
         return true;

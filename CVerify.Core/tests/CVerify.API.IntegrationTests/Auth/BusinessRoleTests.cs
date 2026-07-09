@@ -113,6 +113,7 @@ public class BusinessRoleTests : BaseIntegrationTest
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var bootstrapService = scope.ServiceProvider.GetRequiredService<IOrganizationBootstrapService>();
 
         var membership = new OrganizationMembership
         {
@@ -125,6 +126,13 @@ public class BusinessRoleTests : BaseIntegrationTest
 
         db.OrganizationMemberships.Add(membership);
         await db.SaveChangesAsync();
+
+        await DbInitializer.InitializeAsync(db);
+
+        if (role == "OWNER")
+        {
+            await bootstrapService.BootstrapOrganizationAsync(orgId, userId);
+        }
     }
 
     private async Task InitializeBusinessRolesAndPermissionsAsync()

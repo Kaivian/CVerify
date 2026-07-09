@@ -83,7 +83,7 @@ public class SeedRunner
         }
 
         var orderedModules = GetOrderedModules();
-        _logger.LogInformation("Resolved seeder execution DAG. Modules: {Modules}", 
+        _logger.LogInformation("Resolved seeder execution DAG. Modules: {Modules}",
             string.Join(" -> ", orderedModules.Select(m => m.ModuleId)));
 
         if (config.DryRun)
@@ -118,7 +118,7 @@ public class SeedRunner
             }
 
             _logger.LogInformation("Executing seeder module '{ModuleId}' (Version: {Version})...", module.ModuleId, module.Version);
-            
+
             using var transaction = await context.Database.BeginTransactionAsync();
             var stopwatch = Stopwatch.StartNew();
             try
