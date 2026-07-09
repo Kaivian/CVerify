@@ -204,10 +204,12 @@ for portKey in CORE_PORT AI_PORT CLIENT_PORT DB_PORT REDIS_PORT; do
 done
 
 # URL checks
-for urlKey in FRONTEND_URL INTERNAL_API_URL; do
+for urlKey in FRONTEND_URL INTERNAL_API_URL NEXT_PUBLIC_API_URL; do
   val=$(get_val "$urlKey")
-  if [[ ! "$val" =~ ^https?:// ]]; then
-    missing_required+=("$urlKey (Invalid URL: '$val')")
+  if [ -n "$val" ]; then
+    if [[ ! "$val" =~ ^https?:// ]]; then
+      missing_required+=("$urlKey (Invalid URL: '$val')")
+    fi
   fi
 done
 
