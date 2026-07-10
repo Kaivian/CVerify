@@ -253,7 +253,7 @@ public class AiChatController : ControllerBase
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache, no-transform";
         Response.Headers.Connection = "keep-alive";
-        Response.Headers.Add("X-Accel-Buffering", "no");
+        Response.Headers.Append("X-Accel-Buffering", "no");
 
         HttpResponseMessage responseMessage;
         try
