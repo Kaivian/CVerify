@@ -389,7 +389,8 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         var overrides = new Dictionary<string, string>
         {
             { "DISABLE_RATE_LIMITS", "true" },
-            { "ASPNETCORE_ENVIRONMENT", "Production" }
+            { "ASPNETCORE_ENVIRONMENT", "Production" },
+            { "PRODUCTION_UNLOCK_CONFIRMATION", "true" }
         };
 
         // Instantiating the factory and building the host should throw InvalidOperationException
@@ -406,7 +407,8 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         {
             { "SEED_TEST_ACCOUNTS", "true" },
             { "SEED_BUSINESS_PASSWORD", "MockBusinessPassword123" },
-            { "ASPNETCORE_ENVIRONMENT", "Production" }
+            { "ASPNETCORE_ENVIRONMENT", "Production" },
+            { "PRODUCTION_UNLOCK_CONFIRMATION", "true" }
         };
 
         var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
@@ -466,7 +468,8 @@ public class ProductionEnforcementTests : BaseIntegrationTest
 
         var overrides = new Dictionary<string, string>
         {
-            { "ASPNETCORE_ENVIRONMENT", "Production" }
+            { "ASPNETCORE_ENVIRONMENT", "Production" },
+            { "PRODUCTION_UNLOCK_CONFIRMATION", "true" }
         };
 
         var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
