@@ -276,11 +276,20 @@ public static class DbInitializer
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'description') THEN
                         ALTER TABLE organizations ADD COLUMN description TEXT;
                     END IF;
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'company_type') THEN
-                        ALTER TABLE organizations ADD COLUMN company_type VARCHAR(100);
+                    -- Rename company_type to organization_type if it exists
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'company_type') THEN
+                        ALTER TABLE organizations RENAME COLUMN company_type TO organization_type;
                     END IF;
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'company_size') THEN
-                        ALTER TABLE organizations ADD COLUMN company_size VARCHAR(100);
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'organization_type') THEN
+                        ALTER TABLE organizations ADD COLUMN organization_type VARCHAR(100);
+                    END IF;
+
+                    -- Rename company_size to organization_size if it exists
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'company_size') THEN
+                        ALTER TABLE organizations RENAME COLUMN company_size TO organization_size;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'organization_size') THEN
+                        ALTER TABLE organizations ADD COLUMN organization_size VARCHAR(100);
                     END IF;
                     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'branch_count') THEN
                         ALTER TABLE organizations ADD COLUMN branch_count INTEGER NOT NULL DEFAULT 0;
@@ -906,8 +915,8 @@ public static class DbInitializer
                 banner_url VARCHAR(2048),
                 logo_url VARCHAR(2048),
                 description TEXT,
-                company_type VARCHAR(100),
-                company_size VARCHAR(100),
+                organization_type VARCHAR(100),
+                organization_size VARCHAR(100),
                 branch_count INTEGER NOT NULL DEFAULT 0,
                 industry_tags VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
                 benefit_tags VARCHAR(100)[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
@@ -1178,12 +1187,12 @@ public static class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_otp_verifications_challenge_id ON otp_verifications(challenge_id);
             CREATE INDEX IF NOT EXISTS idx_otp_verifications_email ON otp_verifications(email);
 
-            -- Stores telemetry-tracked verification links for company email ownership
+            -- Stores telemetry-tracked verification links for organization email ownership
             CREATE TABLE IF NOT EXISTS verification_links (
                 id UUID PRIMARY KEY,
                 email VARCHAR(255) NOT NULL,
                 tax_code VARCHAR(50),
-                company_name VARCHAR(255),
+                organization_name VARCHAR(255),
                 token_hash VARCHAR(255) NOT NULL,
                 purpose VARCHAR(100) NOT NULL,
                 user_id UUID,
@@ -1212,6 +1221,15 @@ public static class DbInitializer
             -- Backward-compatibility patch block: migrate old single user role layout if detected
             DO $$
             BEGIN
+                -- Rename verification_links.company_name to organization_name if it exists
+                IF EXISTS (
+                    SELECT 1 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'verification_links' AND column_name = 'company_name'
+                ) THEN
+                    ALTER TABLE verification_links RENAME COLUMN company_name TO organization_name;
+                END IF;
+
                 IF EXISTS (
                     SELECT 1 
                     FROM information_schema.columns 
@@ -3148,8 +3166,8 @@ public static class DbInitializer
 
             var currentEnv = resolvedEnv?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
-            if (!string.IsNullOrEmpty(storedEnv) && 
-                string.Equals(currentEnv, "Production", StringComparison.OrdinalIgnoreCase) && 
+            if (!string.IsNullOrEmpty(storedEnv) &&
+                string.Equals(currentEnv, "Production", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(storedEnv, "Production", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException($"Fatal Safeguard Check: Accidental database promotion detected! The current hosting environment is Production, but this database is classified as '{storedEnv}' in system_metadata.");
@@ -3184,16 +3202,16 @@ public static class DbInitializer
 
         if (serviceProvider != null)
         {
-            moduleSeeders = serviceProvider.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>() 
+            moduleSeeders = serviceProvider.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
                 ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            loggerFactory = serviceProvider.GetService<Microsoft.Extensions.Logging.ILoggerFactory>() 
+            loggerFactory = serviceProvider.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
         }
         else
         {
-            moduleSeeders = context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>() 
+            moduleSeeders = context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
                 ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            loggerFactory = context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>() 
+            loggerFactory = context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
         }
 
@@ -3288,9 +3306,9 @@ public static class DbInitializer
     {
         var usersToMigrate = await context.Users
             .Include(u => u.AuthProviders)
-            .Where(u => u.AuthProviders.Any(ap => 
-                ap.ProviderName == "Google" && 
-                ap.ProviderAccountId != null && 
+            .Where(u => u.AuthProviders.Any(ap =>
+                ap.ProviderName == "Google" &&
+                ap.ProviderAccountId != null &&
                 ap.ProviderAccountId.Contains("@") &&
                 ap.ProviderAccountId != u.Email))
             .ToListAsync();

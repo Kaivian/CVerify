@@ -6,12 +6,12 @@ namespace CVerify.API.Modules.Auth.DTOs;
 
 public record PreAssignedRoleDto(
     [Required] Guid RoleId,
-    [Required] [MaxLength(30)] string ScopeType, // "ORGANIZATION", "WORKSPACE"
+    [Required][MaxLength(30)] string ScopeType, // "ORGANIZATION", "WORKSPACE"
     [Required] Guid ScopeId
 );
 
 public record InviteMemberDto(
-    [Required] [EmailAddress] [MaxLength(255)] string Email,
+    [Required][EmailAddress][MaxLength(255)] string Email,
     [Required] List<PreAssignedRoleDto> Roles
 );
 
@@ -75,7 +75,7 @@ public record PaginatedOrganizationMembersResponseDto(
 );
 
 public record UpdateMemberDto(
-    [Required] [MaxLength(30)] string Status // "active", "suspended", "disabled"
+    [Required][MaxLength(30)] string Status // "active", "suspended", "disabled"
 );
 
 public record BulkMemberOperationDto(

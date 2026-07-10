@@ -78,13 +78,17 @@ if (envPath == null)
     }
 }
 
-if (envPath != null) {
-    foreach (var line in File.ReadAllLines(envPath)) {
+if (envPath != null)
+{
+    foreach (var line in File.ReadAllLines(envPath))
+    {
         var parts = line.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 2 && !parts[0].StartsWith("#")) {
+        if (parts.Length == 2 && !parts[0].StartsWith("#"))
+        {
             var key = parts[0].Trim();
             var val = parts[1].Trim();
-            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key))) {
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+            {
                 Environment.SetEnvironmentVariable(key, val);
             }
         }
@@ -154,7 +158,7 @@ builder.Services.AddOpenApi(options =>
             BearerFormat = "JWT",
             Description = "Enter your JWT token in the format: Bearer {token}"
         });
-        
+
         // 2. Ensure the Security requirements list is initialized before adding
         document.Security ??= new List<OpenApiSecurityRequirement>();
 
@@ -162,7 +166,7 @@ builder.Services.AddOpenApi(options =>
         {
             [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
         });
-        
+
         return Task.CompletedTask;
     });
 });
@@ -185,7 +189,7 @@ builder.Services.AddControllers()
                 }
             }
 
-            var correlationId = AsyncLocalCorrelationScope.CurrentCorrelationId 
+            var correlationId = AsyncLocalCorrelationScope.CurrentCorrelationId
                                 ?? context.HttpContext.TraceIdentifier;
 
             var responsePayload = new ApiErrorResponse
@@ -303,8 +307,8 @@ builder.Services.AddRateLimiter(options =>
         var config = context.RequestServices.GetRequiredService<EnvConfiguration>();
         var limit = config.Security.DisableRateLimits ? 99999 : 10;
         return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                          ?? context.Connection.RemoteIpAddress?.ToString() 
+            partitionKey: context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                          ?? context.Connection.RemoteIpAddress?.ToString()
                           ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
@@ -322,7 +326,8 @@ builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
     options.UseNpgsql(envConfig.Database.ConnectionString, o => o
                 .MapEnum<UserStatus>("user_status")
                 .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
-           .UseSnakeCaseNamingConvention();
+           .UseSnakeCaseNamingConvention()
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 
     options.AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>());
 
@@ -396,7 +401,10 @@ builder.Services.AddScoped<IWorkspaceProvisioningService, WorkspaceProvisioningS
 builder.Services.AddScoped<IWorkspaceMembershipService, WorkspaceMembershipService>();
 builder.Services.AddScoped<IOrganizationAuthorizationService, OrganizationAuthorizationService>();
 builder.Services.AddScoped<IOrganizationBootstrapService, OrganizationBootstrapService>();
+builder.Services.AddScoped<IOrganizationRoleService, OrganizationRoleService>();
+#pragma warning disable CS0618
 builder.Services.AddScoped<IBusinessRoleService, BusinessRoleService>();
+#pragma warning restore CS0618
 builder.Services.AddScoped<IOrganizationInvitationService, OrganizationInvitationService>();
 builder.Services.AddScoped<IPasswordRecoveryService, PasswordRecoveryService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
@@ -592,7 +600,7 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi(); // /openapi/v1.json
-    app.UseSwaggerUI(options => 
+    app.UseSwaggerUI(options =>
     {
         options.SwaggerEndpoint("/openapi/v1.json", "CVerify API v1");
         options.RoutePrefix = "swagger";

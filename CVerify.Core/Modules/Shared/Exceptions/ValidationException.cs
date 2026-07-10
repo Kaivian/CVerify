@@ -9,14 +9,14 @@ namespace CVerify.API.Modules.Shared.Exceptions;
 /// </summary>
 public class ValidationException : CVerifyBaseException
 {
-    public ValidationException(string defaultMessage) 
+    public ValidationException(string defaultMessage)
         : base(SystemErrorCatalog.ValidationError, ErrorCategory.VALIDATION, "system.toast.error.validation", defaultMessage)
     {
         DisplayMode = "Inline";
         ValidationErrors = new Dictionary<string, string[]>();
     }
 
-    public ValidationException(Dictionary<string, string[]> validationErrors, string defaultMessage = "Validation failed.") 
+    public ValidationException(Dictionary<string, string[]> validationErrors, string defaultMessage = "Validation failed.")
         : base(SystemErrorCatalog.ValidationError, ErrorCategory.VALIDATION, "system.toast.error.validation", defaultMessage)
     {
         DisplayMode = "Inline";

@@ -66,11 +66,11 @@ export function isValidInternalPath(path: string | null | undefined): boolean {
  *   public sub-routes like /business/{slug}, /business/{slug}/about, etc.
  */
 export function isProtectedRoute(pathname: string): boolean {
-  const isDashboardRoute = ['/admin', '/business', '/user', '/chat', '/cv', '/settings'].some(p => pathname.startsWith(p));
+  const isDashboardRoute = ['/admin', '/business', '/organization', '/user', '/chat', '/cv', '/settings'].some(p => pathname.startsWith(p));
   if (!isDashboardRoute) return false;
 
   const segments = pathname.split('/').filter(Boolean);
-  if (segments[0] === 'business') {
+  if (segments[0] === 'business' || segments[0] === 'organization') {
     // If the second segment is a reserved word (e.g. 'companies'), it's a static admin page, hence protected.
     if (segments[1] && RESERVED_USERNAMES.has(segments[1])) {
       return true;

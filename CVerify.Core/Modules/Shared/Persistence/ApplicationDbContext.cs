@@ -60,7 +60,7 @@ public class ApplicationDbContext : DbContext
     {
         var auditLogEntries = ChangeTracker.Entries<AuditLog>()
             .Where(e => e.State == EntityState.Modified || e.State == EntityState.Deleted);
-        
+
         if (auditLogEntries.Any())
         {
             throw new InvalidOperationException("Audit logs are strictly immutable and cannot be updated or deleted.");
@@ -71,7 +71,7 @@ public class ApplicationDbContext : DbContext
     {
         var entries = ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Modified);
-        
+
         foreach (var entry in entries)
         {
             if (entry.Entity is User u)
@@ -231,6 +231,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProjectEntry> ProjectEntries => Set<ProjectEntry>();
     public DbSet<ProjectRepositoryLink> ProjectRepositoryLinks => Set<ProjectRepositoryLink>();
     public DbSet<CvRepositoryMapping> CvRepositoryMappings => Set<CvRepositoryMapping>();
+    public DbSet<UserCvSetting> UserCvSettings => Set<UserCvSetting>();
     public DbSet<ProjectTechnology> ProjectTechnologies => Set<ProjectTechnology>();
     public DbSet<ProjectContribution> ProjectContributions => Set<ProjectContribution>();
 
@@ -268,6 +269,7 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<UserProfile>().Property(up => up.UserId).ValueGeneratedNever();
         modelBuilder.Entity<CareerPreference>().Property(cp => cp.UserId).ValueGeneratedNever();
+        modelBuilder.Entity<UserCvSetting>().Property(ucs => ucs.UserId).ValueGeneratedNever();
         modelBuilder.Entity<AiInferredPreference>().Property(ap => ap.UserId).ValueGeneratedNever();
         modelBuilder.Entity<UserSkill>().Property(us => us.Id).ValueGeneratedNever();
         modelBuilder.Entity<EducationEntry>().Property(ee => ee.Id).ValueGeneratedNever();
@@ -577,7 +579,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CandidateSkillTreeNode>(entity =>
         {
             entity.Property(n => n.Id).ValueGeneratedNever();
-            
+
             entity.HasOne(n => n.Assessment)
                   .WithMany(a => a.SkillTreeNodes)
                   .HasForeignKey(n => n.CandidateAssessmentId)
@@ -733,7 +735,7 @@ public class ApplicationDbContext : DbContext
             .HasIndex(p => p.Name)
             .HasMethod("btree") // default, but for hierarchy we might use varchar_pattern_ops in SQL
             .HasOperators("varchar_pattern_ops");
-            
+
         // Status filter index
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Status)
@@ -829,7 +831,7 @@ public class ApplicationDbContext : DbContext
         {
             entity.ToTable("conversations");
             entity.HasIndex(c => c.UserId).HasDatabaseName("idx_conversations_user_id");
-            
+
             entity.HasOne(c => c.User)
                 .WithMany()
                 .HasForeignKey(c => c.UserId)
@@ -842,9 +844,9 @@ public class ApplicationDbContext : DbContext
             entity.ToTable("messages");
             entity.Property(m => m.Role).HasConversion<string>();
             entity.Property(m => m.StreamingState).HasConversion<string>();
-            
+
             entity.HasIndex(m => new { m.ConversationId, m.CreatedAt }).HasDatabaseName("idx_messages_conversation_id_created_at");
-            
+
             entity.HasOne(m => m.Conversation)
                 .WithMany(c => c.Messages)
                 .HasForeignKey(m => m.ConversationId)

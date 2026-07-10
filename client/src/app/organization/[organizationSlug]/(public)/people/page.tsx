@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Typography } from "@heroui/react";
 import Link from "next/link";
 import { workspaceService } from "@/features/workspace/services/workspace.service";
-import { WorkspaceMember } from "@/features/workspace/types/workspace.types";
+import { type WorkspaceMember } from "@/features/workspace/types/workspace.types";
 
 export default function WorkspaceMembersTab() {
   const params = useParams();

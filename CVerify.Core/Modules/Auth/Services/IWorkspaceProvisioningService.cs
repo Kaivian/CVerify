@@ -6,7 +6,7 @@ namespace CVerify.API.Modules.Auth.Services;
 
 public interface IWorkspaceProvisioningService
 {
-    Task<VerifyCompanyOnboardingResponse> VerifyCompanyOnboardingAsync(VerifyCompanyOnboardingRequest request, CancellationToken cancellationToken = default);
+    Task<VerifyOrganizationOnboardingResponse> VerifyOrganizationOnboardingAsync(VerifyOrganizationOnboardingRequest request, CancellationToken cancellationToken = default);
     Task<VerifyOtpResponse> VerifyOnboardingOtpAsync(VerifyOtpRequest request, string step1Token, CancellationToken cancellationToken = default);
     Task<VerifyOtpResponse> VerifyOnboardingGoogleAsync(GoogleOnboardingLinkRequest request, CancellationToken cancellationToken = default);
     Task<SetupWorkspaceResponse> CompleteOnboardingAsync(CompleteOnboardingRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default);

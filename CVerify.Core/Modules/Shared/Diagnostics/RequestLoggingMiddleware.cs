@@ -32,12 +32,12 @@ public class RequestLoggingMiddleware
         }
 
         // Establish correlation ID from request header or generate a new one
-        if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationIdValues) || 
+        if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationIdValues) ||
             string.IsNullOrEmpty(correlationIdValues.ToString()))
         {
             correlationIdValues = Guid.NewGuid().ToString("N");
         }
-        
+
         var correlationId = correlationIdValues.ToString();
         context.Response.Headers["X-Correlation-ID"] = correlationId;
 

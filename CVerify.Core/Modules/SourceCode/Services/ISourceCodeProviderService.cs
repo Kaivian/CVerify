@@ -27,17 +27,17 @@ public interface ISourceCodeProviderService
 {
     Task<IEnumerable<SourceCodeProviderDto>> GetProvidersAsync(Guid userId);
     Task<PaginatedResultDto<RepositoryDto>> GetRepositoriesAsync(
-        Guid userId, 
-        Guid? providerId, 
-        string? search, 
-        string? visibility, 
-        string? language, 
-        string? sort, 
-        string? category, 
+        Guid userId,
+        Guid? providerId,
+        string? search,
+        string? visibility,
+        string? language,
+        string? sort,
+        string? category,
         string? ownerType,
         Guid? organizationId,
         string? mode,
-        int page, 
+        int page,
         int pageSize);
     Task<IEnumerable<UserRepositoryIdentityDto>> GetUserRepositoriesForIndexingAsync(Guid userId, CancellationToken cancellationToken);
     Task<IEnumerable<ExternalOrganizationResponseDto>> GetOrganizationsAsync(Guid userId);

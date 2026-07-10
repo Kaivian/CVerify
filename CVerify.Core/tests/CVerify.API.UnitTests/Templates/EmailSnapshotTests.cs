@@ -26,7 +26,7 @@ public class EmailSnapshotTests
     {
         // Point to the real templates copied to the build output
         _templatesDirectory = Path.Combine(AppContext.BaseDirectory, "Modules", "Shared", "Email", "Templates");
-        
+
         // Save snapshots inside the project source folder so they are checked into git,
         // and fall back to bin directory if running in isolated settings.
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -35,8 +35,8 @@ public class EmailSnapshotTests
             dir = dir.Parent;
         }
 
-        var targetSnapshotsDir = dir != null 
-            ? Path.Combine(dir.FullName, "Snapshots") 
+        var targetSnapshotsDir = dir != null
+            ? Path.Combine(dir.FullName, "Snapshots")
             : Path.Combine(AppContext.BaseDirectory, "Snapshots");
 
         _snapshotsDirectory = targetSnapshotsDir;
@@ -117,18 +117,18 @@ public class EmailSnapshotTests
         };
 
         // Act
-        var renderedHtml = await _service.RenderTemplateAsync(templateName, mockModel).ConfigureAwait(false);
+        var renderedHtml = await _service.RenderTemplateAsync(templateName, mockModel);
 
         // Assert
         var snapshotPath = Path.Combine(_snapshotsDirectory, templateName);
         if (!File.Exists(snapshotPath))
         {
             // Auto-generate snapshot on the first run
-            await File.WriteAllTextAsync(snapshotPath, renderedHtml).ConfigureAwait(false);
+            await File.WriteAllTextAsync(snapshotPath, renderedHtml);
         }
 
-        var expectedHtml = await File.ReadAllTextAsync(snapshotPath).ConfigureAwait(false);
-        
+        var expectedHtml = await File.ReadAllTextAsync(snapshotPath);
+
         // Normalize line endings to avoid cross-platform OS mismatches
         var normalizedRendered = renderedHtml.Replace("\r\n", "\n").Trim();
         var normalizedExpected = expectedHtml.Replace("\r\n", "\n").Trim();

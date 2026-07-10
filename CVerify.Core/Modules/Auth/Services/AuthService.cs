@@ -64,7 +64,7 @@ public class AuthService : IAuthService
     private readonly IGoogleTokenValidator _googleTokenValidator;
     private readonly IUsernameService _usernameService;
     private readonly IWorkspaceMembershipService _workspaceMembershipService;
- 
+
     public AuthService(
         ApplicationDbContext context,
         ITokenService tokenService,
@@ -111,7 +111,7 @@ public class AuthService : IAuthService
     private async Task<string?> GetSignedAvatarUrlAsync(string? avatarUrl, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(avatarUrl)) return null;
-        if (avatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+        if (avatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             avatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             return avatarUrl;
@@ -490,7 +490,7 @@ public class AuthService : IAuthService
                 var jwt = _tokenService.GenerateJwtToken(user, roles, permissions, sessionId: sessionId);
                 var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
-                var rememberMe = true; 
+                var rememberMe = true;
                 await SaveRefreshTokenAsync(user.Id, null, refreshTokenStr, sessionId, rememberMe);
 
                 var refreshExpiry = DateTime.UtcNow.AddDays(7);
@@ -1000,7 +1000,7 @@ public class AuthService : IAuthService
             };
 
             _context.Users.Add(newUser);
-            await _usernameService.RunWithUsernameRetryAsync(newUser, normalizedEmail, async () => 
+            await _usernameService.RunWithUsernameRetryAsync(newUser, normalizedEmail, async () =>
                 await _context.SaveChangesAsync(cancellationToken), cancellationToken: cancellationToken);
 
             // Generate secure URL-safe verification token
@@ -1023,7 +1023,7 @@ public class AuthService : IAuthService
 
             // Outbox Pattern enrollment: insert verification email envelope into outbox inside transaction
             var verificationLink = _envConfig.Auth.VerifyEmailUrlFormat.Replace("{token}", plainToken);
-            
+
             // Validate the redirect domain
             var uri = new Uri(verificationLink);
             var trusted = _envConfig.Auth.TrustedDomains.Split(';', StringSplitOptions.RemoveEmptyEntries);
@@ -1115,7 +1115,7 @@ public class AuthService : IAuthService
         try
         {
             tokenEntity.ConsumedAt = _timeProvider.GetUtcNow();
-            
+
             var user = tokenEntity.User;
             await ActivateUserAsync(user);
 
@@ -1155,7 +1155,7 @@ public class AuthService : IAuthService
 
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Email successfully verified for user {UserId} and auto-logged in.", correlationId, user.Id);
             _metrics.RecordVerification();
-            
+
             return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD", cancellationToken);
         }
 
@@ -1200,7 +1200,7 @@ public class AuthService : IAuthService
         }
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
-        
+
         // Strict Account Enumeration Prevention: if user does not exist, return generic success
         if (user == null)
         {
@@ -1481,7 +1481,7 @@ public class AuthService : IAuthService
 
             _logger.LogInformation("[CorrelationID: {CorrelationId}] Password reset successfully and user {UserId} auto-logged in.", correlationId, user.Id);
             _metrics.RecordPasswordReset();
-            
+
             return await CreateAuthResponseAsync(user, roles, permissions, true, "ACTIVE", "DASHBOARD", cancellationToken);
         }
 
@@ -1614,7 +1614,7 @@ public class AuthService : IAuthService
         var user = await _context.Users
             .Include(u => u.AuthProviders)
             .FirstOrDefaultAsync(u => u.Id == userId);
-            
+
         if (user == null)
         {
             throw new ResourceNotFoundException("USER_NOT_FOUND", "User not found.");
@@ -1934,8 +1934,8 @@ public class AuthService : IAuthService
         }
 
         string providerKey = "";
-        var baseUri = string.IsNullOrEmpty(_envConfig.Auth.BackendUrl) 
-            ? $"{_httpContextAccessor.HttpContext?.Request.Scheme}://{_httpContextAccessor.HttpContext?.Request.Host}" 
+        var baseUri = string.IsNullOrEmpty(_envConfig.Auth.BackendUrl)
+            ? $"{_httpContextAccessor.HttpContext?.Request.Scheme}://{_httpContextAccessor.HttpContext?.Request.Host}"
             : _envConfig.Auth.BackendUrl.TrimEnd('/');
         var callbackUri = $"{baseUri}/api/users/me/callback-reauth/{canonicalName}";
 
@@ -2194,9 +2194,9 @@ public class AuthService : IAuthService
         }
         var textWithoutAccents = sb.ToString();
 
-        var patterns = new[] 
-        { 
-            "cong ty co phan", "cong ty tnhh", "tnhh", "co phan", "dntn", "cp", "cong ty", "doanh nghiep" 
+        var patterns = new[]
+        {
+            "cong ty co phan", "cong ty tnhh", "tnhh", "co phan", "dntn", "cp", "cong ty", "doanh nghiep"
         };
 
         foreach (var pattern in patterns)
@@ -2222,8 +2222,8 @@ public class AuthService : IAuthService
     {
         var correlationId = Guid.NewGuid().ToString("N");
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
-        
-        _logger.LogInformation("[CorrelationID: {CorrelationId}] [IP: {IpAddress}] SendOtpAsync requested for email: {Email}, purpose: {Purpose}.", 
+
+        _logger.LogInformation("[CorrelationID: {CorrelationId}] [IP: {IpAddress}] SendOtpAsync requested for email: {Email}, purpose: {Purpose}.",
             correlationId, ipAddress, normalizedEmail, request.Purpose);
 
         if (IsDisposableEmail(normalizedEmail))
@@ -2308,7 +2308,7 @@ public class AuthService : IAuthService
                     }
                     else
                     {
-                        _logger.LogWarning("[CorrelationID: {CorrelationId}] Cooldown active for: {Email}. Cooldown until: {Cooldown}.", 
+                        _logger.LogWarning("[CorrelationID: {CorrelationId}] Cooldown active for: {Email}. Cooldown until: {Cooldown}.",
                             correlationId, normalizedEmail, verification.CooldownUntil.Value);
                         throw new AuthException(AuthErrorCodes.CooldownActive, "Please wait before requesting another OTP.");
                     }
@@ -2333,7 +2333,7 @@ public class AuthService : IAuthService
                 verification.LastSentAt = utcNow;
                 verification.LastResentAt = utcNow;
 
-                _logger.LogInformation("[CorrelationID: {CorrelationId}] Reusing active challenge session: {ChallengeId}. Resend count: {Count}.", 
+                _logger.LogInformation("[CorrelationID: {CorrelationId}] Reusing active challenge session: {ChallengeId}. Resend count: {Count}.",
                     correlationId, challengeId, verification.ResendCount);
             }
             else
@@ -2405,7 +2405,7 @@ public class AuthService : IAuthService
         var normalizedEmail = NormalizeEmailPolicy(request.Email);
         var policy = _otpPolicyService.GetPolicy(request.Purpose);
 
-        _logger.LogInformation("[CorrelationID: {CorrelationId}] VerifyOtpAsync requested for challenge: {ChallengeId}, email: {Email}, purpose: {Purpose}.", 
+        _logger.LogInformation("[CorrelationID: {CorrelationId}] VerifyOtpAsync requested for challenge: {ChallengeId}, email: {Email}, purpose: {Purpose}.",
             correlationId, request.ChallengeId, normalizedEmail, request.Purpose);
 
         _otpPolicyService.ValidateAndThrow(request.Code, request.Purpose);
@@ -2507,7 +2507,7 @@ public class AuthService : IAuthService
                 await _context.SaveChangesAsync(cancellationToken);
                 _logger.LogWarning("[CorrelationID: {CorrelationId}] OTP code mismatch for challenge {ChallengeId}. Total attempts: {Attempts}.", correlationId, request.ChallengeId, verification.Attempts);
                 await LogAuditEventAsync(null, "OTP_FAILED", $"OTP verification failed for challenge {request.ChallengeId} on {normalizedEmail}. Attempts: {verification.Attempts}. CorrelationId: {correlationId}");
-                
+
                 if (verification.Status == OtpSessionStatus.LOCKED && _rateLimitPolicyService.ShouldEnforceCooldowns())
                 {
                     throw new AuthException(AuthErrorCodes.SuspiciousActivity, "Too many failed attempts. This OTP has been blocked.");
@@ -2538,7 +2538,7 @@ public class AuthService : IAuthService
         var correlationId = Guid.NewGuid().ToString("N");
         var normalizedEmail = NormalizeEmailPolicy(email);
 
-        _logger.LogInformation("[CorrelationID: {CorrelationId}] GetActiveOtpSessionAsync requested for email: {Email}, purpose: {Purpose}, challengeId: {ChallengeId}.", 
+        _logger.LogInformation("[CorrelationID: {CorrelationId}] GetActiveOtpSessionAsync requested for email: {Email}, purpose: {Purpose}, challengeId: {ChallengeId}.",
             correlationId, normalizedEmail, purpose, challengeId);
 
         var verification = await _context.OtpVerifications
@@ -2718,9 +2718,9 @@ public class AuthService : IAuthService
         }, cancellationToken);
     }
 
-    public async Task<bool> RegisterCompanyAsync(RegisterCompanyRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
+    public async Task<bool> RegisterOrganizationAsync(RegisterOrganizationRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = NormalizeEmailPolicy(request.CompanyEmail);
+        var normalizedEmail = NormalizeEmailPolicy(request.OrganizationEmail);
         if (IsDisposableEmail(normalizedEmail))
         {
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Disposable email addresses are not permitted.");
@@ -2751,11 +2751,11 @@ public class AuthService : IAuthService
         var officialName = dataElement.GetProperty("name").GetString() ?? string.Empty;
 
         var normalizedOfficial = NormalizeCompanyNameForMatching(officialName);
-        var normalizedUser = NormalizeCompanyNameForMatching(request.CompanyName);
+        var normalizedUser = NormalizeCompanyNameForMatching(request.OrganizationName);
 
         if (normalizedOfficial != normalizedUser)
         {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Company name does not exactly match the official tax registry business name.");
+            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Organization name does not exactly match the official tax registry business name.");
         }
 
         var plainToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
@@ -2766,9 +2766,9 @@ public class AuthService : IAuthService
         {
             Email = normalizedEmail,
             TaxCode = request.TaxCode,
-            CompanyName = officialName,
+            OrganizationName = officialName,
             TokenHash = tokenHash,
-            Purpose = "CompanyVerification",
+            Purpose = "OrganizationVerification",
             ExpiresAt = _timeProvider.GetUtcNow().AddHours(24),
             CreatedAt = _timeProvider.GetUtcNow()
         };
@@ -2786,20 +2786,20 @@ public class AuthService : IAuthService
             CorrelationId = correlationId
         };
 
-        _context.AddAndAuditOutboxMessage("CompanyEmailVerification", normalizedEmail, correlationId, payloadObj, _timeProvider.GetUtcNow());
+        _context.AddAndAuditOutboxMessage("OrganizationEmailVerification", normalizedEmail, correlationId, payloadObj, _timeProvider.GetUtcNow());
         await _context.SaveChangesAsync(cancellationToken);
 
-        await LogAuditEventAsync(null, "COMPANY_VERIFIED", $"Company verification link sent for tax code {request.TaxCode} to {normalizedEmail}.");
+        await LogAuditEventAsync(null, "ORGANIZATION_VERIFIED", $"Organization verification link sent for tax code {request.TaxCode} to {normalizedEmail}.");
         return true;
     }
 
-    public async Task<VerifyCompanyLinkResponse> VerifyCompanyLinkAsync(VerifyCompanyLinkRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
+    public async Task<VerifyOrganizationLinkResponse> VerifyOrganizationLinkAsync(VerifyOrganizationLinkRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
     {
         using var sha = SHA256.Create();
         var tokenHash = Convert.ToHexString(sha.ComputeHash(Encoding.UTF8.GetBytes(request.Token))).ToLowerInvariant();
 
         var link = await _context.VerificationLinks
-            .Where(vl => vl.TokenHash == tokenHash && vl.Purpose == "CompanyVerification" && vl.DeletedAt == null)
+            .Where(vl => vl.TokenHash == tokenHash && vl.Purpose == "OrganizationVerification" && vl.DeletedAt == null)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (link == null)
@@ -2825,7 +2825,7 @@ public class AuthService : IAuthService
         var workspaceToken = Guid.NewGuid().ToString("N");
         await _cacheService.SetAsync($"workspace:token:{link.Email}", workspaceToken, TimeSpan.FromMinutes(15));
 
-        return new VerifyCompanyLinkResponse(link.CompanyName ?? string.Empty, link.TaxCode ?? string.Empty, link.Email, workspaceToken);
+        return new VerifyOrganizationLinkResponse(link.OrganizationName ?? string.Empty, link.TaxCode ?? string.Empty, link.Email, workspaceToken);
     }
 
     private bool VerifyPassword(User user, string? hash, string inputPassword)
@@ -2895,7 +2895,7 @@ public class AuthService : IAuthService
 
 
 
-    public async Task<AuthResponse?> CompanyLoginAsync(OrganizationLoginRequest request, string userAgent, string ipAddress)
+    public async Task<AuthResponse?> OrganizationLoginAsync(OrganizationLoginRequest request, string userAgent, string ipAddress)
     {
         var normalizedUsername = request.OrganizationUsername.Trim().ToLowerInvariant();
         var credential = await _context.OrganizationCredentials
@@ -2910,7 +2910,7 @@ public class AuthService : IAuthService
         var utcNow = _timeProvider.GetUtcNow();
         if (credential.LockoutEnd.HasValue && credential.LockoutEnd.Value > utcNow)
         {
-            throw new AuthException(AuthErrorCodes.LockedOut, $"This business account is temporarily locked out until {credential.LockoutEnd.Value.ToLocalTime()}.");
+            throw new AuthException(AuthErrorCodes.LockedOut, $"This organization account is temporarily locked out until {credential.LockoutEnd.Value.ToLocalTime()}.");
         }
 
         if (!BCrypt.Net.BCrypt.Verify(request.Password, credential.PasswordHash))
@@ -2923,8 +2923,8 @@ public class AuthService : IAuthService
             }
             credential.UpdatedAt = utcNow;
             await _context.SaveChangesAsync();
-            
-            await LogAuditEventAsync(null, "COMPANY_LOGIN_FAILED_CREDENTIALS", $"Invalid workspace password login attempt for company {normalizedUsername}.");
+
+            await LogAuditEventAsync(null, "ORGANIZATION_LOGIN_FAILED_CREDENTIALS", $"Invalid workspace password login attempt for organization {normalizedUsername}.");
             return null;
         }
 
@@ -2936,11 +2936,11 @@ public class AuthService : IAuthService
             await _context.SaveChangesAsync();
         }
 
-        var roles = new[] { "BUSINESS" };
+        var roles = new[] { "ORGANIZATION", "BUSINESS" };
         var permissions = Enumerable.Empty<string>();
 
         var sessionId = Guid.CreateVersion7();
-        var jwt = _tokenService.GenerateCompanyJwtToken(credential, roles, permissions, sessionId: sessionId);
+        var jwt = _tokenService.GenerateOrganizationJwtToken(credential, roles, permissions, sessionId: sessionId);
         var refreshTokenStr = _tokenService.GenerateRefreshToken();
 
         await SaveRefreshTokenAsync(null, credential.OrganizationId, refreshTokenStr, sessionId, false);
@@ -3399,20 +3399,20 @@ public class AuthService : IAuthService
             if (existingProvider != null)
             {
                 var wasSoftDeleted = existingProvider.DeletedAt != null;
-                
+
                 existingProvider.DeletedAt = null; // Reactivate if soft-deleted
                 existingProvider.ProviderAccountId = pending.ProviderAccountId;
                 existingProvider.ProviderUsername = pending.ProviderUsername;
                 existingProvider.ProviderDisplayName = pending.ProviderDisplayName;
                 existingProvider.ProviderAvatarUrl = pending.ProviderAvatarUrl;
                 existingProvider.ProviderProfileUrl = pending.ProviderProfileUrl;
-                
+
                 // Update credentials
                 existingProvider.EncryptedAccessToken = pending.EncryptedAccessToken;
                 existingProvider.EncryptedRefreshToken = pending.EncryptedRefreshToken;
                 existingProvider.ExpiresAt = null;
                 existingProvider.TokenUpdatedAt = _timeProvider.GetUtcNow();
-                
+
                 // Reset sync/validation status cleanly
                 existingProvider.ScopeValidationStatus = ProviderScopeStatus.Valid;
                 existingProvider.LastScopeValidationAt = _timeProvider.GetUtcNow();

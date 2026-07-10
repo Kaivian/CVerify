@@ -174,4 +174,76 @@ body {
   word-break: normal !important;
   overflow-wrap: break-word !important;
 }
+
+/* Scoped CV Templates Override Styles */
+
+/* Modern Template Styles */
+[data-template="modern"] {
+  font-family: var(--font-outfit), sans-serif !important;
+}
+[data-template="modern"] h1,
+[data-template="modern"] h2,
+[data-template="modern"] h3,
+[data-template="modern"] span,
+[data-template="modern"] p,
+[data-template="modern"] div,
+[data-template="modern"] a {
+  font-family: var(--font-outfit), sans-serif !important;
+}
+[data-template="modern"] .cv-modern-columns {
+  display: grid;
+  grid-template-columns: 234px 486px;
+  gap: 14px;
+  width: 100%;
+}
+[data-template="modern"] .cv-page-sidebar {
+  border-right: 1px solid #e5e4e3 !important;
+  padding-right: 14px;
+}
+[data-template="modern"] .cv-badge {
+  background: var(--surface-secondary) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border) !important;
+}
+
+/* Minimal Template Styles */
+[data-template="minimal"] {
+  font-family: var(--font-inter), sans-serif !important;
+}
+[data-template="minimal"] h1,
+[data-template="minimal"] h2,
+[data-template="minimal"] h3,
+[data-template="minimal"] span,
+[data-template="minimal"] p,
+[data-template="minimal"] div,
+[data-template="minimal"] a {
+  font-family: var(--font-inter), sans-serif !important;
+}
+[data-template="minimal"] .cv-badge {
+  background: #f4f4f5 !important;
+  color: #27272a !important;
+  border: 1px solid #e4e4e7 !important;
+}
+[data-template="minimal"] .text-accent {
+  color: #27272a !important;
+}
+
+/* Executive Template Styles */
+[data-template="executive"] {
+  font-family: Georgia, serif !important;
+}
+[data-template="executive"] h1,
+[data-template="executive"] h2,
+[data-template="executive"] h3,
+[data-template="executive"] span,
+[data-template="executive"] p,
+[data-template="executive"] div,
+[data-template="executive"] a {
+  font-family: Georgia, serif !important;
+}
+[data-template="executive"] .cv-badge {
+  background: #fdfdfd !important;
+  color: #1c1917 !important;
+  border: 1px solid #d6d3d1 !important;
+}
 

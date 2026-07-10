@@ -3,7 +3,7 @@
  * Ensures consistent displayed scores across CV Preview, Public profile, and Career Preferences.
  */
 
-import { PublicRepository } from "@/types/profile.types";
+import { type PublicRepository } from "@/types/profile.types";
 
 /**
  * Normalizes scores to 0-100 scale:

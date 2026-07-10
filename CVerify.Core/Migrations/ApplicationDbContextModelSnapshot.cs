@@ -2944,6 +2944,45 @@ namespace CVerify.API.Migrations
                     b.ToTable("repository_skill_attributions", (string)null);
                 });
 
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.UserCvSetting", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CvLayoutConfigJson")
+                        .HasColumnType("text")
+                        .HasColumnName("cv_layout_config_json");
+
+                    b.Property<string>("CvTemplateId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("cv_template_id");
+
+                    b.Property<string>("CvThemeColor")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("cv_theme_color");
+
+                    b.Property<bool>("IsCvPublished")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_cv_published");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_user_cv_settings");
+
+                    b.ToTable("user_cv_settings", (string)null);
+                });
+
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.UserProfile", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -9244,6 +9283,18 @@ namespace CVerify.API.Migrations
                         .HasConstraintName("fk_project_technologies_project_entries_project_entry_id");
 
                     b.Navigation("ProjectEntry");
+                });
+
+            modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.UserCvSetting", b =>
+                {
+                    b.HasOne("CVerify.API.Modules.Shared.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_cv_settings_users_user_id");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("CVerify.API.Modules.Profiles.Entities.UserProfile", b =>

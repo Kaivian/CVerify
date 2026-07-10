@@ -11,10 +11,10 @@ public class ClaimDocumentUploadException : CVerifyBaseException
 {
     public ClaimDocumentUploadException(string defaultMessage, Exception? innerException = null)
         : base(
-            "CLAIM_DOCUMENT_UPLOAD_FAILED", 
-            ErrorCategory.BUSINESS, 
-            "system.toast.error.claim_document_upload_failed", 
-            defaultMessage, 
+            "CLAIM_DOCUMENT_UPLOAD_FAILED",
+            ErrorCategory.BUSINESS,
+            "system.toast.error.claim_document_upload_failed",
+            defaultMessage,
             innerException)
     {
         Retryable = false;

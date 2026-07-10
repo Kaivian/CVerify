@@ -31,7 +31,7 @@ public class RedisNotificationSubscriberWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var subscriber = _redis.GetSubscriber();
-        
+
         await subscriber.SubscribeAsync(RedisChannelName, async (channel, message) =>
         {
             try

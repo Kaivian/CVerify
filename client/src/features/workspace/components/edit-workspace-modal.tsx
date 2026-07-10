@@ -65,7 +65,7 @@ export const EditWorkspaceModal: React.FC<EditWorkspaceModalProps> = ({
         displayName: displayName.trim(),
         slug: slug.trim(),
         description: description.trim() || undefined,
-        status: status
+        status
       });
       onSuccess?.();
       onOpenChange(false);

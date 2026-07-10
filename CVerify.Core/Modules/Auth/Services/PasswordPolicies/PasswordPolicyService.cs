@@ -90,7 +90,7 @@ public class PasswordPolicyService : IPasswordPolicyService
 
         if (policy.RequireSpecialCharacter)
         {
-            var pattern = string.IsNullOrEmpty(policy.SpecialCharacterPattern) 
+            var pattern = string.IsNullOrEmpty(policy.SpecialCharacterPattern)
                 ? @"[@$!%*?&#^()_\-+=\[\]{}|\\:;""'<>,.?/~`]"
                 : policy.SpecialCharacterPattern;
 

@@ -45,7 +45,7 @@ public class AuditLogsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var searchLower = search.ToLower();
-            query = query.Where(a => 
+            query = query.Where(a =>
                 (a.ActorUser != null && a.ActorUser.Email.ToLower().Contains(searchLower)) ||
                 (a.TargetUser != null && a.TargetUser.Email.ToLower().Contains(searchLower)) ||
                 a.EventType.ToLower().Contains(searchLower) ||
@@ -61,7 +61,8 @@ public class AuditLogsController : ControllerBase
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        var items = logs.Select(a => {
+        var items = logs.Select(a =>
+        {
             string description;
             switch (a.EventType)
             {

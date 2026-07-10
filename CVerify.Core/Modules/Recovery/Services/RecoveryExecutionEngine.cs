@@ -68,7 +68,7 @@ public class RecoveryExecutionEngine : IRecoveryExecutionEngine
             if (oldWorkspace != null)
             {
                 await CaptureWorkspaceSnapshotAsync(oldWorkspace.Id, org.Id, session.ApprovedRepresentative, cancellationToken);
-                
+
                 // Freeze and archive old workspace
                 oldWorkspace.Status = "disputed_archived";
                 oldWorkspace.DeletedAt = _timeProvider.GetUtcNow();

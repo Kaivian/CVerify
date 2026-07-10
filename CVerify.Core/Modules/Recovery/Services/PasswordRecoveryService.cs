@@ -217,7 +217,7 @@ public class PasswordRecoveryService : IPasswordRecoveryService
 
         await _context.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("PASSWORD_RECOVERY_SUCCESS: User {UserId} recovered/setup password successfully.", user.Id);
-        
+
         return true;
     }
 

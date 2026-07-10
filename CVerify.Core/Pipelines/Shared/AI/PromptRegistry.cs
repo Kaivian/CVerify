@@ -58,7 +58,7 @@ public class PromptRegistry : IPromptRegistry
             var computedHash = ComputeSha256Hash(template);
             if (!string.Equals(computedHash, deployment.Sha256Hash, StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogWarning("Prompt integrity check mismatch for {PromptId} {Version}. DB hash: {DbHash}, File hash: {FileHash}", 
+                _logger.LogWarning("Prompt integrity check mismatch for {PromptId} {Version}. DB hash: {DbHash}, File hash: {FileHash}",
                     promptId, version, deployment.Sha256Hash, computedHash);
             }
         }

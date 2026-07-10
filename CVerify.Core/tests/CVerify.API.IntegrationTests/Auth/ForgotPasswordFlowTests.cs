@@ -67,7 +67,7 @@ public class ForgotPasswordFlowTests : BaseIntegrationTest
 
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var token = await db.ResetPasswordTokens.FirstOrDefaultAsync(t => t.UserId == userId);
         token.Should().NotBeNull();
         token!.ConsumedAt.Should().BeNull();
@@ -91,7 +91,7 @@ public class ForgotPasswordFlowTests : BaseIntegrationTest
         await CreateActiveUserAsync(email);
 
         var request = new ForgotPasswordRequest(Email: email);
-        
+
         // First request: OK
         var response1 = await Client.PostAsJsonAsync("/api/auth/forgot-password", request);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);

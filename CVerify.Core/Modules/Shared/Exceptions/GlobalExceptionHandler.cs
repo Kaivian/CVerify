@@ -142,8 +142,8 @@ public class GlobalExceptionHandler : IExceptionHandler
         if (isHandledDomainException)
         {
             _logger.Log(
-                LogLevel.Warning, 
-                logCategory, 
+                LogLevel.Warning,
+                logCategory,
                 $"Handled request error code: {responsePayload.Code} - {exception.Message} [Ref: {correlationId}]",
                 null,
                 new Dictionary<string, object> { { "correlationId", correlationId } }
@@ -153,8 +153,8 @@ public class GlobalExceptionHandler : IExceptionHandler
         {
             // Log full exception object (stack traces are preserved only in developer logs)
             _logger.Log(
-                LogLevel.Error, 
-                logCategory, 
+                LogLevel.Error,
+                logCategory,
                 $"Unhandled System Exception intercepted: {exception.Message} [Ref: {correlationId}]",
                 exception,
                 new Dictionary<string, object> { { "correlationId", correlationId } }

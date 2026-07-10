@@ -68,7 +68,7 @@ export function StreamingDialog() {
       console.warn("Failed to parse summaryData in dialog:", e);
       return partialSnapshot || null;
     }
-  }, [activeSession?.summaryData, partialSnapshot]);
+  }, [activeSession, partialSnapshot]);
 
   // Live Runtime Clock
   const formatDuration = (ms: number): string => {

@@ -51,7 +51,7 @@ public class NotificationController : ControllerBase
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        
+
         var list = await query
             .OrderByDescending(n => n.CreatedAt)
             .Skip((page - 1) * pageSize)

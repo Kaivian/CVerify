@@ -4,5 +4,5 @@ namespace CVerify.API.Modules.Shared.Security.Authorization.Constants;
 
 public class AppPermissions
 {
-    
+
 }

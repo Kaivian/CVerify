@@ -70,15 +70,15 @@ public class RecoveryService : IRecoveryService
     {
         // 1. Verify representative OTP validation token
         var otpPayload = RecoveryTokenHelper.VerifyToken(request.EmailVerificationToken, _envConfig.Jwt.Key);
-        if (otpPayload == null || 
-            otpPayload["step"] != "OTP_VERIFIED" || 
+        if (otpPayload == null ||
+            otpPayload["step"] != "OTP_VERIFIED" ||
             !string.Equals(
-                RecoveryTokenHelper.NormalizeTaxCode(otpPayload.GetValueOrDefault("taxCode", string.Empty)), 
-                RecoveryTokenHelper.NormalizeTaxCode(request.TaxCode), 
-                StringComparison.OrdinalIgnoreCase) || 
+                RecoveryTokenHelper.NormalizeTaxCode(otpPayload.GetValueOrDefault("taxCode", string.Empty)),
+                RecoveryTokenHelper.NormalizeTaxCode(request.TaxCode),
+                StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(
-                RecoveryTokenHelper.NormalizeEmail(otpPayload.GetValueOrDefault("email", string.Empty)), 
-                RecoveryTokenHelper.NormalizeEmail(request.RecoveryEmail), 
+                RecoveryTokenHelper.NormalizeEmail(otpPayload.GetValueOrDefault("email", string.Empty)),
+                RecoveryTokenHelper.NormalizeEmail(request.RecoveryEmail),
                 StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning(
@@ -363,7 +363,7 @@ public class RecoveryService : IRecoveryService
                     claim.ReviewedBy = reviewerName;
                     claim.UpdatedAt = _timeProvider.GetUtcNow();
                     await _context.SaveChangesAsync(cancellationToken);
-                    
+
                     await LogAuditEventAsync(null, "RECOVERY_CLAIM_FIRST_APPROVAL", $"Claim {claim.Id} received first approval signature from {reviewerName}.", null, null);
                     return true; // Return true indicating successful partial signature, but not fully approved
                 }
@@ -410,7 +410,7 @@ public class RecoveryService : IRecoveryService
                 claim.RecoveryEmail,
                 claim.Organization.Name,
                 "CVerify: Organization Recovery Approved",
-                $"Your organization recovery claim for {claim.Organization.Name} has been approved. Please visit the link below to verify your token and configure your new administrator account:\n\nhttp://localhost:3000/organization/recovery/bootstrap?token={tokenHash}\n\nNote: This link will expire in 24 hours."
+                $"Your organization recovery claim for {claim.Organization.Name} has been approved. Please visit the link below to verify your token and configure your new administrator account:\n\n{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/organization/recovery/bootstrap?token={tokenHash}\n\nNote: This link will expire in 24 hours."
             );
         }
         else if (request.Status == "Rejected")
@@ -597,10 +597,10 @@ public class RecoveryService : IRecoveryService
     public async Task<VerifyOtpResponse> VerifyRecoveryOtpAsync(VerifyOtpRequest request, string taxCode, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Recovery OTP verification requested. ChallengeId={ChallengeId}, Purpose={Purpose}", request.ChallengeId, request.Purpose);
-        
+
         // Delegate core verification to the highly secure, central, and normalized AuthService
         var otpResult = await _authService.VerifyOtpAsync(request, cancellationToken);
-        
+
         // Generate the custom signed recovery verification token
         var verifiedToken = RecoveryTokenHelper.GenerateOtpVerifiedToken(taxCode, otpResult.Email, _envConfig.Jwt.Key);
 

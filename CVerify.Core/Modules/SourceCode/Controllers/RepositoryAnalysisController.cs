@@ -481,12 +481,12 @@ public class RepositoryAnalysisController : ControllerBase
 
         var monthlyTrends = await executionsQuery
             .GroupBy(e => new { Year = e.CreatedAtUtc.Year, Month = e.CreatedAtUtc.Month })
-            .Select(g => new 
-            { 
-                Year = g.Key.Year, 
-                Month = g.Key.Month, 
-                TotalCostUsd = g.Sum(e => e.EstimatedCostUsd), 
-                TotalTokens = g.Sum(e => e.TotalTokens) 
+            .Select(g => new
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                TotalCostUsd = g.Sum(e => e.EstimatedCostUsd),
+                TotalTokens = g.Sum(e => e.TotalTokens)
             })
             .OrderBy(g => g.Year).ThenBy(g => g.Month)
             .ToListAsync(cancellationToken);

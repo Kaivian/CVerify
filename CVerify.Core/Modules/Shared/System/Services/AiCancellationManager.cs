@@ -21,11 +21,11 @@ public class AiCancellationManager : IAiCancellationManager
                     oldCts.Cancel();
                     oldCts.Dispose();
                 }
-                catch {}
+                catch { }
             }
 
-            var cts = linkToken == default 
-                ? new CancellationTokenSource() 
+            var cts = linkToken == default
+                ? new CancellationTokenSource()
                 : CancellationTokenSource.CreateLinkedTokenSource(linkToken);
 
             if (_activeSessions.TryAdd(sessionId, cts))

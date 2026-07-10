@@ -10,6 +10,8 @@ import {
   toast,
   ProgressBar,
   Chip,
+  Dropdown,
+  Switch,
 } from "@heroui/react";
 import { Card } from "@/components/ui/card";
 import {
@@ -18,8 +20,10 @@ import {
   GraduationCap,
   Award,
   FileText,
+  FileDown,
   Sparkles,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
   Printer,
   FolderCode,
@@ -38,6 +42,13 @@ import {
   ExternalLink,
   Share2,
   ShieldCheck,
+  FileImage,
+  FileJson,
+  Layout,
+  Palette,
+  Download,
+  Keyboard,
+  Sliders,
 } from "lucide-react";
 
 import { useProfile } from "@/hooks/use-profile";
@@ -73,6 +84,8 @@ import { AchievementsForm } from "./components/AchievementsForm";
 import { PreferencesForm } from "./components/PreferencesForm";
 import { CvLivePreview } from "./components/CvLivePreview";
 import { CVPreview } from "./components/CVPreview";
+import { cvMetadataService } from "./services/cvMetadataService";
+import { CV_TEMPLATES } from "./templates/registry";
 import { sourceCodeProviderApi } from "@/services/source-code-provider.service";
 import type { SourceCodeRepository } from "@/types/source-code-provider.types";
 import { RequiredFieldsMissingModal } from "@/components/ui/RequiredFieldsMissingModal";
@@ -299,11 +312,10 @@ export default function CvManagementCenter() {
     } else {
       setViewState("overview");
     }
-  }
-  const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
+  } const [editorMode, setEditorMode] = useState<"edit" | "preview">("edit");
   const [isSaving, setIsSaving] = useState(false);
+  const [isExportingPng, setIsExportingPng] = useState(false);
   const [mobileShowPreview, setMobileShowPreview] = useState(false);
-
   // Dynamic Data hooks
   const { profile, isLoading: isProfileLoading, updateProfile, updateUsername, refreshProfile } = useProfile();
   const { career, isLoading: isCareerLoading, updateCareer, refreshCareer } = useCareerPreferences();
@@ -319,6 +331,90 @@ export default function CvManagementCenter() {
   // A4 Preview Overlay state
   const [isA4PreviewOpen, setIsA4PreviewOpen] = useState(false);
   const [useSampleData, setUseSampleData] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("professional");
+  const [isCvPublished, setIsCvPublished] = useState<boolean>(true);
+
+  // Sync with profile from DB once loaded
+  useEffect(() => {
+    if (profile) {
+      if (profile.cvTemplateId) {
+        setSelectedTemplate(profile.cvTemplateId);
+      }
+      setIsCvPublished(profile.isCvPublished ?? true);
+    }
+  }, [profile]);
+
+  const handleTemplateChange = async (templateId: string) => {
+    setSelectedTemplate(templateId);
+    cvMetadataService.saveMetadata("default", { templateId, templateVersion: 1 });
+    if (profile) {
+      try {
+        await updateProfile({
+          fullName: profile.fullName || null,
+          bio: profile.bio || null,
+          location: profile.location || null,
+          phoneNumber: profile.phoneNumber || null,
+          birthDate: profile.birthDate || null,
+          headline: profile.headline || null,
+          company: profile.company || null,
+          pronouns: profile.pronouns || null,
+          customPronouns: profile.customPronouns || null,
+          publicEmail: profile.publicEmail || null,
+          profileVisibility: profile.profileVisibility || "public",
+          recruiterVisibility: profile.recruiterVisibility ?? true,
+          aiTalentDiscovery: profile.aiTalentDiscovery || "disabled",
+          socialLinks: profile.socialLinks || [],
+          aiSuggestionsJson: profile.aiSuggestionsJson || null,
+          version: profile.version || 0,
+          cvTemplateId: templateId,
+          cvThemeColor: profile.cvThemeColor || null,
+          isCvPublished,
+          cvLayoutConfigJson: profile.cvLayoutConfigJson || null,
+        });
+        toast.success("Template preference saved to profile!");
+        await refreshProfile();
+      } catch (err) {
+        console.error("Failed to sync template change to database:", err);
+      }
+    }
+  };
+
+  const handlePublishToggle = async () => {
+    const nextPublished = !isCvPublished;
+    setIsCvPublished(nextPublished);
+    if (profile) {
+      try {
+        await updateProfile({
+          fullName: profile.fullName || null,
+          bio: profile.bio || null,
+          location: profile.location || null,
+          phoneNumber: profile.phoneNumber || null,
+          birthDate: profile.birthDate || null,
+          headline: profile.headline || null,
+          company: profile.company || null,
+          pronouns: profile.pronouns || null,
+          customPronouns: profile.customPronouns || null,
+          publicEmail: profile.publicEmail || null,
+          profileVisibility: profile.profileVisibility || "public",
+          recruiterVisibility: profile.recruiterVisibility ?? true,
+          aiTalentDiscovery: profile.aiTalentDiscovery || "disabled",
+          socialLinks: profile.socialLinks || [],
+          aiSuggestionsJson: profile.aiSuggestionsJson || null,
+          version: profile.version || 0,
+          cvTemplateId: selectedTemplate,
+          cvThemeColor: profile.cvThemeColor || null,
+          isCvPublished: nextPublished,
+          cvLayoutConfigJson: profile.cvLayoutConfigJson || null,
+        });
+        toast.success(nextPublished ? "CV published to your public profile page!" : "CV unpublished from your public profile page.");
+        await refreshProfile();
+      } catch (err) {
+        console.error("Failed to sync CV publish status to database:", err);
+        setIsCvPublished(!nextPublished); // Revert state on error
+        toast.danger("Failed to update CV visibility in database.");
+      }
+    }
+  };
 
 
 
@@ -702,7 +798,265 @@ export default function CvManagementCenter() {
     }
   };
 
-  const isLoading = isProfileLoading || isCareerLoading || isEduLoading || isWorkLoading || isAchLoading || isProjLoading;
+  const formatMonthYear = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return "";
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = date.getFullYear();
+      return `${month}/${year}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const handleDownloadMarkdown = () => {
+    const labels = {
+      summary: "Professional Summary",
+      skills: "Core Skills",
+      experience: "Work Experience",
+      projects: "Linked Projects",
+      education: "Education",
+      achievements: "Achievements & Certificates",
+      preferences: "Career Preferences",
+    };
+
+    let md = `# ${activeProfile?.fullName || "Untitled"}\n`;
+    if (activeProfile?.headline) {
+      md += `**${activeProfile.headline}**\n\n`;
+    } else {
+      md += `\n`;
+    }
+
+    const contact = [];
+    if (activeProfile?.publicEmail) contact.push(`Email: ${activeProfile.publicEmail}`);
+    if (activeProfile?.phoneNumber) contact.push(`Phone: ${activeProfile.phoneNumber}`);
+    if (activeProfile?.location) contact.push(`Location: ${activeProfile.location}`);
+    if (activeProfile?.socialLinks && activeProfile.socialLinks.length > 0) {
+      activeProfile.socialLinks.forEach((link: string) => {
+        contact.push(link);
+      });
+    }
+    if (contact.length > 0) {
+      md += contact.join(" | ") + "\n\n";
+    }
+
+    if (activeProfile?.bio) {
+      md += `## ${labels.summary}\n${activeProfile.bio}\n\n`;
+    }
+
+    if (activeCareer?.targetSkills && activeCareer.targetSkills.length > 0) {
+      md += `## ${labels.skills}\n`;
+      md += activeCareer.targetSkills.map((s: string) => `- ${s}`).join("\n") + "\n\n";
+    }
+
+    if (activeExp && activeExp.length > 0) {
+      md += `## ${labels.experience}\n`;
+      activeExp.forEach((exp: any) => {
+        const start = formatMonthYear(exp.startDate);
+        const end = exp.isCurrentlyWorking ? "Present" : formatMonthYear(exp.endDate);
+        const dateStr = start && end ? `(${start} - ${end})` : (start || end ? `(${start || end})` : "");
+        const company = exp.company || exp.companyName || "";
+        md += `### ${company}${exp.jobTitle ? ` - ${exp.jobTitle}` : ""} ${dateStr}\n`;
+        if (exp.description) md += `${exp.description}\n`;
+        md += `\n`;
+      });
+    }
+
+    if (activeProjects && activeProjects.length > 0) {
+      md += `## ${labels.projects}\n`;
+      activeProjects.forEach((proj: any) => {
+        const start = formatMonthYear(proj.startDate);
+        const end = proj.isCurrentlyWorking ? "Present" : formatMonthYear(proj.endDate);
+        const dateStr = start && end ? `(${start} - ${end})` : (start || end ? `(${start || end})` : "");
+        const projName = proj.name || proj.projectName || "";
+        md += `### ${projName}${proj.role ? ` - ${proj.role}` : ""} ${dateStr}\n`;
+        if (proj.description) md += `${proj.description}\n`;
+        md += `\n`;
+      });
+    }
+
+    if (activeEdu && activeEdu.length > 0) {
+      md += `## ${labels.education}\n`;
+      activeEdu.forEach((edu: any) => {
+        const schoolName = edu.school || edu.schoolName || "";
+        const startDate = edu.startDate || edu.period?.start || "";
+        const endDate = edu.endDate || edu.period?.end || "";
+        const start = formatMonthYear(startDate);
+        const end = edu.isCurrentlyStudying ? "Present" : formatMonthYear(endDate);
+        const dateStr = start && end ? `(${start} - ${end})` : (start || end ? `(${start || end})` : "");
+        md += `### ${schoolName}${edu.label ? ` - ${edu.label}` : ""} ${dateStr}\n`;
+        const degreeDetails = [];
+        if (edu.degree) degreeDetails.push(edu.degree);
+        if (edu.major) degreeDetails.push(edu.major);
+        if (degreeDetails.length > 0) {
+          md += `**${degreeDetails.join(" - ")}**\n`;
+        }
+        if (edu.gpa) md += `GPA: ${edu.gpa}/${edu.gpaScale || 4.0}\n`;
+        if (edu.description) md += `${edu.description}\n`;
+        md += `\n`;
+      });
+    }
+
+    if (activeAch && activeAch.length > 0) {
+      md += `## ${labels.achievements}\n`;
+      activeAch.forEach((ach: any) => {
+        const dateStr = ach.issueDate ? `(${formatMonthYear(ach.issueDate)})` : "";
+        md += `### ${ach.title} ${dateStr}\n`;
+        if (ach.issuer) md += `*Issuer: ${ach.issuer}*\n`;
+        if (ach.description) md += `${ach.description}\n`;
+        md += `\n`;
+      });
+    }
+
+    const pref = activePreferences;
+    const hasPreferences =
+      pref?.openToWorkStatus ||
+      (pref?.desiredJobPositions && pref.desiredJobPositions.length > 0) ||
+      pref?.expectedSalaryMin ||
+      pref?.remotePreference ||
+      (pref?.preferredLocations && pref.preferredLocations.length > 0) ||
+      (pref?.employmentPreferences && pref.employmentPreferences.length > 0);
+
+    if (hasPreferences) {
+      md += `## ${labels.preferences}\n`;
+      if (pref.openToWorkStatus) {
+        const statusStr = pref.openToWorkStatus === "active" ? "Active Job Search" : pref.openToWorkStatus === "casual" ? "Casual Browsing" : "Not Open to Work";
+        md += `- Job Search Status: ${statusStr}\n`;
+      }
+      if (pref.desiredJobPositions && pref.desiredJobPositions.length > 0) {
+        md += `- Target Roles: ${pref.desiredJobPositions.join(", ")}\n`;
+      }
+      if (pref.expectedSalaryMin || pref.expectedSalaryMax) {
+        const salStr = pref.expectedSalaryNegotiable ? "Negotiable" : `${pref.expectedSalaryMin?.toLocaleString() || "0"} - ${pref.expectedSalaryMax?.toLocaleString() || "Any"} ${pref.expectedSalaryCurrency || "USD"} (${pref.expectedSalaryType || "Monthly"})`;
+        md += `- Expected Salary: ${salStr}\n`;
+      }
+      if (pref.remotePreference) {
+        md += `- Work Arrangement: ${pref.remotePreference}\n`;
+      }
+      if (pref.preferredLocations && pref.preferredLocations.length > 0) {
+        md += `- Desired Locations: ${pref.preferredLocations.join(", ")}\n`;
+      }
+      if (pref.employmentPreferences && pref.employmentPreferences.length > 0) {
+        md += `- Employment Preferences: ${pref.employmentPreferences.join(", ")}\n`;
+      }
+      if (pref.preferredLanguage) {
+        const langStr = pref.preferredLanguage === "en" ? "English" : pref.preferredLanguage === "vi" ? "Vietnamese" : pref.preferredLanguage === "ja" ? "Japanese" : pref.preferredLanguage === "ko" ? "Korean" : pref.preferredLanguage === "zh" ? "Chinese" : pref.preferredLanguage;
+        md += `- Spoken Language: ${langStr}\n`;
+      }
+      if (pref.leadershipTrack && pref.leadershipTrack !== "undecided") {
+        const leadStr = pref.leadershipTrack === "management" ? "Engineering Management" : "Individual Contributor";
+        md += `- Leadership Track: ${leadStr}\n`;
+      }
+    }
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `CV_${(activeProfile?.fullName || "Resume").replace(/\s+/g, "_")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPng = async () => {
+    const printPortal = document.querySelector('.cv-print-portal') as HTMLElement;
+    if (!printPortal) {
+      toast.danger("CV preview element not found. Please wait until the page is fully loaded.");
+      return;
+    }
+
+    // Target the actual CV content area, not the <style> tag (which is firstElementChild)
+    const targetElement = printPortal.querySelector('.cv-print-area') as HTMLElement;
+    if (!targetElement) {
+      toast.danger("CV content area not found. Please wait until the preview finishes rendering.");
+      return;
+    }
+
+    setIsExportingPng(true);
+    toast.success("Generating CV Image, please wait...");
+
+    // Temporarily make the portal visible for html-to-image capture.
+    // html-to-image respects parent element styles, so opacity: 0 on the
+    // portal container causes a blank image even with style overrides on the target.
+    const savedStyles = {
+      opacity: printPortal.style.opacity,
+      position: printPortal.style.position,
+      top: printPortal.style.top,
+      left: printPortal.style.left,
+      pointerEvents: printPortal.style.pointerEvents,
+      zIndex: printPortal.style.zIndex,
+    };
+    printPortal.style.cssText += '; opacity: 1 !important; position: fixed !important; top: 0 !important; left: 0 !important; pointer-events: none !important; z-index: -9999 !important;';
+
+    try {
+      const { toBlob } = await import('html-to-image');
+
+      // Calculate A4 dimensions based on pagination pages
+      const pages = targetElement.querySelectorAll('.cv-page');
+      const width = 794;
+      const height = pages.length > 0 ? (pages.length * 1123) : (targetElement.scrollHeight || 1123);
+
+      const blob = await toBlob(targetElement, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        width,
+        height,
+        imagePlaceholder: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+        style: {
+          opacity: '1',
+          visibility: 'visible',
+          transform: 'none',
+          position: 'relative',
+          top: '0',
+          left: '0',
+        }
+      });
+
+      if (!blob) {
+        throw new Error("Blob generation returned null");
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CV_${(activeProfile?.fullName || "Resume").replace(/\s+/g, "_")}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to generate image:", err);
+      toast.danger("Failed to export as Image. Please try PDF print instead.");
+    } finally {
+      // Restore the portal's hidden styles
+      printPortal.style.opacity = savedStyles.opacity;
+      printPortal.style.position = savedStyles.position;
+      printPortal.style.top = savedStyles.top;
+      printPortal.style.left = savedStyles.left;
+      printPortal.style.pointerEvents = savedStyles.pointerEvents;
+      printPortal.style.zIndex = savedStyles.zIndex;
+      setIsExportingPng(false);
+    }
+  };
+
+  const handleDownloadJson = () => {
+    try {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(drafts, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `CV_${(activeProfile?.fullName || "Resume").replace(/\s+/g, "_")}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      toast.success("CV backup downloaded as JSON successfully!");
+    } catch (err) {
+      console.error("Failed to download JSON:", err);
+      toast.danger("Failed to export as JSON.");
+    }
+  };
+
+  const isLoading =
+    isProfileLoading || isCareerLoading || isEduLoading || isWorkLoading || isAchLoading || isProjLoading;
 
   if (isLoading) {
     return (
@@ -2138,6 +2492,14 @@ export default function CvManagementCenter() {
               activeTab === "achievements" ? "Achievements & Certificates" :
                 "Career Preferences";
 
+    const ActiveIcon = activeTab === "basic-info" ? User :
+      activeTab === "skills" ? Sparkles :
+        activeTab === "projects" ? FolderCode :
+          activeTab === "experience" ? Briefcase :
+            activeTab === "education" ? GraduationCap :
+              activeTab === "achievements" ? Award :
+                Compass;
+
     return (
       <div className="flex flex-col gap-6 text-left w-full h-full relative">
         {/* Editor Header */}
@@ -2215,41 +2577,208 @@ export default function CvManagementCenter() {
           <div className="lg:col-span-9 min-h-0 h-full overflow-hidden flex flex-col">
             <Card rounded="2xl" glow={true} className="flex-1 min-h-0 p-5 xl:p-6 border border-border/40 bg-surface flex flex-col gap-4 xl:gap-5 text-left relative overflow-hidden h-full">
               {/* Workspace Header with mode switcher */}
-              <div className="flex border-b border-border/20 pb-3 select-none justify-between items-center shrink-0">
-                <div className="flex flex-col gap-0.5">
-                  <h3 className="font-extrabold text-sm uppercase tracking-wider text-foreground">
-                    Section: {activeTabName}
-                  </h3>
-                  <p className="text-[10px] text-muted">
-                    {editorMode === "edit"
-                      ? "Changes made here are saved directly into your CVerify CV data."
-                      : "Visual check of your current A4 CV profile details."}
-                  </p>
+              <div className="flex border-b border-border/20 pb-3.5 select-none justify-between items-center shrink-0 gap-4 flex-wrap md:flex-nowrap">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
+                    <ActiveIcon className="size-4.5" />
+                  </div>
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <h3 className="font-extrabold text-sm text-foreground tracking-tight uppercase truncate flex items-center gap-2">
+                      {activeTabName}
+                      {editorMode === "preview" && (
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                          isCvPublished 
+                            ? "bg-success/15 text-success border border-success/20" 
+                            : "bg-muted-foreground/15 text-muted-foreground border border-muted-foreground/20"
+                        }`}>
+                          {isCvPublished ? "Published" : "Draft"}
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[10px] text-muted-foreground/80 leading-none truncate">
+                      {editorMode === "edit"
+                        ? "Changes sync automatically with your CVerify CV profile."
+                        : "Visual check of your current A4 CV profile details."}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0 ml-auto">
                   {editorMode === "preview" && (
-                    <button
-                      onClick={() => setIsA4PreviewOpen(true)}
-                      className="text-[10px] bg-accent-soft text-accent hover:bg-accent/20 px-2.5 py-1.5 rounded-lg font-bold uppercase cursor-pointer border border-accent/20 outline-none transition-colors select-none"
-                    >
-                      View A4
-                    </button>
+                    <Dropdown>
+                      <Button
+                        variant="outline"
+                        className="rounded-xl text-xs"
+                        size="lg"
+                      >
+                        <Sliders className="size-3.5 shrink-0" />
+                        <span>Actions</span>
+                        <ChevronDown className="size-3 shrink-0 opacity-60" />
+                      </Button>
+                      <Dropdown.Popover
+                        placement="bottom end"
+                        className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[275px] z-50 font-outfit"
+                      >
+                        <Dropdown.Menu aria-label="CV Actions">
+                          <Dropdown.SubmenuTrigger>
+                            <Dropdown.Item
+                              id="template-menu"
+                              textValue="Select Template"
+                              className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Palette className="size-3.5 text-muted shrink-0" />
+                                <span>Template ({CV_TEMPLATES[selectedTemplate]?.name || selectedTemplate})</span>
+                              </div>
+                              <Dropdown.SubmenuIndicator />
+                            </Dropdown.Item>
+                            <Dropdown.Popover
+                              placement="left top"
+                              className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] z-50 font-outfit"
+                            >
+                              <Dropdown.Menu aria-label="CV Templates">
+                                {Object.values(CV_TEMPLATES).map((tmpl) => (
+                                  <Dropdown.Item
+                                    key={tmpl.id}
+                                    onClick={() => handleTemplateChange(tmpl.id)}
+                                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer outline-none select-none transition-colors duration-150 ${selectedTemplate === tmpl.id
+                                      ? "bg-accent/10 text-accent font-bold"
+                                      : "text-foreground hover:bg-surface-secondary focus:bg-surface-secondary"
+                                      }`}
+                                  >
+                                    <span>{tmpl.name}</span>
+                                  </Dropdown.Item>
+                                ))}
+                              </Dropdown.Menu>
+                            </Dropdown.Popover>
+                          </Dropdown.SubmenuTrigger>
+
+                          <Dropdown.Item
+                            id="view-a4"
+                            textValue="View A4 Preview"
+                            onClick={() => setIsA4PreviewOpen(true)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              <Eye className="size-3.5 text-muted shrink-0" />
+                              <span>View A4</span>
+                            </div>
+                          </Dropdown.Item>
+
+                          <Dropdown.Item
+                            id="publish-toggle"
+                            textValue="Publish CV to Profile"
+                            onClick={handlePublishToggle}
+                            className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Eye className="size-3.5 text-muted shrink-0" />
+                              <span>Publish CV to Profile</span>
+                            </div>
+                            <Switch
+                              isSelected={isCvPublished}
+                              aria-label="Toggle CV publication"
+                              className="pointer-events-none"
+                            >
+                              {({ isSelected }) => (
+                                <Switch.Control>
+                                  <Switch.Thumb />
+                                </Switch.Control>
+                              )}
+                            </Switch>
+                          </Dropdown.Item>
+
+                          <Dropdown.SubmenuTrigger>
+                            <Dropdown.Item
+                              id="export-menu"
+                              textValue="Export CV"
+                              className="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Download className="size-3.5 text-muted shrink-0" />
+                                <span>Export</span>
+                              </div>
+                              <Dropdown.SubmenuIndicator />
+                            </Dropdown.Item>
+                            <Dropdown.Popover
+                              placement="left top"
+                              className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[150px] z-50 font-outfit"
+                            >
+                              <Dropdown.Menu aria-label="Export Formats">
+                                <Dropdown.Item
+                                  key="pdf"
+                                  onClick={handlePrint}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <Printer className="size-3.5 text-muted shrink-0" />
+                                    <span>PDF (.pdf)</span>
+                                  </div>
+                                </Dropdown.Item>
+                                <Dropdown.Item
+                                  key="markdown"
+                                  onClick={handleDownloadMarkdown}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <FileDown className="size-3.5 text-muted shrink-0" />
+                                    <span>Markdown (.md)</span>
+                                  </div>
+                                </Dropdown.Item>
+                                <Dropdown.Item
+                                  key="image"
+                                  isDisabled={isExportingPng}
+                                  onClick={handleDownloadPng}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    {isExportingPng ? (
+                                      <Spinner size="sm" color="current" className="size-3.5 shrink-0" />
+                                    ) : (
+                                      <FileImage className="size-3.5 text-muted shrink-0" />
+                                    )}
+                                    <span>{isExportingPng ? "Exporting..." : "Image (.png)"}</span>
+                                  </div>
+                                </Dropdown.Item>
+                                <Dropdown.Item
+                                  key="json"
+                                  onClick={handleDownloadJson}
+                                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <FileJson className="size-3.5 text-muted shrink-0" />
+                                    <span>JSON (.json)</span>
+                                  </div>
+                                </Dropdown.Item>
+                              </Dropdown.Menu>
+                            </Dropdown.Popover>
+                          </Dropdown.SubmenuTrigger>
+                        </Dropdown.Menu>
+                      </Dropdown.Popover>
+                    </Dropdown>
                   )}
-                  <div className="flex items-center bg-surface-secondary/60 p-0.5 rounded-xl border border-border/20">
+                  <div className="flex items-center bg-surface-secondary/80 p-1 rounded-xl border border-border/30 gap-0.5 shadow-xs select-none">
                     <button
                       type="button"
                       onClick={() => setEditorMode("edit")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${editorMode === "edit" ? "bg-surface text-accent shadow-xs font-extrabold" : "text-muted hover:text-foreground"}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 border-none cursor-pointer ${editorMode === "edit"
+                        ? "bg-surface text-accent shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                        }`}
                     >
-                      Form Editor
+                      <Keyboard className="size-3.5 shrink-0" />
+                      <span>Form Editor</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setEditorMode("preview")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${editorMode === "preview" ? "bg-surface text-accent shadow-xs font-extrabold" : "text-muted hover:text-foreground"}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 border-none cursor-pointer ${editorMode === "preview"
+                        ? "bg-surface text-accent shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                        }`}
                     >
-                      Live Preview
+                      <Layout className="size-3.5 shrink-0" />
+                      <span>Live Preview</span>
                     </button>
                   </div>
                 </div>
@@ -2337,8 +2866,8 @@ export default function CvManagementCenter() {
                     )}
                   </>
                 ) : (
-                  <div className="flex justify-center items-start h-full py-2">
-                    <CvLivePreview drafts={drafts} avatarUrl={user?.avatarUrl} />
+                  <div className="flex justify-center items-start h-full py-2 w-full">
+                    <CvLivePreview drafts={drafts} avatarUrl={user?.avatarUrl} templateId={selectedTemplate} />
                   </div>
                 )}
               </div>
@@ -2394,15 +2923,75 @@ export default function CvManagementCenter() {
                 >
                   {useSampleData ? "Clear Sample Data" : "Load Sample Data"}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="rounded-xl text-[10px] font-bold select-none border-border/30 flex items-center gap-1.5"
-                  onPress={handlePrint}
-                >
-                  <Printer className="size-3.5" />
-                  <span>Print</span>
-                </Button>
+                <Dropdown>
+                  <Dropdown.Trigger>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-xl text-[10px] font-bold select-none border-border/30 flex items-center gap-1.5"
+                      isDisabled={isExportingPng}
+                    >
+                      {isExportingPng ? (
+                        <>
+                          <Spinner size="sm" color="current" className="size-3" />
+                          <span>Exporting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Export</span>
+                          <ChevronDown className="size-3.5" />
+                        </>
+                      )}
+                    </Button>
+                  </Dropdown.Trigger>
+                  <Dropdown.Popover
+                    placement="bottom end"
+                    className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[150px] animate-in fade-in duration-100 z-50 font-outfit"
+                  >
+                    <Dropdown.Menu aria-label="Export Formats">
+                      <Dropdown.Item
+                        key="pdf"
+                        onClick={handlePrint}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <Printer className="size-3.5 text-muted shrink-0" />
+                          <span>PDF (.pdf)</span>
+                        </div>
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        key="markdown"
+                        onClick={handleDownloadMarkdown}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <FileDown className="size-3.5 text-muted shrink-0" />
+                          <span>Markdown (.md)</span>
+                        </div>
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        key="image"
+                        onClick={handleDownloadPng}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <FileImage className="size-3.5 text-muted shrink-0" />
+                          <span>Image (.png)</span>
+                        </div>
+                      </Dropdown.Item>
+                      <Dropdown.Item
+                        key="json"
+                        onClick={handleDownloadJson}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150"
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <FileJson className="size-3.5 text-muted shrink-0" />
+                          <span>JSON (.json)</span>
+                        </div>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
                 <Button
                   size="sm"
                   variant="secondary"
@@ -2451,6 +3040,8 @@ export default function CvManagementCenter() {
                     achievements={activeAch}
                     preferences={activePreferences}
                     projects={activeProjects}
+                    templateId={selectedTemplate}
+                    avatarUrl={user?.avatarUrl}
                   />
                 </div>
               </div>
@@ -2480,6 +3071,8 @@ export default function CvManagementCenter() {
             achievements={activeAch}
             preferences={activePreferences}
             projects={activeProjects}
+            templateId={selectedTemplate}
+            avatarUrl={user?.avatarUrl}
           />
         </div>,
         document.body

@@ -106,7 +106,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
                      .Replace("quốc tế", "")
                      .Replace("việt nam", "")
                      .Replace("vietnam", "");
-                     
+
         var charArray = clean.Where(c => char.IsLetterOrDigit(c)).ToArray();
         return new string(charArray);
     }
@@ -203,7 +203,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
         }, cancellationToken);
     }
 
-    public async Task<VerifyCompanyOnboardingResponse> VerifyCompanyOnboardingAsync(VerifyCompanyOnboardingRequest request, CancellationToken cancellationToken = default)
+    public async Task<VerifyOrganizationOnboardingResponse> VerifyOrganizationOnboardingAsync(VerifyOrganizationOnboardingRequest request, CancellationToken cancellationToken = default)
     {
         var taxCode = request.TaxCode.Trim();
         if (!System.Text.RegularExpressions.Regex.IsMatch(taxCode, @"^\d{10}(-\d{3})?$"))
@@ -229,7 +229,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         var root = doc.RootElement;
-        
+
         if (!root.TryGetProperty("code", out var codeProp) || codeProp.GetString() != "00")
         {
             throw new AuthException(AuthErrorCodes.InvalidCredentials, "Invalid business tax code.");
@@ -248,9 +248,9 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
             throw new AuthException(AuthErrorCodes.InvalidCredentials, $"This company is inactive/suspended: {status}.");
         }
 
-        if (!IsFuzzyMatch(officialName, request.CompanyName))
+        if (!IsFuzzyMatch(officialName, request.OrganizationName))
         {
-            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Company name does not match the official tax registry business name.");
+            throw new AuthException(AuthErrorCodes.InvalidCredentials, "Organization name does not match the official tax registry business name.");
         }
 
         var existingOrg = await _context.Organizations
@@ -268,9 +268,9 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
 
         if (existingOrg != null)
         {
-            return new VerifyCompanyOnboardingResponse(
+            return new VerifyOrganizationOnboardingResponse(
                 SignedToken: null,
-                OfficialCompanyName: existingOrg.Name,
+                OfficialOrganizationName: existingOrg.Name,
                 TaxCode: existingOrg.TaxCode,
                 OrganizationExists: true,
                 OrganizationDisplayName: existingOrg.Name,
@@ -281,7 +281,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
 
         var signedToken = OnboardingTokenHelper.GenerateStep1Token(taxCode, officialName, _envConfig.Jwt.Key);
 
-        return new VerifyCompanyOnboardingResponse(signedToken, officialName, taxCode);
+        return new VerifyOrganizationOnboardingResponse(signedToken, officialName, taxCode);
     }
 
     public async Task<VerifyOtpResponse> VerifyOnboardingOtpAsync(VerifyOtpRequest request, string step1Token, CancellationToken cancellationToken = default)

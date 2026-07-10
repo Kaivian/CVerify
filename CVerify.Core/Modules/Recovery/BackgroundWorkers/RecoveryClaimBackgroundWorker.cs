@@ -110,7 +110,7 @@ public class RecoveryClaimBackgroundWorker : BackgroundService
             // Simulate OCR matching
             doc.VirusScanStatus = "Clean"; // Simulate clean antivirus checks
             doc.OcrResultText = $"COMPLETED METADATA VERIFICATION. CERTIFICATE OF INCORPORATION. Company Name: {claim.Organization.Name}. Tax MST: {claim.Organization.TaxCode}. Representative: {claim.RepresentativeFullName}.";
-            
+
             // Mock duplicate detection (check if another claim has a doc with identical file name or path)
             var searchJson = $"[{{\"file_name\":\"{doc.FileName}\"}}]";
             var isDuplicate = await context.Database
@@ -161,7 +161,7 @@ public class RecoveryClaimBackgroundWorker : BackgroundService
             // Check count of workspace members that were invited but haven't joined or pending
             pendingInvites = await context.WorkspaceMembers
                 .CountAsync(wm => wm.WorkspaceId == workspace.Id && wm.Role == "member", stoppingToken);
-            
+
             if (pendingInvites > 5)
             {
                 score += 15;

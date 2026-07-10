@@ -19,7 +19,11 @@ public class VerificationLink
     public string? TaxCode { get; set; }
 
     [MaxLength(255)]
-    public string? CompanyName { get; set; }
+    public string? OrganizationName { get; set; }
+
+    [Obsolete("Use OrganizationName instead")]
+    [NotMapped]
+    public string? CompanyName { get => OrganizationName; set => OrganizationName = value; }
 
     [Required]
     [MaxLength(255)]
@@ -27,7 +31,7 @@ public class VerificationLink
 
     [Required]
     [MaxLength(100)]
-    public string Purpose { get; set; } = null!; // "CompanyVerification", "RecruiterInvite", "WorkspaceInvite", "EmailVerification"
+    public string Purpose { get; set; } = null!; // "OrganizationVerification", "RecruiterInvite", "WorkspaceInvite", "EmailVerification"
 
     public Guid? UserId { get; set; }
 

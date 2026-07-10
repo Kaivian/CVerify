@@ -11,7 +11,7 @@ public class AuditLog
     public Guid Id { get; set; } = Guid.CreateVersion7();
 
     public Guid? UserId { get; set; }
-    
+
     [ForeignKey(nameof(UserId))]
     public virtual User? User { get; set; }
 

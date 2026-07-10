@@ -64,7 +64,7 @@ public class AuthRateLimitSettings
 {
     public int ForgotPasswordPermitLimit { get; set; } = 3;
     public int ForgotPasswordWindowMinutes { get; set; } = 15;
-    
+
     public int ResetPasswordPermitLimit { get; set; } = 5;
     public int ResetPasswordWindowMinutes { get; set; } = 15;
 

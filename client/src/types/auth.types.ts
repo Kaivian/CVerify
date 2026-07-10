@@ -1,4 +1,4 @@
-export type UserRole = 'USER' | 'BUSINESS' | 'ADMIN';
+export type UserRole = 'USER' | 'BUSINESS' | 'ORGANIZATION' | 'ADMIN';
 
 // Scalable permission string format: 'resource:action' (e.g., 'bookings:create', 'admin:users:manage')
 export type ResourceActionPermission = `${string}:${string}`;
@@ -92,6 +92,13 @@ export interface OtpSessionResponseData {
   cooldownUntil: string | null;
   maskedEmail: string;
   status: string;
+}
+
+export interface VerifyOrganizationLinkResponseData {
+  organizationName: string;
+  taxCode: string;
+  organizationEmail: string;
+  verificationToken: string;
 }
 
 export interface VerifyCompanyLinkResponseData {

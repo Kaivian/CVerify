@@ -88,9 +88,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         // 2. Check for active analyses to prevent duplicates
         var activeJob = await _context.AnalysisJobs
-            .FirstOrDefaultAsync(j => j.RepositoryId == repositoryId && 
+            .FirstOrDefaultAsync(j => j.RepositoryId == repositoryId &&
                                       (j.Status == "Queued" || j.Status == "Preparing" || j.Status == "CloningRepository" ||
-                                       j.Status == "DetectingTechnologyStack" || j.Status == "SamplingCode" || 
+                                       j.Status == "DetectingTechnologyStack" || j.Status == "SamplingCode" ||
                                        j.Status == "RunningAgents" || j.Status == "AggregatingResults" || j.Status == "SavingReport"));
 
         if (activeJob != null)
@@ -100,9 +100,9 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
         // 3. Enforce maximum active analyses per user (Limit: 2)
         var activeUserJobsCount = await _context.AnalysisJobs
-            .CountAsync(j => j.UserId == userId && 
+            .CountAsync(j => j.UserId == userId &&
                              (j.Status == "Queued" || j.Status == "Preparing" || j.Status == "CloningRepository" ||
-                              j.Status == "DetectingTechnologyStack" || j.Status == "SamplingCode" || 
+                              j.Status == "DetectingTechnologyStack" || j.Status == "SamplingCode" ||
                               j.Status == "RunningAgents" || j.Status == "AggregatingResults" || j.Status == "SavingReport"));
 
         if (activeUserJobsCount >= 2)
@@ -134,7 +134,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         {
             var configPath = Path.Combine(AppContext.BaseDirectory, "pipeline_config.json");
             if (!File.Exists(configPath)) configPath = "pipeline_config.json";
-            
+
             if (File.Exists(configPath))
             {
                 var configJson = File.ReadAllText(configPath);
@@ -231,14 +231,15 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 }
             }
         }
-        catch {}
+        catch { }
 
         if (orderList.Count == 0)
         {
             orderList = new List<string> { "RepoStructure", "CommitIntelligence", "SkillExtraction", "ArchitectureAnalysis", "CodeQuality", "SecurityAnalysis", "RepositoryClassification", "RepositorySummary", "CvSynthesis" };
         }
 
-        var orderedTasks = tasks.OrderBy(x => {
+        var orderedTasks = tasks.OrderBy(x =>
+        {
             var index = orderList.IndexOf(x.task.TaskType);
             return index >= 0 ? index : 99;
         }).ToList();
@@ -443,7 +444,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     }
                 }
             }
-            catch {}
+            catch { }
 
             if (orderList.Count == 0)
             {
@@ -460,7 +461,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 totalWeight = 105.0;
             }
 
-            tasks = tasks.OrderBy(x => {
+            tasks = tasks.OrderBy(x =>
+            {
                 var index = orderList.IndexOf(x.TaskType);
                 return index >= 0 ? index : 99;
             }).ToList();
@@ -477,7 +479,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     .Where(j => j.Id == jobId)
                     .Select(j => j.Status)
                     .FirstOrDefaultAsync(linkedCts.Token);
-                
+
                 if (jobStatus == "Cancelled")
                 {
                     throw new OperationCanceledException("Job was cancelled by the user.");
@@ -603,7 +605,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                             if (retryable && attempt < maxAttempts)
                             {
                                 int delayMs = attempt == 1 ? 500 : attempt == 2 ? 1000 : 2000;
-                                _logger.LogWarning("Task {TaskType} failed on attempt {Attempt}. Retrying in {DelayMs}ms. Error: {Error}", 
+                                _logger.LogWarning("Task {TaskType} failed on attempt {Attempt}. Retrying in {DelayMs}ms. Error: {Error}",
                                     task.TaskType, attempt, delayMs, taskResponse.ErrorMessage);
                                 await Task.Delay(delayMs, linkedCts.Token);
                                 continue;
@@ -701,12 +703,12 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                             throw;
                         }
                         var (errCode, retryable) = ClassifyError(null, ex);
-                        
+
                         // Check if we can retry
                         if (retryable && attempt < maxAttempts)
                         {
                             int delayMs = attempt == 1 ? 500 : attempt == 2 ? 1000 : 2000;
-                            _logger.LogWarning(ex, "Transient exception executing task {TaskType} on attempt {Attempt}. Retrying in {DelayMs}ms.", 
+                            _logger.LogWarning(ex, "Transient exception executing task {TaskType} on attempt {Attempt}. Retrying in {DelayMs}ms.",
                                 task.TaskType, attempt, delayMs);
                             await Task.Delay(delayMs, linkedCts.Token);
                             continue;
@@ -836,11 +838,11 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
             // Mark repository as verified and extract metadata based on schema version
             using var reportDoc = JsonDocument.Parse(finalReportJson);
-            
+
             repo.LatestAnalysisStatus = "Completed";
             repo.LatestAnalysisCompletedAtUtc = _timeProvider.GetUtcNow();
 
-            bool isV2 = reportDoc.RootElement.TryGetProperty("schemaVersion", out var schemaVersionProp) && 
+            bool isV2 = reportDoc.RootElement.TryGetProperty("schemaVersion", out var schemaVersionProp) &&
                          schemaVersionProp.GetString() == "v2";
 
             if (isV2)
@@ -1233,7 +1235,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             if (!aggregateResponse.IsSuccessStatusCode)
             {
                 var errorResponse = await aggregateResponse.Content.ReadAsStringAsync();
-                _logger.LogWarning("AI aggregation service returned status code {StatusCode} during snapshot for job {JobId}: {ErrorResponse}. Falling back to default progress report.", 
+                _logger.LogWarning("AI aggregation service returned status code {StatusCode} during snapshot for job {JobId}: {ErrorResponse}. Falling back to default progress report.",
                     aggregateResponse.StatusCode, jobId, errorResponse);
                 return GetDefaultProgressReport(job, repo);
             }
@@ -1365,8 +1367,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     {
         try
         {
-            var dict = string.IsNullOrEmpty(existingMetadata) 
-                ? new Dictionary<string, object>() 
+            var dict = string.IsNullOrEmpty(existingMetadata)
+                ? new Dictionary<string, object>()
                 : JsonSerializer.Deserialize<Dictionary<string, object>>(existingMetadata) ?? new Dictionary<string, object>();
             dict[flagKey] = value;
             return JsonSerializer.Serialize(dict);
@@ -1409,7 +1411,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         int totalTokens = execution.TotalTokens;
         if (promptTokens + completionTokens != totalTokens)
         {
-            _logger.LogWarning("Token usage mismatch detected: PromptTokens ({Prompt}) + CompletionTokens ({Completion}) != TotalTokens ({Total}). Flagging for debugging.", 
+            _logger.LogWarning("Token usage mismatch detected: PromptTokens ({Prompt}) + CompletionTokens ({Completion}) != TotalTokens ({Total}). Flagging for debugging.",
                 promptTokens, completionTokens, totalTokens);
             task.Metadata = AddDebugFlagToMetadata(task.Metadata, "token_mismatch_detected", true);
         }
@@ -1435,13 +1437,13 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     }
 
     private async Task PublishTaskProgressEventAsync(
-        Guid jobId, 
-        Guid taskId, 
-        string taskType, 
-        string taskStatus, 
-        double taskProgress, 
-        string jobStatus, 
-        double jobProgress, 
+        Guid jobId,
+        Guid taskId,
+        string taskType,
+        string taskStatus,
+        double taskProgress,
+        string jobStatus,
+        double jobProgress,
         string message,
         long? durationMs = null,
         int? promptTokens = null,
@@ -1899,7 +1901,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                         _logger.LogWarning(ex, "ProjectIntelligenceDataAsync: Failed to parse architecture patterns from individual task result.");
                     }
                 }
-                else if (root.TryGetProperty("architecture", out var archProp) && 
+                else if (root.TryGetProperty("architecture", out var archProp) &&
                          archProp.TryGetProperty("patterns", out var patProp))
                 {
                     foreach (var item in patProp.EnumerateArray())
@@ -1912,7 +1914,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                 }
 
                 // 4. Parse qualityScore and cloneRiskClassification
-                if (root.TryGetProperty("code_quality", out var qProp) && 
+                if (root.TryGetProperty("code_quality", out var qProp) &&
                     qProp.TryGetProperty("overall_score", out var oScoreProp))
                 {
                     qualityScore = oScoreProp.GetDouble();
@@ -1922,7 +1924,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     qualityScore = trustScore; // Fallback to trust score
                 }
 
-                if (root.TryGetProperty("fraud_signals", out var fraudProp) && 
+                if (root.TryGetProperty("fraud_signals", out var fraudProp) &&
                     fraudProp.TryGetProperty("clone_classification", out var cloneProp))
                 {
                     cloneRiskClassification = cloneProp.GetString() ?? "clean";
@@ -2159,7 +2161,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                     using var trustDoc = JsonDocument.Parse(trustTaskResult.ResultData);
                     var trustRoot = trustDoc.RootElement;
                     var dataElement = trustRoot.TryGetProperty("data", out var dProp) ? dProp : trustRoot;
-                    
+
                     if (dataElement.TryGetProperty("dimensions", out var dimProp))
                     {
                         if (dimProp.TryGetProperty("ownership", out var ownProp)) ownershipSignal = ownProp.GetDouble();
@@ -2190,7 +2192,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                         if (ownProp.TryGetProperty("is_primary_author", out var primProp)) isPrimaryAuthor = primProp.GetBoolean();
                     }
                 }
-                catch {}
+                catch { }
             }
             leadershipSignal = isPrimaryAuthor ? userCommitRatio * 100.0 : userCommitRatio * 50.0;
 

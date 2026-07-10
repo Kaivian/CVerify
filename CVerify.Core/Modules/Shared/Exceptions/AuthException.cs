@@ -6,12 +6,12 @@ public class AuthException : AuthenticationException
 {
     public string Code => ErrorCode;
 
-    public AuthException(string code, string message) 
+    public AuthException(string code, string message)
         : base(code, message)
     {
     }
 
-    public AuthException(string code, string message, Exception innerException) 
+    public AuthException(string code, string message, Exception innerException)
         : base(code, message, innerException)
     {
     }

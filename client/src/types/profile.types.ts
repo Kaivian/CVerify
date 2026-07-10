@@ -19,6 +19,10 @@ export interface ProfileResponse {
   version: number;
   aiSuggestionsJson?: string | null;
   socialLinks: string[];
+  cvTemplateId?: string | null;
+  cvThemeColor?: string | null;
+  isCvPublished: boolean;
+  cvLayoutConfigJson?: string | null;
 }
 
 export interface UpdateProfileRequest {
@@ -37,6 +41,10 @@ export interface UpdateProfileRequest {
   aiTalentDiscovery: string;
   aiSuggestionsJson?: string | null;
   socialLinks: string[];
+  cvTemplateId?: string | null;
+  cvThemeColor?: string | null;
+  isCvPublished?: boolean;
+  cvLayoutConfigJson?: string | null;
   version: number;
 }
 
@@ -223,6 +231,13 @@ export interface PublicCareerPreference {
   expectedSalaryNegotiable: boolean;
   isExpectedSalaryVisible: boolean;
   workPreferenceNotes?: string | null;
+  targetSkills?: string[];
+  openToWorkStatus?: string;
+  remotePreference?: string;
+  openToRelocation?: boolean;
+  leadershipTrack?: string;
+  companyStagePreferences?: string[];
+  preferredIndustries?: string[];
 }
 
 export interface PublicRepository {
@@ -248,6 +263,8 @@ export interface PublicProfileResponse {
   company: string | null;
   location: string | null;
   socialLinks: string[];
+  publicEmail?: string | null;
+  phoneNumber?: string | null;
   careerPreference?: PublicCareerPreference | null;
   trustScore?: number | null;
   repositories?: PublicRepository[] | null;
@@ -258,6 +275,11 @@ export interface PublicProfileResponse {
   hasCompletedAssessment: boolean;
   lastAssessmentDate: string | null;
   vacancies?: any[];
+  cvTemplateId?: string | null;
+  cvThemeColor?: string | null;
+  isCvPublished: boolean;
+  cvLayoutConfigJson?: string | null;
+  aiSuggestionsJson?: string | null;
 }
 
 export interface WorkExperienceAchievement {

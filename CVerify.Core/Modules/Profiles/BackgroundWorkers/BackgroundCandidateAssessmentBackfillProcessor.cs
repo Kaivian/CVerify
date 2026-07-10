@@ -120,7 +120,7 @@ public class BackgroundCandidateAssessmentBackfillProcessor : BackgroundService
                         if (!allReposHaveAssets)
                         {
                             _logger.LogInformation("Assessment {AssessmentId} lacks Pipeline 1 relational assets in repository assessments. Queueing for automated reassessment.", ca.Id);
-                            
+
                             var maxVersion = await context.CandidateAssessments
                                 .Where(x => x.UserId == ca.UserId)
                                 .MaxAsync(x => (int?)x.Version, stoppingToken) ?? 0;
@@ -128,7 +128,7 @@ public class BackgroundCandidateAssessmentBackfillProcessor : BackgroundService
                             ca.Status = "Queued";
                             ca.Version = maxVersion + 1;
                             await context.SaveChangesAsync(stoppingToken);
-                            
+
                             await queue.EnqueueAssessmentAsync(ca.Id);
                             continue;
                         }

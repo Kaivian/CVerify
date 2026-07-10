@@ -40,7 +40,7 @@ public class PerformanceStressTests
                 IdempotencyKey: null
             );
             queue.QueueEmail(message);
-        }))).ConfigureAwait(false);
+        })));
 
         // Assert
         var processedCount = 0;

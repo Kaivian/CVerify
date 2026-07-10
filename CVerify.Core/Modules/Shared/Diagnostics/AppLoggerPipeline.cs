@@ -27,10 +27,10 @@ public class AppLoggerPipeline
     private readonly string _environmentName;
     private readonly EnvConfiguration _envConfig;
     private readonly PipelineTelemetry _telemetry;
-    
+
     // In-memory queue using a Channel
     private readonly Channel<AppLogEvent> _channel;
-    
+
     // Expose current channel size
     public int QueueSize => _channel.Reader.Count;
     public int QueueCapacity { get; } = 10000;
@@ -139,7 +139,7 @@ public class AppLoggerPipeline
     {
         if (string.IsNullOrEmpty(category)) return "SYSTEM";
 
-        if (category.Contains("AuthService", StringComparison.OrdinalIgnoreCase) || 
+        if (category.Contains("AuthService", StringComparison.OrdinalIgnoreCase) ||
             category.Contains("TokenService", StringComparison.OrdinalIgnoreCase))
             return "AUTH";
 
@@ -252,7 +252,7 @@ public class AppLoggerPipeline
         {
             logEvent.TraceId ??= httpContext.TraceIdentifier;
             logEvent.RequestId ??= httpContext.TraceIdentifier;
-            
+
             if (httpContext.User?.Identity?.IsAuthenticated == true)
             {
                 logEvent.UserId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

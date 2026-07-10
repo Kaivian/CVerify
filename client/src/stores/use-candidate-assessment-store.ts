@@ -52,7 +52,7 @@ interface CandidateAssessmentState {
   clearError: () => void;
 }
 
-let activeEventSource: EventSource | null = null;
+const activeEventSource: EventSource | null = null;
 
 const FALLBACK_STAGES: AssessmentStageDto[] = [
   { id: 'FetchLine1', name: 'Retrieve Repository Artifacts', description: 'Fetches verified static analysis, provenance, and git telemetry artifacts for the candidate\'s active repositories.' },

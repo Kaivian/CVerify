@@ -74,7 +74,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 {
                     var email = matched.ProviderAccountId?.Contains('@') == true ? matched.ProviderAccountId : null;
                     var username = matched.ProviderAccountId?.Contains('@') == false ? matched.ProviderAccountId : null;
-                    
+
                     result.Add(new SourceCodeProviderDto(
                         Id: matched.Id,
                         ProviderName: matched.ProviderName.ToLowerInvariant(),
@@ -97,17 +97,17 @@ public class SourceCodeProviderService : ISourceCodeProviderService
     }
 
     public async Task<PaginatedResultDto<RepositoryDto>> GetRepositoriesAsync(
-        Guid userId, 
-        Guid? providerId, 
-        string? search, 
-        string? visibility, 
-        string? language, 
-        string? sort, 
-        string? category, 
+        Guid userId,
+        Guid? providerId,
+        string? search,
+        string? visibility,
+        string? language,
+        string? sort,
+        string? category,
         string? ownerType,
         Guid? organizationId,
         string? mode,
-        int page, 
+        int page,
         int pageSize)
     {
         // Auto-heal/backfill: mark repositories as verified if they have a completed analysis report
@@ -177,7 +177,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var cleanSearch = search.Trim();
-            query = query.Where(r => EF.Functions.ILike(r.Name, $"%{cleanSearch}%") 
+            query = query.Where(r => EF.Functions.ILike(r.Name, $"%{cleanSearch}%")
                                   || EF.Functions.ILike(r.Description ?? "", $"%{cleanSearch}%")
                                   || EF.Functions.ILike(r.Owner, $"%{cleanSearch}%"));
         }
@@ -206,15 +206,15 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
         if (!string.IsNullOrWhiteSpace(ownerType) && !string.Equals(ownerType, "all", StringComparison.OrdinalIgnoreCase))
         {
-            if (string.Equals(ownerType, "personal", StringComparison.OrdinalIgnoreCase) || 
+            if (string.Equals(ownerType, "personal", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(ownerType, "user", StringComparison.OrdinalIgnoreCase))
             {
                 query = query.Where(r => EF.Functions.ILike(r.OwnerType, "user"));
             }
-            else if (string.Equals(ownerType, "organization", StringComparison.OrdinalIgnoreCase) || 
+            else if (string.Equals(ownerType, "organization", StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(ownerType, "org", StringComparison.OrdinalIgnoreCase))
             {
-                query = query.Where(r => EF.Functions.ILike(r.OwnerType, "organization") || 
+                query = query.Where(r => EF.Functions.ILike(r.OwnerType, "organization") ||
                                          EF.Functions.ILike(r.OwnerType, "group"));
             }
         }
@@ -360,7 +360,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
         // Restart / Timeout Recovery Check:
         // If the job is active (Pending/Syncing) but has not updated its timestamp in over 10 minutes, mark as failed
-        if ((status.Status == "Pending" || status.Status == "Syncing") && 
+        if ((status.Status == "Pending" || status.Status == "Syncing") &&
             _timeProvider.GetUtcNow() - status.UpdatedAt > TimeSpan.FromMinutes(10))
         {
             status.Status = "Failed";
@@ -389,7 +389,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             {
                 var matched = await _context.AuthProviders
                     .FirstOrDefaultAsync(ap => ap.Id == job.AuthProviderId.Value && ap.UserId == job.UserId && ap.DeletedAt == null, cancellationToken);
-                
+
                 providersToSync = matched != null ? new List<AuthProvider> { matched } : new List<AuthProvider>();
             }
             else
@@ -413,7 +413,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
             foreach (var provider in providersToSync)
             {
-                if (provider.ScopeValidationStatus == ProviderScopeStatus.ReconnectRequired || 
+                if (provider.ScopeValidationStatus == ProviderScopeStatus.ReconnectRequired ||
                     provider.ScopeValidationStatus == ProviderScopeStatus.Revoked)
                 {
                     _logger.LogWarning("Skipping repository synchronization for provider {AuthProviderId} because validation status is {Status}.", provider.Id, provider.ScopeValidationStatus);
@@ -435,7 +435,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 try
                 {
                     var (syncedCount, isPartial) = await SyncProviderRepositoriesAsync(provider, status.MaxPages, status.PageSize, cancellationToken);
-                    
+
                     status.TotalSyncedCount += syncedCount;
                     if (isPartial)
                     {
@@ -450,7 +450,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 catch (Exception providerEx)
                 {
                     bool isAuthError = providerEx is InvalidOperationException && (providerEx.Message.Contains("re-authorization", StringComparison.OrdinalIgnoreCase) || providerEx.Message.Contains("credentials", StringComparison.OrdinalIgnoreCase)) ||
-                                       providerEx.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || 
+                                       providerEx.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) ||
                                        providerEx.Message.Contains("401") ||
                                        providerEx.Message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase) ||
                                        providerEx.Message.Contains("403") ||
@@ -510,10 +510,10 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
     private async Task<string> GetOrRefreshAccessTokenAsync(AuthProvider provider, CancellationToken cancellationToken)
     {
-        if (provider.ExpiresAt.HasValue && 
+        if (provider.ExpiresAt.HasValue &&
             provider.ExpiresAt.Value - _timeProvider.GetUtcNow() < TimeSpan.FromMinutes(5))
         {
-            _logger.LogInformation("Access token for provider {ProviderId} ({ProviderName}) is expired or close to expiry. Refreshing...", 
+            _logger.LogInformation("Access token for provider {ProviderId} ({ProviderName}) is expired or close to expiry. Refreshing...",
                 provider.Id, provider.ProviderName);
             try
             {
@@ -522,7 +522,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             catch (Exception ex)
             {
                 bool isAuthError = ex is InvalidOperationException && (ex.Message.Contains("re-authorization", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("credentials", StringComparison.OrdinalIgnoreCase)) ||
-                                   ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || 
+                                   ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) ||
                                    ex.Message.Contains("401") ||
                                    ex.Message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase) ||
                                    ex.Message.Contains("403") ||
@@ -583,7 +583,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         catch (Exception ex)
         {
             bool isAuthError = ex is InvalidOperationException && (ex.Message.Contains("re-authorization", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("credentials", StringComparison.OrdinalIgnoreCase)) ||
-                               ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || 
+                               ex.Message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) ||
                                ex.Message.Contains("401") ||
                                ex.Message.Contains("Forbidden", StringComparison.OrdinalIgnoreCase) ||
                                ex.Message.Contains("403") ||
@@ -599,7 +599,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
             {
                 _logger.LogError(ex, "Token refresh failed for provider {ProviderName}.", provider.ProviderName);
             }
-            
+
             provider.RefreshFailureCount++;
             provider.SyncStatus = "Failed";
             provider.SyncError = $"Token refresh failed: {ex.Message}. Please re-connect account.";
@@ -642,7 +642,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         CancellationToken cancellationToken)
     {
         var decryptedToken = await GetOrRefreshAccessTokenAsync(provider, cancellationToken);
-        
+
         var client = _clients.FirstOrDefault(c => string.Equals(c.ProviderName, provider.ProviderName, StringComparison.OrdinalIgnoreCase));
         if (client == null)
         {
@@ -657,8 +657,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
         {
             SyncResult syncResult = await client.SyncRepositoriesAsync(decryptedToken, page, pageSize, cancellationToken);
 
-            if (syncResult.IsAuthError || (!string.IsNullOrEmpty(syncResult.SyncError) && 
-                (syncResult.SyncError.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) || 
+            if (syncResult.IsAuthError || (!string.IsNullOrEmpty(syncResult.SyncError) &&
+                (syncResult.SyncError.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) ||
                  syncResult.SyncError.Contains("401") ||
                  syncResult.SyncError.Contains("Bad credentials", StringComparison.OrdinalIgnoreCase))))
             {
@@ -680,8 +680,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
             if (syncResult.IsAuthError || !string.IsNullOrEmpty(syncResult.SyncError))
             {
-                bool isAuthError = syncResult.IsAuthError || 
-                                   syncResult.SyncError?.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) == true || 
+                bool isAuthError = syncResult.IsAuthError ||
+                                   syncResult.SyncError?.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase) == true ||
                                    syncResult.SyncError?.Contains("401") == true ||
                                    syncResult.SyncError?.Contains("Bad credentials", StringComparison.OrdinalIgnoreCase) == true;
 
@@ -692,7 +692,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                     await _context.SaveChangesAsync(cancellationToken);
                     throw new InvalidOperationException($"Provider synchronization failed on page {page} due to invalid or revoked credentials: {syncResult.SyncError}");
                 }
-                
+
                 throw new InvalidOperationException($"Provider synchronization failed on page {page}: {syncResult.SyncError}");
             }
 
@@ -803,8 +803,8 @@ public class SourceCodeProviderService : ISourceCodeProviderService
 
             // Resolve organization linkage if owner type is organization/group
             Guid? orgId = null;
-            if (fetched.OwnerType != null && 
-                (string.Equals(fetched.OwnerType, "organization", StringComparison.OrdinalIgnoreCase) || 
+            if (fetched.OwnerType != null &&
+                (string.Equals(fetched.OwnerType, "organization", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(fetched.OwnerType, "group", StringComparison.OrdinalIgnoreCase)))
             {
                 if (orgsByLogin.TryGetValue(fetched.OwnerLogin ?? "", out var org))
@@ -831,7 +831,7 @@ public class SourceCodeProviderService : ISourceCodeProviderService
                 existing.LastUpdatedUtc = fetched.LastUpdatedUtc;
                 existing.ArchivedExternally = fetched.ArchivedExternally;
                 existing.ExternalOrganizationId = orgId;
-                
+
                 existing.IsAccessible = true;
                 existing.LastSeenAt = _timeProvider.GetUtcNow();
                 existing.LastSyncedAt = _timeProvider.GetUtcNow();

@@ -1,6 +1,6 @@
 import React from "react";
 import { SummaryRenderer } from "./SummaryRenderers";
-import { StreamingSession } from "../types";
+import { type StreamingSession } from "../types";
 
 interface StreamingSummaryProps {
   activeSession: StreamingSession;

@@ -1,5 +1,5 @@
 import { pipelineRegistry } from "./registry";
-import { PipelineConfig } from "./types";
+import { type PipelineConfig } from "./types";
 import { repositoryAnalysisApi } from "@/services/repository-analysis.service";
 import { profileApi } from "@/services/profile.service";
 import { hiringRequirementService } from "@/services/hiring-requirement.service";

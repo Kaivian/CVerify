@@ -84,14 +84,28 @@ public class ProfileService : IProfileService
             profile.User = user;
         }
 
-        return MapToResponse(profile, profile.SocialLinks);
+        var cvSetting = await _context.UserCvSettings
+            .FirstOrDefaultAsync(ucs => ucs.UserId == userId, cancellationToken);
+        if (cvSetting == null)
+        {
+            cvSetting = new UserCvSetting
+            {
+                UserId = userId,
+                CvTemplateId = "professional",
+                IsCvPublished = true
+            };
+            _context.UserCvSettings.Add(cvSetting);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        return MapToResponse(profile, profile.SocialLinks, cvSetting);
     }
 
     public async Task<ProfileResponse> UpdateProfileAsync(
-        Guid userId, 
-        UpdateProfileRequest request, 
-        string? ipAddress = null, 
-        string? userAgent = null, 
+        Guid userId,
+        UpdateProfileRequest request,
+        string? ipAddress = null,
+        string? userAgent = null,
         CancellationToken cancellationToken = default)
     {
         var profile = await _context.UserProfiles
@@ -109,8 +123,21 @@ public class ProfileService : IProfileService
             throw new ProfileException(ProfileErrorCodes.ProfileConcurrencyConflict, "This profile has been modified by another process. Please reload and try again.");
         }
 
+        var cvSetting = await _context.UserCvSettings
+            .FirstOrDefaultAsync(ucs => ucs.UserId == userId, cancellationToken);
+        if (cvSetting == null)
+        {
+            cvSetting = new UserCvSetting
+            {
+                UserId = userId,
+                CvTemplateId = "professional",
+                IsCvPublished = true
+            };
+            _context.UserCvSettings.Add(cvSetting);
+        }
+
         // Keep old state for activity logging
-        var oldStateJson = JsonSerializer.Serialize(MapToResponse(profile, new List<string>()));
+        var oldStateJson = JsonSerializer.Serialize(MapToResponse(profile, new List<string>(), cvSetting));
 
         // Update associated User properties
         if (!string.IsNullOrWhiteSpace(request.FullName))
@@ -136,6 +163,19 @@ public class ProfileService : IProfileService
         profile.UpdatedAt = DateTimeOffset.UtcNow;
         profile.LastProfileUpdateAt = DateTimeOffset.UtcNow;
 
+        // Update CV configurations
+        if (request.CvTemplateId != null)
+        {
+            cvSetting.CvTemplateId = request.CvTemplateId;
+        }
+        cvSetting.CvThemeColor = request.CvThemeColor;
+        if (request.IsCvPublished.HasValue)
+        {
+            cvSetting.IsCvPublished = request.IsCvPublished.Value;
+        }
+        cvSetting.CvLayoutConfigJson = request.CvLayoutConfigJson;
+        cvSetting.UpdatedAt = DateTimeOffset.UtcNow;
+
         var newSocialUrls = new List<string>();
         if (request.SocialLinks != null)
         {
@@ -147,7 +187,7 @@ public class ProfileService : IProfileService
         profile.SocialLinks = newSocialUrls;
 
         // Log the state transition
-        var logResponse = MapToResponse(profile, newSocialUrls);
+        var logResponse = MapToResponse(profile, newSocialUrls, cvSetting);
         var newStateJson = JsonSerializer.Serialize(logResponse);
 
         var log = new AuditLog
@@ -182,14 +222,14 @@ public class ProfileService : IProfileService
             _logger.Log(LogLevel.Warning, "Profile", $"Failed to index CV repositories during profile update for user {userId}.", ex);
         }
 
-        return MapToResponse(profile, newSocialUrls);
+        return MapToResponse(profile, newSocialUrls, cvSetting);
     }
 
     public async Task UpdateUsernameAsync(
-        Guid userId, 
-        string newUsername, 
-        string? ipAddress = null, 
-        string? userAgent = null, 
+        Guid userId,
+        string newUsername,
+        string? ipAddress = null,
+        string? userAgent = null,
         CancellationToken cancellationToken = default)
     {
         _usernameService.ValidateUsername(newUsername);
@@ -294,7 +334,7 @@ public class ProfileService : IProfileService
         }
 
         // Visibility settings of "private" or "connections" return 404 Not Found for public lookup
-        if (string.Equals(profile.ProfileVisibility, "private", StringComparison.OrdinalIgnoreCase) || 
+        if (string.Equals(profile.ProfileVisibility, "private", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(profile.ProfileVisibility, "connections", StringComparison.OrdinalIgnoreCase))
         {
             throw new ResourceNotFoundException(ProfileErrorCodes.ProfileNotFound, "Profile not found.");
@@ -303,6 +343,9 @@ public class ProfileService : IProfileService
         var socialLinks = profile.SocialLinks;
 
         var signedAvatarUrl = await GetSignedAvatarUrlAsync(profile.User?.AvatarUrl, cancellationToken);
+
+        var cvSetting = await _context.UserCvSettings
+            .FirstOrDefaultAsync(ucs => ucs.UserId == profile.UserId, cancellationToken);
 
         var careerPreference = await _context.CareerPreferences
             .FirstOrDefaultAsync(cp => cp.UserId == profile.UserId, cancellationToken);
@@ -338,7 +381,14 @@ public class ProfileService : IProfileService
                 expectedSalaryType,
                 careerPreference.ExpectedSalaryNegotiable,
                 careerPreference.IsExpectedSalaryVisible,
-                careerPreference.WorkPreferenceNotes
+                careerPreference.WorkPreferenceNotes,
+                careerPreference.TargetSkills ?? new List<string>(),
+                careerPreference.OpenToWorkStatus ?? "casual",
+                careerPreference.RemotePreference ?? "any",
+                careerPreference.OpenToRelocation,
+                careerPreference.LeadershipTrack ?? "undecided",
+                careerPreference.CompanyStagePreferences ?? new List<string>(),
+                careerPreference.PreferredIndustries ?? new List<string>()
             );
         }
 
@@ -352,7 +402,7 @@ public class ProfileService : IProfileService
                   AND r.latest_analysis_status = 'Completed'
                   AND r.is_enabled = TRUE
                   AND r.is_accessible = TRUE
-                ORDER BY r.latest_analysis_completed_at_utc DESC", 
+                ORDER BY r.latest_analysis_completed_at_utc DESC",
                 profile.UserId)
             .ToListAsync(cancellationToken);
 
@@ -607,7 +657,12 @@ public class ProfileService : IProfileService
             achievementResponses,
             hasCompletedAssessment,
             lastAssessmentDate,
-            publishedVacancies
+            publishedVacancies,
+            cvSetting?.CvTemplateId ?? "professional",
+            cvSetting?.CvThemeColor,
+            cvSetting?.IsCvPublished ?? true,
+            cvSetting?.CvLayoutConfigJson,
+            profile.AiSuggestionsJson
         );
     }
 
@@ -618,7 +673,7 @@ public class ProfileService : IProfileService
             return null;
         }
 
-        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             return url;
@@ -641,7 +696,7 @@ public class ProfileService : IProfileService
             return null;
         }
 
-        if (avatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+        if (avatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             avatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             return avatarUrl;
@@ -658,7 +713,7 @@ public class ProfileService : IProfileService
         }
     }
 
-    private static ProfileResponse MapToResponse(UserProfile profile, List<string> socialLinks)
+    private static ProfileResponse MapToResponse(UserProfile profile, List<string> socialLinks, UserCvSetting? cvSetting)
     {
         return new ProfileResponse(
             profile.UserId,
@@ -680,7 +735,11 @@ public class ProfileService : IProfileService
             profile.UpdatedAt,
             profile.Version,
             profile.AiSuggestionsJson,
-            socialLinks
+            socialLinks,
+            cvSetting?.CvTemplateId ?? "professional",
+            cvSetting?.CvThemeColor,
+            cvSetting?.IsCvPublished ?? true,
+            cvSetting?.CvLayoutConfigJson
         );
     }
 
@@ -698,8 +757,8 @@ public class ProfileService : IProfileService
         }
 
         // Delete old avatar from R2 storage physically if it is an object key we managed
-        if (!string.IsNullOrEmpty(user.AvatarUrl) && 
-            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+        if (!string.IsNullOrEmpty(user.AvatarUrl) &&
+            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !user.AvatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -769,8 +828,8 @@ public class ProfileService : IProfileService
         }
 
         // Clean up old uploaded file from storage if applicable
-        if (!string.IsNullOrEmpty(user.AvatarUrl) && 
-            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+        if (!string.IsNullOrEmpty(user.AvatarUrl) &&
+            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !user.AvatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -792,7 +851,7 @@ public class ProfileService : IProfileService
             _ => AvatarSource.Default
         };
         user.UpdatedAt = DateTimeOffset.UtcNow;
-        
+
         await _context.SaveChangesAsync(cancellationToken);
 
         var log = new AuditLog
@@ -822,8 +881,8 @@ public class ProfileService : IProfileService
         }
 
         // Delete old avatar from R2 storage physically if it is an object key we managed
-        if (!string.IsNullOrEmpty(user.AvatarUrl) && 
-            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+        if (!string.IsNullOrEmpty(user.AvatarUrl) &&
+            !user.AvatarUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !user.AvatarUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -876,8 +935,8 @@ public class ProfileService : IProfileService
     }
 
     public async Task<PaginatedResultDto<RankingResponseItemDto>> GetRankingAsync(
-        Guid? currentUserId, 
-        RankingQueryDto query, 
+        Guid? currentUserId,
+        RankingQueryDto query,
         CancellationToken cancellationToken = default)
     {
         var dbQuery = _context.CandidateRankingProjections.AsQueryable();
@@ -886,7 +945,7 @@ public class ProfileService : IProfileService
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var searchLower = query.Search.ToLower();
-            dbQuery = dbQuery.Where(p => 
+            dbQuery = dbQuery.Where(p =>
                 p.FullName.ToLower().Contains(searchLower) ||
                 (p.Username != null && p.Username.ToLower().Contains(searchLower)) ||
                 (p.Headline != null && p.Headline.ToLower().Contains(searchLower)) ||
@@ -916,7 +975,7 @@ public class ProfileService : IProfileService
         // 5. Apply TrustTiers filter
         if (query.TrustTiers != null && query.TrustTiers.Any())
         {
-            dbQuery = dbQuery.Where(p => 
+            dbQuery = dbQuery.Where(p =>
                 (query.TrustTiers.Contains("HighTrust") && p.TrustScore >= 85) ||
                 (query.TrustTiers.Contains("EvidenceVerified") && p.TrustScore >= 60 && p.TrustScore < 85) ||
                 (query.TrustTiers.Contains("BasicVerified") && p.TrustScore >= 30 && p.TrustScore < 60) ||
@@ -1023,7 +1082,7 @@ public class ProfileService : IProfileService
         foreach (var item in pageItems)
         {
             var signedAvatarUrl = await GetSignedAvatarUrlAsync(item.AvatarUrl, cancellationToken).ConfigureAwait(false);
-            
+
             // Deserialize capabilities list
             var capabilities = new List<CapabilityDto>();
             if (!string.IsNullOrEmpty(item.TopCapabilitiesJson))
@@ -1078,8 +1137,8 @@ public class ProfileService : IProfileService
     }
 
     public async Task FollowUserAsync(
-        Guid followerId, 
-        string usernameToFollow, 
+        Guid followerId,
+        string usernameToFollow,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(usernameToFollow))
@@ -1149,8 +1208,8 @@ public class ProfileService : IProfileService
     }
 
     public async Task UnfollowUserAsync(
-        Guid followerId, 
-        string usernameToUnfollow, 
+        Guid followerId,
+        string usernameToUnfollow,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(usernameToUnfollow))
@@ -1246,7 +1305,8 @@ public class ProfileService : IProfileService
         // 6. Trending Engineers (highest positive rank delta: PreviousGlobalRankPosition - GlobalRankPosition)
         var trendingCandidates = await _context.CandidateRankingProjections
             .Where(p => p.PreviousGlobalRankPosition > 0 && p.GlobalRankPosition > 0)
-            .Select(p => new {
+            .Select(p => new
+            {
                 Projection = p,
                 Delta = p.PreviousGlobalRankPosition - p.GlobalRankPosition
             })
@@ -1305,7 +1365,7 @@ public class ProfileService : IProfileService
         double averageRepositoryImpact = 0.0;
         if (reposData.Any())
         {
-            averageRepositoryImpact = reposData.Average(p => 
+            averageRepositoryImpact = reposData.Average(p =>
                 CVerify.API.Modules.Intelligence.Services.CandidateRankingCalculator.CalculateRepositoryImpactScore(
                     p.TotalStarsCount, p.TotalForksCount, p.VerifiedRepoCount));
         }

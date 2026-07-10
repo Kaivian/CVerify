@@ -60,7 +60,7 @@ public class EmailTemplateServiceTests : IDisposable
         // Arrange
         var templateName = "test_simple.html";
         var content = "Hello {{ full_name }}! Welcome to {{ destination }}.";
-        await File.WriteAllTextAsync(Path.Combine(_templatesDirectory, templateName), content).ConfigureAwait(false);
+        await File.WriteAllTextAsync(Path.Combine(_templatesDirectory, templateName), content);
 
         var model = new Dictionary<string, object>
         {
@@ -69,7 +69,7 @@ public class EmailTemplateServiceTests : IDisposable
         };
 
         // Act
-        var result = await _service.RenderTemplateAsync(templateName, model).ConfigureAwait(false);
+        var result = await _service.RenderTemplateAsync(templateName, model);
 
         // Assert
         result.Should().Be("Hello Luc! Welcome to Tokyo.");
@@ -83,9 +83,9 @@ public class EmailTemplateServiceTests : IDisposable
         var model = new Dictionary<string, object>();
 
         // Act & Assert
-        var act = async () => await _service.RenderTemplateAsync(templateName, model).ConfigureAwait(false);
+        var act = async () => await _service.RenderTemplateAsync(templateName, model);
         await act.Should().ThrowAsync<EmailSendingException>()
-            .WithMessage("*not found at physical path*").ConfigureAwait(false);
+            .WithMessage("*not found at physical path*");
     }
 
     [Fact]
@@ -95,14 +95,14 @@ public class EmailTemplateServiceTests : IDisposable
         var templateName = "invalid_syntax.html";
         // Invalid Scriban layout: unclosed structural control statement (if block)
         var content = "Hello {{ if true }}";
-        await File.WriteAllTextAsync(Path.Combine(_templatesDirectory, templateName), content).ConfigureAwait(false);
+        await File.WriteAllTextAsync(Path.Combine(_templatesDirectory, templateName), content);
 
         var model = new Dictionary<string, object>();
 
         // Act & Assert
-        var act = async () => await _service.RenderTemplateAsync(templateName, model).ConfigureAwait(false);
+        var act = async () => await _service.RenderTemplateAsync(templateName, model);
         await act.Should().ThrowAsync<EmailSendingException>()
-            .WithMessage("*Compilation errors in Scriban template*").ConfigureAwait(false);
+            .WithMessage("*Compilation errors in Scriban template*");
     }
 
     [Fact]
@@ -111,12 +111,12 @@ public class EmailTemplateServiceTests : IDisposable
         // Arrange
         var templateName = "empty_placeholders.html";
         var content = "Hi {{ full_name }}! Code is {{ code }}.";
-        await File.WriteAllTextAsync(Path.Combine(_templatesDirectory, templateName), content).ConfigureAwait(false);
+        await File.WriteAllTextAsync(Path.Combine(_templatesDirectory, templateName), content);
 
         var model = new Dictionary<string, object>();
 
         // Act
-        var result = await _service.RenderTemplateAsync(templateName, model).ConfigureAwait(false);
+        var result = await _service.RenderTemplateAsync(templateName, model);
 
         // Assert
         // Scriban handles undefined models gracefully by replacing with blank spaces
@@ -134,22 +134,22 @@ public class EmailTemplateServiceTests : IDisposable
         await File.WriteAllTextAsync(
             Path.Combine(_templatesDirectory, "Layouts", "MasterLayout.html"),
             "<html>[Layout] {{ include 'Components/EmailHeader.html' }} - {{ content }} - {{ include 'Components/EmailFooter.html' }}</html>"
-        ).ConfigureAwait(false);
+        );
 
         await File.WriteAllTextAsync(
             Path.Combine(_templatesDirectory, "Components", "EmailHeader.html"),
             "HeaderContent"
-        ).ConfigureAwait(false);
+        );
 
         await File.WriteAllTextAsync(
             Path.Combine(_templatesDirectory, "Components", "EmailFooter.html"),
             "FooterContent"
-        ).ConfigureAwait(false);
+        );
 
         await File.WriteAllTextAsync(
             Path.Combine(_templatesDirectory, "Verification", "VerificationEmail.html"),
             "VerificationContent: {{ full_name }}"
-        ).ConfigureAwait(false);
+        );
 
         var settings = new EmailSettings
         {
@@ -163,7 +163,7 @@ public class EmailTemplateServiceTests : IDisposable
         };
 
         // Act
-        var result = await service.RenderTemplateAsync("VerificationEmail.html", model).ConfigureAwait(false);
+        var result = await service.RenderTemplateAsync("VerificationEmail.html", model);
 
         // Assert
         result.Should().Be("<html>[Layout] HeaderContent - VerificationContent: Bob - FooterContent</html>");
@@ -180,22 +180,22 @@ public class EmailTemplateServiceTests : IDisposable
         await File.WriteAllTextAsync(
             Path.Combine(_templatesDirectory, "Layouts", "MasterLayout.html"),
             "<html>Layout [{{ product_name }}] - {{ content }}</html>"
-        ).ConfigureAwait(false);
+        );
 
         await File.WriteAllTextAsync(
             Path.Combine(_templatesDirectory, "Components", "EmailHeader.html"),
             "Header"
-        ).ConfigureAwait(false);
+        );
 
         await File.WriteAllTextAsync(
             Path.Combine(_templatesDirectory, "Components", "EmailFooter.html"),
             "Footer"
-        ).ConfigureAwait(false);
+        );
 
         await File.WriteAllTextAsync(
             Path.Combine(_templatesDirectory, "Verification", "VerificationEmail.html"),
             "Accent: {{ colors.accent }}, Text: {{ colors.text }}"
-        ).ConfigureAwait(false);
+        );
 
         var settings = new EmailSettings
         {
@@ -212,7 +212,7 @@ public class EmailTemplateServiceTests : IDisposable
         var model = new Dictionary<string, object>();
 
         // Act
-        var result = await service.RenderTemplateAsync("VerificationEmail.html", model).ConfigureAwait(false);
+        var result = await service.RenderTemplateAsync("VerificationEmail.html", model);
 
         // Assert
         result.Should().Be("<html>Layout [CVerifyTest] - Accent: #ff9900, Text: #333333</html>");

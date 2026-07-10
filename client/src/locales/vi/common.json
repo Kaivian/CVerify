@@ -61,8 +61,8 @@
     "roles": {
       "userTitle": "Hành khách (USER)",
       "userDesc": "Bảng điều khiển cho hành khách tiêu chuẩn, cho phép lập kế hoạch du lịch, tìm kiếm gợi ý bằng AI và xem lịch sử chuyến đi cá nhân.",
-      "businessTitle": "Đối tác dịch vụ (BUSINESS)",
-      "businessDesc": "Bảng điều khiển cho đối tác để quản lý các gói khách sạn, niêm yết tour du lịch và đánh giá dòng doanh thu từ hành khách đặt lịch.",
+      "businessTitle": "Tổ chức & Doanh nghiệp (ORGANIZATION)",
+      "businessDesc": "Bảng điều khiển cho tổ chức quản lý nhân sự, đánh giá năng lực ứng viên và cấu hình không gian làm việc.",
       "adminTitle": "Quản trị hệ thống (ADMIN)",
       "adminDesc": "Bảng điều khiển quản trị toàn cầu cung cấp phân tích chẩn đoán sức khỏe máy chủ, quản lý tài khoản và cổng khóa API trực tiếp."
     },
@@ -78,7 +78,7 @@
     "sections": {
       "general": "Chung",
       "candidate": "Ứng viên",
-      "business": "Doanh nghiệp"
+      "business": "Tổ chức"
     },
     "jobBoard": "Bảng tin tuyển dụng",
     "ranking": "Bảng xếp hạng",
@@ -88,7 +88,7 @@
     "appliedJobs": "Đã ứng tuyển",
     "cv": "CV của tôi",
     "candidateDashboard": "Bảng điều khiển",
-    "businessDashboard": "Bảng điều khiển doanh nghiệp"
+    "businessDashboard": "Bảng điều khiển Tổ chức"
   },
   "admin": {
     "dashboard": "Quản trị",

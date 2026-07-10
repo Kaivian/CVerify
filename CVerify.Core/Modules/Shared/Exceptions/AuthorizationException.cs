@@ -10,10 +10,10 @@ public class AuthorizationException : CVerifyBaseException
 {
     public AuthorizationException(string errorCode, string? customMessage = null, Exception? innerException = null)
         : base(
-            errorCode, 
-            ErrorCategory.AUTHORIZATION, 
-            ErrorRegistryCompiler.Get(errorCode).MessageKey, 
-            customMessage ?? ErrorRegistryCompiler.Get(errorCode).DefaultMessage, 
+            errorCode,
+            ErrorCategory.AUTHORIZATION,
+            ErrorRegistryCompiler.Get(errorCode).MessageKey,
+            customMessage ?? ErrorRegistryCompiler.Get(errorCode).DefaultMessage,
             innerException)
     {
         Severity = ErrorRegistryCompiler.Get(errorCode).DefaultSeverity;

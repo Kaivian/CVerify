@@ -15,8 +15,8 @@ namespace CVerify.API.Modules.Shared.Persistence;
 public static class PublicWorkspaceSeeder
 {
     public static async Task SeedAsync(
-        ApplicationDbContext context, 
-        SeedingSettings seeding, 
+        ApplicationDbContext context,
+        SeedingSettings seeding,
         IEnumerable<IPublicWorkspaceModuleSeeder> moduleSeeders,
         ILogger logger,
         SeedingPolicy policy)
@@ -193,18 +193,18 @@ public static class PublicWorkspaceSeeder
         }
 
         var lowerConn = connString.ToLowerInvariant();
-        if (lowerConn.Contains(".database.windows.net") || 
-            lowerConn.Contains(".rds.amazonaws.com") || 
-            lowerConn.Contains("rds.amazonaws.com") || 
+        if (lowerConn.Contains(".database.windows.net") ||
+            lowerConn.Contains(".rds.amazonaws.com") ||
+            lowerConn.Contains("rds.amazonaws.com") ||
             lowerConn.Contains(".googleapis.com") ||
             lowerConn.Contains("cockroachlabs.cloud"))
         {
             throw new InvalidOperationException("Fatal: Production cloud database host detected in Connection String. Seeding aborted for safety.");
         }
 
-        var hasNonTestUsers = context.Users.Any(u => 
-            !u.Email.EndsWith("@testbusiness.com") && 
-            !u.Email.EndsWith("@cverify.dev") && 
+        var hasNonTestUsers = context.Users.Any(u =>
+            !u.Email.EndsWith("@testbusiness.com") &&
+            !u.Email.EndsWith("@cverify.dev") &&
             !u.Email.EndsWith("@system.com") &&
             !u.Email.EndsWith("@test.com")
         );

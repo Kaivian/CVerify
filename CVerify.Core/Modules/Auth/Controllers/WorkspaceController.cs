@@ -52,7 +52,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
@@ -279,7 +280,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
@@ -435,7 +437,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
@@ -568,7 +571,9 @@ public class WorkspaceController : ControllerBase
 
         // Business accounts cannot follow organizations
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        if (string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase))
+        bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+        if (isBusinessOrOrg)
         {
             return Unauthorized();
         }
@@ -669,7 +674,7 @@ public class WorkspaceController : ControllerBase
             return null;
         }
 
-        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+        if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             return url;
@@ -768,7 +773,8 @@ public class WorkspaceController : ControllerBase
         if (!limitToPublic)
         {
             var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-            bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+            bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
             if (isBusiness)
             {
@@ -808,7 +814,7 @@ public class WorkspaceController : ControllerBase
         if (!string.IsNullOrWhiteSpace(search))
         {
             var searchLower = search.ToLower();
-            query = query.Where(om => 
+            query = query.Where(om =>
                 om.User.FullName.ToLower().Contains(searchLower) ||
                 om.User.Email.ToLower().Contains(searchLower)
             );
@@ -831,7 +837,7 @@ public class WorkspaceController : ControllerBase
                 "SELECT user_id, headline, username FROM user_profiles WHERE user_id = ANY({0})",
                 memberUserIds.ToArray()
             ).ToListAsync();
-            
+
             profileMap = profiles.ToDictionary(p => p.UserId);
         }
 
@@ -896,7 +902,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
@@ -915,8 +922,8 @@ public class WorkspaceController : ControllerBase
         }
 
         // Delete old banner from storage if exists
-        if (!string.IsNullOrEmpty(org.BannerUrl) && 
-            !org.BannerUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+        if (!string.IsNullOrEmpty(org.BannerUrl) &&
+            !org.BannerUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !org.BannerUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -994,7 +1001,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
@@ -1013,8 +1021,8 @@ public class WorkspaceController : ControllerBase
         }
 
         // Delete old logo from storage if exists
-        if (!string.IsNullOrEmpty(org.LogoUrl) && 
-            !org.LogoUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+        if (!string.IsNullOrEmpty(org.LogoUrl) &&
+            !org.LogoUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !org.LogoUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -1100,7 +1108,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
@@ -1113,7 +1122,7 @@ public class WorkspaceController : ControllerBase
         {
             var isMember = await _context.OrganizationMemberships
                 .AnyAsync(om => om.OrganizationId == org.Id && om.UserId == userId && om.Status == "active", cancellationToken);
-            
+
             if (!isMember)
             {
                 return Forbid();
@@ -1174,7 +1183,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         string authorRole = "Administrator";
         if (isBusiness)
@@ -1189,7 +1199,7 @@ public class WorkspaceController : ControllerBase
         {
             var membership = await _context.OrganizationMemberships
                 .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == userId && om.Status == "active", cancellationToken);
-            
+
             if (membership == null)
             {
                 return Forbid();
@@ -1254,7 +1264,8 @@ public class WorkspaceController : ControllerBase
         if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId))
         {
             var actorTypeClaim = User?.FindFirst("actor_type")?.Value;
-            bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+            bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
             if (isBusiness)
             {
@@ -1341,7 +1352,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
@@ -1354,7 +1366,7 @@ public class WorkspaceController : ControllerBase
         {
             var membership = await _context.OrganizationMemberships
                 .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == userId && om.Status == "active", cancellationToken);
-            
+
             if (membership == null)
             {
                 return Forbid();
@@ -1478,7 +1490,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         Guid workspaceOwnerId = userId;
         if (isBusiness)
@@ -1708,7 +1721,8 @@ public class WorkspaceController : ControllerBase
         });
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
         var realUserId = isBusiness ? null : (Guid?)userId;
 
         var log = new AuditLog
@@ -1942,8 +1956,8 @@ public class WorkspaceController : ControllerBase
         }
 
         var oldOwner = await _context.Users.FindAsync(new object[] { oldOwnerId }, cancellationToken);
-        await LogAuditEventAsync(userId, "WORKSPACE_OWNERSHIP_TRANSFERRED", 
-            $"Workspace '{workspace.DisplayName}' ownership transferred from '{oldOwner?.FullName ?? oldOwnerId.ToString()}' to '{newOwnerUser.FullName}'.", 
+        await LogAuditEventAsync(userId, "WORKSPACE_OWNERSHIP_TRANSFERRED",
+            $"Workspace '{workspace.DisplayName}' ownership transferred from '{oldOwner?.FullName ?? oldOwnerId.ToString()}' to '{newOwnerUser.FullName}'.",
             org.Id);
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -2077,8 +2091,8 @@ public class WorkspaceController : ControllerBase
         };
         _context.WorkspaceMembers.Add(member);
 
-        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_ADDED", 
-            $"User '{targetUser.FullName}' was added to workspace '{workspace.DisplayName}' as '{member.Role}'.", 
+        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_ADDED",
+            $"User '{targetUser.FullName}' was added to workspace '{workspace.DisplayName}' as '{member.Role}'.",
             org.Id);
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -2146,8 +2160,8 @@ public class WorkspaceController : ControllerBase
         var oldRole = member.Role;
         member.Role = dto.Role.Trim().ToLowerInvariant();
 
-        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_ROLE_UPDATED", 
-            $"User '{targetUser?.FullName ?? targetUserId.ToString()}' role in workspace '{workspace.DisplayName}' updated from '{oldRole}' to '{member.Role}'.", 
+        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_ROLE_UPDATED",
+            $"User '{targetUser?.FullName ?? targetUserId.ToString()}' role in workspace '{workspace.DisplayName}' updated from '{oldRole}' to '{member.Role}'.",
             org.Id);
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -2209,8 +2223,8 @@ public class WorkspaceController : ControllerBase
 
         var targetUser = await _context.Users.FindAsync(new object[] { targetUserId }, cancellationToken);
 
-        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_REMOVED", 
-            $"User '{targetUser?.FullName ?? targetUserId.ToString()}' was removed from workspace '{workspace.DisplayName}'.", 
+        await LogAuditEventAsync(userId, "WORKSPACE_MEMBER_REMOVED",
+            $"User '{targetUser?.FullName ?? targetUserId.ToString()}' was removed from workspace '{workspace.DisplayName}'.",
             org.Id);
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -2224,7 +2238,8 @@ public class WorkspaceController : ControllerBase
         var userAgent = Request.Headers.UserAgent.ToString();
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
         var realUserId = isBusiness ? null : userId;
 
         var log = new AuditLog

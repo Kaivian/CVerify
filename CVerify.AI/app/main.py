@@ -46,29 +46,16 @@ async def lifespan(app: FastAPI):
     logger.info("Core AI Model Configuration: %s (Claude Sonnet)", settings.claude_model)
 
     # 3. Validate Redis connectivity
-    redis_host = os.getenv("REDIS_HOST")
     redis_password = os.getenv("REDIS_PASSWORD") or os.getenv("REDIS_PASS")
     try:
-        if redis_host:
-            redis_port = int(os.getenv("REDIS_PORT", 6379))
-            logger.info("Connecting to Redis at %s:%d...", redis_host, redis_port)
-            redis_client = redis.Redis(
-                host=redis_host,
-                port=redis_port,
-                password=redis_password,
-                decode_responses=True,
-                socket_connect_timeout=2.0
-            )
-        else:
-            redis_url = os.getenv("REDIS_URL") or getattr(settings, "redis_url", "redis://localhost:6379/0")
-            logger.info("Connecting to Redis via URL %s...", redis_url)
-            redis_client = redis.from_url(
-                redis_url,
-                password=redis_password,
-                decode_responses=True,
-                socket_connect_timeout=2.0
-            )
-
+        redis_url = settings.redis_url
+        logger.info("Connecting to Redis via URL %s...", redis_url)
+        redis_client = redis.from_url(
+            redis_url,
+            password=redis_password,
+            decode_responses=True,
+            socket_connect_timeout=2.0
+        )
         await redis_client.ping()
         await redis_client.close()
         logger.info("Redis connectivity: CONNECTED successfully.")

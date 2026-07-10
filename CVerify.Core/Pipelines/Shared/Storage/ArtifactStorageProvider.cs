@@ -30,8 +30,8 @@ public class ArtifactStorageProvider : IArtifactStorageProvider
 
     private bool UseLocalFallback()
     {
-        return string.IsNullOrWhiteSpace(_envConfig.R2.BucketName) || 
-               _envConfig.R2.BucketName == "your_bucket_name_here" || 
+        return string.IsNullOrWhiteSpace(_envConfig.R2.BucketName) ||
+               _envConfig.R2.BucketName == "your_bucket_name_here" ||
                _envConfig.R2.AccessKeyId == "your_access_key_here";
     }
 

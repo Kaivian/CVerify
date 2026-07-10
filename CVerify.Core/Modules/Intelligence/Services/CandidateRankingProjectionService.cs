@@ -37,9 +37,9 @@ public class CandidateRankingProjectionService : ICandidateRankingProjectionServ
             // 1. Fetch all active candidates with public profiles who completed AI assessment
             var activePublicCandidates = await _context.UserProfiles
                 .Include(up => up.User)
-                .Where(up => up.ProfileVisibility == "public" && 
-                             up.DeletedAt == null && 
-                             up.User.DeletedAt == null && 
+                .Where(up => up.ProfileVisibility == "public" &&
+                             up.DeletedAt == null &&
+                             up.User.DeletedAt == null &&
                              up.User.Status == UserStatus.ACTIVE)
                 .Where(up => _context.CandidateAssessments.Any(ca => ca.UserId == up.UserId && ca.Status == "Completed"))
                 .Select(up => up.UserId)
@@ -100,7 +100,7 @@ public class CandidateRankingProjectionService : ICandidateRankingProjectionServ
                 {
                     _context.CandidateRankingProjections.RemoveRange(existingProjections.Values);
                 }
-                
+
                 if (sortedProjections.Any())
                 {
                     _context.CandidateRankingProjections.AddRange(sortedProjections);

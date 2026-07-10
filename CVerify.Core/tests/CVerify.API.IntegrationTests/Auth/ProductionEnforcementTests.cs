@@ -29,7 +29,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
 {
     private readonly SharedTestcontainerFixture _containerFixture;
 
-    public ProductionEnforcementTests(SharedTestcontainerFixture containerFixture) 
+    public ProductionEnforcementTests(SharedTestcontainerFixture containerFixture)
         : base(containerFixture, new Dictionary<string, string> { { "DISABLE_RATE_LIMITS", "false" } })
     {
         _containerFixture = containerFixture;
@@ -149,7 +149,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
                 {
                     services.Remove(realDescriptor);
                     services.AddScoped<CacheService>();
-                    services.AddScoped<ICacheService>(provider => 
+                    services.AddScoped<ICacheService>(provider =>
                         new CacheServiceSpy(
                             provider.GetRequiredService<CacheService>(),
                             provider.GetRequiredService<CacheSpyTracker>()));
@@ -163,7 +163,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         });
 
         var request = new ForgotPasswordRequest(Email: email);
-        
+
         // Request 1: OK
         var response1 = await client.PostAsJsonAsync("/api/auth/forgot-password", request);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -189,7 +189,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
     public async Task ResendVerificationEmail_EnforcesCooldown_And_WritesToRedis()
     {
         var email = $"resend_prod_{Guid.NewGuid()}@cverify.ai";
-        
+
         // Create user with EMAIL_VERIFY_PENDING status
         using (var scope = Factory.Services.CreateScope())
         {
@@ -229,7 +229,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
                 {
                     services.Remove(realDescriptor);
                     services.AddScoped<CacheService>();
-                    services.AddScoped<ICacheService>(provider => 
+                    services.AddScoped<ICacheService>(provider =>
                         new CacheServiceSpy(
                             provider.GetRequiredService<CacheService>(),
                             provider.GetRequiredService<CacheSpyTracker>()));
@@ -243,7 +243,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         });
 
         var request = new ResendVerificationRequest(Email: email);
-        
+
         // Request 1: OK
         var response1 = await client.PostAsJsonAsync("/api/auth/resend-verification", request);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -328,7 +328,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
 
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var cookieVal = setCookie.Split(';')[0];
-        
+
         var requestClient = Factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -394,7 +394,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
 
         // Instantiating the factory and building the host should throw InvalidOperationException
         var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
-        
+
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         exception.Message.Should().Contain("Fatal: Rate limits cannot be disabled in the Production environment.");
     }
@@ -410,7 +410,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         };
 
         var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
-        
+
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         exception.Message.Should().Contain("Fatal: Test account seeding cannot be enabled in the Production environment.");
     }
@@ -425,7 +425,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         };
 
         var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
-        
+
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         exception.Message.Should().Contain("SUPER_ADMIN_PASSWORD");
     }
@@ -441,7 +441,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         };
 
         var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
-        
+
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         exception.Message.Should().Contain("SEED_BUSINESS_PASSWORD");
     }
@@ -470,7 +470,7 @@ public class ProductionEnforcementTests : BaseIntegrationTest
         };
 
         var factory = new IntegrationTestApplicationFactory(_containerFixture, overrides);
-        
+
         var exception = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
         exception.Message.Should().Contain("Accidental database promotion detected");
     }

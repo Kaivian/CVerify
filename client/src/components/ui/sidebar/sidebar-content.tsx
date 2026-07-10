@@ -85,10 +85,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   // Fetch workspace details to run permission checks
   useEffect(() => {
-    if (currentOrgSlug) {
+    if (currentOrgSlug && userRole !== "USER") {
       fetchWorkspace(currentOrgSlug);
     }
-  }, [currentOrgSlug, fetchWorkspace]);
+  }, [currentOrgSlug, fetchWorkspace, userRole]);
 
   const workspaceDetails = useMemo(() => {
     return currentOrgSlug ? workspacesStore[currentOrgSlug] : null;

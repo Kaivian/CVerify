@@ -23,7 +23,7 @@ namespace CVerify.API.IntegrationTests.Fixtures;
 public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly SharedTestcontainerFixture _containerFixture;
-    
+
     private readonly System.Collections.Generic.Dictionary<string, string?> _originalEnvVars = new();
 
     /// <summary>
@@ -42,7 +42,8 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                                    "GOOGLE_CLIENT_ID", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "AI_SERVICE_URL", "AI_SERVICE_SHARED_SECRET",
                                    "AI_SERVICE_CLIENT_ID", "CLAUDE_MODEL", "EMAIL_SENDER_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME",
                                    "SMTP_PASSWORD", "SENDGRID_API_KEY", "Auth__DisableCsrf", "DISABLE_RATE_LIMITS", "SUPER_ADMIN_PASSWORD",
-                                   "SUPER_ADMIN_USERNAME", "SUPER_ADMIN_FULL_NAME", "SEED_TEST_ACCOUNTS", "ASPNETCORE_ENVIRONMENT" };
+                                   "SUPER_ADMIN_USERNAME", "SUPER_ADMIN_FULL_NAME", "SEED_TEST_ACCOUNTS", "ASPNETCORE_ENVIRONMENT",
+                                   "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "R2_ENDPOINT", "R2_BUCKET", "TOKEN_ENCRYPTION_KEY" };
 
         foreach (var v in varsToBackup)
         {
@@ -89,6 +90,12 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("SUPER_ADMIN_USERNAME", "mockadmin");
         Environment.SetEnvironmentVariable("SUPER_ADMIN_FULL_NAME", "Mock Administrator");
         Environment.SetEnvironmentVariable("SEED_TEST_ACCOUNTS", "false");
+        Environment.SetEnvironmentVariable("ACCESS_KEY_ID", "mock-access-key-id");
+        Environment.SetEnvironmentVariable("SECRET_ACCESS_KEY", "mock-secret-access-key");
+        Environment.SetEnvironmentVariable("R2_ENDPOINT", "https://mock-endpoint.r2.cloudflarestorage.com");
+        Environment.SetEnvironmentVariable("R2_BUCKET", "mock-bucket");
+        Environment.SetEnvironmentVariable("TOKEN_ENCRYPTION_KEY", "h7X8k2P9q4W1v5Z0y3N6s9B2m5C8x1R4");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
 
         // Apply custom environment overrides if provided (e.g., stress test rate limit overrides)
         if (envOverrides != null)
@@ -128,7 +135,12 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                 { "RateLimit:ResetPasswordPermitLimit", "1000" },
                 { "RateLimit:ResendVerificationPermitLimit", "1000" },
                 { "RateLimit:VerifyEmailPermitLimit", "1000" },
-                { "RateLimit:RegisterPermitLimit", "1000" }
+                { "RateLimit:RegisterPermitLimit", "1000" },
+                { "R2:AccessKeyId", "mock-access-key-id" },
+                { "R2:SecretAccessKey", "mock-secret-access-key" },
+                { "R2:Endpoint", "https://mock-endpoint.r2.cloudflarestorage.com" },
+                { "R2:BucketName", "mock-bucket" },
+                { "Security:TokenEncryptionKey", "h7X8k2P9q4W1v5Z0y3N6s9B2m5C8x1R4" }
             });
         });
         builder.ConfigureServices(services =>
@@ -145,7 +157,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
                 {
                     services.RemoveAt(i);
                 }
-                else if (descriptor.ServiceType == typeof(IHostedService) && 
+                else if (descriptor.ServiceType == typeof(IHostedService) &&
                          descriptor.ImplementationType != null &&
                          descriptor.ImplementationType != typeof(CVerify.API.Modules.Shared.Diagnostics.AppLoggingBackgroundWorker))
                 {
@@ -160,7 +172,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
             // Register in-memory fake IAmazonS3 client in DI to prevent external R2 API timeouts
             var inMemoryS3Files = new System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] Data, Amazon.S3.Model.MetadataCollection Metadata)>();
             var mockS3 = new Moq.Mock<Amazon.S3.IAmazonS3>();
-            
+
             mockS3.Setup(x => x.PutObjectAsync(Moq.It.IsAny<Amazon.S3.Model.PutObjectRequest>(), Moq.It.IsAny<CancellationToken>()))
                 .Returns<Amazon.S3.Model.PutObjectRequest, CancellationToken>(async (req, ct) =>
                 {

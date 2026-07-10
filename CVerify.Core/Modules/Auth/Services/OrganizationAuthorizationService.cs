@@ -20,7 +20,7 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     public OrganizationAuthorizationService(
-        ApplicationDbContext context, 
+        ApplicationDbContext context,
         ICacheService cacheService,
         IHttpContextAccessor httpContextAccessor)
     {
@@ -39,7 +39,10 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
             var nameIdentifierClaim = user?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             var orgIdClaim = user?.FindFirst("org_id")?.Value;
 
-            if (string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) &&
+            bool isBusinessOrOrg = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                                   string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
+
+            if (isBusinessOrOrg &&
                 Guid.TryParse(nameIdentifierClaim, out var tokenUserId) &&
                 Guid.TryParse(orgIdClaim, out var tokenOrgId))
             {
@@ -62,7 +65,7 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
         if (cachedSet == null || !cachedSet.Any())
         {
             cachedPerms = await FetchHierarchicalPermissionsFromDbAsync(userId, organizationId, cancellationToken);
-            
+
             if (cachedPerms.Any())
             {
                 foreach (var perm in cachedPerms)
@@ -81,11 +84,11 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
     }
 
     public async Task<bool> AuthorizeAsync(
-        Guid userId, 
-        Guid organizationId, 
-        string requiredPermission, 
-        string scopeType = "ORGANIZATION", 
-        Guid? scopeId = null, 
+        Guid userId,
+        Guid organizationId,
+        string requiredPermission,
+        string scopeType = "ORGANIZATION",
+        Guid? scopeId = null,
         CancellationToken cancellationToken = default)
     {
         var cachedPerms = await GetPermissionsAsync(userId, organizationId, cancellationToken);
@@ -147,7 +150,7 @@ public class OrganizationAuthorizationService : IOrganizationAuthorizationServic
 
         var db = _context.Database.GetDbConnection();
         var result = await db.QueryAsync<string>(sql, new { UserId = userId, OrganizationId = organizationId });
-        
+
         return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 }

@@ -151,7 +151,7 @@ public class CareerReadinessEngine : ICareerReadinessEngine
                   AND ap.deleted_at IS NULL
                   AND r.latest_analysis_status = 'Completed'
                   AND r.is_enabled = TRUE
-                  AND r.is_accessible = TRUE", 
+                  AND r.is_accessible = TRUE",
                 userId)
             .AnyAsync(cancellationToken);
         if (hasRepos)
@@ -236,7 +236,7 @@ public class CareerReadinessEngine : ICareerReadinessEngine
                   AND r.latest_analysis_status = 'Completed'
                   AND r.is_private = FALSE
                   AND r.is_enabled = TRUE
-                  AND r.is_accessible = TRUE", 
+                  AND r.is_accessible = TRUE",
                 career.UserId)
             .Select(r => new { r.PrimaryLanguage, r.Classification })
             .ToListAsync(cancellationToken);

@@ -76,7 +76,7 @@ public class AccountDeletionTests : BaseIntegrationTest
 
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var cookieVal = setCookie.Split(';')[0];
-        
+
         var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/users/me/delete-request");
         requestMessage.Headers.Add("Cookie", cookieVal);
         requestMessage.Content = JsonContent.Create(new InitiateDeletionRequest(
@@ -107,7 +107,7 @@ public class AccountDeletionTests : BaseIntegrationTest
 
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var cookieVal = setCookie.Split(';')[0];
-        
+
         var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/users/me/delete-request");
         requestMessage.Headers.Add("Cookie", cookieVal);
         requestMessage.Content = JsonContent.Create(new InitiateDeletionRequest(
@@ -151,7 +151,7 @@ public class AccountDeletionTests : BaseIntegrationTest
 
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var cookieVal = setCookie.Split(';')[0];
-        
+
         var requestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/users/me/delete-request");
         requestMessage.Headers.Add("Cookie", cookieVal);
         requestMessage.Content = JsonContent.Create(new InitiateDeletionRequest(

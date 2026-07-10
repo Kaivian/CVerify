@@ -840,7 +840,7 @@ public class WorkspaceManagementTests : BaseIntegrationTest
     {
         // Arrange
         var org = await SeedOrganizationAsync("boundary-org", "Boundary Organization");
-        
+
         var (adminUserId, adminCookie) = await RegisterAndLoginUserAsync("workspace-admin@cverify.ai", "SecurePassword123!");
         await SeedMembershipAsync(org.Id, adminUserId, "MEMBER");
 
@@ -853,7 +853,7 @@ public class WorkspaceManagementTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             // Seed two workspaces
             db.Workspaces.Add(new Workspace { Id = workspaceAId, OrganizationId = org.Id, DisplayName = "Workspace A", Slug = "ws-a", Status = "active", OwnerId = otherUserId });
             db.Workspaces.Add(new Workspace { Id = workspaceBId, OrganizationId = org.Id, DisplayName = "Workspace B", Slug = "ws-b", Status = "active", OwnerId = otherUserId });
@@ -952,13 +952,13 @@ public class WorkspaceManagementTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.Workspaces.Add(new Workspace 
-            { 
-                Id = Guid.CreateVersion7(), 
-                OrganizationId = org.Id, 
-                DisplayName = "Workspace Charlie", 
-                Slug = "charlie-ws", 
-                Status = "active", 
+            db.Workspaces.Add(new Workspace
+            {
+                Id = Guid.CreateVersion7(),
+                OrganizationId = org.Id,
+                DisplayName = "Workspace Charlie",
+                Slug = "charlie-ws",
+                Status = "active",
                 OwnerId = userId
             });
             await db.SaveChangesAsync();
