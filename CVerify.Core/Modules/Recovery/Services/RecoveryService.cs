@@ -410,7 +410,7 @@ public class RecoveryService : IRecoveryService
                 claim.RecoveryEmail,
                 claim.Organization.Name,
                 "CVerify: Organization Recovery Approved",
-                $"Your organization recovery claim for {claim.Organization.Name} has been approved. Please visit the link below to verify your token and configure your new administrator account:\n\nhttp://localhost:3000/organization/recovery/bootstrap?token={tokenHash}\n\nNote: This link will expire in 24 hours."
+                $"Your organization recovery claim for {claim.Organization.Name} has been approved. Please visit the link below to verify your token and configure your new administrator account:\n\n{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/organization/recovery/bootstrap?token={tokenHash}\n\nNote: This link will expire in 24 hours."
             );
         }
         else if (request.Status == "Rejected")

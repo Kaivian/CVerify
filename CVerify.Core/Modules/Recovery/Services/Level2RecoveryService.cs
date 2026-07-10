@@ -135,7 +135,7 @@ public class Level2RecoveryService : ILevel2RecoveryService
                 );
 
                 var subject = "CVerify: Representative Change Approval Required";
-                var voteLink = $"http://localhost:3000/organization/recovery/vote?token={token}";
+                var voteLink = $"{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/organization/recovery/vote?token={token}";
                 var content = $"Dear Admin,\n\nA representative rotation request has been initiated for your organization {org.Name} to designate {request.NewRepresentativeFullName} as the new official representative.\n\nYour approval vote is required to validate this change under Level 2 governance protocols.\n\nPlease click the link below to cast your decision (Approve or Reject):\n\n{voteLink}\n\nNote: This signed link is for one-time-use and will expire in 48 hours.\n\nThank you,\nCVerify Compliance Team";
 
                 await QueueNotificationEmailAsync(admin.User.Email, org.Name, subject, content);
@@ -461,7 +461,7 @@ public class Level2RecoveryService : ILevel2RecoveryService
             await transaction.CommitAsync(cancellationToken);
 
             // Send success emails
-            var bootstrapLink = $"http://localhost:3000/organization/recovery/bootstrap?token={tokenHash}";
+            var bootstrapLink = $"{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/organization/recovery/bootstrap?token={tokenHash}";
             var claimantContent = $"Dear {request.RequestedRepresentative},\n\nYour representative rotation & access recovery request for {org.Name} has been fully approved by CVerify Support and Organization Admin governance.\n\nYou are now designated as the official representative and recovery authority for this organization.\n\nPlease click the link below to configure your administrator password credentials and access your workspace:\n\n{bootstrapLink}\n\nThank you,\nCVerify Trust and Safety Team";
 
             await QueueNotificationEmailAsync(request.RequestedEmail, org.Name, "CVerify: Representative Access Recovery Approved!", claimantContent);

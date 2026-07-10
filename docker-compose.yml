@@ -95,6 +95,11 @@ services:
       BACKEND_API_URL: http://cverify-core:5000
       HOST: 0.0.0.0
       PORT: 8000
+      SHARED_SECRET: ${AI_SERVICE_SHARED_SECRET}
+      CLIENT_ID: ${AI_SERVICE_CLIENT_ID}
+      CLONE_DETECTION_ENABLED: ${CLONE_DETECTION_ENABLED:-true}
+      AI_DEBUG_MODE: ${AI_DEBUG_MODE:-false}
+      ENABLE_VISION_CERTIFICATE_OCR: ${ENABLE_VISION_CERTIFICATE_OCR:-false}
     ports:
       - "127.0.0.1:${AI_PORT:-8000}:8000" # Allow overriding host port mapping to resolve conflicts
     volumes:
@@ -182,6 +187,7 @@ services:
       # Client-side browser requests target the API gateway on the host port
       NEXT_PUBLIC_API_URL: http://localhost:${CORE_PORT:-5247}/api
       PORT: 3000
+      JWT_SECRET: ${JWT_KEY}
     ports:
       - "${CLIENT_PORT:-3000}:3000" # Public gateway dashboard port
     networks:

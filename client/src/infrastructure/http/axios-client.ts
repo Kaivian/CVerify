@@ -8,8 +8,8 @@ import { AUTH_KEYS } from '@/infrastructure/config/constants';
  * and to the public gateway URL on the client browser.
  */
 export const API_URL = typeof window === 'undefined'
-  ? (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api')
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api');
+  ? (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5247/api')
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5247/api');
 
 /**
  * Central Axios HTTP client instance.
