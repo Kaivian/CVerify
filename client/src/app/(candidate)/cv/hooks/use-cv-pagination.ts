@@ -722,8 +722,8 @@ export function useCvPagination(
 
         while (sidebarIndex < sidebarBlocks.length || mainIndex < mainBlocks.length) {
           let currentPageTopBlocks: LayoutBlock[] = [];
-          let currentPageSidebarBlocks: LayoutBlock[] = [];
-          let currentPageMainBlocks: LayoutBlock[] = [];
+          const currentPageSidebarBlocks: LayoutBlock[] = [];
+          const currentPageMainBlocks: LayoutBlock[] = [];
 
           let availableHeight = pageHeightLimit;
 

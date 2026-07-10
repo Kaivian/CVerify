@@ -21,19 +21,19 @@ public class AiStreamingSessionService : IAiStreamingSessionService
     }
 
     private async Task PublishEventAsync(
-        Guid sessionId, 
-        string eventType, 
-        string status, 
-        double progress, 
-        string? message = null, 
-        string? stageId = null, 
-        string? parentStageId = null, 
-        int? inputTokens = null, 
-        int? outputTokens = null, 
-        double? costUsd = null, 
-        string? logLevel = null, 
-        string? logComponent = null, 
-        string? chunk = null, 
+        Guid sessionId,
+        string eventType,
+        string status,
+        double progress,
+        string? message = null,
+        string? stageId = null,
+        string? parentStageId = null,
+        int? inputTokens = null,
+        int? outputTokens = null,
+        double? costUsd = null,
+        string? logLevel = null,
+        string? logComponent = null,
+        string? chunk = null,
         string? jsonData = null,
         long? durationMs = null)
     {
@@ -63,9 +63,9 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             durationMs = durationMs
         };
 
-        var json = JsonSerializer.Serialize(ev, new JsonSerializerOptions 
-        { 
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+        var json = JsonSerializer.Serialize(ev, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
 
         var sub = _redis.GetSubscriber();
@@ -87,7 +87,7 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             existing.TotalOutputTokens = 0;
             existing.LastUpdatedUtc = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync();
-            
+
             await PublishEventAsync(sessionId, "SESSION_STARTED", "Pending", 0.0, "Session reset.");
             return existing;
         }
@@ -143,15 +143,15 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             session.LastUpdatedUtc = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync();
 
-            var eventType = (status == "Completed" || status == "Failed" || status == "Cancelled") 
-                ? "SESSION_COMPLETED" 
+            var eventType = (status == "Completed" || status == "Failed" || status == "Cancelled")
+                ? "SESSION_COMPLETED"
                 : "STAGE_PROGRESS";
 
             await PublishEventAsync(
-                sessionId, 
-                eventType, 
-                status, 
-                session.Progress, 
+                sessionId,
+                eventType,
+                status,
+                session.Progress,
                 errorMessage ?? (status == "Completed" ? "Session completed successfully." : null),
                 jsonData: summaryData
             );
@@ -234,13 +234,13 @@ public class AiStreamingSessionService : IAiStreamingSessionService
                            status == "Running" ? "STAGE_STARTED" : "STAGE_PROGRESS";
 
         await PublishEventAsync(
-            sessionId, 
-            eventType, 
-            status, 
-            progress, 
-            description, 
-            stageId, 
-            parentStageId, 
+            sessionId,
+            eventType,
+            status,
+            progress,
+            description,
+            stageId,
+            parentStageId,
             jsonData: detailsJson,
             durationMs: stage.DurationMs
         );
@@ -269,13 +269,13 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         var progress = session?.Progress ?? 0.0;
 
         await PublishEventAsync(
-            sessionId, 
-            "LOG_EVENT", 
-            status, 
-            progress, 
-            message, 
-            stageId, 
-            logLevel: logLevel, 
+            sessionId,
+            "LOG_EVENT",
+            status,
+            progress,
+            message,
+            stageId,
+            logLevel: logLevel,
             logComponent: component
         );
     }
@@ -338,10 +338,10 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             }
 
             await PublishEventAsync(
-                sessionId, 
-                eventType, 
-                session.Status, 
-                session.Progress, 
+                sessionId,
+                eventType,
+                session.Status,
+                session.Progress,
                 stageId: stageId,
                 inputTokens: inTokens,
                 outputTokens: outTokens,
@@ -357,10 +357,10 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         var progress = session?.Progress ?? 0.0;
 
         await PublishEventAsync(
-            sessionId, 
-            "STAGE_PROGRESS", 
-            status, 
-            progress, 
+            sessionId,
+            "STAGE_PROGRESS",
+            status,
+            progress,
             stageId: stageId,
             chunk: chunk
         );

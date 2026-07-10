@@ -15,7 +15,7 @@ public static class ErrorRegistryCompiler
     {
         // Register Auth catalog
         MergeCatalog(AuthErrorCatalog.Definitions);
-        
+
         // Register System catalog
         MergeCatalog(SystemErrorCatalog.Definitions);
 
@@ -45,8 +45,8 @@ public static class ErrorRegistryCompiler
             return SystemErrorCatalog.Definitions[SystemErrorCatalog.UnexpectedError];
         }
 
-        return CompiledRegistry.TryGetValue(code, out var definition) 
-            ? definition 
+        return CompiledRegistry.TryGetValue(code, out var definition)
+            ? definition
             : new ErrorDefinition(code, ErrorCategory.UNKNOWN, "system.toast.error.unexpected", "An unexpected error occurred.");
     }
 }

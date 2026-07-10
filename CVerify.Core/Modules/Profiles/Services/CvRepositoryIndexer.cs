@@ -109,7 +109,7 @@ public class CvRepositoryIndexer : ICvRepositoryIndexer
             // Add explicit link mappings
             foreach (var link in explicitLinks)
             {
-                if (!matchedMappings.Any(m => 
+                if (!matchedMappings.Any(m =>
                     m.SourceCodeRepositoryId == link.SourceCodeRepositoryId &&
                     m.ReferenceSource == "ProjectRepositoryLink" &&
                     m.ReferenceEntityId == link.ProjectEntryId))

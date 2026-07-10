@@ -141,7 +141,7 @@ public static class EmailInfrastructureExtensions
         services.AddTransient<IEmailSender>(sp =>
         {
             var settings = sp.GetRequiredService<IOptions<EmailSettings>>().Value;
-            
+
             // If background channel queuing is enabled, return the decorator; otherwise, resolve the raw sender directly
             if (settings.EnableBackgroundQueue)
             {

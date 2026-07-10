@@ -120,10 +120,10 @@ public class ProfileController : ControllerBase
 
         using var fileStream = file.OpenReadStream();
         var (signedUrl, objectKey) = await _profileService.UploadAvatarAsync(
-            CurrentUserId, 
-            fileStream, 
-            file.FileName, 
-            file.ContentType, 
+            CurrentUserId,
+            fileStream,
+            file.FileName,
+            file.ContentType,
             cancellationToken);
 
         return Ok(new AvatarUploadResponse(signedUrl));
@@ -143,8 +143,8 @@ public class ProfileController : ControllerBase
         try
         {
             var (signedUrl, objectKey) = await _profileService.SyncAvatarWithProviderAsync(
-                CurrentUserId, 
-                request.ProviderName, 
+                CurrentUserId,
+                request.ProviderName,
                 cancellationToken);
 
             return Ok(new AvatarUploadResponse(signedUrl));
@@ -207,7 +207,7 @@ public class ProfileController : ControllerBase
 
         var result = await _profileService.GetRankingAsync(currentUserId, query, cancellationToken);
         return Ok(result);
-     }
+    }
 
     [HttpGet("ranking/stats")]
     [AllowAnonymous]

@@ -63,10 +63,10 @@ public class EmailServiceTests
         var renderedHtml = "<h1>Verify Email</h1>";
 
         _cacheMock.Setup(c => c.ExistsAsync(It.IsAny<string>())).ReturnsAsync(false);
-        
+
         _templateMock.Setup(t => t.RenderTemplateAsync(
-                "VerificationEmail.html", 
-                It.IsAny<Dictionary<string, object>>(), 
+                "VerificationEmail.html",
+                It.IsAny<Dictionary<string, object>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(renderedHtml);
 
@@ -76,11 +76,11 @@ public class EmailServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.SendVerificationEmailAsync(toEmail, fullName, link).ConfigureAwait(false);
+        await _service.SendVerificationEmailAsync(toEmail, fullName, link);
 
         // Assert
         _senderMock.Verify(s => s.SendEmailAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()), Times.Once);
-        
+
         capturedMessage.Should().NotBeNull();
         capturedMessage!.ToEmail.Should().Be(toEmail);
         capturedMessage.ToName.Should().Be(fullName);
@@ -105,7 +105,7 @@ public class EmailServiceTests
         _cacheMock.Setup(c => c.ExistsAsync(It.IsAny<string>())).ReturnsAsync(true);
 
         // Act
-        await _service.SendVerificationEmailAsync(toEmail, fullName, link).ConfigureAwait(false);
+        await _service.SendVerificationEmailAsync(toEmail, fullName, link);
 
         // Assert
         // The transport send call and template rendering should be skipped entirely
@@ -123,10 +123,10 @@ public class EmailServiceTests
         var renderedHtml = "<h1>Reset Password</h1>";
 
         _cacheMock.Setup(c => c.ExistsAsync(It.IsAny<string>())).ReturnsAsync(false);
-        
+
         _templateMock.Setup(t => t.RenderTemplateAsync(
-                "ResetPasswordEmail.html", 
-                It.IsAny<Dictionary<string, object>>(), 
+                "ResetPasswordEmail.html",
+                It.IsAny<Dictionary<string, object>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(renderedHtml);
 
@@ -136,11 +136,11 @@ public class EmailServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.SendResetPasswordEmailAsync(toEmail, fullName, link).ConfigureAwait(false);
+        await _service.SendResetPasswordEmailAsync(toEmail, fullName, link);
 
         // Assert
         _senderMock.Verify(s => s.SendEmailAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()), Times.Once);
-        
+
         capturedMessage.Should().NotBeNull();
         capturedMessage!.ToEmail.Should().Be(toEmail);
         capturedMessage.ToName.Should().Be(fullName);
@@ -161,8 +161,8 @@ public class EmailServiceTests
         var renderedHtml = "<h1>Welcome to CVerify</h1>";
 
         _templateMock.Setup(t => t.RenderTemplateAsync(
-                "WelcomeEmail.html", 
-                It.IsAny<Dictionary<string, object>>(), 
+                "WelcomeEmail.html",
+                It.IsAny<Dictionary<string, object>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(renderedHtml);
 
@@ -172,18 +172,18 @@ public class EmailServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.SendWelcomeEmailAsync(toEmail, fullName).ConfigureAwait(false);
+        await _service.SendWelcomeEmailAsync(toEmail, fullName);
 
         // Assert
         _senderMock.Verify(s => s.SendEmailAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()), Times.Once);
-        
+
         capturedMessage.Should().NotBeNull();
         capturedMessage!.ToEmail.Should().Be(toEmail);
         capturedMessage.ToName.Should().Be(fullName);
         capturedMessage.HtmlContent.Should().Be(renderedHtml);
         capturedMessage.Category.Should().Be(EmailCategory.Notification);
         capturedMessage.CorrelationId.Should().NotBeNullOrWhiteSpace();
-        
+
         // Welcome emails carry no idempotency key locks (non-security standard transactional mails)
         capturedMessage.IdempotencyKey.Should().BeNull();
         _cacheMock.Verify(c => c.ExistsAsync(It.IsAny<string>()), Times.Never);
@@ -200,8 +200,8 @@ public class EmailServiceTests
         var renderedHtml = "<h1>Your OTP is 582910</h1>";
 
         _templateMock.Setup(t => t.RenderTemplateAsync(
-                "OtpVerificationEmail.html", 
-                It.IsAny<Dictionary<string, object>>(), 
+                "OtpVerificationEmail.html",
+                It.IsAny<Dictionary<string, object>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(renderedHtml);
 
@@ -211,11 +211,11 @@ public class EmailServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.SendOtpEmailAsync(toEmail, fullName, otpCode).ConfigureAwait(false);
+        await _service.SendOtpEmailAsync(toEmail, fullName, otpCode);
 
         // Assert
         _senderMock.Verify(s => s.SendEmailAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()), Times.Once);
-        
+
         capturedMessage.Should().NotBeNull();
         capturedMessage!.ToEmail.Should().Be(toEmail);
         capturedMessage.ToName.Should().Be(fullName);
@@ -237,8 +237,8 @@ public class EmailServiceTests
         _cacheMock.Setup(c => c.ExistsAsync(It.IsAny<string>())).ReturnsAsync(false);
 
         _templateMock.Setup(t => t.RenderTemplateAsync(
-                "CompanyVerificationEmail.html", 
-                It.IsAny<Dictionary<string, object>>(), 
+                "CompanyVerificationEmail.html",
+                It.IsAny<Dictionary<string, object>>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(renderedHtml);
 
@@ -248,11 +248,11 @@ public class EmailServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.SendCompanyVerificationEmailAsync(toEmail, companyName, link).ConfigureAwait(false);
+        await _service.SendCompanyVerificationEmailAsync(toEmail, companyName, link);
 
         // Assert
         _senderMock.Verify(s => s.SendEmailAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()), Times.Once);
-        
+
         capturedMessage.Should().NotBeNull();
         capturedMessage!.ToEmail.Should().Be(toEmail);
         capturedMessage.ToName.Should().Be("Workspace Administrator");

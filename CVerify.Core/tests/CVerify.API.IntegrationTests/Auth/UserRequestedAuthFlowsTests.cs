@@ -70,7 +70,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
                 }
             });
         });
-        
+
         _client = _customFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -81,7 +81,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var userRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "USER");
         if (userRole == null)
         {
@@ -94,7 +94,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
                 IsActive = true
             });
         }
-        
+
         var adminRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "SUPER_ADMIN");
         if (adminRole == null)
         {
@@ -107,7 +107,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
                 IsActive = true
             });
         }
-        
+
         await db.SaveChangesAsync();
     }
 
@@ -116,7 +116,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
         await SeedDefaultRolesAsync();
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var userRole = await db.Roles.FirstAsync(r => r.Name == "USER");
         var user = new UserBuilder()
             .WithEmail(email)
@@ -124,7 +124,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
             .WithStatus(status)
             .WithRole(userRole)
             .Build();
-            
+
         db.Users.Add(user);
         await db.SaveChangesAsync();
         return user.Id;
@@ -150,7 +150,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
                 services.Replace(ServiceDescriptor.Scoped<IGoogleTokenValidator>(_ => mockValidator.Object));
             });
         });
-        
+
         return customFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -170,7 +170,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
                 services.Replace(ServiceDescriptor.Scoped<IGoogleTokenValidator>(_ => mockValidator.Object));
             });
         });
-        
+
         return customFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")
@@ -186,10 +186,10 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"google_success_{Guid.NewGuid()}@cverify.ai";
         var subject = $"sub_{Guid.NewGuid()}";
-        
+
         // Seed user as Active in DB
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         // Setup Provider manually in DB so the account is already registered with Google
         using (var scope = _customFactory.Services.CreateScope())
         {
@@ -209,7 +209,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
 
         var client = CreateClientWithMockGoogleValidator(subject, email);
         var response = await client.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "valid-token"));
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var cookies = response.Headers.GetValues("Set-Cookie").ToList();
         cookies.Any(c => c.StartsWith("access_token")).Should().BeTrue();
@@ -220,7 +220,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var client = CreateClientWithFailingGoogleValidator();
         var response = await client.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "invalid-token"));
-        
+
         // CVerify maps UnauthorizedAccessException during google validation to HTTP 403 Forbidden
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -230,16 +230,16 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"google_new_{Guid.NewGuid()}@cverify.ai";
         var subject = $"sub_{Guid.NewGuid()}";
-        
+
         var client = CreateClientWithMockGoogleValidator(subject, email);
         var response = await client.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "valid-token"));
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
-        
+
         user.Should().NotBeNull();
         user!.Status.Should().Be(UserStatus.ACTIVE);
         user.EmailVerifiedAt.Should().NotBeNull();
@@ -250,9 +250,9 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"google_banned_{Guid.NewGuid()}@cverify.ai";
         var subject = $"sub_{Guid.NewGuid()}";
-        
+
         var userId = await CreateUserWithStatusAsync(email, "Password123!", UserStatus.BANNED);
-        
+
         using (var scope = _customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -270,7 +270,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
 
         var client = CreateClientWithMockGoogleValidator(subject, email);
         var response = await client.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "valid-token"));
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
@@ -283,10 +283,10 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"traditional_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var cookies = response.Headers.GetValues("Set-Cookie").ToList();
         cookies.Any(c => c.StartsWith("access_token")).Should().BeTrue();
     }
@@ -296,10 +296,10 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"wrong_pass_{Guid.NewGuid()}@cverify.ai";
         var userId = await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "WrongPassword!"));
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        
+
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var user = await db.Users.FindAsync(userId);
@@ -311,17 +311,17 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"lockout_{Guid.NewGuid()}@cverify.ai";
         var userId = await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         for (int i = 0; i < 4; i++)
         {
             var res = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "WrongPassword!"));
             res.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         }
-        
+
         // 5th attempt locks the account
         var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "WrongPassword!"));
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        
+
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var user = await db.Users.FindAsync(userId);
@@ -334,12 +334,12 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"unverified_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.EMAIL_VERIFY_PENDING);
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
-        
+
         // CVerify permits unverified users to start login, returning 200 OK with redirection/nextStep metadata
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         body.GetProperty("isEmailVerified").GetBoolean().Should().BeFalse();
         body.GetProperty("status").GetString().Should().Be("EMAIL_VERIFY_PENDING");
@@ -351,7 +351,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"currently_locked_{Guid.NewGuid()}@cverify.ai";
         var userId = await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         using (var scope = _customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -359,9 +359,9 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
             user!.LockUntil = DateTimeOffset.UtcNow.AddMinutes(15);
             await db.SaveChangesAsync();
         }
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
-        
+
         // CVerify maps lock errors to HTTP 403 Forbidden via UnauthorizedAccessException
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -382,32 +382,32 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"otp_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         // Register & authenticate
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var accessToken = setCookie.Split(';')[0];
-        
+
         var client = _customFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Cookie", accessToken);
-        
+
         var sendRes = await client.PostAsync("/api/auth/password-recovery/send-otp", null);
         sendRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         // Get the OTP from mock Outbox/Database
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var outboxMessage = await db.OutboxMessages.FirstAsync(m => m.Type == "EmailOtpVerification" && m.Payload.Contains(email));
         var payloadDict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(outboxMessage.Payload);
         var plainOtp = payloadDict!["Otp"].ToString();
-        
+
         // Verify OTP
         var verifyResponse = await client.PostAsJsonAsync("/api/auth/password-recovery/verify-otp", new VerifyRecoveryOtpRequest(Otp: plainOtp!));
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var verifyData = await verifyResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         verifyData.GetProperty("success").GetBoolean().Should().BeTrue();
         verifyData.GetProperty("recoveryToken").GetString().Should().NotBeNullOrEmpty();
@@ -418,16 +418,16 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"otp_lock_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var accessToken = setCookie.Split(';')[0];
-        
+
         var client = _customFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Cookie", accessToken);
-        
+
         await client.PostAsync("/api/auth/password-recovery/send-otp", null);
-        
+
         // 3 failed attempts
         var wrongOtpReq = new VerifyRecoveryOtpRequest(Otp: "000000");
         for (int i = 0; i < 3; i++)
@@ -435,7 +435,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
             var res = await client.PostAsJsonAsync("/api/auth/password-recovery/verify-otp", wrongOtpReq);
             res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         }
-        
+
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var verification = await db.OtpVerifications.FirstAsync(v => v.Email == email && v.Purpose == "PASSWORD_RECOVERY");
@@ -447,16 +447,16 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"otp_expired_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var accessToken = setCookie.Split(';')[0];
-        
+
         var client = _customFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Cookie", accessToken);
-        
+
         await client.PostAsync("/api/auth/password-recovery/send-otp", null);
-        
+
         // Manually expire in DB
         using (var scope = _customFactory.Services.CreateScope())
         {
@@ -465,7 +465,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
             verification.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1);
             await db.SaveChangesAsync();
         }
-        
+
         var wrongOtpReq = new VerifyRecoveryOtpRequest(Otp: "000000");
         var res = await client.PostAsJsonAsync("/api/auth/password-recovery/verify-otp", wrongOtpReq);
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -476,17 +476,17 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"otp_cooldown_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var otpReq = new SendOtpRequest(Email: email, Purpose: "PASSWORD_RECOVERY");
-        
+
         // 1st request
         var sendRes1 = await _client.PostAsJsonAsync("/api/auth/send-otp", otpReq);
         sendRes1.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         // 2nd immediate request triggers cooldown error
         var sendRes2 = await _client.PostAsJsonAsync("/api/auth/send-otp", otpReq);
         sendRes2.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        
+
         var problem = await sendRes2.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         problem.GetProperty("code").GetString().Should().Be(AuthErrorCodes.CooldownActive);
     }
@@ -496,12 +496,12 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"otp_maxresends_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var otpReq = new SendOtpRequest(Email: email, Purpose: "PASSWORD_RECOVERY");
-        
+
         // 1st send
         await _client.PostAsJsonAsync("/api/auth/send-otp", otpReq);
-        
+
         // Manually manipulate the DB verification resend count to 5 to trigger db-level TooManyResends
         // This avoids triggering the general Redis Email Rate Limiter which enforces 5 max calls in 15 minutes globally
         using (var scope = _customFactory.Services.CreateScope())
@@ -512,11 +512,11 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
             verification.CooldownUntil = DateTimeOffset.UtcNow.AddSeconds(-1); // bypass cooldown
             await db.SaveChangesAsync();
         }
-        
+
         var resBlock = await _client.PostAsJsonAsync("/api/auth/send-otp", otpReq);
-        
+
         resBlock.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        
+
         var json = await resBlock.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         json.GetProperty("code").GetString().Should().Be(AuthErrorCodes.TooManyResends);
     }
@@ -530,7 +530,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"forgot_pass_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/forgot-password", new ForgotPasswordRequest(Email: email));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -547,7 +547,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"reset_pass_{Guid.NewGuid()}@cverify.ai";
         var userId = await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         // Generate and Hash Token using TokenBuilder
         var tokenVal = "reset_token_auth018";
         var tokenEntity = new TokenBuilder()
@@ -561,15 +561,15 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
             db.ResetPasswordTokens.Add(tokenEntity);
             await db.SaveChangesAsync();
         }
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/reset-password", new ResetPasswordRequest(
             Token: tokenVal,
             Password: "NewSecurePassword123!",
             ConfirmPassword: "NewSecurePassword123!"
         ));
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         using var scope2 = _customFactory.Services.CreateScope();
         var db2 = scope2.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var user = await db2.Users.FindAsync(userId);
@@ -603,27 +603,27 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"reset_consumed_{Guid.NewGuid()}@cverify.ai";
         var userId = await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var tokenVal = "reset_token_auth021";
         var tokenEntity = new TokenBuilder()
             .ForUser(userId)
             .WithToken(tokenVal)
             .BuildResetPasswordToken();
         tokenEntity.ConsumedAt = DateTimeOffset.UtcNow; // Mark as consumed
-        
+
         using (var scope = _customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             db.ResetPasswordTokens.Add(tokenEntity);
             await db.SaveChangesAsync();
         }
-        
+
         var response = await _client.PostAsJsonAsync("/api/auth/reset-password", new ResetPasswordRequest(
             Token: tokenVal,
             Password: "NewSecurePassword123!",
             ConfirmPassword: "NewSecurePassword123!"
         ));
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -636,20 +636,20 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"change_pass_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var accessToken = setCookie.Split(';')[0];
-        
+
         var client = _customFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Cookie", accessToken);
-        
+
         var response = await client.PostAsJsonAsync("/api/auth/change-password", new ChangePasswordRequest(
             currentPassword: "Password123!",
             newPassword: "NewSecurePassword123!",
             confirmNewPassword: "NewSecurePassword123!"
         ));
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -658,20 +658,20 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"change_invalid_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var accessToken = setCookie.Split(';')[0];
-        
+
         var client = _customFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Cookie", accessToken);
-        
+
         var response = await client.PostAsJsonAsync("/api/auth/change-password", new ChangePasswordRequest(
             currentPassword: "WrongPassword!",
             newPassword: "NewSecurePassword123!",
             confirmNewPassword: "NewSecurePassword123!"
         ));
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -680,20 +680,20 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"change_mismatch_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var accessToken = setCookie.Split(';')[0];
-        
+
         var client = _customFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Cookie", accessToken);
-        
+
         var response = await client.PostAsJsonAsync("/api/auth/change-password", new ChangePasswordRequest(
             currentPassword: "Password123!",
             newPassword: "NewSecurePassword123!",
             confirmNewPassword: "DifferentPassword123!"
         ));
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -706,17 +706,17 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"logout_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var accessToken = setCookie.Split(';')[0];
-        
+
         var client = _customFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Cookie", accessToken);
-        
+
         var logoutResponse = await client.PostAsync("/api/auth/logout", null);
         logoutResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         var cookies = logoutResponse.Headers.GetValues("Set-Cookie").ToList();
         cookies.Any(c => c.Contains("access_token=;") || c.Contains("access_token= ")).Should().BeTrue();
     }
@@ -726,21 +726,21 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
     {
         var email = $"logout_refresh_{Guid.NewGuid()}@cverify.ai";
         await CreateUserWithStatusAsync(email, "Password123!", UserStatus.ACTIVE);
-        
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(Email: email, Password: "Password123!"));
         var cookies = loginResponse.Headers.GetValues("Set-Cookie").ToList();
-        
+
         // Cleanly extract name=value for both cookies
         var accessTokenCookie = cookies.First(c => c.StartsWith("access_token")).Split(';')[0];
         var refreshTokenCookie = cookies.First(c => c.StartsWith("refresh_token")).Split(';')[0];
-        
+
         var client = _customFactory.CreateClient();
         client.DefaultRequestHeaders.Add("Cookie", $"{accessTokenCookie}; {refreshTokenCookie}");
-        
+
         // Logout
         var logoutResponse = await client.PostAsync("/api/auth/logout", null);
         logoutResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         // Manually adjust the RevokedAt in the database to be in the past to bypass the 10-second concurrency grace period
         using (var scope = _customFactory.Services.CreateScope())
         {
@@ -757,7 +757,7 @@ public class UserRequestedAuthFlowsTests : BaseIntegrationTest
         // Remove old Cookie header and construct a new one containing ONLY the logged out refresh token
         client.DefaultRequestHeaders.Remove("Cookie");
         client.DefaultRequestHeaders.Add("Cookie", refreshTokenCookie);
-        
+
         // Attempt to refresh token using the logged out/revoked refresh token
         var refreshResponse = await client.PostAsync("/api/auth/refresh-token", null);
         refreshResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);

@@ -43,7 +43,7 @@ namespace CVerify.API.IntegrationTests.Helpers
                 using (var context = new ApplicationDbContext(builder.Options))
                 {
                     var reqId = Guid.Parse("019ee4bc-e455-7f66-b9ad-3fd28d3c7681");
-                    
+
                     Console.WriteLine($"Querying requirement: {reqId}");
                     var req = await context.HiringRequirements
                         .Include(r => r.BusinessOutcomes)
@@ -56,7 +56,7 @@ namespace CVerify.API.IntegrationTests.Helpers
 
                     Assert.NotNull(req);
                     Console.WriteLine($"Found requirement: {req.Title}, Capabilities count: {req.Capabilities.Count}");
-                    
+
                     // Try to add a test artifact
                     Console.WriteLine("Adding test RequirementArtifact...");
                     var artifact = new RequirementArtifact

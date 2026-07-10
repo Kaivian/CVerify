@@ -70,15 +70,15 @@ public class OrganizationReclaimService : IOrganizationReclaimService
     {
         // 1. Verify representative OTP validation token
         var otpPayload = RecoveryTokenHelper.VerifyToken(request.EmailVerificationToken, _envConfig.Jwt.Key);
-        if (otpPayload == null || 
-            otpPayload["step"] != "OTP_VERIFIED" || 
+        if (otpPayload == null ||
+            otpPayload["step"] != "OTP_VERIFIED" ||
             !string.Equals(
-                RecoveryTokenHelper.NormalizeTaxCode(otpPayload.GetValueOrDefault("taxCode", string.Empty)), 
-                RecoveryTokenHelper.NormalizeTaxCode(request.TaxCode), 
-                StringComparison.OrdinalIgnoreCase) || 
+                RecoveryTokenHelper.NormalizeTaxCode(otpPayload.GetValueOrDefault("taxCode", string.Empty)),
+                RecoveryTokenHelper.NormalizeTaxCode(request.TaxCode),
+                StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(
-                RecoveryTokenHelper.NormalizeEmail(otpPayload.GetValueOrDefault("email", string.Empty)), 
-                RecoveryTokenHelper.NormalizeEmail(request.RecoveryEmail), 
+                RecoveryTokenHelper.NormalizeEmail(otpPayload.GetValueOrDefault("email", string.Empty)),
+                RecoveryTokenHelper.NormalizeEmail(request.RecoveryEmail),
                 StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning(
@@ -363,7 +363,7 @@ public class OrganizationReclaimService : IOrganizationReclaimService
                     claim.ReviewedBy = reviewerName;
                     claim.UpdatedAt = _timeProvider.GetUtcNow();
                     await _context.SaveChangesAsync(cancellationToken);
-                    
+
                     await LogAuditEventAsync(null, "RECLAIM_CLAIM_FIRST_APPROVAL", $"Claim {claim.Id} received first approval signature from {reviewerName}.", null, null);
                     return true; // Return true indicating successful partial signature, but not fully approved
                 }
@@ -597,10 +597,10 @@ public class OrganizationReclaimService : IOrganizationReclaimService
     public async Task<VerifyOtpResponse> VerifyRecoveryOtpAsync(VerifyOtpRequest request, string taxCode, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Reclaim OTP verification requested. ChallengeId={ChallengeId}, Purpose={Purpose}", request.ChallengeId, request.Purpose);
-        
+
         // Delegate core verification to the highly secure, central, and normalized AuthService
         var otpResult = await _authService.VerifyOtpAsync(request, cancellationToken);
-        
+
         // Generate the custom signed recovery verification token for Reclaim flow
         var verifiedToken = RecoveryTokenHelper.GenerateOtpVerifiedToken(taxCode, otpResult.Email, _envConfig.Jwt.Key);
 
@@ -630,7 +630,7 @@ public class OrganizationReclaimService : IOrganizationReclaimService
         }
 
         // Check 1: Check if it matches RepresentativeEmail of the organization
-        if (!string.IsNullOrEmpty(org.RepresentativeEmail) && 
+        if (!string.IsNullOrEmpty(org.RepresentativeEmail) &&
             string.Equals(org.RepresentativeEmail.Trim(), normalizedEmail, StringComparison.OrdinalIgnoreCase))
         {
             return new RecoveryEmailValidationResult(
@@ -641,11 +641,11 @@ public class OrganizationReclaimService : IOrganizationReclaimService
 
         // Check 2: Check if it matches any active user holding organization_owner role in this organization (optimized via direct database check)
         var isDuplicate = await _context.OrganizationAuthorities
-            .AnyAsync(oa => oa.OrganizationId == org.Id && 
-                            oa.Role == "organization_owner" && 
-                            oa.User != null && 
-                            oa.User.DeletedAt == null && 
-                            oa.User.Email.Trim().ToLower() == normalizedEmail, 
+            .AnyAsync(oa => oa.OrganizationId == org.Id &&
+                            oa.Role == "organization_owner" &&
+                            oa.User != null &&
+                            oa.User.DeletedAt == null &&
+                            oa.User.Email.Trim().ToLower() == normalizedEmail,
                       cancellationToken);
 
         if (isDuplicate)

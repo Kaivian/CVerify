@@ -91,10 +91,10 @@ public class OnboardingAndAuthRegressionTests : BaseIntegrationTest
 
         // Generate Step 2 Token
         var step2Token = OnboardingTokenHelper.GenerateStep2Token(
-            "0401779383", 
-            "VietQR Legal Corp", 
-            "owner@cverify.ai", 
-            false, 
+            "0401779383",
+            "VietQR Legal Corp",
+            "owner@cverify.ai",
+            false,
             "super_secret_key_super_secret_key_super_secret_key_32_characters"
         );
 

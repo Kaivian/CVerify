@@ -137,13 +137,13 @@ export const RepositoryHeatmap: React.FC<RepositoryHeatmapProps> = ({
       <div className="flex items-center w-full overflow-x-auto no-scrollbar scroll-smooth">
         {/* Day name labels */}
         <div className="grid grid-rows-7 gap-[3px] text-[8px] text-muted-foreground mr-1.5 h-[88px] pr-1 py-[2px] justify-items-end select-none pointer-events-none">
-          <span></span>
+          <span />
           <span>Mon</span>
-          <span></span>
+          <span />
           <span>Wed</span>
-          <span></span>
+          <span />
           <span>Fri</span>
-          <span></span>
+          <span />
         </div>
 
         {/* Calendar Cells Container */}

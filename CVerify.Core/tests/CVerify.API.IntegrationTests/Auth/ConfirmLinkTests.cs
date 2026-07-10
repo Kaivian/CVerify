@@ -177,7 +177,7 @@ public class ConfirmLinkTests : BaseIntegrationTest
         updated.ProviderUsername.Should().Be("new_user");
         updated.ProviderDisplayName.Should().Be("New Display Name");
         updated.EncryptedAccessToken.Should().Be("NewAccessToken");
-        
+
         // Metadata should be reset
         updated.ScopeValidationStatus.Should().Be(ProviderScopeStatus.Valid);
         updated.SyncStatus.Should().Be("Pending");
@@ -244,7 +244,7 @@ public class ConfirmLinkTests : BaseIntegrationTest
         updated!.DeletedAt.Should().BeNull(); // Reactivated!
         updated.ProviderUsername.Should().Be("github_user_new");
         updated.EncryptedAccessToken.Should().Be("ReactivatedToken");
-        
+
         // Metadata reset check
         updated.ScopeValidationStatus.Should().Be(ProviderScopeStatus.Valid);
         updated.SyncStatus.Should().Be("Pending");

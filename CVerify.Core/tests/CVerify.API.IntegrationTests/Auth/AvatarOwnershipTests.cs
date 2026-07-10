@@ -96,7 +96,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
     [Fact]
     public async Task Google_Registration_Then_Upload_Avatar_Then_Google_Login_Should_Not_Overwrite_Custom_Avatar()
     {
-        await SeedDefaultRolesAsync().ConfigureAwait(false);
+        await SeedDefaultRolesAsync();
 
         // 1. Configure google validator for registration
         var mockValidator = new Mock<IGoogleTokenValidator>();
@@ -134,14 +134,14 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var customClient = customFactory.CreateClient();
 
         // 2. Register via Google Login
-        var loginResponse1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1")).ConfigureAwait(false);
+        var loginResponse1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1"));
         loginResponse1.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify initial state in DB
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-1111@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-1111@cverify.ai");
             user.Should().NotBeNull();
             user!.AvatarUrl.Should().Be("http://googleusercontent.com/avatar-original.jpg");
             user.AvatarSource.Should().Be(AvatarSource.Google);
@@ -159,14 +159,14 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(streamContent, "file", "avatar.png");
 
-        var uploadResponse = await customClient.PostAsync("/api/v1/users/profile/avatar", content).ConfigureAwait(false);
+        var uploadResponse = await customClient.PostAsync("/api/v1/users/profile/avatar", content);
         uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify custom upload in DB
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-1111@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-1111@cverify.ai");
             user!.AvatarUrl.Should().Be("avatars/user-custom-key-1111.png");
             user.AvatarSource.Should().Be(AvatarSource.Uploaded);
         }
@@ -183,19 +183,19 @@ public class AvatarOwnershipTests : BaseIntegrationTest
             });
 
         // Trigger subsequent login
-        var loginResponse2 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-2")).ConfigureAwait(false);
+        var loginResponse2 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-2"));
         loginResponse2.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify manual upload remains untouched
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-1111@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-1111@cverify.ai");
             user!.AvatarUrl.Should().Be("avatars/user-custom-key-1111.png"); // Unchanged
             user.AvatarSource.Should().Be(AvatarSource.Uploaded); // Unchanged
 
             // Provider avatar URL metadata should have been updated in the DB
-            var provider = await db.AuthProviders.FirstOrDefaultAsync(ap => ap.UserId == user.Id && ap.ProviderName == "Google").ConfigureAwait(false);
+            var provider = await db.AuthProviders.FirstOrDefaultAsync(ap => ap.UserId == user.Id && ap.ProviderName == "Google");
             provider.Should().NotBeNull();
             provider!.ProviderAvatarUrl.Should().Be("http://googleusercontent.com/avatar-updated.jpg");
         }
@@ -243,7 +243,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var customClient = customFactory.CreateClient();
 
         // 1. Register & Login via local flow
-        var cookieVal = await RegisterAndPasswordLoginUserAsync(email, password).ConfigureAwait(false);
+        var cookieVal = await RegisterAndPasswordLoginUserAsync(email, password);
         customClient.DefaultRequestHeaders.Add("Cookie", cookieVal);
 
         // 2. Upload custom avatar
@@ -253,22 +253,22 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(streamContent, "file", "avatar.png");
 
-        var uploadResponse = await customClient.PostAsync("/api/v1/users/profile/avatar", content).ConfigureAwait(false);
+        var uploadResponse = await customClient.PostAsync("/api/v1/users/profile/avatar", content);
         uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 3. Link Google account
-        var linkResponse = await customClient.PostAsJsonAsync("/api/auth/providers/google", new LinkGoogleRequest(IdToken: "link-token-2")).ConfigureAwait(false);
+        var linkResponse = await customClient.PostAsJsonAsync("/api/auth/providers/google", new LinkGoogleRequest(IdToken: "link-token-2"));
         linkResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 4. Verify manual avatar and source remain untouched
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email).ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
             user!.AvatarUrl.Should().Be("avatars/user-custom-key-2222.png");
             user.AvatarSource.Should().Be(AvatarSource.Uploaded);
 
-            var provider = await db.AuthProviders.FirstOrDefaultAsync(ap => ap.UserId == user.Id && ap.ProviderName == "google").ConfigureAwait(false);
+            var provider = await db.AuthProviders.FirstOrDefaultAsync(ap => ap.UserId == user.Id && ap.ProviderName == "google");
             provider.Should().NotBeNull();
             provider!.ProviderAvatarUrl.Should().Be("http://googleusercontent.com/avatar-original.jpg");
         }
@@ -277,7 +277,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
     [Fact]
     public async Task Google_Avatar_Updates_Externally_Should_Update_ProviderAvatarUrl_Metadata_But_Not_Display_Avatar_If_Uploaded()
     {
-        await SeedDefaultRolesAsync().ConfigureAwait(false);
+        await SeedDefaultRolesAsync();
 
         // Mock Validator
         var mockValidator = new Mock<IGoogleTokenValidator>();
@@ -315,7 +315,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var customClient = customFactory.CreateClient();
 
         // Register Google user
-        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1")).ConfigureAwait(false);
+        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1"));
         var cookieVal = login1.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token")).Split(';')[0];
         customClient.DefaultRequestHeaders.Add("Cookie", cookieVal);
 
@@ -325,7 +325,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var streamContent = new StreamContent(fileStream);
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(streamContent, "file", "avatar.png");
-        await customClient.PostAsync("/api/v1/users/profile/avatar", content).ConfigureAwait(false);
+        await customClient.PostAsync("/api/v1/users/profile/avatar", content);
 
         // Change avatar URL returned by Google
         mockValidator.Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<Google.Apis.Auth.GoogleJsonWebSignature.ValidationSettings>()))
@@ -339,18 +339,18 @@ public class AvatarOwnershipTests : BaseIntegrationTest
             });
 
         // Google login again
-        var login2 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-2")).ConfigureAwait(false);
+        var login2 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-2"));
         login2.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify active avatar is unchanged, but provider avatar metadata is updated
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-3333@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-3333@cverify.ai");
             user!.AvatarUrl.Should().Be("avatars/user-custom-key-3333.png");
             user.AvatarSource.Should().Be(AvatarSource.Uploaded);
 
-            var provider = await db.AuthProviders.FirstOrDefaultAsync(ap => ap.UserId == user.Id && ap.ProviderName == "Google").ConfigureAwait(false);
+            var provider = await db.AuthProviders.FirstOrDefaultAsync(ap => ap.UserId == user.Id && ap.ProviderName == "Google");
             provider!.ProviderAvatarUrl.Should().Be("http://googleusercontent.com/avatar-brandnew.jpg");
         }
     }
@@ -358,7 +358,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
     [Fact]
     public async Task Google_Avatar_Updates_Externally_Should_Update_Display_Avatar_If_Source_Is_Google()
     {
-        await SeedDefaultRolesAsync().ConfigureAwait(false);
+        await SeedDefaultRolesAsync();
 
         // Mock Validator
         var mockValidator = new Mock<IGoogleTokenValidator>();
@@ -382,7 +382,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var customClient = customFactory.CreateClient();
 
         // Register Google user
-        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1")).ConfigureAwait(false);
+        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1"));
         login1.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Change picture returned by Google
@@ -397,14 +397,14 @@ public class AvatarOwnershipTests : BaseIntegrationTest
             });
 
         // Google login again
-        var login2 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-2")).ConfigureAwait(false);
+        var login2 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-2"));
         login2.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify display avatar updated since active source is Google
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-4444@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-4444@cverify.ai");
             user!.AvatarUrl.Should().Be("http://googleusercontent.com/avatar-new.jpg");
             user.AvatarSource.Should().Be(AvatarSource.Google);
         }
@@ -413,7 +413,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
     [Fact]
     public async Task Multiple_Consecutive_OAuth_Logins_Should_Maintain_Stable_Ownership()
     {
-        await SeedDefaultRolesAsync().ConfigureAwait(false);
+        await SeedDefaultRolesAsync();
 
         // Mock Validator
         var mockValidator = new Mock<IGoogleTokenValidator>();
@@ -451,7 +451,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var customClient = customFactory.CreateClient();
 
         // 1. Google Register
-        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1")).ConfigureAwait(false);
+        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1"));
         var cookieVal = login1.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token")).Split(';')[0];
         customClient.DefaultRequestHeaders.Add("Cookie", cookieVal);
 
@@ -461,12 +461,12 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var streamContent = new StreamContent(fileStream);
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(streamContent, "file", "avatar.png");
-        await customClient.PostAsync("/api/v1/users/profile/avatar", content).ConfigureAwait(false);
+        await customClient.PostAsync("/api/v1/users/profile/avatar", content);
 
         // 3. Perform 3 consecutive logins
         for (int i = 2; i <= 4; i++)
         {
-            var loginN = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: $"token-{i}")).ConfigureAwait(false);
+            var loginN = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: $"token-{i}"));
             loginN.StatusCode.Should().Be(HttpStatusCode.OK);
         }
 
@@ -474,7 +474,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-5555@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-5555@cverify.ai");
             user!.AvatarUrl.Should().Be("avatars/user-custom-key-5555.png");
             user.AvatarSource.Should().Be(AvatarSource.Uploaded);
         }
@@ -483,7 +483,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
     [Fact]
     public async Task Avatar_Deletion_Should_Clean_Up_Physical_Storage_And_Subsequent_Logins_Should_Not_Restore_It()
     {
-        await SeedDefaultRolesAsync().ConfigureAwait(false);
+        await SeedDefaultRolesAsync();
 
         // Mock Validator
         var mockValidator = new Mock<IGoogleTokenValidator>();
@@ -527,7 +527,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var customClient = customFactory.CreateClient();
 
         // 1. Google Register
-        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1")).ConfigureAwait(false);
+        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1"));
         var cookieVal = login1.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token")).Split(';')[0];
         customClient.DefaultRequestHeaders.Add("Cookie", cookieVal);
 
@@ -537,19 +537,19 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var streamContent = new StreamContent(fileStream);
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(streamContent, "file", "avatar.png");
-        await customClient.PostAsync("/api/v1/users/profile/avatar", content).ConfigureAwait(false);
+        await customClient.PostAsync("/api/v1/users/profile/avatar", content);
 
         // Verify DB uploaded state
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-6666@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-6666@cverify.ai");
             user!.AvatarUrl.Should().Be("avatars/user-custom-key-6666.png");
             user.AvatarSource.Should().Be(AvatarSource.Uploaded);
         }
 
         // 3. Call DELETE api/v1/users/profile/avatar
-        var deleteResponse = await customClient.DeleteAsync("/api/v1/users/profile/avatar").ConfigureAwait(false);
+        var deleteResponse = await customClient.DeleteAsync("/api/v1/users/profile/avatar");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // Assert physical storage deletion occurred and source reset to Default
@@ -558,20 +558,20 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-6666@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-6666@cverify.ai");
             user!.AvatarUrl.Should().BeNull();
             user.AvatarSource.Should().Be(AvatarSource.Default);
         }
 
         // 4. Subsequent Google Login
-        var login2 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-2")).ConfigureAwait(false);
+        var login2 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-2"));
         login2.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Assert subsequent login does NOT automatically restore the picture
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-6666@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-6666@cverify.ai");
             user!.AvatarUrl.Should().BeNull(); // Still null
             user.AvatarSource.Should().Be(AvatarSource.Default); // Still Default
         }
@@ -580,7 +580,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
     [Fact]
     public async Task Sync_Avatar_Should_Explicitly_Synchronize_With_Provider()
     {
-        await SeedDefaultRolesAsync().ConfigureAwait(false);
+        await SeedDefaultRolesAsync();
 
         // Mock Validator
         var mockValidator = new Mock<IGoogleTokenValidator>();
@@ -624,7 +624,7 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var customClient = customFactory.CreateClient();
 
         // 1. Google Register
-        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1")).ConfigureAwait(false);
+        var login1 = await customClient.PostAsJsonAsync("/api/auth/google", new GoogleLoginRequest(IdToken: "token-1"));
         var cookieVal = login1.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token")).Split(';')[0];
         customClient.DefaultRequestHeaders.Add("Cookie", cookieVal);
 
@@ -634,20 +634,20 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         var streamContent = new StreamContent(fileStream);
         streamContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(streamContent, "file", "avatar.png");
-        await customClient.PostAsync("/api/v1/users/profile/avatar", content).ConfigureAwait(false);
+        await customClient.PostAsync("/api/v1/users/profile/avatar", content);
 
         // Verify DB uploaded state
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-7777@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-7777@cverify.ai");
             user!.AvatarUrl.Should().Be("avatars/user-custom-key-7777.png");
             user.AvatarSource.Should().Be(AvatarSource.Uploaded);
         }
 
         // 3. Call POST api/v1/users/profile/avatar/sync
         var syncRequest = new SyncAvatarRequest(ProviderName: "google");
-        var syncResponse = await customClient.PostAsJsonAsync("/api/v1/users/profile/avatar/sync", syncRequest).ConfigureAwait(false);
+        var syncResponse = await customClient.PostAsJsonAsync("/api/v1/users/profile/avatar/sync", syncRequest);
         syncResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify old manual file is deleted physically and DB matches Google provider
@@ -656,11 +656,11 @@ public class AvatarOwnershipTests : BaseIntegrationTest
         using (var scope = customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-7777@cverify.ai").ConfigureAwait(false);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "google-user-7777@cverify.ai");
             user!.AvatarUrl.Should().Be("http://googleusercontent.com/avatar-original.jpg");
             user.AvatarSource.Should().Be(AvatarSource.Google);
 
-            var log = await db.AuditLogs.FirstOrDefaultAsync(l => l.UserId == user.Id && l.EventType == "SYNC_AVATAR").ConfigureAwait(false);
+            var log = await db.AuditLogs.FirstOrDefaultAsync(l => l.UserId == user.Id && l.EventType == "SYNC_AVATAR");
             log.Should().NotBeNull();
         }
     }

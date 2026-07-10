@@ -1,7 +1,7 @@
 import React from "react";
 import { CheckCircle2, XCircle, RefreshCw, Clock, Cpu, AlertTriangle } from "lucide-react";
 import { Spinner, Button, ProgressBar, Chip } from "@heroui/react";
-import { StreamingStage as StageType } from "../types";
+import { type StreamingStage as StageType } from "../types";
 
 interface StreamingStageProps {
   stage: StageType;

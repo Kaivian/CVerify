@@ -66,8 +66,8 @@ public class TalentOutboxBackgroundProcessor : BackgroundService
 
             // Fetch pending outbox messages matching intelligence types
             var pendingMessages = await context.OutboxMessages
-                .Where(m => m.ProcessedAt == null && 
-                            (m.Type == "RepositorySyncTriggered" || 
+                .Where(m => m.ProcessedAt == null &&
+                            (m.Type == "RepositorySyncTriggered" ||
                              m.Type == "CandidateAssessmentTriggered"))
                 .OrderBy(m => m.CreatedAt)
                 .Take(20)

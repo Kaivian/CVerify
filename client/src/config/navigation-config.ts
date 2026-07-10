@@ -529,11 +529,11 @@ const createAdminSection = (
     });
 
   return {
-    id: id,
+    id,
     type: 'section',
-    label: label,
+    label,
     requiredRoles: ['ADMIN'],
-    children: children,
+    children,
   };
 };
 

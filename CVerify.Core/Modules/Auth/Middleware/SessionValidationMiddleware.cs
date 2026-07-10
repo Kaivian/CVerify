@@ -79,8 +79,8 @@ public class SessionValidationMiddleware
                         activeVersion = int.Parse(cachedVersionStr);
                     }
 
-                    if (tokenVersionClaim == null || 
-                        !int.TryParse(tokenVersionClaim.Value, out var tokenVersion) || 
+                    if (tokenVersionClaim == null ||
+                        !int.TryParse(tokenVersionClaim.Value, out var tokenVersion) ||
                         tokenVersion != activeVersion)
                     {
                         InvalidateSession(context);
@@ -134,7 +134,7 @@ public class SessionValidationMiddleware
                             // Cache miss: Query DB
                             isSessionActive = await dbContext.RefreshTokens
                                 .AnyAsync(t => t.SessionId == sessionId.Value && t.RevokedAt == null);
-                            
+
                             await cacheService.SetAsync(sessionCacheKey, isSessionActive.ToString(), TimeSpan.FromMinutes(30));
                         }
                         catch

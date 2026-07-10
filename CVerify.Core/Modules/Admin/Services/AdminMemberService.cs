@@ -425,10 +425,11 @@ public class AdminMemberService : IAdminMemberService
             member.SessionVersion += 1;
 
             var roleNames = string.Join(", ", newRoles.Select(r => r.DisplayName));
-            await LogAuditAsync(actorUserId, "MEMBER_UPDATED", roleNames, member.UserId, new { 
-                oldStatus, 
-                newStatus = dto.Status, 
-                roles = newRoles.Select(r => r.Name).ToList() 
+            await LogAuditAsync(actorUserId, "MEMBER_UPDATED", roleNames, member.UserId, new
+            {
+                oldStatus,
+                newStatus = dto.Status,
+                roles = newRoles.Select(r => r.Name).ToList()
             });
 
             await _context.SaveChangesAsync(cancellationToken);

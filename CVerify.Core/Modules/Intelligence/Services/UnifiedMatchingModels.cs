@@ -12,12 +12,12 @@ public class CandidateCapabilityIntelligence
     public double EvidenceTrustScore { get; set; }
     public string CareerLevel { get; set; } = "";
     public string CareerLevelLabel { get; set; } = "";
-    
+
     // Preferences
     public decimal? ExpectedSalaryMin { get; set; }
     public decimal? ExpectedSalaryMax { get; set; }
     public string? TargetWorkplaceType { get; set; }
-    
+
     public DateTimeOffset CalculatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
@@ -59,12 +59,12 @@ public class UnifiedMatchResult
 {
     public double MatchScore { get; set; }
     public string ConfidenceLevel { get; set; } = "Low";
-    
+
     public double CapabilityFitScore { get; set; }
     public double RoleFitScore { get; set; }
     public double TrustScore { get; set; }
     public double PreferenceFitScore { get; set; }
-    
+
     public List<EvidenceTraceDto> EvidenceTraces { get; set; } = new();
     public List<MatchFactorDto> Factors { get; set; } = new();
     public List<MatchExplanationDto> Explanations { get; set; } = new();

@@ -1,4 +1,4 @@
-import { PipelineDefinition } from "./types";
+import { type PipelineDefinition } from "./types";
 
 class PipelineRegistry {
   private definitions = new Map<string, PipelineDefinition>();

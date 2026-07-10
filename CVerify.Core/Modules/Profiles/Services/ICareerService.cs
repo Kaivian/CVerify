@@ -8,10 +8,10 @@ namespace CVerify.API.Modules.Profiles.Services;
 public interface ICareerService
 {
     Task<CareerPreferencesDashboardResponse> GetCareerDashboardAsync(Guid userId, CancellationToken cancellationToken = default);
-    
+
     Task<CareerPreferencesDashboardResponse> UpdateCareerPreferenceAsync(
-        Guid userId, 
-        UpdateCareerPreferenceRequest request, 
+        Guid userId,
+        UpdateCareerPreferenceRequest request,
         CancellationToken cancellationToken = default);
 
     Task<CareerPreferencesDashboardResponse> AcceptAiSuggestionsAsync(

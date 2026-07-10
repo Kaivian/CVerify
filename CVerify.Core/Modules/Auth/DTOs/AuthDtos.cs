@@ -333,9 +333,9 @@ public record OtpSessionResponse(
 
 public record LinkedProviderDto(
     Guid? Id,
-    string ProviderName, 
-    string? ProviderEmail, 
-    string? ProviderUsername, 
+    string ProviderName,
+    string? ProviderEmail,
+    string? ProviderUsername,
     bool Connected,
     string ScopeValidationStatus,
     string? GrantedScopes

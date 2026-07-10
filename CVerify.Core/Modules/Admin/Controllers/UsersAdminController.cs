@@ -41,7 +41,7 @@ public class UsersAdminController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await _adminMemberService.GetMembersAsync(search, status, page, pageSize, cancellationToken);
-        
+
         var items = result.Items.Select(m => new UserListItemDto(
             m.Id,
             m.Email,

@@ -107,7 +107,7 @@ public class SessionRevocationTests : BaseIntegrationTest
         // Verify compromised session chain has no active tokens, but safeSessionId remains untouched!
         using var scope2 = Factory.Services.CreateScope();
         var db2 = scope2.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var compromisedTokens = await db2.RefreshTokens
             .Where(t => t.SessionId == compromisedSessionId && t.RevokedAt == null)
             .ToListAsync();

@@ -60,7 +60,7 @@ public class ChaosFaultIntegrationTests
         // Simulate a complete Redis connection outage by throwing socket exceptions on cache calls
         _cacheMock.Setup(c => c.ExistsAsync(It.IsAny<string>()))
             .ThrowsAsync(new TimeoutException("Redis connection timed out. Cache instance unreachable."));
-        
+
         _cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<TimeSpan?>()))
             .ThrowsAsync(new TimeoutException("Redis connection timed out. Cache instance unreachable."));
 
@@ -75,7 +75,7 @@ public class ChaosFaultIntegrationTests
 
         // Assert
         // The business orchestrator must degrade gracefully, bypass cache checks, and successfully invoke SMTP transport!
-        await action.Should().NotThrowAsync().ConfigureAwait(false);
+        await action.Should().NotThrowAsync();
         _senderMock.Verify(s => s.SendEmailAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

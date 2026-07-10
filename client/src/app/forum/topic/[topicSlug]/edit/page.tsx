@@ -102,7 +102,7 @@ export default function EditTopicPage({ params }: EditTopicPageProps) {
       await forumApi.updateTopic(topic.id, {
         title: title.trim(),
         content: content.trim(),
-        tags: tags
+        tags
       });
       router.push(`/forum/topic/${topic.slug}`);
     } catch (err: any) {

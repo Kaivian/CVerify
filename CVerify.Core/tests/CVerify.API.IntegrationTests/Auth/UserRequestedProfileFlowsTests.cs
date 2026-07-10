@@ -68,7 +68,7 @@ public class UserRequestedProfileFlowsTests : BaseIntegrationTest
             .ReturnsAsync("https://signed-url.com/avatars/user-custom-key-1111.png");
 
         _mockGoogleValidator = new Mock<IGoogleTokenValidator>();
-        
+
         _customFactory = Factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
@@ -119,7 +119,7 @@ public class UserRequestedProfileFlowsTests : BaseIntegrationTest
     {
         using var scope = _customFactory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
+
         var userRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "USER");
         if (userRole == null)
         {
@@ -138,7 +138,7 @@ public class UserRequestedProfileFlowsTests : BaseIntegrationTest
     private async Task<(User User, HttpClient Client)> CreateAuthenticatedUserAsync(string email, string username, string password = "SecurePassword123!")
     {
         await SeedDefaultRolesAsync();
-        
+
         using (var scope = _customFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -151,10 +151,10 @@ public class UserRequestedProfileFlowsTests : BaseIntegrationTest
                 .WithStatus(UserStatus.ACTIVE)
                 .WithRole(userRole)
                 .Build();
-            
+
             db.Users.Add(user);
             await db.SaveChangesAsync();
-            
+
             var profile = new UserProfile
             {
                 UserId = user.Id,
@@ -184,7 +184,7 @@ public class UserRequestedProfileFlowsTests : BaseIntegrationTest
 
         var setCookie = loginResponse.Headers.GetValues("Set-Cookie").First(c => c.StartsWith("access_token"));
         var cookieVal = setCookie.Split(';')[0];
-        
+
         var authenticatedClient = _customFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost"),
@@ -1243,7 +1243,7 @@ public class MockProfileHttpMessageHandler : HttpMessageHandler
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
     {
         var requestUrl = request.RequestUri?.AbsoluteUri ?? "";
-        
+
         // VietQR Mock Response
         if (requestUrl.Contains("api.vietqr.io"))
         {
@@ -1256,7 +1256,7 @@ public class MockProfileHttpMessageHandler : HttpMessageHandler
             };
             return Task.FromResult(response);
         }
-        
+
         // GitHub Access Token Exchange
         if (requestUrl.Contains("github.com/login/oauth/access_token"))
         {
@@ -1269,7 +1269,7 @@ public class MockProfileHttpMessageHandler : HttpMessageHandler
             };
             return Task.FromResult(response);
         }
-        
+
         // GitHub Profile Detail Query
         if (requestUrl.Contains("api.github.com/user"))
         {
@@ -1282,7 +1282,7 @@ public class MockProfileHttpMessageHandler : HttpMessageHandler
             };
             return Task.FromResult(response);
         }
-        
+
         // GitLab Access Token Exchange
         if (requestUrl.Contains("gitlab.com/oauth/token"))
         {
@@ -1295,7 +1295,7 @@ public class MockProfileHttpMessageHandler : HttpMessageHandler
             };
             return Task.FromResult(response);
         }
-        
+
         // GitLab Profile Detail Query
         if (requestUrl.Contains("gitlab.com/api/v4/user"))
         {
@@ -1308,7 +1308,7 @@ public class MockProfileHttpMessageHandler : HttpMessageHandler
             };
             return Task.FromResult(response);
         }
-        
+
         return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
     }
 }

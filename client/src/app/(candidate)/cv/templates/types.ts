@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 
 export type LayoutStyle = "single-column" | "two-column-left" | "two-column-right";
 

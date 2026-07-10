@@ -77,7 +77,7 @@ public class EmailTemplateService : IEmailTemplateService
 
                 var rawContent = await File.ReadAllTextAsync(legacyPath, cancellationToken).ConfigureAwait(false);
                 var scribanTemplate = Template.Parse(rawContent, legacyPath);
-                
+
                 if (scribanTemplate.HasErrors)
                 {
                     var errors = string.Join("; ", scribanTemplate.Messages);
@@ -101,7 +101,7 @@ public class EmailTemplateService : IEmailTemplateService
 
                 var rawContent = await File.ReadAllTextAsync(templatePath, cancellationToken).ConfigureAwait(false);
                 var scribanTemplate = Template.Parse(rawContent, templatePath);
-                
+
                 if (scribanTemplate.HasErrors)
                 {
                     var errors = string.Join("; ", scribanTemplate.Messages);

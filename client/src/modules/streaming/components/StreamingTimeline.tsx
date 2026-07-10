@@ -1,5 +1,5 @@
 import React from "react";
-import { StreamingStage as StageType } from "../types";
+import { type StreamingStage as StageType } from "../types";
 import { StreamingStage } from "./StreamingStage";
 
 interface StreamingTimelineProps {

@@ -55,10 +55,10 @@ public record ScopedPermission
 public static class PermissionEvaluator
 {
     public static bool HasPermission(
-        IEnumerable<string> userPermissionStrings, 
-        string requiredPermissionName, 
+        IEnumerable<string> userPermissionStrings,
+        string requiredPermissionName,
         Guid organizationId,
-        string targetScopeType = "ORGANIZATION", 
+        string targetScopeType = "ORGANIZATION",
         Guid? targetScopeId = null)
     {
         if (userPermissionStrings == null) return false;

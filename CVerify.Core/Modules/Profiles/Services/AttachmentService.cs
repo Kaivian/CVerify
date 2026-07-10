@@ -25,12 +25,12 @@ public class AttachmentService : IAttachmentService
     }
 
     public async Task<AttachmentResponse> UploadAttachmentAsync(
-        Guid userId, 
-        string entityType, 
-        Guid? entityId, 
-        Stream fileStream, 
-        string fileName, 
-        string contentType, 
+        Guid userId,
+        string entityType,
+        Guid? entityId,
+        Stream fileStream,
+        string fileName,
+        string contentType,
         CancellationToken cancellationToken = default)
     {
         // 1. Determine Storage Module rules based on EntityType
@@ -46,11 +46,11 @@ public class AttachmentService : IAttachmentService
 
         // 2. Perform the physical upload to Cloudflare R2
         var uploadedFile = await _storageService.UploadFileAsync(
-            fileStream, 
-            fileName, 
-            contentType, 
-            module, 
-            null, 
+            fileStream,
+            fileName,
+            contentType,
+            module,
+            null,
             cancellationToken);
 
         // 3. Save reference in PostgreSQL database

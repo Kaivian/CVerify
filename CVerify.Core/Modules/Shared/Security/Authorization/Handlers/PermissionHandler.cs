@@ -19,7 +19,7 @@ public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
     private readonly IAdminAuthorizationService _adminAuthService;
 
     public PermissionHandler(
-        ICacheService cacheService, 
+        ICacheService cacheService,
         IIdentityRepository identityRepository,
         IAdminAuthorizationService adminAuthService)
     {
@@ -29,7 +29,7 @@ public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
     }
 
     protected override async Task HandleRequirementAsync(
-        AuthorizationHandlerContext context, 
+        AuthorizationHandlerContext context,
         PermissionRequirement requirement)
     {
         var userIdClaim = context.User.FindFirst(global::System.Security.Claims.ClaimTypes.NameIdentifier);
@@ -48,8 +48,8 @@ public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
             }
 
             var tokenVersionClaim = context.User.FindFirst("admin_session_version");
-            if (tokenVersionClaim == null || 
-                !int.TryParse(tokenVersionClaim.Value, out var tokenVersion) || 
+            if (tokenVersionClaim == null ||
+                !int.TryParse(tokenVersionClaim.Value, out var tokenVersion) ||
                 tokenVersion != activeSessionVersion)
             {
                 return;
@@ -135,14 +135,14 @@ public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
                             return true;
                         }
                     }
-                    
+
                     // If it's an intermediate wildcard, it matches exactly one segment
                     if (i >= requiredParts.Length)
                     {
                         isMatch = false;
                         break;
                     }
-                    
+
                     // Match single segment and continue
                     continue;
                 }

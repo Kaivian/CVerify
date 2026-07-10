@@ -7,12 +7,12 @@ namespace CVerify.API.Modules.Shared.Domain.Entities;
 public class UserFollower
 {
     public Guid FollowerId { get; set; }
-    
+
     [ForeignKey(nameof(FollowerId))]
     public virtual User Follower { get; set; } = null!;
 
     public Guid FolloweeId { get; set; }
-    
+
     [ForeignKey(nameof(FolloweeId))]
     public virtual User Followee { get; set; } = null!;
 

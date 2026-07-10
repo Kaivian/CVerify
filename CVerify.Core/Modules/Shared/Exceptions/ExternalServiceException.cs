@@ -10,10 +10,10 @@ public class ExternalServiceException : CVerifyBaseException
 {
     public ExternalServiceException(string errorCode, string? customMessage = null, Exception? innerException = null)
         : base(
-            errorCode, 
-            ErrorCategory.EXTERNAL_SERVICE, 
-            ErrorRegistryCompiler.Get(errorCode).MessageKey, 
-            customMessage ?? ErrorRegistryCompiler.Get(errorCode).DefaultMessage, 
+            errorCode,
+            ErrorCategory.EXTERNAL_SERVICE,
+            ErrorRegistryCompiler.Get(errorCode).MessageKey,
+            customMessage ?? ErrorRegistryCompiler.Get(errorCode).DefaultMessage,
             innerException)
     {
         Severity = ErrorRegistryCompiler.Get(errorCode).DefaultSeverity;

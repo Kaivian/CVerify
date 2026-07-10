@@ -3166,8 +3166,8 @@ public static class DbInitializer
 
             var currentEnv = resolvedEnv?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
-            if (!string.IsNullOrEmpty(storedEnv) && 
-                string.Equals(currentEnv, "Production", StringComparison.OrdinalIgnoreCase) && 
+            if (!string.IsNullOrEmpty(storedEnv) &&
+                string.Equals(currentEnv, "Production", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(storedEnv, "Production", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException($"Fatal Safeguard Check: Accidental database promotion detected! The current hosting environment is Production, but this database is classified as '{storedEnv}' in system_metadata.");
@@ -3202,16 +3202,16 @@ public static class DbInitializer
 
         if (serviceProvider != null)
         {
-            moduleSeeders = serviceProvider.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>() 
+            moduleSeeders = serviceProvider.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
                 ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            loggerFactory = serviceProvider.GetService<Microsoft.Extensions.Logging.ILoggerFactory>() 
+            loggerFactory = serviceProvider.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
         }
         else
         {
-            moduleSeeders = context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>() 
+            moduleSeeders = context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
                 ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            loggerFactory = context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>() 
+            loggerFactory = context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
         }
 
@@ -3306,9 +3306,9 @@ public static class DbInitializer
     {
         var usersToMigrate = await context.Users
             .Include(u => u.AuthProviders)
-            .Where(u => u.AuthProviders.Any(ap => 
-                ap.ProviderName == "Google" && 
-                ap.ProviderAccountId != null && 
+            .Where(u => u.AuthProviders.Any(ap =>
+                ap.ProviderName == "Google" &&
+                ap.ProviderAccountId != null &&
                 ap.ProviderAccountId.Contains("@") &&
                 ap.ProviderAccountId != u.Email))
             .ToListAsync();

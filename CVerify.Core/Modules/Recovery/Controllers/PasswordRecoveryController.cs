@@ -55,7 +55,7 @@ public class PasswordRecoveryController : ControllerBase
         try
         {
             var result = await _passwordRecoveryService.SendOtpAsync(email, userAgent, ipAddress, cancellationToken);
-            
+
             // Get the generated OtpVerification to find the exact CooldownUntil
             var verification = await _dbContext.OtpVerifications
                 .FirstOrDefaultAsync(v => v.ChallengeId == result.ChallengeId, cancellationToken);

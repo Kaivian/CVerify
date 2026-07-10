@@ -143,7 +143,7 @@ public class NotificationRecipientResolver : INotificationRecipientResolver
 
             // Notify owners, organization owners, and workspace admins
             var targetRoles = new[] { "owner", "organization_owner", "workspace_admin" };
-            
+
             var adminUserIds = await _context.RoleAssignments
                 .Include(ra => ra.Role)
                 .Where(ra => memberIds.Contains(ra.UserId) &&

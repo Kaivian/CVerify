@@ -70,7 +70,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
     public async Task E2E_Auth_And_Deletion_Lifecycle_Should_Succeed()
     {
         // Seed default roles first
-        await SeedDefaultRolesAsync().ConfigureAwait(false);
+        await SeedDefaultRolesAsync();
 
         // =========================================================
         // E1-E2. REGISTER A NEW USER
@@ -82,7 +82,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
             FullName: "Luc Test User"
         );
 
-        var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", registerRequest).ConfigureAwait(false);
+        var registerResponse = await Client.PostAsJsonAsync("/api/auth/register", registerRequest);
         registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // =========================================================
@@ -109,7 +109,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
         }
 
         // Manually process outbox message to trigger immediate delivery
-        await ProcessOutboxMessagesAsync().ConfigureAwait(false);
+        await ProcessOutboxMessagesAsync();
 
         // =========================================================
         // E5. EXTRACT & VALIDATE BASE64URL-SAFE VERIFICATION LINK
@@ -134,7 +134,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
         // E6-E7. EMAIL VERIFICATION & ACTIVE TRANSITION
         // =========================================================
         var verifyRequest = new VerifyEmailRequest(Token: plainVerifyToken);
-        var verifyResponse = await Client.PostAsJsonAsync("/api/auth/verify-email", verifyRequest).ConfigureAwait(false);
+        var verifyResponse = await Client.PostAsJsonAsync("/api/auth/verify-email", verifyRequest);
         verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         using (var scope = Factory.Services.CreateScope())
@@ -149,17 +149,17 @@ public class AuthFlowsApiTests : BaseIntegrationTest
         }
 
         // Process WelcomeNotice onboarding email outbox and clear fake mail queue
-        await ProcessOutboxMessagesAsync().ConfigureAwait(false);
+        await ProcessOutboxMessagesAsync();
         EmailSender.Clear();
 
         // =========================================================
         // E8. LOGIN (SUCCESS) & COOKIE SETTINGS
         // =========================================================
         var loginRequest = new LoginRequest(Email: "lifecycle@cverify.ai", Password: "SecurePassword123!");
-        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", loginRequest).ConfigureAwait(false);
+        var loginResponse = await Client.PostAsJsonAsync("/api/auth/login", loginRequest);
         loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var authData = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>().ConfigureAwait(false);
+        var authData = await loginResponse.Content.ReadFromJsonAsync<AuthResponse>();
         authData.Should().NotBeNull();
         authData!.Email.Should().Be("lifecycle@cverify.ai");
 
@@ -183,20 +183,20 @@ public class AuthFlowsApiTests : BaseIntegrationTest
         // E9. FORGOT PASSWORD & COOLDOWN
         // =========================================================
         var forgotRequest = new ForgotPasswordRequest(Email: "lifecycle@cverify.ai");
-        var forgotResponse = await Client.PostAsJsonAsync("/api/auth/forgot-password", forgotRequest).ConfigureAwait(false);
+        var forgotResponse = await Client.PostAsJsonAsync("/api/auth/forgot-password", forgotRequest);
         forgotResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Manually process recovery outbox message
-        await ProcessOutboxMessagesAsync().ConfigureAwait(false);
+        await ProcessOutboxMessagesAsync();
         EmailSender.SentMessages.Should().ContainSingle();
         var resetEmail = EmailSender.SentMessages.First();
         resetEmail.HtmlContent.Should().Contain("reset-password?token=");
- 
-         // Extract reset token
-         var resetPrefix = "reset-password?token=";
-         var resetStartIdx = resetEmail.HtmlContent.IndexOf(resetPrefix) + resetPrefix.Length;
-         var resetTokenLen = resetEmail.HtmlContent.IndexOf("\"", resetStartIdx) - resetStartIdx;
-         var plainResetToken = resetEmail.HtmlContent.Substring(resetStartIdx, resetTokenLen);
+
+        // Extract reset token
+        var resetPrefix = "reset-password?token=";
+        var resetStartIdx = resetEmail.HtmlContent.IndexOf(resetPrefix) + resetPrefix.Length;
+        var resetTokenLen = resetEmail.HtmlContent.IndexOf("\"", resetStartIdx) - resetStartIdx;
+        var plainResetToken = resetEmail.HtmlContent.Substring(resetStartIdx, resetTokenLen);
         plainResetToken.Should().NotBeNullOrWhiteSpace();
 
         EmailSender.Clear();
@@ -210,7 +210,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
             ConfirmPassword: "NewSecurePassword456!"
         );
 
-        var resetResponse = await Client.PostAsJsonAsync("/api/auth/reset-password", resetRequest).ConfigureAwait(false);
+        var resetResponse = await Client.PostAsJsonAsync("/api/auth/reset-password", resetRequest);
         resetResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         using (var scope = Factory.Services.CreateScope())
@@ -232,7 +232,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
         // =========================================================
         // Log in again with new credentials to acquire fresh cookies
         var reLoginRequest = new LoginRequest(Email: "lifecycle@cverify.ai", Password: "NewSecurePassword456!");
-        var reLoginResponse = await Client.PostAsJsonAsync("/api/auth/login", reLoginRequest).ConfigureAwait(false);
+        var reLoginResponse = await Client.PostAsJsonAsync("/api/auth/login", reLoginRequest);
         reLoginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Inject active access_token cookie to the outgoing client request
@@ -241,7 +241,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
         Client.DefaultRequestHeaders.Add("Cookie", cookieVal);
 
         // Call protected DELETE endpoint
-        var deleteResponse = await Client.DeleteAsync("/api/users/me").ConfigureAwait(false);
+        var deleteResponse = await Client.DeleteAsync("/api/users/me");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Assert cookie clearing response headers
@@ -275,7 +275,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
     public async Task Register_With_Existing_Active_Email_Should_Fail()
     {
         // Seed default roles first
-        await SeedDefaultRolesAsync().ConfigureAwait(false);
+        await SeedDefaultRolesAsync();
 
         // 1. Setup an active user
         var userRequest = new RegisterRequest(
@@ -285,7 +285,7 @@ public class AuthFlowsApiTests : BaseIntegrationTest
             FullName: "Original User"
         );
 
-        var response1 = await Client.PostAsJsonAsync("/api/auth/register", userRequest).ConfigureAwait(false);
+        var response1 = await Client.PostAsJsonAsync("/api/auth/register", userRequest);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Activate the user manually in the DB
@@ -294,12 +294,12 @@ public class AuthFlowsApiTests : BaseIntegrationTest
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var user = await db.Users.FirstOrDefaultAsync(u => u.Email == "duplicate@cverify.ai");
             user!.Status = UserStatus.ACTIVE;
-            await db.SaveChangesAsync().ConfigureAwait(false);
+            await db.SaveChangesAsync();
         }
 
         // 2. Try to register same email again
-        var response2 = await Client.PostAsJsonAsync("/api/auth/register", userRequest).ConfigureAwait(false);
-        
+        var response2 = await Client.PostAsJsonAsync("/api/auth/register", userRequest);
+
         // Assert: Conflict (409) returned for active duplicates (hardened security)
         response2.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
@@ -308,11 +308,11 @@ public class AuthFlowsApiTests : BaseIntegrationTest
     public async Task Verify_With_Invalid_Token_Should_Throw_Structured_Error()
     {
         var verifyRequest = new VerifyEmailRequest(Token: "completely_fake_token_value_abc");
-        var response = await Client.PostAsJsonAsync("/api/auth/verify-email", verifyRequest).ConfigureAwait(false);
-        
+        var response = await Client.PostAsJsonAsync("/api/auth/verify-email", verifyRequest);
+
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>().ConfigureAwait(false);
+        var problem = await response.Content.ReadFromJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         problem.Should().NotBeNull();
         problem!.Extensions.Should().ContainKey("code");
         problem.Extensions["code"]!.ToString().Should().Be(AuthErrorCodes.InvalidToken);

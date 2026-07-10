@@ -68,7 +68,7 @@ public class AuthConcurrencyTests : BaseIntegrationTest
         // Edit in second transaction (should trigger concurrency conflict)
         userInstance2!.Status = UserStatus.BANNED;
         Func<Task> act = async () => await db2.SaveChangesAsync();
-        
+
         await act.Should().ThrowAsync<DbUpdateConcurrencyException>();
     }
 }

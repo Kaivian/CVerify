@@ -1,6 +1,6 @@
 import React from "react";
 import { ProgressBar } from "@heroui/react";
-import { StreamingSession } from "../types";
+import { type StreamingSession } from "../types";
 
 interface StreamingProgressProps {
   activeSession: StreamingSession;

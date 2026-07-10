@@ -109,7 +109,7 @@ namespace CVerify.API.UnitTests.Services
             var assessmentId = Guid.NewGuid();
             var userId = Guid.NewGuid();
             await SeedUserProfileAsync(userId);
-            
+
             var assessment = new CandidateAssessment
             {
                 Id = assessmentId,
@@ -177,7 +177,7 @@ namespace CVerify.API.UnitTests.Services
             var assessmentId = Guid.NewGuid();
             var userId = Guid.NewGuid();
             await SeedUserProfileAsync(userId);
-            
+
             var assessment = new CandidateAssessment
             {
                 Id = assessmentId,
@@ -220,7 +220,7 @@ namespace CVerify.API.UnitTests.Services
             var assessmentId = Guid.NewGuid();
             var userId = Guid.NewGuid();
             await SeedUserProfileAsync(userId);
-            
+
             var assessment = new CandidateAssessment
             {
                 Id = assessmentId,
@@ -331,7 +331,7 @@ namespace CVerify.API.UnitTests.Services
                 .FirstOrDefaultAsync(a => a.AssessmentId == assessmentId && a.ArtifactType == "CandidateProfile");
 
             updatedArtifact.Should().NotBeNull();
-            
+
             var parsed = JsonDocument.Parse(updatedArtifact.JsonData);
             var root = parsed.RootElement;
 
@@ -343,7 +343,7 @@ namespace CVerify.API.UnitTests.Services
             root.GetProperty("recruiterHeadline").GetString().Should().Be("Original AI Headline");
             root.GetProperty("fullSummary").GetString().Should().Be("Original AI Narrative Summary");
             root.GetProperty("professionalBio").GetString().Should().Be("Original AI Professional Bio");
-            
+
             var strengths = root.GetProperty("keyStrengths");
             strengths.GetArrayLength().Should().Be(2);
             strengths[0].GetString().Should().Be("Original Strength 1");

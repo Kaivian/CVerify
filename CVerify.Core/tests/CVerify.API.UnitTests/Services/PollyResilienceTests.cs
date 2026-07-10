@@ -52,7 +52,7 @@ public class PollyResilienceTests
             .Build();
 
         var services = new ServiceCollection();
-        
+
         // 1. Pre-register the FakeTimeProvider as singleton so AddEmailInfrastructure's TryAddSingleton skips overwriting it
         services.AddSingleton<TimeProvider>(_timeProvider);
         services.AddSingleton<IEmailAuditLogger>(_auditLoggerMock.Object);
@@ -84,11 +84,11 @@ public class PollyResilienceTests
         // Yield and advance time provider repeatedly to bypass retry delay
         for (int i = 0; i < 5; i++)
         {
-            await Task.Delay(50).ConfigureAwait(false);
+            await Task.Delay(50);
             _timeProvider.Advance(TimeSpan.FromSeconds(5));
         }
 
-        var result = await executeTask.ConfigureAwait(false);
+        var result = await executeTask;
 
         // Assert
         result.Should().Be("SUCCESS");
@@ -110,13 +110,13 @@ public class PollyResilienceTests
         // Yield and advance time provider repeatedly to bypass retry delay
         for (int i = 0; i < 5; i++)
         {
-            await Task.Delay(50).ConfigureAwait(false);
+            await Task.Delay(50);
             _timeProvider.Advance(TimeSpan.FromSeconds(5));
         }
 
         // Assert
         Func<Task> act = async () => await executeTask.ConfigureAwait(false);
-        await act.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+        await act.Should().ThrowAsync<InvalidOperationException>();
         // Original attempt (1) + MaxRetryAttempts (3) = 4 total attempts
         attempts.Should().Be(4);
     }
@@ -139,12 +139,12 @@ public class PollyResilienceTests
         }).ConfigureAwait(false);
 
         var executeTask = act();
-        await Task.Delay(100).ConfigureAwait(false); // Yield execution to let Polly register its timeout timer
+        await Task.Delay(100); // Yield execution to let Polly register its timeout timer
         _timeProvider.Advance(TimeSpan.FromSeconds(3));
 
         // Assert
         Func<Task> actTimeout = async () => await executeTask.ConfigureAwait(false);
-        await actTimeout.Should().ThrowAsync<TimeoutRejectedException>().ConfigureAwait(false);
+        await actTimeout.Should().ThrowAsync<TimeoutRejectedException>();
     }
 
     [Fact]
@@ -170,11 +170,11 @@ public class PollyResilienceTests
         Func<Task> action1 = async () => await pipeline.ExecuteAsync(async ct => throw new InvalidOperationException("Error 1")).ConfigureAwait(false);
         Func<Task> action2 = async () => await pipeline.ExecuteAsync(async ct => throw new InvalidOperationException("Error 2")).ConfigureAwait(false);
 
-        await action1.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
-        await action2.Should().ThrowAsync<InvalidOperationException>().ConfigureAwait(false);
+        await action1.Should().ThrowAsync<InvalidOperationException>();
+        await action2.Should().ThrowAsync<InvalidOperationException>();
 
         // 2. The third attempt should fail-fast instantly with BrokenCircuitException
         Func<Task> action3 = async () => await pipeline.ExecuteAsync(async ct => "SUCCESS").ConfigureAwait(false);
-        await action3.Should().ThrowAsync<BrokenCircuitException>().ConfigureAwait(false);
+        await action3.Should().ThrowAsync<BrokenCircuitException>();
     }
 }

@@ -201,7 +201,7 @@ public class JobEligibilityService : IJobEligibilityService
                     requiredTrustScore = minProp.GetInt32();
                 }
             }
-            catch {}
+            catch { }
         }
         int actualTrustScore = (int)snapshot.IdentityTrustScore;
         bool trustPassed = actualTrustScore >= requiredTrustScore;
@@ -239,7 +239,7 @@ public class JobEligibilityService : IJobEligibilityService
 
             foreach (var req in reqCapabilities)
             {
-                var matchedCandCap = candCaps.FirstOrDefault(cc => 
+                var matchedCandCap = candCaps.FirstOrDefault(cc =>
                     cc.Slug.Equals(req.CapabilityId, StringComparison.OrdinalIgnoreCase) ||
                     cc.Name.Equals(req.Name, StringComparison.OrdinalIgnoreCase));
 
@@ -294,9 +294,9 @@ public class JobEligibilityService : IJobEligibilityService
         bool isEligible = checks.All(c => c.Passed);
         bool isPartiallyEligible = !isEligible && checks.Take(4).All(c => c.Passed);
 
-        string explanation = isEligible 
-            ? "Candidate meets all trust, capability, and profile requirements." 
-            : isPartiallyEligible 
+        string explanation = isEligible
+            ? "Candidate meets all trust, capability, and profile requirements."
+            : isPartiallyEligible
                 ? "Candidate has verified profile setup but does not meet all capability/trust thresholds."
                 : "Candidate profile does not meet core platform verification requirements.";
 

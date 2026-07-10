@@ -368,7 +368,7 @@ export default function CvManagementCenter() {
           version: profile.version || 0,
           cvTemplateId: templateId,
           cvThemeColor: profile.cvThemeColor || null,
-          isCvPublished: isCvPublished,
+          isCvPublished,
           cvLayoutConfigJson: profile.cvLayoutConfigJson || null,
         });
         toast.success("Template preference saved to profile!");
@@ -1001,8 +1001,8 @@ export default function CvManagementCenter() {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
-        width: width,
-        height: height,
+        width,
+        height,
         imagePlaceholder: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
         style: {
           opacity: '1',

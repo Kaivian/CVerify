@@ -11,10 +11,10 @@ public class FileValidationException : CVerifyBaseException
 {
     public FileValidationException(string defaultMessage, Exception? innerException = null)
         : base(
-            SystemErrorCatalog.StorageValidationError, 
-            ErrorCategory.VALIDATION, 
-            "system.toast.error.storage_validation", 
-            defaultMessage, 
+            SystemErrorCatalog.StorageValidationError,
+            ErrorCategory.VALIDATION,
+            "system.toast.error.storage_validation",
+            defaultMessage,
             innerException)
     {
         Severity = "Warning";

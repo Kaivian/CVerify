@@ -68,7 +68,7 @@ public class PasswordRecoveryTests : BaseIntegrationTest
         var setCookieHeaders = loginResponse.Headers.GetValues("Set-Cookie").ToList();
         var accessTokenCookie = setCookieHeaders.First(c => c.StartsWith("access_token"));
         var accessToken = accessTokenCookie.Split(';')[0];
-        
+
         Client.DefaultRequestHeaders.Remove("Cookie");
         Client.DefaultRequestHeaders.Add("Cookie", accessToken);
     }

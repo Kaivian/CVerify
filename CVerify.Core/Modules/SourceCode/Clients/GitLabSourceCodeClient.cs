@@ -154,16 +154,16 @@ public class GitLabSourceCodeClient : ISourceCodeClient
             {
                 var extId = projectElement.GetProperty("id").GetInt64().ToString();
                 var name = projectElement.GetProperty("name").GetString() ?? "";
-                
+
                 var namespaceObj = projectElement.GetProperty("namespace");
                 var ownerLogin = namespaceObj.TryGetProperty("full_path", out var fpProp) ? fpProp.GetString() ?? "" : (namespaceObj.GetProperty("path").GetString() ?? "");
                 var ownerType = namespaceObj.TryGetProperty("kind", out var kindProp) ? kindProp.GetString() ?? "user" : "user";
                 var owner = namespaceObj.GetProperty("name").GetString() ?? ownerLogin;
-                
+
                 var description = projectElement.TryGetProperty("description", out var descProp) ? descProp.GetString() : null;
                 var htmlUrl = projectElement.TryGetProperty("web_url", out var urlProp) ? urlProp.GetString() : null;
                 var defaultBranch = projectElement.TryGetProperty("default_branch", out var branchProp) ? branchProp.GetString() : "main";
-                
+
                 var visibility = projectElement.TryGetProperty("visibility", out var visProp) ? visProp.GetString() : "private";
                 var isPrivate = visibility == "private" || visibility == "internal";
 
@@ -226,12 +226,12 @@ public class GitLabSourceCodeClient : ISourceCodeClient
 
             return new SyncResult(orgsList, reposList, null);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized || 
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
                                               ex.StatusCode == System.Net.HttpStatusCode.Forbidden ||
-                                              ex.Message.Contains("401") || 
-                                              ex.Message.Contains("Unauthorized") || 
-                                              ex.Message.Contains("403") || 
-                                              ex.Message.Contains("Forbidden") || 
+                                              ex.Message.Contains("401") ||
+                                              ex.Message.Contains("Unauthorized") ||
+                                              ex.Message.Contains("403") ||
+                                              ex.Message.Contains("Forbidden") ||
                                               ex.Message.Contains("Bad credentials"))
         {
             _logger.LogWarning("GitLab API returned Unauthorized/Forbidden during synchronization: {Message}", ex.Message);

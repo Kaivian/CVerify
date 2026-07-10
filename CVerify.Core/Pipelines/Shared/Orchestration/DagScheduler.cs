@@ -138,10 +138,10 @@ public class DagScheduler : IDagScheduler
             {
                 task.Status = "Queued";
                 task.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
-                
+
                 var queueName = GetQueueName(task.TaskIdentifier);
                 await _queue.EnqueueTaskAsync(queueName, task.Id, cancellationToken);
-                _logger.LogInformation("Enqueued task {TaskIdentifier} ({TaskName}) to queue '{QueueName}' for job {JobId}.", 
+                _logger.LogInformation("Enqueued task {TaskIdentifier} ({TaskName}) to queue '{QueueName}' for job {JobId}.",
                     task.TaskIdentifier, task.TaskName, queueName, jobId);
             }
 

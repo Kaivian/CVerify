@@ -32,8 +32,8 @@ public class EducationService : IEducationService
     }
 
     public async Task<EducationEntryResponse> CreateEducationEntryAsync(
-        Guid userId, 
-        EducationEntryRequest request, 
+        Guid userId,
+        EducationEntryRequest request,
         CancellationToken cancellationToken = default)
     {
         // Calculate display order
@@ -68,9 +68,9 @@ public class EducationService : IEducationService
     }
 
     public async Task<EducationEntryResponse> UpdateEducationEntryAsync(
-        Guid userId, 
-        Guid entryId, 
-        EducationEntryRequest request, 
+        Guid userId,
+        Guid entryId,
+        EducationEntryRequest request,
         CancellationToken cancellationToken = default)
     {
         var entry = await _context.EducationEntries

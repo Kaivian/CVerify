@@ -83,8 +83,8 @@ public class EmailService : IEmailService
 
     private static string BuildGreetingText(RecipientProfile profile, string? fallbackName)
     {
-        var name = !string.IsNullOrEmpty(profile.DisplayName) ? profile.DisplayName 
-                 : (!string.IsNullOrEmpty(profile.Username) ? profile.Username 
+        var name = !string.IsNullOrEmpty(profile.DisplayName) ? profile.DisplayName
+                 : (!string.IsNullOrEmpty(profile.Username) ? profile.Username
                  : GetSanitizedFallbackName(fallbackName));
 
         if (!string.IsNullOrEmpty(name))
@@ -123,7 +123,7 @@ public class EmailService : IEmailService
         ArgumentException.ThrowIfNullOrWhiteSpace(verificationLink);
 
         correlationId ??= Guid.NewGuid().ToString("N");
-        
+
         // Security Idempotency check: hash the link so duplicate dispatches are blocked instantly
         var tokenHash = ComputeSha256(verificationLink);
         var idempotencyKey = $"email:idempotency:{toEmail}:{tokenHash}";
@@ -199,7 +199,7 @@ public class EmailService : IEmailService
         ArgumentException.ThrowIfNullOrWhiteSpace(resetLink);
 
         correlationId ??= Guid.NewGuid().ToString("N");
-        
+
         // Security Idempotency check
         var tokenHash = ComputeSha256(resetLink);
         var idempotencyKey = $"email:idempotency:{toEmail}:{tokenHash}";
@@ -372,7 +372,7 @@ public class EmailService : IEmailService
         ArgumentException.ThrowIfNullOrWhiteSpace(verificationLink);
 
         correlationId ??= Guid.NewGuid().ToString("N");
-        
+
         // Security Idempotency check for link
         var tokenHash = ComputeSha256(verificationLink);
         var idempotencyKey = $"email:idempotency:{toEmail}:{tokenHash}";
@@ -467,7 +467,7 @@ public class EmailService : IEmailService
 
         var htmlBody = await _templateService.RenderTemplateAsync("SecurityAlertEmail.html", model, cancellationToken).ConfigureAwait(false);
 
-        var type = alertSubject.Contains("Deactivation") || alertSubject.Contains("Purge") ? "AccountDeletionInitiated" 
+        var type = alertSubject.Contains("Deactivation") || alertSubject.Contains("Purge") ? "AccountDeletionInitiated"
                  : (alertSubject.Contains("vote") || alertSubject.Contains("System") ? "SystemNotificationEmail" : "SecurityAlertNotice");
 
         StructuredEmailAuditLogger.LogDeliveryStage("EmailService", outboxId ?? string.Empty, type, toEmail, correlationId);

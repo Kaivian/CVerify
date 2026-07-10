@@ -300,7 +300,7 @@ export default function JdDetailView({
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     loadRequirementDetails();
     return () => {
       const { useStreamingStore } = require("@/modules/streaming");
