@@ -234,6 +234,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
     public DbSet<VerificationLink> VerificationLinks => Set<VerificationLink>();
     public DbSet<OrganizationVerification> OrganizationVerifications => Set<OrganizationVerification>();
+    public DbSet<EnterpriseWorkflowRequest> EnterpriseWorkflowRequests => Set<EnterpriseWorkflowRequest>();
+    public DbSet<WorkflowAttachment> WorkflowAttachments => Set<WorkflowAttachment>();
+    public DbSet<WorkflowComment> WorkflowComments => Set<WorkflowComment>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
     public DbSet<WorkspaceArchiveSnapshot> WorkspaceArchiveSnapshots => Set<WorkspaceArchiveSnapshot>();
@@ -1741,6 +1744,63 @@ public class ApplicationDbContext : DbContext
                   .IsUnique()
                   .HasFilter("consumed_at IS NULL")
                   .HasDatabaseName("idx_pending_org_ownership_unique");
+        });
+
+        // EnterpriseWorkflowRequest configurations
+        modelBuilder.Entity<EnterpriseWorkflowRequest>(entity =>
+        {
+            entity.ToTable("enterprise_workflow_requests");
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).ValueGeneratedNever();
+
+            entity.Property(r => r.RowVersion)
+                  .IsRowVersion();
+
+            entity.HasOne(r => r.Organization)
+                  .WithMany()
+                  .HasForeignKey(r => r.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(r => r.AssignedReviewer)
+                  .WithMany()
+                  .HasForeignKey(r => r.AssignedReviewerId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(r => r.EscalatedToUser)
+                  .WithMany()
+                  .HasForeignKey(r => r.EscalatedToUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // WorkflowAttachment configurations
+        modelBuilder.Entity<WorkflowAttachment>(entity =>
+        {
+            entity.ToTable("workflow_attachments");
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Id).ValueGeneratedNever();
+
+            entity.HasOne(a => a.WorkflowRequest)
+                  .WithMany(r => r.Attachments)
+                  .HasForeignKey(a => a.WorkflowRequestId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowComment configurations
+        modelBuilder.Entity<WorkflowComment>(entity =>
+        {
+            entity.ToTable("workflow_comments");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Id).ValueGeneratedNever();
+
+            entity.HasOne(c => c.WorkflowRequest)
+                  .WithMany(r => r.Comments)
+                  .HasForeignKey(c => c.WorkflowRequestId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(c => c.AuthorUser)
+                  .WithMany()
+                  .HasForeignKey(c => c.AuthorUserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // OrganizationInvitation configurations

@@ -67,14 +67,14 @@ export const adminModuleRegistry: AdminModuleMetadata[] = [
     parentGroupId: 'identity',
     order: 2,
   },
-  // 3. Verification
+  // 3. Enterprise Operations
   {
-    id: 'admin-verification-queue',
-    name: 'Verification Queue',
+    id: 'admin-enterprise-operations',
+    name: 'Enterprise Operations',
     icon: Inbox,
-    path: '/admin/verification',
-    requiredPermission: 'admin:verification:view',
-    featureFlag: 'feature:admin:verification-queue',
+    path: '/admin/enterprise-operations',
+    requiredPermission: 'admin:enterprise:view',
+    featureFlag: 'feature:admin:enterprise-operations',
     parentGroupId: 'verification',
     order: 1,
   },

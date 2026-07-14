@@ -244,14 +244,11 @@ export function AuditLogsView() {
 
           <div className="flex items-center gap-2">
             <Dropdown>
-              <Dropdown.Trigger>
-                <Button
-                  variant="secondary"
-                  className="rounded-xl"
-                >
-                  <Download size={14} />
-                  Export Data
-                </Button>
+              <Dropdown.Trigger
+                className="h-10 px-4 rounded-xl bg-surface-secondary text-foreground hover:opacity-90 inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold border-none transition-all outline-none"
+              >
+                <Download size={14} />
+                Export Data
               </Dropdown.Trigger>
               <Dropdown.Popover className="border border-border rounded-xl bg-overlay shadow-overlay overflow-hidden min-w-[150px] z-50">
                 <Dropdown.Menu aria-label="Export formats">
