@@ -25,6 +25,7 @@ export function Section01({ lifecycleState, onStateComplete }: Section01Props) {
 
   const subStage = useDemoStore((state) => state.subStage);
   const setSubStage = useDemoStore((state) => state.setSubStage);
+  const nextSection = useDemoStore((state) => state.nextSection);
 
   // Sync internal stage with store's subStage
   useEffect(() => {
@@ -440,7 +441,10 @@ export function Section01({ lifecycleState, onStateComplete }: Section01Props) {
                         if (googleBtn) {
                           e.stopPropagation();
                           e.preventDefault();
-                          toast.success("Demo Mode: Google SSO simulation successful!");
+                          toast.success("Demo Mode: Google SSO authenticated successfully!");
+                          setTimeout(() => {
+                            nextSection();
+                          }, 1000);
                         }
                       }}
                     >

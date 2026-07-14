@@ -47,4 +47,50 @@ export const DEMO_SECTIONS: DemoSection[] = [
       ssr: false,
     }),
   },
+  {
+    metadata: {
+      id: "connect-sources",
+      title: "Connect Source Providers",
+      description: "Link your GitHub and GitLab accounts to import contributions.",
+      transition: "fade",
+      background: "bg-background",
+      theme: "light",
+      showNavigation: true,
+      showProgress: true,
+    },
+    component: dynamic(() => import("./sections/Section02"), {
+      ssr: false,
+    }),
+  },
+  {
+    metadata: {
+      id: "indexing-repositories",
+      title: "Indexing Repositories",
+      description: "CVerify analyzes your contribution history and generates cryptographic proofs.",
+      transition: "fade",
+      background: "bg-background",
+      theme: "light",
+      showNavigation: true,
+      showProgress: true,
+    },
+    component: dynamic(() => import("./sections/Section03"), {
+      ssr: false,
+    }),
+  },
+  {
+    metadata: {
+      id: "profile-integration",
+      title: "Profile Integration",
+      description: "Link your verified contributions and cryptographic proofs directly to your CV.",
+      transition: "fade",
+      background: "bg-background",
+      theme: "light",
+      showNavigation: true,
+      showProgress: true,
+    },
+    component: dynamic(() => import("./sections/Section04"), {
+      ssr: false,
+    }),
+  },
 ];
+
