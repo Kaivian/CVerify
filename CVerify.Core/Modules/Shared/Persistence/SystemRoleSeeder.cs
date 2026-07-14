@@ -12,7 +12,7 @@ namespace CVerify.API.Modules.Shared.Persistence;
 public class SystemRoleSeeder : IValidatableSeeder
 {
     public string ModuleId => "SystemRoleSeeder";
-    public string Version => "1.0.0";
+    public string Version => "1.0.1";
     public IReadOnlyCollection<string> Dependencies => new[] { "PermissionSeeder" };
 
     public async Task<SeederResult> SeedAsync(ApplicationDbContext context, SeedingConfig config)
@@ -50,14 +50,14 @@ public class SystemRoleSeeder : IValidatableSeeder
         // 3. Seed Admin Roles, Permissions and migrate existing platform administrators
         await SeedAdminRolesAndPermissionsAsync(context);
 
-        // 4. Provision local developer administrator only in Development
+        // 4. Provision system administrator
         int affected = 2; // Basic roles
-        if (string.Equals(config.Environment, "Development", StringComparison.OrdinalIgnoreCase) || config.GenerateDemoData)
+        if (!string.IsNullOrWhiteSpace(config.SuperAdminPassword))
         {
             var email = config.SuperAdminEmail ?? "admin@system.com";
             var username = config.SuperAdminUsername ?? "admin";
             var fullName = config.SuperAdminFullName ?? "System Administrator";
-            var password = config.SuperAdminPassword ?? "admin123";
+            var password = config.SuperAdminPassword;
 
             const string userSql = @"
                 INSERT INTO users (

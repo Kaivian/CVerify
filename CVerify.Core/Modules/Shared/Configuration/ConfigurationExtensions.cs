@@ -9,6 +9,11 @@ public static class ConfigurationExtensions
 
     public static string ResolveEnvironmentVariables(this string value)
     {
+        return ResolveEnvironmentVariables(value, SecretProvider.Active);
+    }
+
+    public static string ResolveEnvironmentVariables(this string value, ISecretProvider secretProvider)
+    {
         if (string.IsNullOrWhiteSpace(value))
             return value;
 
@@ -16,7 +21,7 @@ public static class ConfigurationExtensions
         {
             var envKey = match.Groups[1].Value;
 
-            return Environment.GetEnvironmentVariable(envKey) ?? "";
+            return secretProvider.GetSecret(envKey);
         });
     }
 }

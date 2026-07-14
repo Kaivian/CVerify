@@ -344,7 +344,9 @@ builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
                 .MapEnum<UserStatus>("user_status")
                 .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
            .UseSnakeCaseNamingConvention()
-           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+           .ConfigureWarnings(w => w
+               .Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)
+               .Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
 
     options.AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>());
 
