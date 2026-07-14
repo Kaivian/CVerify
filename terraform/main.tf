@@ -55,7 +55,7 @@ resource "google_artifact_registry_repository" "cverify_registry" {
     id     = "keep-release-versions"
     action = "KEEP"
     condition {
-      tag_state    = "tagged"
+      tag_state    = "TAGGED"
       tag_prefixes = ["v"]
     }
   }
@@ -64,7 +64,7 @@ resource "google_artifact_registry_repository" "cverify_registry" {
     id     = "delete-old-commits"
     action = "DELETE"
     condition {
-      tag_state    = "tagged"
+      tag_state    = "TAGGED"
       tag_prefixes = ["sha-"]
       older_than   = "2592000s" # 30 days
     }
@@ -100,6 +100,8 @@ resource "google_iam_workload_identity_pool_provider" "github_provider" {
     "attribute.repository" = "assertion.repository"
   }
 
+  attribute_condition = "assertion.repository == '${var.github_repository}'"
+
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
@@ -122,7 +124,7 @@ resource "google_project_iam_member" "gar_writer" {
 
 resource "google_project_iam_member" "iap_tunnel_user" {
   project = var.project_id
-  role    = "roles/iap.tunnelDestGroupUser"
+  role    = "roles/iap.tunnelResourceAccessor"
   member  = "serviceAccount:${google_service_account.deployer.email}"
 }
 
