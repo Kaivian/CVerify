@@ -1,0 +1,312 @@
+name: Reusable Validation & Build Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      push_images:
+        type: boolean
+        required: true
+        description: "True to build and push docker images, false for dry-run"
+    secrets:
+      GCP_WIF_PROVIDER:
+        required: true
+      GCP_SA_EMAIL:
+        required: true
+      GCP_PROJECT_ID:
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  detect-changes:
+    name: Detect Changed Components
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      ai: ${{ steps.filter.outputs.ai }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Component Filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'client/**'
+            backend:
+              - 'CVerify.Core/**'
+            ai:
+              - 'CVerify.AI/**'
+
+  frontend-ci:
+    name: Frontend Quality Gate
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Frontend Environment
+        uses: ./.github/actions/setup-frontend
+
+      - name: Run ESLint
+        run: npm run lint
+        working-directory: client
+
+      - name: Verify Frontend Compilation
+        run: npm run build
+        working-directory: client
+
+  backend-ci:
+    name: Backend Quality Gate
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.backend == 'true' }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Backend Environment
+        uses: ./.github/actions/setup-backend
+
+      - name: Verify Code Formatting
+        run: dotnet format CVerify.Core/CVerify.sln --verify-no-changes
+
+      - name: Compile Backend Solution
+        run: dotnet build CVerify.Core/CVerify.sln --configuration Release --no-restore
+
+      - name: Execute Unit & Integration Tests
+        run: |
+          dotnet test CVerify.Core/tests/CVerify.API.UnitTests/CVerify.API.UnitTests.csproj --configuration Release --no-build
+          dotnet test CVerify.Core/tests/CVerify.API.IntegrationTests/CVerify.API.IntegrationTests.csproj --configuration Release --no-build
+
+  ai-service-ci:
+    name: AI Service Quality Gate
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.ai == 'true' }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup AI Environment
+        uses: ./.github/actions/setup-ai
+
+      - name: Run AI Pytest Suite
+        run: pytest CVerify.AI/tests --cov=CVerify.AI/app --cov-report=term
+        env:
+          PYTHONPATH: CVerify.AI
+          ANTHROPIC_API_KEY: dummy-key-for-ci
+          SHARED_SECRET: dummy-secret-for-ci
+          BACKEND_API_URL: http://mock-backend:8080
+
+  validate-and-publish:
+    name: End-to-End Validation & Publish
+    runs-on: ubuntu-latest
+    needs: [detect-changes, frontend-ci, backend-ci, ai-service-ci]
+    if: |
+      always() &&
+      contains(fromJSON('["success", "skipped"]'), needs.frontend-ci.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.backend-ci.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.ai-service-ci.result)
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker to use GAR
+        run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      # 1. Resolve source images for skipped services deterministically (using git log PREV_SHA)
+      - name: Resolve and Tag Skipped Services
+        run: |
+          GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          CURRENT_SHA="${{ github.sha }}"
+          
+          # Process Backend
+          if [ "${{ needs.detect-changes.outputs.backend }}" = "false" ] || [ "${{ needs.detect-changes.outputs.backend }}" = "" ]; then
+            PREV_SHA=$(git log -1 --format="%H" -- CVerify.Core)
+            echo "Backend not changed. Promoting Core image from sha-$PREV_SHA"
+            gcloud container images add-tag \
+              "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$PREV_SHA" \
+              "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA" --quiet
+          fi
+          
+          # Process AI
+          if [ "${{ needs.detect-changes.outputs.ai }}" = "false" ] || [ "${{ needs.detect-changes.outputs.ai }}" = "" ]; then
+            PREV_SHA=$(git log -1 --format="%H" -- CVerify.AI)
+            echo "AI not changed. Promoting AI image from sha-$PREV_SHA"
+            gcloud container images add-tag \
+              "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$PREV_SHA" \
+              "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA" --quiet
+          fi
+          
+          # Process Frontend
+          if [ "${{ needs.detect-changes.outputs.frontend }}" = "false" ] || [ "${{ needs.detect-changes.outputs.frontend }}" = "" ]; then
+            PREV_SHA=$(git log -1 --format="%H" -- client)
+            echo "Frontend not changed. Promoting Client image from sha-$PREV_SHA"
+            gcloud container images add-tag \
+              "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$PREV_SHA" \
+              "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA" --quiet
+          fi
+
+      # 2. Build and tag changed services locally first
+      - name: Build Core Candidate Image
+        if: needs.detect-changes.outputs.backend == 'true'
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./CVerify.Core
+          file: ./CVerify.Core/Dockerfile
+          load: true
+          tags: cverify-core:test-local
+          cache-from: type=gha
+
+      - name: Build AI Candidate Image
+        if: needs.detect-changes.outputs.ai == 'true'
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./CVerify.AI
+          file: ./CVerify.AI/Dockerfile
+          load: true
+          tags: cverify-ai:test-local
+          cache-from: type=gha
+
+      - name: Build Client Candidate Image
+        if: needs.detect-changes.outputs.frontend == 'true'
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./client
+          file: ./client/Dockerfile
+          load: true
+          tags: cverify-client:test-local
+          cache-from: type=gha
+
+      # 3. Pull or map skipped services to local docker tags to run complete compose stack
+      - name: Pull Skipped Services locally for Integration Test
+        run: |
+          GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          CURRENT_SHA="${{ github.sha }}"
+          
+          if [ "${{ needs.detect-changes.outputs.backend }}" = "false" ] || [ "${{ needs.detect-changes.outputs.backend }}" = "" ]; then
+            docker pull "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA"
+            docker tag "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA" cverify-core:test-local
+          fi
+          if [ "${{ needs.detect-changes.outputs.ai }}" = "false" ] || [ "${{ needs.detect-changes.outputs.ai }}" = "" ]; then
+            docker pull "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA"
+            docker tag "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA" cverify-ai:test-local
+          fi
+          if [ "${{ needs.detect-changes.outputs.frontend }}" = "false" ] || [ "${{ needs.detect-changes.outputs.frontend }}" = "" ]; then
+            docker pull "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA"
+            docker tag "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA" cverify-client:test-local
+          fi
+
+      # 4. Prepare Environment Configuration Files for Compose Stack
+      - name: Generate testing environments
+        run: |
+          cp .env.secrets.example .env.secrets
+          cat .env.defaults > .env
+          cat .env.testing >> .env
+          cat .env.secrets >> .env
+          
+          # Replace placeholder passwords/secrets with mock test credentials
+          sed -i 's/DB_PASSWORD=.*/DB_PASSWORD=test_db_pass/g' .env
+          sed -i 's/REDIS_PASSWORD=.*/REDIS_PASSWORD=test_redis_pass/g' .env
+          sed -i 's/JWT_KEY=.*/JWT_KEY=test_jwt_key_long_enough_for_validation/g' .env
+          sed -i 's/TOKEN_ENCRYPTION_KEY=.*/TOKEN_ENCRYPTION_KEY=12345678901234567890123456789012/g' .env
+          sed -i 's/AI_SERVICE_SHARED_SECRET=.*/AI_SERVICE_SHARED_SECRET=test_ai_secret/g' .env
+          
+          # Sync across directories
+          cp .env client/.env
+          cp .env CVerify.Core/.env
+          cp .env CVerify.AI/.env
+          cp .env docker/.env
+
+      # 5. Spin up full stack and run End-to-End validation
+      - name: Boot Compose Stack
+        run: |
+          docker compose -f docker/compose.yml -f docker/compose.testing.yml -f docker/compose.e2e-val.yml up -d
+          # Wait for services to complete boot and run migrations
+          sleep 15
+
+      - name: Run E2E Health Checks
+        run: |
+          # 1. API Health Check
+          curl -f http://localhost:5248/health || exit 1
+          # 2. AI Health Check
+          curl -f http://localhost:8001/health || exit 1
+          # 3. Frontend Check
+          curl -f http://localhost:3001/ || exit 1
+
+      - name: Shutdown Compose Stack
+        if: always()
+        run: docker compose -f docker/compose.yml -f docker/compose.testing.yml -f docker/compose.e2e-val.yml down
+
+      # 6. Push built images if and only if push_images input is true
+      - name: Tag and Push Verified Images to GAR
+        if: inputs.push_images == true
+        run: |
+          GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          CURRENT_SHA="${{ github.sha }}"
+          
+          if [ "${{ needs.detect-changes.outputs.backend }}" = "true" ]; then
+            docker tag cverify-core:test-local "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA"
+            docker push "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA"
+          fi
+          if [ "${{ needs.detect-changes.outputs.ai }}" = "true" ]; then
+            docker tag cverify-ai:test-local "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA"
+            docker push "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA"
+          fi
+          if [ "${{ needs.detect-changes.outputs.frontend }}" = "true" ]; then
+            docker tag cverify-client:test-local "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA"
+            docker push "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA"
+          fi
+
+      # 7. Capture exact digests of the running images and upload metadata manifest to GCS
+      - name: Record and Upload Build Manifest
+        if: inputs.push_images == true
+        run: |
+          GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          CURRENT_SHA="${{ github.sha }}"
+          
+          # Retrieve exact immutable digests from registry
+          CORE_DIGEST=$(gcloud container images describe "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA" --format="value(image_summary.digest)")
+          AI_DIGEST=$(gcloud container images describe "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA" --format="value(image_summary.digest)")
+          CLIENT_DIGEST=$(gcloud container images describe "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA" --format="value(image_summary.digest)")
+          
+          # Create JSON Manifest file
+          cat <<EOF > manifest.json
+          {
+            "commit_sha": "$CURRENT_SHA",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "services": {
+              "core": "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core@$CORE_DIGEST",
+              "ai": "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai@$AI_DIGEST",
+              "client": "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client@$CLIENT_DIGEST"
+            }
+          }
+          EOF
+          
+          # Upload manifest to GCS
+          gcloud storage cp manifest.json "gs://cverify-build-metadata-${GCP_PROJECT}/manifests/sha-${CURRENT_SHA}.json"
+          echo "Manifest successfully written to gs://cverify-build-metadata-${GCP_PROJECT}/manifests/sha-${CURRENT_SHA}.json"

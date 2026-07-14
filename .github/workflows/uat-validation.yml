@@ -1,0 +1,24 @@
+name: UAT Validation Pipeline
+
+on:
+  push:
+    branches:
+      - cverify-uat
+  pull_request:
+    branches:
+      - cverify-uat
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  run-validation:
+    name: Execute Validation
+    uses: ./.github/workflows/reusable-validation.yml
+    with:
+      push_images: true
+    secrets:
+      GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+      GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}

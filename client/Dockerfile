@@ -21,12 +21,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
-
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ENV NEXT_PUBLIC_API_URL=__NEXT_PUBLIC_API_URL__
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=__NEXT_PUBLIC_GOOGLE_CLIENT_ID__
 
 RUN npm run build
 
@@ -50,10 +47,13 @@ COPY --from=builder /app/public ./public
 # Pre-create and set permissions on Next.js cache directory
 RUN mkdir -p .next && chown nextjs:nodejs .next
 
-# Leverage output traces to reduce image size
 # Copy standalone build and static files with correct ownership
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy entrypoint script and set permissions
+COPY --chown=nextjs:nodejs entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
 USER nextjs
 
@@ -62,4 +62,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=10s \
   CMD curl -f http://localhost:3000/ || exit 1
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["node", "server.js"]
