@@ -94,9 +94,26 @@ public class DemoUserSeeder : ISeederModule
                 );
             }
 
-            // Seed Workspace Memberships
+            // Seed Workspaces & Memberships
             foreach (var ws in org.Workspaces)
             {
+                var ownerUser = org.Users.FirstOrDefault(u => u.OrgRole == "OWNER") ?? org.Users.FirstOrDefault();
+                var ownerId = ownerUser?.Id ?? Guid.Empty;
+
+                var sqlWs = @"
+                    INSERT INTO workspaces (id, organization_id, display_name, slug, status, owner_id)
+                    VALUES (@id, @orgId, @displayName, @slug, @status, @ownerId)
+                    ON CONFLICT (slug) WHERE deleted_at IS NULL DO NOTHING;
+                ";
+                await context.Database.ExecuteSqlRawAsync(sqlWs,
+                    new NpgsqlParameter("@id", ws.Id),
+                    new NpgsqlParameter("@orgId", org.Id),
+                    new NpgsqlParameter("@displayName", ws.DisplayName),
+                    new NpgsqlParameter("@slug", ws.Slug),
+                    new NpgsqlParameter("@status", ws.Status),
+                    new NpgsqlParameter("@ownerId", ownerId)
+                );
+
                 foreach (var member in ws.Members)
                 {
                     var sqlWsMember = @"
@@ -152,6 +169,9 @@ public class DemoUserSeeder : ISeederModule
     private class SeedWorkspaceDto
     {
         public Guid Id { get; set; }
+        public string DisplayName { get; set; } = null!;
+        public string Slug { get; set; } = null!;
+        public string Status { get; set; } = null!;
         public List<SeedWorkspaceMemberDto> Members { get; set; } = new();
     }
 

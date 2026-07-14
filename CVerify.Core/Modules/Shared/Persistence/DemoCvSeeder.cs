@@ -56,7 +56,8 @@ public class DemoCvSeeder : ISeederModule
                 LeadershipPotential = 7.5,
                 ExecutionStrength = 9.0,
                 TrustLevel = 0.92,
-                CalculationMode = "Standard"
+                CalculationMode = "Standard",
+                Version = 1
             },
             new()
             {
@@ -83,7 +84,8 @@ public class DemoCvSeeder : ISeederModule
                 LeadershipPotential = 8.5,
                 ExecutionStrength = 9.2,
                 TrustLevel = 0.98,
-                CalculationMode = "Standard"
+                CalculationMode = "Standard",
+                Version = 2
             },
             new()
             {
@@ -97,7 +99,8 @@ public class DemoCvSeeder : ISeederModule
                 LastRepositoryAnalysisAt = DateTimeOffset.UtcNow.AddHours(-2),
                 FailedStage = "Parse Experience",
                 FailureReason = "Context length limit exceeded for Google Gemini on CV document of size 12MB.",
-                CreatedAtUtc = DateTimeOffset.UtcNow.AddHours(-2)
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddHours(-2),
+                Version = 3
             },
             new()
             {
@@ -109,7 +112,8 @@ public class DemoCvSeeder : ISeederModule
                 AssessmentSchemaVersion = "1.0.0",
                 LastProfileUpdateAt = DateTimeOffset.UtcNow.AddSeconds(-30),
                 LastRepositoryAnalysisAt = DateTimeOffset.UtcNow.AddSeconds(-30),
-                CreatedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-30)
+                CreatedAtUtc = DateTimeOffset.UtcNow.AddSeconds(-30),
+                Version = 4
             }
         };
 
@@ -137,6 +141,7 @@ public class DemoCvSeeder : ISeederModule
                 existing.FailedStage = assess.FailedStage;
                 existing.FailureReason = assess.FailureReason;
                 existing.CreatedAtUtc = assess.CreatedAtUtc;
+                existing.Version = assess.Version;
                 context.CandidateAssessments.Update(existing);
                 affected++;
             }
