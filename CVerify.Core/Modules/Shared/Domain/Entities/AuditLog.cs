@@ -54,6 +54,31 @@ public class AuditLog
 
     public Guid? ScopeId { get; set; }
 
+    // Structured Resource Metadata
+    [MaxLength(50)]
+    public string? ResourceType { get; set; }
+    public Guid? ResourceId { get; set; }
+    [MaxLength(200)]
+    public string? ResourceDisplayName { get; set; }
+
+    // Rich Auditing Context
+    public Guid? RequestId { get; set; }
+    public Guid? CorrelationId { get; set; }
+    [MaxLength(200)]
+    public string? HttpPath { get; set; }
+    [MaxLength(10)]
+    public string? HttpMethod { get; set; }
+    [MaxLength(50)]
+    public string? ClientApp { get; set; }
+    [MaxLength(50)]
+    public string? Device { get; set; }
+    [MaxLength(50)]
+    public string? Browser { get; set; }
+
+    // Categorization & Legacy Flag
+    public CVerify.API.Modules.Shared.Domain.Enums.AuditCategory Category { get; set; }
+    public bool IsLegacySecurityEvent { get; set; } = false;
+
     [Column(TypeName = "jsonb")]
     public string? DetailsJson { get; set; }
 

@@ -70,7 +70,7 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
 
         _hmacServiceMock.Setup(h => h.CreateSignatureHeaders(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .Returns(("mock-sig", "1234567890", "nonce-val"));
-        
+
         var mockSubscriber = new Mock<ISubscriber>();
         _redisMock.Setup(r => r.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(_redisDbMock.Object);
         _redisMock.Setup(r => r.GetSubscriber(It.IsAny<object>())).Returns(mockSubscriber.Object);
@@ -143,7 +143,7 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
     {
         // Arrange
         await SetupDefaultTestDataAsync();
-        
+
         // Seed an existing capability to trigger idempotency exit
         var cap = new RepositoryCapability
         {
@@ -177,7 +177,7 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
     {
         // Arrange
         await SetupDefaultTestDataAsync();
-        
+
         var task = new AnalysisTask { Id = Guid.NewGuid(), JobId = _jobId, TaskType = "SkillExtraction", Status = "Completed" };
         var result = new AnalysisTaskResult { TaskId = task.Id, Task = task, ResultData = "{ invalid-json }" };
         _context.AnalysisTasks.Add(task);
@@ -264,7 +264,7 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
                 }
             }
         }" };
-        
+
         var commitTask = new AnalysisTask { Id = Guid.NewGuid(), JobId = _jobId, TaskType = "CommitIntelligence", Status = "Completed" };
         var commitResult = new AnalysisTaskResult { TaskId = commitTask.Id, Task = commitTask, ResultData = @"{
             ""data"": {
@@ -298,7 +298,7 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
     {
         // Arrange
         await SetupDefaultTestDataAsync();
-        
+
         var task = new AnalysisTask { Id = Guid.NewGuid(), JobId = _jobId, TaskType = "FeatureExtraction", Status = "Completed" };
         var result = new AnalysisTaskResult { TaskId = task.Id, Task = task, ResultData = "{ invalid-json }" };
         _context.AnalysisTasks.Add(task);

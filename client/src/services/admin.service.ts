@@ -5,9 +5,11 @@ import {
   type RoleListItem,
   type CreateOrUpdateRolePayload,
   type AuditLogListItem,
+  type AuditLogDetail,
+  type AuditLogsStats,
   type PaginatedResult,
   type SystemPermission
-} from '../types/admin.types';
+} from '@/types/admin.types';
 
 export const adminService = {
   // Users Management
@@ -69,6 +71,13 @@ export const adminService = {
   // Audit Logs Management
   async getAuditLogs(params?: {
     search?: string;
+    category?: string;
+    actionType?: string;
+    actorEmail?: string;
+    resourceType?: string;
+    startDate?: string;
+    endDate?: string;
+    organizationId?: string;
     page?: number;
     pageSize?: number;
   }): Promise<PaginatedResult<AuditLogListItem>> {
@@ -76,5 +85,38 @@ export const adminService = {
       params
     });
     return response.data;
+  },
+
+  async getAuditLogsStats(): Promise<AuditLogsStats> {
+    const response = await axiosClient.get<AuditLogsStats>('/admin/audit-logs/stats');
+    return response.data;
+  },
+
+  async getAuditLogDetails(id: string): Promise<AuditLogDetail> {
+    const response = await axiosClient.get<AuditLogDetail>(`/admin/audit-logs/${id}`);
+    return response.data;
+  },
+
+  getExportUrl(params?: {
+    search?: string;
+    category?: string;
+    actionType?: string;
+    actorEmail?: string;
+    resourceType?: string;
+    startDate?: string;
+    endDate?: string;
+    organizationId?: string;
+    format?: 'csv' | 'json';
+  }): string {
+    const baseUrl = axiosClient.defaults.baseURL || '/api';
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, val]) => {
+        if (val !== undefined && val !== null && val !== '') {
+          query.append(key, val.toString());
+        }
+      });
+    }
+    return `${baseUrl}/admin/audit-logs/export?${query.toString()}`;
   }
 };

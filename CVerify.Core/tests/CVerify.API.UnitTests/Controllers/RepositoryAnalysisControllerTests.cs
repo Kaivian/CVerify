@@ -91,7 +91,7 @@ public class RepositoryAnalysisControllerTests : IDisposable
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var activeJobs = okResult.Value as System.Collections.IEnumerable;
         activeJobs.Should().NotBeNull();
-        
+
         int count = 0;
         foreach (var job in activeJobs!) count++;
         count.Should().Be(1);
@@ -314,15 +314,15 @@ public class RepositoryAnalysisControllerTests : IDisposable
         // Arrange
         var controller = CreateController();
         var authProvider = new AuthProvider { Id = Guid.NewGuid(), UserId = _userId, ProviderName = "GitHub", ProviderKey = "github-123" };
-        var repo = new SourceCodeRepository 
-        { 
-            Id = _repoId, 
-            AuthProvider = authProvider, 
-            Name = "repo", 
-            ExternalRepositoryId = "repo-123", 
-            Owner = "test", 
-            OwnerLogin = "test", 
-            OwnerType = "User" 
+        var repo = new SourceCodeRepository
+        {
+            Id = _repoId,
+            AuthProvider = authProvider,
+            Name = "repo",
+            ExternalRepositoryId = "repo-123",
+            Owner = "test",
+            OwnerLogin = "test",
+            OwnerType = "User"
         };
         _context.AuthProviders.Add(authProvider);
         _context.SourceCodeRepositories.Add(repo);
@@ -341,15 +341,15 @@ public class RepositoryAnalysisControllerTests : IDisposable
         // Arrange
         var controller = CreateController();
         var authProvider = new AuthProvider { Id = Guid.NewGuid(), UserId = _userId, ProviderName = "GitHub", ProviderKey = "github-123" };
-        var repo = new SourceCodeRepository 
-        { 
-            Id = _repoId, 
-            AuthProvider = authProvider, 
-            Name = "repo", 
-            ExternalRepositoryId = "repo-123", 
-            Owner = "test", 
-            OwnerLogin = "test", 
-            OwnerType = "User" 
+        var repo = new SourceCodeRepository
+        {
+            Id = _repoId,
+            AuthProvider = authProvider,
+            Name = "repo",
+            ExternalRepositoryId = "repo-123",
+            Owner = "test",
+            OwnerLogin = "test",
+            OwnerType = "User"
         };
         var report = new AnalysisReport { Id = Guid.NewGuid(), RepositoryId = _repoId, JobId = Guid.NewGuid(), ReportData = "{\"classification\":{}}" };
         _context.AuthProviders.Add(authProvider);
@@ -429,7 +429,7 @@ public class RepositoryAnalysisControllerTests : IDisposable
         var controller = CreateController();
         var targetUserId = Guid.Parse("019ecc1b-44e6-7600-803f-11249088ae92");
         var jobId = Guid.NewGuid();
-        
+
         _mockService.Setup(s => s.ResetRepositoryAnalysisAsync(targetUserId, _repoId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         _mockService.Setup(s => s.EnqueueAnalysisJobAsync(targetUserId, _repoId))

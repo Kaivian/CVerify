@@ -83,7 +83,7 @@ public class CandidateAssessmentRelationalProjectionTests : IDisposable
     }
 
     private async Task SetupRelationalTestDataAsync(
-        string? skillResultJson, 
+        string? skillResultJson,
         string? featureResultJson)
     {
         // 1. User and Profile

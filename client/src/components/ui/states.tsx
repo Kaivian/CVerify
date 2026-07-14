@@ -58,13 +58,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => {
   return (
     <div className="flex flex-col items-center justify-center text-center p-12 md:p-20 max-w-md mx-auto select-none">
-      <div className="size-16 rounded-2xl bg-accent/10 flex items-center justify-center border border-accent/20 mb-5 text-accent animate-bounce duration-[2000ms]">
+      <div className="size-16 rounded-2xl bg-accent/10 flex items-center justify-center border border-accent/20 mb-5 text-accent">
         <FolderOpen size={28} />
       </div>
       <Typography type="h4" className="font-bold text-foreground mb-2">
         {title}
       </Typography>
-      <Typography type="body-xs" className="text-muted leading-relaxed mb-6 select-text">
+      <Typography type="body-xs" className="text-muted leading-relaxed mb-6 select-text text-center">
         {description}
       </Typography>
       {action && <div className="flex justify-center">{action}</div>}

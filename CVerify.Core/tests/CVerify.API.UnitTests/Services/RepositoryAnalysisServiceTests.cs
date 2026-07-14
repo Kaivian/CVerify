@@ -76,7 +76,7 @@ public class RepositoryAnalysisServiceTests : IDisposable
         _mockStreamingSessionService = new Mock<IAiStreamingSessionService>();
         _mockCancellationManager = new Mock<IAiCancellationManager>();
         _mockOutboxPublisher = new Mock<IOutboxPublisher>();
-        
+
         _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
 
         _envConfig = new EnvConfiguration();
@@ -355,7 +355,7 @@ public class RepositoryAnalysisServiceTests : IDisposable
         result.Should().BeTrue();
 
         var updatedTasks = await _context.AnalysisTasks.Where(t => t.JobId == jobId).ToListAsync();
-        
+
         // RepoStructure is NOT reset
         updatedTasks.First(t => t.TaskType == "RepoStructure").Status.Should().Be("Completed");
 

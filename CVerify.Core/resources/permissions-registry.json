@@ -16,7 +16,12 @@
         "admin:verification:view",
         "admin:verification:manage",
         "admin:ai:audit",
-        "admin:components:read"
+        "admin:components:read",
+        "admin:security:view",
+        "admin:security:investigate",
+        "admin:security:manage-rules",
+        "admin:security:export",
+        "admin:security:admin-actions"
       ]
     },
     "BUSINESS": {
@@ -108,6 +113,41 @@
         "description": "Allows viewing visual platform component architecture and dependency graphs",
         "system": true,
         "dangerous": false
+      },
+      {
+        "name": "admin:security:view",
+        "displayName": "View Security Dashboard & Logs",
+        "description": "Allows searching, filtering, and reading system-wide security signals and incidents",
+        "system": true,
+        "dangerous": false
+      },
+      {
+        "name": "admin:security:investigate",
+        "displayName": "Investigate Security Alerts",
+        "description": "Allows assigning ownership, writing comments, and updating status on security events",
+        "system": true,
+        "dangerous": false
+      },
+      {
+        "name": "admin:security:manage-rules",
+        "displayName": "Manage Detection Rules",
+        "description": "Allows enabling, disabling, and tuning active threat detection parameters and thresholds",
+        "system": true,
+        "dangerous": true
+      },
+      {
+        "name": "admin:security:export",
+        "displayName": "Export Security Evidence",
+        "description": "Allows exporting security event data logs as CSV or JSON evidence files",
+        "system": true,
+        "dangerous": false
+      },
+      {
+        "name": "admin:security:admin-actions",
+        "displayName": "Execute Security Containments",
+        "description": "Allows triggering manual user suspensions and IP network-level blocks",
+        "system": true,
+        "dangerous": true
       }
     ],
     "verification": [

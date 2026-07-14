@@ -119,7 +119,7 @@ public class CandidateAssessmentControllerTests
         var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
         var list = okResult.Value as System.Collections.IEnumerable;
         list.Should().NotBeNull();
-        
+
         int count = 0;
         foreach (var item in list!) count++;
         count.Should().Be(19);

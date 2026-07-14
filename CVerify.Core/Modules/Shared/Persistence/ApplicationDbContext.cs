@@ -22,6 +22,7 @@ public class ApplicationDbContext : DbContext
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        ProcessAddedAuditLogs();
         EnforceImmutableAuditLogs();
         IncrementConcurrencyVersions();
         try
@@ -40,6 +41,7 @@ public class ApplicationDbContext : DbContext
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        ProcessAddedAuditLogs();
         EnforceImmutableAuditLogs();
         IncrementConcurrencyVersions();
         try
@@ -56,8 +58,129 @@ public class ApplicationDbContext : DbContext
         }
     }
 
+    private void ProcessAddedAuditLogs()
+    {
+        var addedEntries = ChangeTracker.Entries<AuditLog>()
+            .Where(e => e.State == EntityState.Added)
+            .Select(e => e.Entity)
+            .ToList();
+
+        foreach (var auditLog in addedEntries)
+        {
+            // 1. Assign Audit Category based on EventType
+            auditLog.Category = MapToAuditCategory(auditLog.EventType);
+
+            // 2. Check if it's a security event
+            if (IsSecurityEvent(auditLog.EventType))
+            {
+                auditLog.IsLegacySecurityEvent = true;
+
+                // 3. Create mirrored SecurityEvent
+                var secEvent = CreateMirroredSecurityEvent(auditLog);
+                SecurityEvents.Add(secEvent);
+            }
+        }
+    }
+
+    private static bool IsSecurityEvent(string eventType)
+    {
+        if (string.IsNullOrEmpty(eventType)) return false;
+        var upper = eventType.ToUpperInvariant();
+        return upper.Contains("LOGIN") ||
+               upper.Contains("TOKEN") ||
+               upper.Contains("SESSION") ||
+               upper.Contains("OTP") ||
+               upper.Contains("PASSWORD") ||
+               upper.Contains("CREDENTIAL") ||
+               upper.Contains("SUSPICIOUS") ||
+               upper.Contains("AUTH_");
+    }
+
+    private static AuditCategory MapToAuditCategory(string eventType)
+    {
+        if (string.IsNullOrEmpty(eventType)) return AuditCategory.IdentityAndAccess;
+        var upper = eventType.ToUpperInvariant();
+        if (upper.Contains("ROLE") || upper.Contains("PERMISSION") || upper.Contains("MEMBER") || upper.Contains("INVIT"))
+            return AuditCategory.RolesAndPermissions;
+        if (upper.Contains("WORKSPACE"))
+            return AuditCategory.WorkspaceManagement;
+        if (upper.Contains("RECOVERY") || upper.Contains("RECLAIM") || upper.Contains("ROTATION"))
+            return AuditCategory.VerificationOperations;
+        if (upper.Contains("REPO") || upper.Contains("GIT"))
+            return AuditCategory.RepositoryAdministration;
+        if (upper.Contains("SETTINGS") || upper.Contains("PORTAL"))
+            return AuditCategory.PortalConfiguration;
+        if (upper.Contains("EXPORT"))
+            return AuditCategory.DataGovernance;
+        if (upper.Contains("PROFILE") || upper.Contains("AVATAR") || upper.Contains("USERNAME"))
+            return AuditCategory.ProfileConfiguration;
+        if (upper.Contains("RULE"))
+            return AuditCategory.SecurityRuleAdministration;
+        if (upper.Contains("SYSTEM") || upper.Contains("CONFIG"))
+            return AuditCategory.SystemConfiguration;
+
+        return AuditCategory.IdentityAndAccess;
+    }
+
+    private SecurityEvent CreateMirroredSecurityEvent(AuditLog auditLog)
+    {
+        var upper = auditLog.EventType.ToUpperInvariant();
+        var category = "Authentication";
+        if (upper.Contains("SESSION") || upper.Contains("TOKEN"))
+            category = "Session";
+        else if (upper.Contains("RATE") || upper.Contains("INJECTION") || upper.Contains("LIMIT"))
+            category = "Api";
+
+        var severity = "Informational";
+        var riskScore = 0;
+        if (upper.Contains("THEFT") || upper.Contains("INJECTION") || upper.Contains("CRITICAL"))
+        {
+            severity = "Critical";
+            riskScore = 90;
+        }
+        else if (upper.Contains("SUSPICIOUS") || upper.Contains("BLOCKED") || upper.Contains("ABUSE") || upper.Contains("HIGH"))
+        {
+            severity = "High";
+            riskScore = 70;
+        }
+        else if (upper.Contains("FAILED") || upper.Contains("REJECT") || upper.Contains("MEDIUM"))
+        {
+            severity = "Medium";
+            riskScore = 40;
+        }
+        else if (upper.Contains("LOW"))
+        {
+            severity = "Low";
+            riskScore = 15;
+        }
+
+        return new SecurityEvent
+        {
+            Id = Guid.CreateVersion7(),
+            EventType = auditLog.EventType,
+            Category = category,
+            Severity = severity,
+            Status = "New",
+            RiskScore = riskScore,
+            ConfidenceScore = 95,
+            Description = auditLog.Description,
+            ActorUserId = auditLog.ActorUserId ?? auditLog.UserId,
+            TargetUserId = auditLog.TargetUserId,
+            OrganizationId = auditLog.OrganizationId,
+            IpAddress = auditLog.IpAddress,
+            DetailsJson = auditLog.DetailsJson,
+            CorrelationId = auditLog.CorrelationId ?? Guid.Empty,
+            CreatedAt = auditLog.CreatedAt,
+            UpdatedAt = auditLog.CreatedAt
+        };
+    }
+
+    public bool BypassImmutabilityEnforcement { get; set; } = false;
+
     private void EnforceImmutableAuditLogs()
     {
+        if (BypassImmutabilityEnforcement) return;
+
         var auditLogEntries = ChangeTracker.Entries<AuditLog>()
             .Where(e => e.State == EntityState.Modified || e.State == EntityState.Deleted);
 
@@ -253,6 +376,12 @@ public class ApplicationDbContext : DbContext
     public DbSet<ForumModerationLog> ForumModerationLogs => Set<ForumModerationLog>();
     public DbSet<ForumTopicHistory> ForumTopicHistories => Set<ForumTopicHistory>();
     public DbSet<ForumReplyHistory> ForumReplyHistories => Set<ForumReplyHistory>();
+
+    public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
+    public DbSet<SecurityIncident> SecurityIncidents => Set<SecurityIncident>();
+    public DbSet<SecurityEventComment> SecurityEventComments => Set<SecurityEventComment>();
+    public DbSet<SecurityRule> SecurityRules => Set<SecurityRule>();
+
 
 
 
@@ -2118,7 +2247,83 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(t => t.Name).IsUnique();
             entity.HasIndex(t => t.Slug).IsUnique();
         });
+
+        modelBuilder.Entity<SecurityEvent>(entity =>
+        {
+            entity.Property(e => e.Id).ValueGeneratedNever();
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.Severity);
+            entity.HasIndex(e => e.EventType);
+            entity.HasIndex(e => e.CorrelationId);
+            entity.HasIndex(e => e.IpAddress);
+
+            entity.HasOne(e => e.ActorUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.ActorUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.TargetUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.TargetUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.Organization)
+                  .WithMany()
+                  .HasForeignKey(e => e.OrganizationId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.Incident)
+                  .WithMany(i => i.CorrelatedEvents)
+                  .HasForeignKey(e => e.IncidentId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.AssignedToUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.AssignedToUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SecurityIncident>(entity =>
+        {
+            entity.Property(i => i.Id).ValueGeneratedNever();
+            entity.HasIndex(i => i.Status);
+            entity.HasIndex(i => i.CreatedAt);
+
+            entity.HasOne(i => i.AssignedToUser)
+                  .WithMany()
+                  .HasForeignKey(i => i.AssignedToUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SecurityEventComment>(entity =>
+        {
+            entity.Property(c => c.Id).ValueGeneratedNever();
+            entity.HasIndex(c => c.CreatedAt);
+
+            entity.HasOne(c => c.SecurityEvent)
+                  .WithMany()
+                  .HasForeignKey(c => c.SecurityEventId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(c => c.SecurityIncident)
+                  .WithMany(i => i.Comments)
+                  .HasForeignKey(c => c.SecurityIncidentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(c => c.AuthorUser)
+                  .WithMany()
+                  .HasForeignKey(c => c.AuthorUserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SecurityRule>(entity =>
+        {
+            entity.Property(r => r.Id).ValueGeneratedNever();
+            entity.HasIndex(r => r.Code).IsUnique();
+        });
     }
+
 
     public async Task<User?> FindUserByEmailAsync(string email, CancellationToken cancellationToken = default)
     {

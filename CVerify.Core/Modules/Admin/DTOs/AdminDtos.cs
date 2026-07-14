@@ -47,9 +47,52 @@ public record AuditLogListItemDto(
     string? UserEmail,
     string EventType,
     string Description,
+    string? ResourceType,
+    string? ResourceDisplayName,
+    Guid? ResourceId,
+    string? WorkspaceName,
     string? IpAddress,
     string? UserAgent,
+    string? Device,
+    string? Browser,
     DateTimeOffset CreatedAt
+);
+
+public record AuditLogDetailDto(
+    Guid Id,
+    string? UserEmail,
+    string EventType,
+    string Category,
+    string Description,
+    string? ResourceType,
+    string? ResourceDisplayName,
+    Guid? ResourceId,
+    string? WorkspaceName,
+    string? IpAddress,
+    string? UserAgent,
+    string? Device,
+    string? Browser,
+    Guid? RequestId,
+    Guid? CorrelationId,
+    string? HttpPath,
+    string? HttpMethod,
+    string? ClientApp,
+    string? DetailsJson,
+    string? OldStateJson,
+    string? NewStateJson,
+    DateTimeOffset CreatedAt
+);
+
+public record AuditDashboardMetricItem(string Name, int Count);
+
+public record AuditLogsStatsDto(
+    int ConfigChangesCount,
+    int RoleChangesCount,
+    int PendingVerificationActionsCount,
+    int ExportsCount,
+    List<AuditDashboardMetricItem> Trends,
+    List<AuditDashboardMetricItem> TopAdmins,
+    List<AuditDashboardMetricItem> TopResources
 );
 
 
