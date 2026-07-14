@@ -12,10 +12,12 @@ export function DemoNavigation() {
   const nextSection = useDemoStore((state) => state.nextSection);
   const prevSection = useDemoStore((state) => state.prevSection);
   const getCurrentMetadata = useDemoStore((state) => state.getCurrentMetadata);
+  const subStage = useDemoStore((state) => state.subStage);
+  const totalSubStages = useDemoStore((state) => state.totalSubStages);
 
   const metadata = getCurrentMetadata();
-  const hasPrev = currentSectionIndex > 0;
-  const hasNext = currentSectionIndex < DEMO_SECTIONS.length - 1;
+  const hasPrev = totalSubStages > 1 ? subStage > 0 : currentSectionIndex > 0;
+  const hasNext = totalSubStages > 1 ? subStage < totalSubStages - 1 : currentSectionIndex < DEMO_SECTIONS.length - 1;
   const isTransitioning = transitionState === "entering" || transitionState === "exiting";
 
   // Hide entirely if configured
@@ -25,6 +27,10 @@ export function DemoNavigation() {
 
   const isBackDisabled = !hasPrev || metadata.allowBack === false || isTransitioning;
   const isNextDisabled = !hasNext || isTransitioning;
+
+  const isLast = totalSubStages > 1
+    ? subStage === totalSubStages - 1
+    : currentSectionIndex === DEMO_SECTIONS.length - 1;
 
   return (
     <div className="flex items-center justify-between gap-6 pointer-events-auto select-none">
@@ -46,8 +52,8 @@ export function DemoNavigation() {
         isDisabled={isNextDisabled}
         className="text-xs font-semibold bg-foreground text-background hover:opacity-90 cursor-pointer transition-all min-w-[100px]"
       >
-        {currentSectionIndex === DEMO_SECTIONS.length - 1 ? "Finish" : "Next"}
-        {currentSectionIndex === DEMO_SECTIONS.length - 1 ? (
+        {isLast ? "Finish" : "Next"}
+        {isLast ? (
           <Play className="h-3.5 w-3.5 fill-current ml-1.5 inline" />
         ) : (
           <ChevronRight className="h-4 w-4 ml-1.5 inline" />

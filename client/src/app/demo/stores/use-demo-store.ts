@@ -14,12 +14,17 @@ interface DemoState {
   navigationDirection: "next" | "prev" | "none";
   transitionState: SceneLifecycleState;
   
+  // Sub-stage tracking (for sections that have internal steps)
+  subStage: number;
+  totalSubStages: number;
+  
   // Actions
   setSectionIndex: (index: number) => void;
   nextSection: () => void;
   prevSection: () => void;
   setTransitionState: (state: SceneLifecycleState) => void;
   syncFromUrl: () => void;
+  setSubStage: (stage: number, total?: number) => void;
   
   // Helpers
   getCurrentMetadata: () => SceneMetadata;
@@ -68,6 +73,8 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   currentSectionIndex: 0,
   navigationDirection: "none",
   transitionState: "beforeEnter",
+  subStage: 0,
+  totalSubStages: 0,
 
   getCurrentMetadata: () => {
     const { currentSectionIndex } = get();
@@ -102,12 +109,20 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   },
 
   nextSection: () => {
-    const { currentSectionIndex } = get();
+    const { currentSectionIndex, subStage, totalSubStages } = get();
+    if (totalSubStages > 1 && subStage < totalSubStages - 1) {
+      set({ subStage: subStage + 1 });
+      return;
+    }
     get().setSectionIndex(currentSectionIndex + 1);
   },
 
   prevSection: () => {
-    const { currentSectionIndex } = get();
+    const { currentSectionIndex, subStage, totalSubStages } = get();
+    if (totalSubStages > 1 && subStage > 0) {
+      set({ subStage: subStage - 1 });
+      return;
+    }
     const currentMetadata = get().getCurrentMetadata();
 
     // Check allowBack constraint
@@ -120,6 +135,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
 
   setTransitionState: (state: SceneLifecycleState) => {
     set({ transitionState: state });
+  },
+
+  setSubStage: (stage: number, total?: number) => {
+    const updates: Partial<DemoState> = { subStage: stage };
+    if (total !== undefined) {
+      updates.totalSubStages = total;
+    }
+    set(updates);
   },
 
   syncFromUrl: () => {

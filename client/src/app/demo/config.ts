@@ -36,7 +36,12 @@ export const DEMO_SECTIONS: DemoSection[] = [
       allowBack: false,
       showNavigation: true,
       showProgress: true,
-      assetsToPreload: [], // Add path/URLs to preload if any
+      assetsToPreload: [
+        "/brand/logo.png",
+        "/brand/logo-white.png",
+        "/brand/logo&name-white.png",
+        "/brand/logo&name-black.png",
+      ], // Add path/URLs to preload if any
     },
     component: dynamic(() => import("./sections/Section01"), {
       ssr: false,
