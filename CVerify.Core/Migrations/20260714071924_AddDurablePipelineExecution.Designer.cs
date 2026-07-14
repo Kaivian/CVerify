@@ -6,6 +6,7 @@ using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -14,9 +15,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CVerify.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714071924_AddDurablePipelineExecution")]
+    partial class AddDurablePipelineExecution
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -6873,11 +6876,6 @@ namespace CVerify.API.Migrations
                     b.Property<decimal>("CumulativeCostUsd")
                         .HasColumnType("numeric(10, 6)")
                         .HasColumnName("cumulative_cost_usd");
-
-                    b.Property<string>("CurrentStep")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("current_step");
 
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(2000)
