@@ -217,7 +217,7 @@ public static class PublicWorkspaceSeeder
     private static void ValidateObjectRecursive(object obj)
     {
         var context = new ValidationContext(obj);
-        var results = new List<ValidationResult>();
+        var results = new List<global::System.ComponentModel.DataAnnotations.ValidationResult>();
         if (!Validator.TryValidateObject(obj, context, results, true))
         {
             throw new InvalidOperationException($"Validation failed: {string.Join(", ", results.Select(r => r.ErrorMessage))}");

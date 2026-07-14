@@ -6,17 +6,15 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 
 namespace CVerify.API.Modules.Shared.Persistence;
 
-public static class CapabilityCatalogSeeder
+public class CapabilityCatalogSeeder : IValidatableSeeder
 {
-    public static async Task SeedAsync(ApplicationDbContext context, SeedingPolicy policy)
+    public string ModuleId => "CapabilityCatalogSeeder";
+    public string Version => "1.0.0";
+    public IReadOnlyCollection<string> Dependencies => Array.Empty<string>();
+
+    public async Task<SeederResult> SeedAsync(ApplicationDbContext context, SeedingConfig config)
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
-        if (policy == null) throw new ArgumentNullException(nameof(policy));
-
-        if (!policy.SeedInfrastructure)
-        {
-            return;
-        }
 
         var capabilities = new List<CapabilityCatalogItem>
         {
@@ -121,6 +119,7 @@ public static class CapabilityCatalogSeeder
             }
         };
 
+        int affected = 0;
         foreach (var cap in capabilities)
         {
             var existing = await context.CapabilityCatalogItems.FirstOrDefaultAsync(c => c.CapabilityId == cap.CapabilityId);
@@ -129,8 +128,13 @@ public static class CapabilityCatalogSeeder
                 cap.CreatedAt = DateTimeOffset.UtcNow;
                 cap.UpdatedAt = DateTimeOffset.UtcNow;
                 context.CapabilityCatalogItems.Add(cap);
+                affected++;
             }
-            else
+            else if (existing.DisplayName != cap.DisplayName || 
+                     existing.Category != cap.Category || 
+                     existing.Description != cap.Description ||
+                     !EqualLists(existing.Skills, cap.Skills) ||
+                     !EqualLists(existing.ExpectedEvidence, cap.ExpectedEvidence))
             {
                 existing.DisplayName = cap.DisplayName;
                 existing.Category = cap.Category;
@@ -138,9 +142,34 @@ public static class CapabilityCatalogSeeder
                 existing.Skills = cap.Skills;
                 existing.ExpectedEvidence = cap.ExpectedEvidence;
                 existing.UpdatedAt = DateTimeOffset.UtcNow;
+                context.CapabilityCatalogItems.Update(existing);
+                affected++;
             }
         }
 
         await context.SaveChangesAsync();
+        return new SeederResult(ModuleId, SeedingStatus.Success, "Capability catalog items seeded successfully.", affected);
+    }
+
+    private static bool EqualLists(List<string>? list1, List<string>? list2)
+    {
+        if (list1 == null && list2 == null) return true;
+        if (list1 == null || list2 == null) return false;
+        if (list1.Count != list2.Count) return false;
+        for (int i = 0; i < list1.Count; i++)
+        {
+            if (list1[i] != list2[i]) return false;
+        }
+        return true;
+    }
+
+    public async Task<ValidationResult> ValidateAsync(ApplicationDbContext context)
+    {
+        var count = await context.CapabilityCatalogItems.CountAsync();
+        if (count == 0)
+        {
+            return new ValidationResult(false, "No capability catalog items were seeded.");
+        }
+        return new ValidationResult(true);
     }
 }

@@ -475,6 +475,19 @@ builder.Services.AddSingleton<ICandidateAssessmentQueue, BackgroundCandidateAsse
 builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, JobVacancyModuleSeeder>();
 builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, WorkspacePostModuleSeeder>();
 
+// Register Modular Seeders
+builder.Services.AddScoped<ISeederModule, PermissionSeeder>();
+builder.Services.AddScoped<ISeederModule, SystemRoleSeeder>();
+builder.Services.AddScoped<ISeederModule, CapabilityCatalogSeeder>();
+builder.Services.AddScoped<ISeederModule, ForumMetadataSeeder>();
+builder.Services.AddScoped<ISeederModule, TenantRoleSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoOrganizationSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoUserSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoRepositorySeeder>();
+builder.Services.AddScoped<ISeederModule, DemoCvSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoAiPipelineSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoForumPostSeeder>();
+
 // Register Source Code Provider Services
 builder.Services.AddScoped<ISourceCodeClient, GitHubSourceCodeClient>();
 builder.Services.AddScoped<ISourceCodeClient, GitLabSourceCodeClient>();
@@ -610,6 +623,95 @@ using (var scope = app.Services.CreateScope())
             {
                 logger.LogError("Greenfield SQL script schema_init.sql not found!");
             }
+        }
+        
+        string? GetArgValue(string[] arguments, string prefix)
+        {
+            var arg = arguments.FirstOrDefault(a => a.StartsWith(prefix + "=", StringComparison.OrdinalIgnoreCase));
+            return arg?.Split('=', 2).LastOrDefault();
+        }
+
+        async Task BootstrapAdminUserAsync(ApplicationDbContext dbContext, string adminEmail, string adminUsername, string adminPassword, string adminFullName)
+        {
+            const string sqlRoles = @"
+                INSERT INTO roles (id, name, display_name, description, is_system)
+                VALUES 
+                    ('018fc35b-1c5c-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'SUPER_ADMIN', 'System Administrator', 'Root access to all modules', TRUE),
+                    ('018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'USER', 'General User', 'Basic application access', TRUE)
+                ON CONFLICT (name) WHERE tenant_id IS NULL DO UPDATE 
+                SET display_name = EXCLUDED.display_name, description = EXCLUDED.description;
+
+                INSERT INTO permissions (id, name, display_name, description, module, is_system)
+                VALUES 
+                    ('018fc35b-1c5e-7b8a-9a2d-3e4f5a6b7c8d'::uuid, '*:*:*', 'Global Wildcard', 'Full access to every module and feature', 'system', TRUE)
+                ON CONFLICT (name) DO UPDATE 
+                SET display_name = EXCLUDED.display_name, description = EXCLUDED.description, module = EXCLUDED.module;
+
+                INSERT INTO role_permissions (role_id, permission_id)
+                SELECT r.id, p.id FROM roles r, permissions p 
+                WHERE r.name = 'SUPER_ADMIN' AND p.name = '*:*:*'
+                ON CONFLICT DO NOTHING;
+            ";
+            await dbContext.Database.ExecuteSqlRawAsync(sqlRoles);
+
+            var newUserId = Guid.CreateVersion7();
+            const string userSql = @"
+                INSERT INTO users (
+                    id,
+                    email, 
+                    username,
+                    password_hash, 
+                    full_name, 
+                    status, 
+                    email_verified_at
+                )
+                SELECT 
+                    @id,
+                    @email,
+                    @username,
+                    crypt(@password, gen_salt('bf', 10)),
+                    @fullName,
+                    'ACTIVE',
+                    NOW()
+                WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = @email);
+            ";
+            await dbContext.Database.ExecuteSqlRawAsync(userSql,
+                new NpgsqlParameter("@id", newUserId),
+                new NpgsqlParameter("@email", adminEmail.Trim().ToLowerInvariant()),
+                new NpgsqlParameter("@username", adminUsername.Trim()),
+                new NpgsqlParameter("@password", adminPassword.Trim()),
+                new NpgsqlParameter("@fullName", adminFullName.Trim())
+            );
+
+            const string linkSql = @"
+                INSERT INTO user_roles (user_id, role_id)
+                SELECT 
+                    (SELECT id FROM users WHERE email = @email),
+                    (SELECT id FROM roles WHERE name = 'SUPER_ADMIN')
+                ON CONFLICT DO NOTHING;
+            ";
+            await dbContext.Database.ExecuteSqlRawAsync(linkSql,
+                new NpgsqlParameter("@email", adminEmail.Trim().ToLowerInvariant())
+            );
+        }
+
+        if (args.Contains("--bootstrap-admin"))
+        {
+            var email = GetArgValue(args, "--email") ?? "admin@system.com";
+            var username = GetArgValue(args, "--username") ?? "admin";
+            var password = GetArgValue(args, "--password");
+            var name = GetArgValue(args, "--name") ?? "System Administrator";
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                logger.LogCritical("FATAL: --password must be provided when using --bootstrap-admin.");
+                throw new ArgumentException("Password is required for administrator bootstrapping.");
+            }
+
+            logger.LogWarning("CLI Bootstrapping System Administrator account: {Email}...", email);
+            await BootstrapAdminUserAsync(context, email, username, password, name);
+            logger.LogInformation("System Administrator bootstrapped successfully.");
+            Environment.Exit(0);
         }
 
         logger.LogInformation("Initializing database schema and checking synchronization...");
