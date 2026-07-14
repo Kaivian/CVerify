@@ -45,7 +45,7 @@ export default async function RootLayout({
 
   // Read and clean cookie theme to match server state
   const themeVal = cookieStore.get("theme")?.value;
-  const theme = themeVal || "dark";
+  const theme = themeVal || "light";
 
   // Determine layout direction (English and Vietnamese are Left-to-Right)
   const dir = "ltr";

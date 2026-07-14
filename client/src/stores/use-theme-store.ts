@@ -14,7 +14,7 @@ interface ThemeState {
 
 // Helper to sanitize theme string
 const cleanTheme = (theme: string | undefined): ThemeType => {
-  if (!theme) return 'dark';
+  if (!theme) return 'light';
   return theme;
 };
 
@@ -22,7 +22,7 @@ const cleanTheme = (theme: string | undefined): ThemeType => {
 const KNOWN_THEMES = ['light', 'dark', 'ocean', 'emerald'];
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
-  theme: 'dark', // Default fallback is dark
+  theme: 'light', // Default fallback is light
 
   setTheme: (newTheme: ThemeType) => {
     if (typeof window === 'undefined') return;
