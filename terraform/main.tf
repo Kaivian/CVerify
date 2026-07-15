@@ -144,7 +144,7 @@ resource "google_project_iam_member" "compute_instance_admin" {
 # Allow GitHub Actions repository to assume the service account role
 resource "google_service_account_iam_member" "github_sa_bind" {
   service_account_id = google_service_account.deployer.name
-  role               = "roles/iam.serviceAccountUser"
+  role               = "roles/iam.serviceAccountTokenCreator"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_pool.name}/attribute.repository/${var.github_repository}"
 }
 
