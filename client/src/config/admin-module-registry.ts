@@ -10,6 +10,10 @@ import {
   BarChart3, 
   Settings, 
   BookOpen,
+  Activity,
+  Cpu,
+  History,
+  Briefcase,
   type LucideIcon 
 } from 'lucide-react';
 import { type ResourceActionPermission } from '../types/auth.types';
@@ -67,26 +71,53 @@ export const adminModuleRegistry: AdminModuleMetadata[] = [
     parentGroupId: 'identity',
     order: 2,
   },
-  // 3. Verification
+  // 3. Enterprise Operations
   {
-    id: 'admin-verification-queue',
-    name: 'Verification Queue',
+    id: 'admin-enterprise-operations',
+    name: 'Enterprise Operations',
     icon: Inbox,
-    path: '/admin/verification',
-    requiredPermission: 'admin:verification:view',
-    featureFlag: 'feature:admin:verification-queue',
+    path: '/admin/enterprise-operations',
+    requiredPermission: 'admin:enterprise:view',
+    featureFlag: 'feature:admin:enterprise-operations',
     parentGroupId: 'verification',
     order: 1,
   },
   // 4. Repository Intelligence
   {
-    id: 'admin-repositories',
-    name: 'Repository Index',
+    id: 'admin-ai-repository',
+    name: 'Repository AI',
     icon: GitFork,
-    path: '/admin/repositories',
-    requiredPermission: 'admin:repositories:view',
+    path: '/admin/ai/repository',
+    requiredPermission: 'admin:ai:audit',
     parentGroupId: 'intelligence',
     order: 1,
+  },
+  {
+    id: 'admin-ai-cv',
+    name: 'CV Intelligence',
+    icon: FileText,
+    path: '/admin/ai/cv',
+    requiredPermission: 'admin:ai:audit',
+    parentGroupId: 'intelligence',
+    order: 2,
+  },
+  {
+    id: 'admin-ai-job',
+    name: 'Job Intelligence',
+    icon: Briefcase,
+    path: '/admin/ai/job',
+    requiredPermission: 'admin:ai:audit',
+    parentGroupId: 'intelligence',
+    order: 3,
+  },
+  {
+    id: 'admin-ai-matching',
+    name: 'Matching Intelligence',
+    icon: Users,
+    path: '/admin/ai/matching',
+    requiredPermission: 'admin:ai:audit',
+    parentGroupId: 'intelligence',
+    order: 4,
   },
   // 5. Security
   {
@@ -94,7 +125,7 @@ export const adminModuleRegistry: AdminModuleMetadata[] = [
     name: 'Audit Trail',
     icon: FileText,
     path: '/admin/audit-logs',
-    requiredPermission: 'ai:audit:view',
+    requiredPermission: 'admin:ai:audit',
     parentGroupId: 'security',
     order: 1,
   },

@@ -140,10 +140,10 @@ export const routesConfig: Record<string, RouteMetadata> = {
     fallbackLabel: 'Level 2 Recovery',
     parentPath: '/admin',
   },
-  '/admin/verification': {
-    path: '/admin/verification',
-    translationKey: 'common:admin.verification',
-    fallbackLabel: 'Verification Queue',
+  '/admin/enterprise-operations': {
+    path: '/admin/enterprise-operations',
+    translationKey: 'common:admin.enterprise',
+    fallbackLabel: 'Enterprise Operations',
     parentPath: '/admin',
   },
   '/admin/security': {

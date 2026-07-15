@@ -215,7 +215,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
     const rawNodes = filterRecurse(targetConfig);
     return rawNodes.map(resolveNodeHref);
-  }, [sidebarMode, userRole, hasPermission, currentOrgSlug, workspaceDetails, workspaceUserRole, workspacePermissions]);
+  }, [sidebarMode, userRole, user, hasPermission, currentOrgSlug, workspaceDetails, workspaceUserRole, workspacePermissions]);
 
   // Dedicated specialized components workspace navigation sections
   const componentSections = useMemo(() => [

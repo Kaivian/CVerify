@@ -30,6 +30,7 @@ using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Exceptions.Catalogs;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security;
+using CVerify.API.Modules.Shared.System.Pipelines;
 using CVerify.API.Modules.Shared.Storage.Interfaces;
 using CVerify.API.Modules.Shared.Storage.Services;
 using CVerify.API.Modules.Shared.System.DTOs;
@@ -231,6 +232,22 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString();
+        var path = context.HttpContext.Request.Path;
+        var publisher = context.HttpContext.RequestServices.GetService<CVerify.API.Modules.Shared.Domain.Services.ISecurityEventPublisher>();
+        if (publisher != null)
+        {
+            await publisher.PublishAsync(
+                CVerify.API.Modules.Shared.Domain.Constants.SecurityEventTypes.ApiRateLimitExceeded,
+                CVerify.API.Modules.Shared.Domain.Enums.SecurityEventCategory.Api,
+                $"IP {ip ?? "unknown"} exceeded rate limits on endpoint {path}.",
+                overrideSeverity: CVerify.API.Modules.Shared.Domain.Enums.SecuritySeverity.Medium
+            );
+        }
+    };
+
 
     options.AddPolicy("ForgotPasswordLimit", context =>
     {
@@ -327,7 +344,9 @@ builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
                 .MapEnum<UserStatus>("user_status")
                 .UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
            .UseSnakeCaseNamingConvention()
-           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+           .ConfigureWarnings(w => w
+               .Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)
+               .Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
 
     options.AddInterceptors(sp.GetRequiredService<SlowQueryInterceptor>());
 
@@ -427,6 +446,13 @@ builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliverySer
 builder.Services.AddScoped<INotificationChannel, InAppNotificationChannel>();
 builder.Services.AddSingleton<INotificationDispatcher, RedisNotificationDispatcher>();
 
+// Register Security Events Core Services
+builder.Services.AddSingleton<CVerify.API.Modules.Shared.Domain.Services.SecurityEventChannel>();
+builder.Services.AddScoped<CVerify.API.Modules.Shared.Domain.Services.ISecurityDetectionEngine, CVerify.API.Modules.Shared.Domain.Services.SecurityDetectionEngine>();
+builder.Services.AddScoped<CVerify.API.Modules.Shared.Domain.Services.ISecurityEventPublisher, CVerify.API.Modules.Shared.Domain.Services.SecurityEventPublisher>();
+builder.Services.AddHostedService<CVerify.API.Modules.Shared.System.BackgroundWorkers.SecurityEventProcessorJob>();
+
+
 // Register Profile Settings Services
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IEducationService, EducationService>();
@@ -451,6 +477,19 @@ builder.Services.AddSingleton<ICandidateAssessmentQueue, BackgroundCandidateAsse
 builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, JobVacancyModuleSeeder>();
 builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, WorkspacePostModuleSeeder>();
 
+// Register Modular Seeders
+builder.Services.AddScoped<ISeederModule, PermissionSeeder>();
+builder.Services.AddScoped<ISeederModule, SystemRoleSeeder>();
+builder.Services.AddScoped<ISeederModule, CapabilityCatalogSeeder>();
+builder.Services.AddScoped<ISeederModule, ForumMetadataSeeder>();
+builder.Services.AddScoped<ISeederModule, TenantRoleSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoOrganizationSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoUserSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoRepositorySeeder>();
+builder.Services.AddScoped<ISeederModule, DemoCvSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoAiPipelineSeeder>();
+builder.Services.AddScoped<ISeederModule, DemoForumPostSeeder>();
+
 // Register Source Code Provider Services
 builder.Services.AddScoped<ISourceCodeClient, GitHubSourceCodeClient>();
 builder.Services.AddScoped<ISourceCodeClient, GitLabSourceCodeClient>();
@@ -459,6 +498,13 @@ builder.Services.AddSingleton<IRepositorySyncQueue, BackgroundRepositorySyncQueu
 builder.Services.AddScoped<IRepositoryAnalysisService, RepositoryAnalysisService>();
 builder.Services.AddSingleton<IRepositoryAnalysisQueue, BackgroundRepositoryAnalysisQueue>();
 builder.Services.AddScoped<ICandidateRepositoryProvider, CandidateRepositoryProvider>();
+
+// Register AI Pipeline Orchestrators & Dispatcher
+builder.Services.AddScoped<IPipelineOrchestrator, RepositoryAnalysisPipelineOrchestrator>();
+builder.Services.AddScoped<IPipelineOrchestrator, CandidateAssessmentPipelineOrchestrator>();
+builder.Services.AddScoped<IPipelineOrchestrator, HiringRequirementPipelineOrchestrator>();
+builder.Services.AddScoped<IPipelineDispatcher, PipelineDispatcher>();
+builder.Services.AddScoped<IQueueDiscoveryService, QueueDiscoveryService>();
 builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Storage.IArtifactStorageProvider, CVerify.API.Pipelines.Shared.Storage.ArtifactStorageProvider>();
 builder.Services.AddScoped<CVerify.API.Pipelines.Shared.Artifacts.IArtifactRegistry, CVerify.API.Pipelines.Shared.Artifacts.ArtifactRegistry>();
 builder.Services.AddScoped<CVerify.API.Pipelines.RepositoryIntelligence.Readers.IRepositoryArtifactReader, CVerify.API.Pipelines.RepositoryIntelligence.Readers.RepositoryArtifactReader>();
@@ -580,6 +626,95 @@ using (var scope = app.Services.CreateScope())
                 logger.LogError("Greenfield SQL script schema_init.sql not found!");
             }
         }
+        
+        string? GetArgValue(string[] arguments, string prefix)
+        {
+            var arg = arguments.FirstOrDefault(a => a.StartsWith(prefix + "=", StringComparison.OrdinalIgnoreCase));
+            return arg?.Split('=', 2).LastOrDefault();
+        }
+
+        async Task BootstrapAdminUserAsync(ApplicationDbContext dbContext, string adminEmail, string adminUsername, string adminPassword, string adminFullName)
+        {
+            const string sqlRoles = @"
+                INSERT INTO roles (id, name, display_name, description, is_system)
+                VALUES 
+                    ('018fc35b-1c5c-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'SUPER_ADMIN', 'System Administrator', 'Root access to all modules', TRUE),
+                    ('018fc35b-1c5d-7b8a-9a2d-3e4f5a6b7c8d'::uuid, 'USER', 'General User', 'Basic application access', TRUE)
+                ON CONFLICT (name) WHERE tenant_id IS NULL DO UPDATE 
+                SET display_name = EXCLUDED.display_name, description = EXCLUDED.description;
+
+                INSERT INTO permissions (id, name, display_name, description, module, is_system)
+                VALUES 
+                    ('018fc35b-1c5e-7b8a-9a2d-3e4f5a6b7c8d'::uuid, '*:*:*', 'Global Wildcard', 'Full access to every module and feature', 'system', TRUE)
+                ON CONFLICT (name) DO UPDATE 
+                SET display_name = EXCLUDED.display_name, description = EXCLUDED.description, module = EXCLUDED.module;
+
+                INSERT INTO role_permissions (role_id, permission_id)
+                SELECT r.id, p.id FROM roles r, permissions p 
+                WHERE r.name = 'SUPER_ADMIN' AND p.name = '*:*:*'
+                ON CONFLICT DO NOTHING;
+            ";
+            await dbContext.Database.ExecuteSqlRawAsync(sqlRoles);
+
+            var newUserId = Guid.CreateVersion7();
+            const string userSql = @"
+                INSERT INTO users (
+                    id,
+                    email, 
+                    username,
+                    password_hash, 
+                    full_name, 
+                    status, 
+                    email_verified_at
+                )
+                SELECT 
+                    @id,
+                    @email,
+                    @username,
+                    crypt(@password, gen_salt('bf', 10)),
+                    @fullName,
+                    'ACTIVE',
+                    NOW()
+                WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = @email);
+            ";
+            await dbContext.Database.ExecuteSqlRawAsync(userSql,
+                new NpgsqlParameter("@id", newUserId),
+                new NpgsqlParameter("@email", adminEmail.Trim().ToLowerInvariant()),
+                new NpgsqlParameter("@username", adminUsername.Trim()),
+                new NpgsqlParameter("@password", adminPassword.Trim()),
+                new NpgsqlParameter("@fullName", adminFullName.Trim())
+            );
+
+            const string linkSql = @"
+                INSERT INTO user_roles (user_id, role_id)
+                SELECT 
+                    (SELECT id FROM users WHERE email = @email),
+                    (SELECT id FROM roles WHERE name = 'SUPER_ADMIN')
+                ON CONFLICT DO NOTHING;
+            ";
+            await dbContext.Database.ExecuteSqlRawAsync(linkSql,
+                new NpgsqlParameter("@email", adminEmail.Trim().ToLowerInvariant())
+            );
+        }
+
+        if (args.Contains("--bootstrap-admin"))
+        {
+            var email = GetArgValue(args, "--email") ?? "admin@system.com";
+            var username = GetArgValue(args, "--username") ?? "admin";
+            var password = GetArgValue(args, "--password");
+            var name = GetArgValue(args, "--name") ?? "System Administrator";
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                logger.LogCritical("FATAL: --password must be provided when using --bootstrap-admin.");
+                throw new ArgumentException("Password is required for administrator bootstrapping.");
+            }
+
+            logger.LogWarning("CLI Bootstrapping System Administrator account: {Email}...", email);
+            await BootstrapAdminUserAsync(context, email, username, password, name);
+            logger.LogInformation("System Administrator bootstrapped successfully.");
+            Environment.Exit(0);
+        }
 
         logger.LogInformation("Initializing database schema and checking synchronization...");
         await DbInitializer.InitializeAsync(context, services, usernameService, envConfig, app.Environment);
@@ -611,6 +746,26 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseExceptionHandler();
 app.UseCors("AllowFrontend");
 app.UseMiddleware<SecurityHeadersMiddleware>();
+app.Use(async (context, next) =>
+{
+    var ip = context.Connection.RemoteIpAddress?.ToString();
+    if (!string.IsNullOrEmpty(ip) && ip != "127.0.0.1" && ip != "::1")
+    {
+        var redis = context.RequestServices.GetService<IConnectionMultiplexer>();
+        if (redis != null)
+        {
+            var isBanned = await redis.GetDatabase().KeyExistsAsync($"sec:ip_ban:{ip}");
+            if (isBanned)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new { message = "Access Denied: Your IP address has been temporarily blocked for security reasons." });
+                return;
+            }
+        }
+    }
+    await next();
+});
+
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<CVerify.API.Modules.Auth.Middleware.SessionValidationMiddleware>();

@@ -729,7 +729,14 @@ public static class DbInitializer
                  updated_at_utc TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
              );
 
-
+             CREATE TABLE IF NOT EXISTS seeding_history (
+                 module_id VARCHAR(100) PRIMARY KEY,
+                 version VARCHAR(20) NOT NULL,
+                 environment_name VARCHAR(50) NOT NULL,
+                 applied_at_utc TIMESTAMP WITH TIME ZONE NOT NULL,
+                 duration_ms INTEGER NOT NULL,
+                 records_affected INTEGER NOT NULL
+             );
 
             -- Stores user roles for the Role-Based Access Control (RBAC) system
             CREATE TABLE IF NOT EXISTS roles (
@@ -3188,35 +3195,59 @@ public static class DbInitializer
         // Apply all pending migrations (e.g., Talent Intelligence migrations)
         await context.Database.MigrateAsync();
 
-        // Invoke modular seeders
-        await SuperAdminSeeder.SeedAsync(context, config.SuperAdmin, seedingPolicy);
-        await PermissionSeeder.SeedAsync(context, seedingPolicy);
-        await BusinessAccountSeeder.SeedAsync(context, config.Seeding, seedingPolicy);
-        await RoleSeeder.SeedAsync(context, seedingPolicy);
-        await MembershipMigrationSeeder.SeedAsync(context, seedingPolicy);
-        await CapabilityCatalogSeeder.SeedAsync(context, seedingPolicy);
-        await SeedForumDataAsync(context, seedingPolicy);
+        // Resolve or construct SeedRunner and modules
+        var loggerFactory = serviceProvider?.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
+            ?? context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
+            ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+        var runnerLogger = loggerFactory.CreateLogger<SeedRunner>();
 
-        global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder> moduleSeeders;
-        Microsoft.Extensions.Logging.ILoggerFactory loggerFactory;
-
+        var modulesList = new List<ISeederModule>();
         if (serviceProvider != null)
         {
-            moduleSeeders = serviceProvider.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
-                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            loggerFactory = serviceProvider.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
-                ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
-        }
-        else
-        {
-            moduleSeeders = context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
-                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            loggerFactory = context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
-                ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+            modulesList.AddRange(serviceProvider.GetServices<ISeederModule>());
         }
 
-        var seederLogger = loggerFactory.CreateLogger("PublicWorkspaceSeeder");
-        await PublicWorkspaceSeeder.SeedAsync(context, config.Seeding, moduleSeeders, seederLogger, seedingPolicy);
+        if (!modulesList.Any())
+        {
+            var forumSeeders = serviceProvider?.GetServices<IPublicWorkspaceModuleSeeder>()
+                ?? context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
+                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
+            var forumPostLogger = loggerFactory.CreateLogger<DemoForumPostSeeder>();
+
+            modulesList.AddRange(new ISeederModule[]
+            {
+                new PermissionSeeder(),
+                new SystemRoleSeeder(),
+                new CapabilityCatalogSeeder(),
+                new ForumMetadataSeeder(),
+                new TenantRoleSeeder(),
+                new DemoOrganizationSeeder(),
+                new DemoUserSeeder(),
+                new DemoRepositorySeeder(),
+                new DemoCvSeeder(),
+                new DemoAiPipelineSeeder(),
+                new DemoForumPostSeeder(forumSeeders, forumPostLogger)
+            });
+        }
+
+        var seedingConfig = new SeedingConfig
+        {
+            Enabled = true,
+            Environment = resolvedEnv?.EnvironmentName ?? "Development",
+            GenerateDemoData = seedingPolicy.SeedDemoContent,
+            ResetDatabase = shouldReset,
+            VerboseLogging = true,
+            SuperAdminEmail = config.SuperAdmin?.Email,
+            SuperAdminUsername = config.SuperAdmin?.Username,
+            SuperAdminFullName = config.SuperAdmin?.FullName,
+            SuperAdminPassword = config.SuperAdmin?.Password,
+            BusinessPassword = config.Seeding?.BusinessPassword,
+            SeedDataPath = config.Seeding?.SeedDataPath ?? "resources/seed-business-data.json",
+            PublicDemoDataPath = config.Seeding?.PublicDemoDataPath ?? "resources/public-workspace-demo-content.json"
+        };
+
+        var seedRunner = new SeedRunner(modulesList, runnerLogger);
+        await seedRunner.RunAsync(context, seedingConfig);
 
         // One-time compatibility migration for Google OAuth users created under the old normalization rules
         await MigrateLegacyGoogleEmailsAsync(context);
@@ -3227,79 +3258,9 @@ public static class DbInitializer
 
         // One-time compatibility migration to backfill repository classification & authenticity columns
         await MigrateLegacyRepositoryMetadataAsync(context);
-    }
 
-    private static async Task SeedForumDataAsync(ApplicationDbContext context, SeedingPolicy policy)
-    {
-        if (context == null) throw new ArgumentNullException(nameof(context));
-        if (policy == null) throw new ArgumentNullException(nameof(policy));
-
-        // Seed Forum Categories
-        var defaultCategories = new List<(string Name, string Slug, string Description, string IconName, int DisplayOrder, string? RequiredRole)>
-        {
-            ("General Discussion", "general-discussion", "Discuss anything tech, life, or CVerify related.", "MessageSquare", 1, null),
-            ("Programming", "programming", "Share code snippets, software design patterns, and programming advice.", "Code", 2, null),
-            ("Frontend Development", "frontend", "Discuss HTML, CSS, React, Next.js, Tailwind and UI/UX.", "Layout", 3, null),
-            ("Backend Development", "backend", "Discuss C#, .NET, Go, Python, databases, API design, and system architecture.", "Server", 4, null),
-            ("DevOps & Cloud", "devops-cloud", "Discuss CI/CD, Docker, Kubernetes, AWS, Cloudflare, and automation.", "Cloud", 5, null),
-            ("Security", "security", "Discuss penetration testing, cryptography, auth safety, and cybersecurity guidelines.", "Shield", 6, null),
-            ("Career Discussion", "career", "Career development advice, resume reviews, salary negotiations, and advice.", "TrendingUp", 7, null),
-            ("Hiring & Open Positions", "hiring", "Official hiring posts, job openings, and employer branding updates.", "Briefcase", 8, "BUSINESS"),
-            ("Projects & Showcase", "projects-showcase", "Showcase your side projects, open source contributions, and web products.", "Folder", 9, null),
-            ("Announcements", "announcements", "Platform news, official updates, and maintenance announcements from CVerify.", "Megaphone", 10, "ADMIN")
-        };
-
-        foreach (var dc in defaultCategories)
-        {
-            var exists = await context.ForumCategories.AnyAsync(c => c.Slug == dc.Slug && c.OrganizationId == null);
-            if (!exists)
-            {
-                context.ForumCategories.Add(new ForumCategory
-                {
-                    Id = Guid.CreateVersion7(),
-                    Name = dc.Name,
-                    Slug = dc.Slug,
-                    Description = dc.Description,
-                    IconName = dc.IconName,
-                    DisplayOrder = dc.DisplayOrder,
-                    RequiredRole = dc.RequiredRole,
-                    IsPrivate = false,
-                    IsArchived = false,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                });
-            }
-        }
-
-        // Seed Forum Badges
-        var defaultBadges = new List<(string Name, string Description, string IconName, string CriteriaCode)>
-        {
-            ("First Post", "Awarded for posting your first discussion topic or reply.", "Award", "first_post"),
-            ("Top Contributor", "Awarded for reaching 1000 reputation points.", "Trophy", "top_contributor"),
-            ("AI Expert", "Awarded for contributions to AI discussions and insights.", "Sparkles", "ai_expert"),
-            ("Open Source Contributor", "Awarded for sharing open source projects in showcase.", "GitFork", "open_source_contributor"),
-            ("Hiring Expert", "Awarded to verified businesses with helpful hiring discussions.", "Briefcase", "hiring_expert"),
-            ("Community Helper", "Awarded for having 5 accepted solutions.", "Heart", "community_helper")
-        };
-
-        foreach (var db in defaultBadges)
-        {
-            var exists = await context.ForumBadges.AnyAsync(b => b.CriteriaCode == db.CriteriaCode);
-            if (!exists)
-            {
-                context.ForumBadges.Add(new ForumBadge
-                {
-                    Id = Guid.CreateVersion7(),
-                    Name = db.Name,
-                    Description = db.Description,
-                    IconName = db.IconName,
-                    CriteriaCode = db.CriteriaCode,
-                    CreatedAt = DateTimeOffset.UtcNow
-                });
-            }
-        }
-
-        await context.SaveChangesAsync();
+        // One-time compatibility migration to migrate historical security audit logs to security_events
+        await MigrateLegacySecurityEventsAsync(context);
     }
 
     private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)
@@ -3335,6 +3296,108 @@ public static class DbInitializer
         {
             await context.SaveChangesAsync();
         }
+    }
+
+    private static async Task MigrateLegacySecurityEventsAsync(ApplicationDbContext context)
+    {
+        var eventTypes = new[]
+        {
+            "USER_LOGIN_SUCCESS", "USER_LOGIN_FAILED_CREDENTIALS", "USER_LOGIN_FAILED_EMAIL",
+            "USER_LOGIN_FAILED_DISABLED", "USER_LOGIN_FAILED_LOCKED", "USER_LOGIN_UNVERIFIED",
+            "USER_GOOGLE_LOGIN_SUCCESS", "USER_GOOGLE_LOGIN_BLOCKED", "TAKEOVER_ATTEMPT_BLOCKED",
+            "ORGANIZATION_LOGIN_FAILED_CREDENTIALS", "COMPANY_LOGIN_SUCCESS", "TOKEN_THEFT_DETECTED",
+            "TOKEN_ROTATED", "COMPANY_TOKEN_ROTATED", "SESSION_REVOKED", "ALL_OTHER_SESSIONS_REVOKED",
+            "SELF_REVOCATION_REJECTED", "OTP_SENT", "OTP_FAILED", "OTP_VERIFIED", "OTP_BYPASSED",
+            "SuspiciousActivity", "PASSWORD_CREDENTIAL_CREATED", "PASSWORD_CHANGED",
+            "PASSWORD_RECOVERY_COMPLETED", "PASSWORD_SETUP_COMPLETED", "PASSWORD_RECOVERY_FAILED",
+            "PASSWORD_SETUP_FAILED", "PASSWORD_REUSE_BLOCKED", "PASSWORD_SETUP_CONCURRENT_BLOCKED",
+            "CANDIDATE_PASSWORD_RECOVERY_REQUESTED", "CANDIDATE_PASSWORD_RESET_SUCCESS",
+            "ORG_PASSWORD_RECOVERY_OTP_DISPATCHED", "ORG_PASSWORD_RESET_SUCCESS", "CREDENTIAL_ROTATION"
+        };
+
+        var logsToMigrate = await context.AuditLogs
+            .Where(a => eventTypes.Contains(a.EventType) && a.IsLegacySecurityEvent == false)
+            .ToListAsync();
+
+        if (!logsToMigrate.Any())
+        {
+            return;
+        }
+
+        Console.WriteLine($"[Migration] Migrating {logsToMigrate.Count} legacy security audit logs to security_events.");
+
+        try
+        {
+            context.BypassImmutabilityEnforcement = true;
+
+            foreach (var auditLog in logsToMigrate)
+            {
+                auditLog.IsLegacySecurityEvent = true;
+
+                var upper = auditLog.EventType.ToUpperInvariant();
+                var category = "Authentication";
+                if (upper.Contains("SESSION") || upper.Contains("TOKEN"))
+                    category = "Session";
+                else if (upper.Contains("RATE") || upper.Contains("INJECTION") || upper.Contains("LIMIT"))
+                    category = "Api";
+
+                var severity = "Informational";
+                var riskScore = 0;
+                if (upper.Contains("THEFT") || upper.Contains("INJECTION") || upper.Contains("CRITICAL"))
+                {
+                    severity = "Critical";
+                    riskScore = 90;
+                }
+                else if (upper.Contains("SUSPICIOUS") || upper.Contains("BLOCKED") || upper.Contains("ABUSE") || upper.Contains("HIGH"))
+                {
+                    severity = "High";
+                    riskScore = 70;
+                }
+                else if (upper.Contains("FAILED") || upper.Contains("REJECT") || upper.Contains("MEDIUM"))
+                {
+                    severity = "Medium";
+                    riskScore = 40;
+                }
+                else if (upper.Contains("LOW"))
+                {
+                    severity = "Low";
+                    riskScore = 15;
+                }
+
+                var exists = await context.SecurityEvents.AnyAsync(se => se.Id == auditLog.Id);
+                if (!exists)
+                {
+                    var secEvent = new SecurityEvent
+                    {
+                        Id = auditLog.Id,
+                        EventType = auditLog.EventType,
+                        Category = category,
+                        Severity = severity,
+                        Status = "New",
+                        RiskScore = riskScore,
+                        ConfidenceScore = 95,
+                        Description = auditLog.Description,
+                        ActorUserId = auditLog.ActorUserId ?? auditLog.UserId,
+                        TargetUserId = auditLog.TargetUserId,
+                        OrganizationId = auditLog.OrganizationId,
+                        IpAddress = auditLog.IpAddress,
+                        DetailsJson = auditLog.DetailsJson,
+                        CorrelationId = auditLog.CorrelationId ?? Guid.Empty,
+                        CreatedAt = auditLog.CreatedAt,
+                        UpdatedAt = auditLog.CreatedAt
+                    };
+                    context.SecurityEvents.Add(secEvent);
+                }
+            }
+
+            await context.SaveChangesAsync();
+        }
+        finally
+        {
+            context.BypassImmutabilityEnforcement = false;
+        }
+
+        Console.WriteLine("[Migration] Historical security events migration complete.");
     }
 
     private static async Task MigrateLegacyUsernamesAsync(ApplicationDbContext context, IUsernameService usernameService)
@@ -3469,6 +3532,7 @@ public static class DbInitializer
             Console.WriteLine($"[Migration] Error running MigrateLegacyRepositoryMetadataAsync: {ex.Message}");
         }
     }
+
 
     private class DbInitializerRateLimitPolicyService : CVerify.API.Modules.Shared.System.Services.IRateLimitPolicyService
     {

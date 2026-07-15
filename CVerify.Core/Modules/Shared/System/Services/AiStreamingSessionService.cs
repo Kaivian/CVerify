@@ -71,10 +71,12 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         var sub = _redis.GetSubscriber();
         var channel = $"ai:streaming:progress:{sessionId}";
         await sub.PublishAsync(channel, json);
+        await sub.PublishAsync("ai:streaming:progress:all", json);
     }
 
     public async Task<AiStreamingSession> CreateSessionAsync(Guid sessionId, string pipelineId, Guid userId, Guid? workspaceId, string modelName, string provider, string pipelineVersion, string? expectedOutputsJson = null)
     {
+        // 1. Manage transient streaming session
         var existing = await _dbContext.AiStreamingSessions.FirstOrDefaultAsync(s => s.Id == sessionId);
         if (existing != null)
         {
@@ -86,33 +88,65 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             existing.TotalInputTokens = 0;
             existing.TotalOutputTokens = 0;
             existing.LastUpdatedUtc = DateTimeOffset.UtcNow;
-            await _dbContext.SaveChangesAsync();
-
-            await PublishEventAsync(sessionId, "SESSION_STARTED", "Pending", 0.0, "Session reset.");
-            return existing;
+        }
+        else
+        {
+            existing = new AiStreamingSession
+            {
+                Id = sessionId,
+                PipelineId = pipelineId,
+                UserId = userId,
+                WorkspaceId = workspaceId,
+                Status = "Pending",
+                Progress = 0.0,
+                ModelName = modelName,
+                Provider = provider,
+                PipelineVersion = pipelineVersion,
+                ExpectedOutputs = expectedOutputsJson,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                LastUpdatedUtc = DateTimeOffset.UtcNow
+            };
+            _dbContext.AiStreamingSessions.Add(existing);
         }
 
-        var session = new AiStreamingSession
+        // 2. Manage durable PipelineExecution
+        var execution = await _dbContext.PipelineExecutions.FirstOrDefaultAsync(e => e.Id == sessionId);
+        if (execution != null)
         {
-            Id = sessionId,
-            PipelineId = pipelineId,
-            UserId = userId,
-            WorkspaceId = workspaceId,
-            Status = "Pending",
-            Progress = 0.0,
-            ModelName = modelName,
-            Provider = provider,
-            PipelineVersion = pipelineVersion,
-            ExpectedOutputs = expectedOutputsJson,
-            CreatedAtUtc = DateTimeOffset.UtcNow,
-            LastUpdatedUtc = DateTimeOffset.UtcNow
-        };
+            execution.Status = "Pending";
+            execution.Progress = 0.00m;
+            execution.StartedAt = null;
+            execution.CompletedAt = null;
+            execution.CumulativeCostUsd = 0.00m;
+            execution.TotalInputTokens = 0;
+            execution.TotalOutputTokens = 0;
+            execution.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
+            execution.RetryCount = 0;
+        }
+        else
+        {
+            execution = new PipelineExecution
+            {
+                Id = sessionId,
+                PipelineType = pipelineId,
+                ReferenceId = sessionId,
+                Status = "Pending",
+                Progress = 0.00m,
+                UserId = userId,
+                WorkspaceId = workspaceId,
+                ModelName = modelName,
+                Provider = provider,
+                PipelineVersion = pipelineVersion,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                LastUpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            _dbContext.PipelineExecutions.Add(execution);
+        }
 
-        _dbContext.AiStreamingSessions.Add(session);
         await _dbContext.SaveChangesAsync();
 
         await PublishEventAsync(sessionId, "SESSION_STARTED", "Pending", 0.0, "Session created.");
-        return session;
+        return existing;
     }
 
     public async Task UpdateSessionStatusAsync(Guid sessionId, string status, string? errorMessage = null, string? summaryData = null)
@@ -141,8 +175,34 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             }
 
             session.LastUpdatedUtc = DateTimeOffset.UtcNow;
-            await _dbContext.SaveChangesAsync();
+        }
 
+        // Durable PipelineExecution update
+        var execution = await _dbContext.PipelineExecutions.FirstOrDefaultAsync(e => e.Id == sessionId);
+        if (execution != null)
+        {
+            execution.Status = status;
+            if (status == "Running" && execution.StartedAt == null)
+            {
+                execution.StartedAt = DateTimeOffset.UtcNow;
+            }
+            else if (status == "Completed" || status == "Failed" || status == "Cancelled")
+            {
+                execution.CompletedAt = DateTimeOffset.UtcNow;
+            }
+
+            if (!string.IsNullOrEmpty(errorMessage))
+            {
+                execution.ErrorMessage = errorMessage;
+            }
+
+            execution.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        if (session != null)
+        {
             var eventType = (status == "Completed" || status == "Failed" || status == "Cancelled")
                 ? "SESSION_COMPLETED"
                 : "STAGE_PROGRESS";
@@ -166,14 +226,27 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             session.Progress = progress;
             session.CurrentStep = currentStep;
             session.LastUpdatedUtc = DateTimeOffset.UtcNow;
-            await _dbContext.SaveChangesAsync();
+        }
 
+        var execution = await _dbContext.PipelineExecutions.FirstOrDefaultAsync(e => e.Id == sessionId);
+        if (execution != null)
+        {
+            execution.Progress = (decimal)progress;
+            execution.CurrentStep = currentStep;
+            execution.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        if (session != null)
+        {
             await PublishEventAsync(sessionId, "STAGE_PROGRESS", session.Status, progress, currentStep);
         }
     }
 
     public async Task<AiStreamingStage> UpsertStageAsync(Guid sessionId, string stageId, string stageName, string status, double progress, string? description = null, string? parentStageId = null, string? detailsJson = null, int retryCount = 0, long? durationMs = null)
     {
+        // 1. Transient streaming stage
         var stage = await _dbContext.AiStreamingStages
             .FirstOrDefaultAsync(s => s.SessionId == sessionId && s.StageId == stageId);
 
@@ -220,9 +293,63 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             else if ((status == "Completed" || status == "Failed") && stage.CompletedAt == null)
             {
                 stage.CompletedAt = DateTimeOffset.UtcNow;
-                if (stage.StartedAt.HasValue)
+                if (stage.StartedAt.HasValue && !durationMs.HasValue)
                 {
                     stage.DurationMs = (long)(DateTimeOffset.UtcNow - stage.StartedAt.Value).TotalMilliseconds;
+                }
+            }
+        }
+
+        // 2. Durable PipelineStage upsert
+        var pStage = await _dbContext.PipelineStages
+            .FirstOrDefaultAsync(s => s.ExecutionId == sessionId && s.StageId == stageId);
+
+        if (pStage == null)
+        {
+            pStage = new PipelineStage
+            {
+                Id = Guid.CreateVersion7(),
+                ExecutionId = sessionId,
+                StageId = stageId,
+                StageName = stageName,
+                ParentStageId = parentStageId,
+                Status = status,
+                Progress = (decimal)progress,
+                Description = description,
+                DetailsJson = detailsJson,
+                RetryCount = retryCount,
+                DurationMs = durationMs,
+                StartedAt = status == "Running" ? DateTimeOffset.UtcNow : null
+            };
+
+            if (status == "Completed" || status == "Failed")
+            {
+                pStage.CompletedAt = DateTimeOffset.UtcNow;
+            }
+
+            _dbContext.PipelineStages.Add(pStage);
+        }
+        else
+        {
+            pStage.Status = status;
+            pStage.Progress = (decimal)progress;
+            if (!string.IsNullOrEmpty(stageName)) pStage.StageName = stageName;
+            if (!string.IsNullOrEmpty(description)) pStage.Description = description;
+            if (!string.IsNullOrEmpty(parentStageId)) pStage.ParentStageId = parentStageId;
+            if (!string.IsNullOrEmpty(detailsJson)) pStage.DetailsJson = detailsJson;
+            if (retryCount > 0) pStage.RetryCount = retryCount;
+            if (durationMs.HasValue) pStage.DurationMs = durationMs;
+
+            if (status == "Running" && pStage.StartedAt == null)
+            {
+                pStage.StartedAt = DateTimeOffset.UtcNow;
+            }
+            else if ((status == "Completed" || status == "Failed") && pStage.CompletedAt == null)
+            {
+                pStage.CompletedAt = DateTimeOffset.UtcNow;
+                if (pStage.StartedAt.HasValue && !durationMs.HasValue)
+                {
+                    pStage.DurationMs = (long)(DateTimeOffset.UtcNow - pStage.StartedAt.Value).TotalMilliseconds;
                 }
             }
         }
@@ -262,6 +389,20 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         };
 
         _dbContext.AiStreamingLogs.Add(log);
+
+        // Durable PipelineEvent add
+        var pEvent = new PipelineEvent
+        {
+            Id = Guid.CreateVersion7(),
+            ExecutionId = sessionId,
+            StageId = stageId,
+            LogLevel = logLevel,
+            Component = component,
+            Message = message,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+        _dbContext.PipelineEventsDurable.Add(pEvent);
+
         await _dbContext.SaveChangesAsync();
 
         var session = await _dbContext.AiStreamingSessions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sessionId);
@@ -310,6 +451,62 @@ public class AiStreamingSessionService : IAiStreamingSessionService
             {
                 session.TotalCostUsd = (session.TotalCostUsd ?? 0m) + (decimal)metricValue;
             }
+        }
+
+        // Durable PipelineExecution update
+        var execution = await _dbContext.PipelineExecutions.FirstOrDefaultAsync(e => e.Id == sessionId);
+        if (execution != null)
+        {
+            if (metricName == "input_tokens" || metricName == "prompt_tokens")
+            {
+                execution.TotalInputTokens = (execution.TotalInputTokens ?? 0) + (int)metricValue;
+            }
+            else if (metricName == "output_tokens" || metricName == "completion_tokens")
+            {
+                execution.TotalOutputTokens = (execution.TotalOutputTokens ?? 0) + (int)metricValue;
+            }
+            else if (metricName == "cost_usd")
+            {
+                execution.CumulativeCostUsd = (execution.CumulativeCostUsd) + (decimal)metricValue;
+            }
+            execution.LastUpdatedAtUtc = DateTimeOffset.UtcNow;
+        }
+
+        // Add to PipelineTaskEntity if stageId is defined to keep detailed metrics
+        if (!string.IsNullOrEmpty(stageId))
+        {
+            var pTask = await _dbContext.PipelineTasksDurable.FirstOrDefaultAsync(t => t.ExecutionId == sessionId && t.TaskIdentifier == stageId);
+            if (pTask == null)
+            {
+                pTask = new PipelineTaskEntity
+                {
+                    Id = Guid.CreateVersion7(),
+                    ExecutionId = sessionId,
+                    TaskIdentifier = stageId,
+                    TaskName = stageId, // placeholder
+                    Status = "Running",
+                    Progress = 0.00m,
+                    StartedAt = DateTimeOffset.UtcNow,
+                    CreatedAtUtc = DateTimeOffset.UtcNow
+                };
+                _dbContext.PipelineTasksDurable.Add(pTask);
+            }
+
+            if (metricName == "input_tokens" || metricName == "prompt_tokens")
+            {
+                pTask.PromptTokens = (pTask.PromptTokens ?? 0) + (int)metricValue;
+            }
+            else if (metricName == "output_tokens" || metricName == "completion_tokens")
+            {
+                pTask.CompletionTokens = (pTask.CompletionTokens ?? 0) + (int)metricValue;
+            }
+            else if (metricName == "cost_usd")
+            {
+                pTask.EstimatedCostUsd = (pTask.EstimatedCostUsd ?? 0m) + (decimal)metricValue;
+            }
+            pTask.Status = "Completed";
+            pTask.CompletedAt = DateTimeOffset.UtcNow;
+            pTask.DurationMs = pTask.StartedAt.HasValue ? (long?)(DateTimeOffset.UtcNow - pTask.StartedAt.Value).TotalMilliseconds : null;
         }
 
         await _dbContext.SaveChangesAsync();

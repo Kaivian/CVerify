@@ -3,9 +3,19 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
-# Load .env file relative to the location of config.py
-# config.py is inside CVerify.AI/app/config.py, so its parent's parent is CVerify.AI/
-env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+def find_env_file() -> str:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    while current_dir:
+        candidate = os.path.join(current_dir, ".env")
+        if os.path.exists(candidate):
+            return candidate
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir == current_dir:
+            break
+        current_dir = parent_dir
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+
+env_path = find_env_file()
 if os.path.exists(env_path):
     load_dotenv(env_path)
 

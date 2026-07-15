@@ -13,9 +13,10 @@ import {
   type ChangePasswordPayload
 } from '../services/auth.service';
 import { type User, type UserRole, type ResourceActionPermission } from '../../../types/auth.types';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useContext } from 'react';
 import { normalizeError } from '../../../services/axios-client';
 import { normalizeRole } from '../../../lib/utils/auth-utils';
+import { AuthContext } from '../context/auth-context';
 
 // Configurable timeout constant for cold starts and slow networks
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 15000;
@@ -26,6 +27,8 @@ let activeAuthAbortController: AbortController | null = null;
 let bootstrapGeneration = 0;
 
 export const useAuth = () => {
+  const overriddenAuth = useContext(AuthContext);
+
   const storeUser = useAuthStore(s => s.user);
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const isLoading = useAuthStore(s => s.isLoading);
@@ -985,7 +988,7 @@ export const useAuth = () => {
     }
   }, [setLoading]);
 
-  return {
+  const returnedAuth = {
     // Zustand States
     user: storeUser,
     isAuthenticated,
@@ -1055,4 +1058,6 @@ export const useAuth = () => {
     hasRole: useCallback((role: UserRole) => storeHasRole(role), [storeHasRole]),
     hasPermission: useCallback((permission: ResourceActionPermission) => storeHasPermission(permission), [storeHasPermission]),
   };
+
+  return (overriddenAuth as typeof returnedAuth) || returnedAuth;
 };

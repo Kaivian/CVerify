@@ -2924,25 +2924,21 @@ export default function CvManagementCenter() {
                   {useSampleData ? "Clear Sample Data" : "Load Sample Data"}
                 </Button>
                 <Dropdown>
-                  <Dropdown.Trigger>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl text-[10px] font-bold select-none border-border/30 flex items-center gap-1.5"
-                      isDisabled={isExportingPng}
-                    >
-                      {isExportingPng ? (
-                        <>
-                          <Spinner size="sm" color="current" className="size-3" />
-                          <span>Exporting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Export</span>
-                          <ChevronDown className="size-3.5" />
-                        </>
-                      )}
-                    </Button>
+                  <Dropdown.Trigger
+                    isDisabled={isExportingPng}
+                    className="h-8 px-3 rounded-xl text-[10px] font-bold select-none border border-border/30 flex items-center gap-1.5 bg-surface-secondary text-foreground hover:opacity-90 cursor-pointer transition-all duration-150 outline-none"
+                  >
+                    {isExportingPng ? (
+                      <>
+                        <Spinner size="sm" color="current" className="size-3" />
+                        <span>Exporting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Export</span>
+                        <ChevronDown className="size-3.5" />
+                      </>
+                    )}
                   </Dropdown.Trigger>
                   <Dropdown.Popover
                     placement="bottom end"
