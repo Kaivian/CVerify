@@ -232,7 +232,7 @@ public class ActivityEventProjectionWorker : BackgroundService
             ScopeType = ae.ResourceType?.ToUpperInvariant() ?? "ORGANIZATION",
             ScopeId = ae.ResourceId ?? ae.OrganizationId,
             Category = (ae.EventType.StartsWith("ENTERPRISE_") || ae.EventType.StartsWith("ORGANIZATION_"))
-                ? CVerify.API.Modules.Shared.Domain.Enums.AuditCategory.VerificationOperations 
+                ? CVerify.API.Modules.Shared.Domain.Enums.AuditCategory.VerificationOperations
                 : CVerify.API.Modules.Shared.Domain.Enums.AuditCategory.IdentityAndAccess,
             DetailsJson = detailsJson,
             CreatedAt = ae.CreatedAt

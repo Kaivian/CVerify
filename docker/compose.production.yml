@@ -13,6 +13,7 @@ services:
     command: redis-server --requirepass "${REDIS_PASSWORD}" --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
 
   cverify-ai:
+    image: ${GAR_REGISTRY_URL}/${GCP_PROJECT_ID}/cverify/ai:${IMAGE_TAG:-latest}
     env_file:
       - ../.env
     environment:
@@ -29,6 +30,7 @@ services:
       ENABLE_VISION_CERTIFICATE_OCR: ${ENABLE_VISION_CERTIFICATE_OCR:-false}
 
   cverify-core:
+    image: ${GAR_REGISTRY_URL}/${GCP_PROJECT_ID}/cverify/core:${IMAGE_TAG:-latest}
     env_file:
       - ../.env
     environment:
@@ -43,15 +45,18 @@ services:
       - "127.0.0.1:${CORE_PORT:-5250}:5000"
 
   cverify-client:
-    build:
-      args:
-        - NEXT_PUBLIC_API_URL=http://localhost:${CORE_PORT:-5250}/api
-        - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-your_google_client_id_here}
+    image: ${GAR_REGISTRY_URL}/${GCP_PROJECT_ID}/cverify/client:${IMAGE_TAG:-latest}
     env_file:
       - ../.env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:${CORE_PORT:-5250}/api
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5250/api}
       PORT: 3000
       JWT_SECRET: ${JWT_KEY}
     ports:
       - "${CLIENT_PORT:-3003}:3000"
+
+networks:
+  cverify-infra-net:
+    name: cverify-infra_cverify-infra-net
+    external: true
+

@@ -130,8 +130,8 @@ public class CapabilityCatalogSeeder : IValidatableSeeder
                 context.CapabilityCatalogItems.Add(cap);
                 affected++;
             }
-            else if (existing.DisplayName != cap.DisplayName || 
-                     existing.Category != cap.Category || 
+            else if (existing.DisplayName != cap.DisplayName ||
+                     existing.Category != cap.Category ||
                      existing.Description != cap.Description ||
                      !EqualLists(existing.Skills, cap.Skills) ||
                      !EqualLists(existing.ExpectedEvidence, cap.ExpectedEvidence))

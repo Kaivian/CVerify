@@ -821,8 +821,8 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
                         {/* Glow effect for dynamic Top Match */}
                         {isTopHighlighted && (
                           <span className="absolute -top-1.5 -left-1.5 flex h-3 w-3 z-10">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-accent"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-accent" />
                           </span>
                         )}
 

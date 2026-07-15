@@ -16,31 +16,31 @@ public static class PipelineRegistry
     public static readonly List<PipelineMetadata> Pipelines = new()
     {
         new PipelineMetadata(
-            "repository-analysis", 
-            "Repository AI", 
-            "repository", 
-            new[] { "git", "static", "ai" }, 
+            "repository-analysis",
+            "Repository AI",
+            "repository",
+            new[] { "git", "static", "ai" },
             "Deep codebase indexing, commit authorship audits, and Trust Score calculations."
         ),
         new PipelineMetadata(
-            "cv-analysis", 
-            "CV Intelligence", 
-            "cv", 
-            new[] { "ai" }, 
+            "cv-analysis",
+            "CV Intelligence",
+            "cv",
+            new[] { "ai" },
             "Resume parsing, skill trees extraction, and candidate capability mapping."
         ),
         new PipelineMetadata(
-            "jd-generation", 
-            "Job Intelligence", 
-            "job", 
-            new[] { "ai" }, 
+            "jd-generation",
+            "Job Intelligence",
+            "job",
+            new[] { "ai" },
             "AI-powered requirements elicitation, seniority estimation, and skill mapping."
         ),
         new PipelineMetadata(
-            "candidate-match", 
-            "Matching Intelligence", 
-            "matching", 
-            new[] { "aggregation", "ai" }, 
+            "candidate-match",
+            "Matching Intelligence",
+            "matching",
+            new[] { "aggregation", "ai" },
             "Semantic matching, candidacy ranking, and profile-to-job matching evaluations."
         )
     };
