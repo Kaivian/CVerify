@@ -110,8 +110,13 @@ jobs:
           
           # Promote manifest and orchestration bundle in GCS
           UAT_SHA="${{ steps.resolve-sha.outputs.UAT_SHA }}"
+          
+          # Download UAT manifest, update commit_sha to production SHA, then upload
           gcloud storage cp \
             "gs://cverify-build-metadata-$GCP_PROJECT/manifests/sha-${UAT_SHA}.json" \
+            /tmp/manifest-promote.json
+          jq --arg sha "$PROD_SHA" '.commit_sha = $sha' /tmp/manifest-promote.json > /tmp/manifest-prod.json
+          gcloud storage cp /tmp/manifest-prod.json \
             "gs://cverify-build-metadata-$GCP_PROJECT/manifests/sha-${PROD_SHA}.json"
           
           gcloud storage cp \
