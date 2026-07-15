@@ -174,17 +174,34 @@ resource "google_compute_instance" "app_server" {
     #!/bin/bash
     set -e
     
+    # Function to wait for apt locks
+    wait_for_apt() {
+      echo "Waiting for apt/dpkg locks..."
+      while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        echo "Apt lock held by another process, sleeping 5 seconds..."
+        sleep 5
+      done
+      echo "Apt locks released."
+    }
+
+    # Wait for initial locks
+    wait_for_apt
+    
     # 1. Update system dependencies
     apt-get update
+    wait_for_apt
     apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release nginx jq git
     
     # 2. Add Docker repository and key
     mkdir -p /etc/apt/keyrings
+    wait_for_apt
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
     
     # 3. Install Docker Engine and Compose Plugin
+    wait_for_apt
     apt-get update
+    wait_for_apt
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
     
     # 4. Set up deployer user and directory permissions
