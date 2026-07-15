@@ -26,7 +26,7 @@ export const AuthFooter: React.FC = () => {
           Contact
           <Link.Icon className="pt-0.5" />
         </Link>
-        <Link className="text-foreground font-semibold" href="/system-status">
+        <Link className="text-foreground font-semibold" href="/status">
           System Status
           <Link.Icon className="pt-0.5" />
         </Link>
@@ -36,3 +36,4 @@ export const AuthFooter: React.FC = () => {
 };
 
 export default AuthFooter;
+

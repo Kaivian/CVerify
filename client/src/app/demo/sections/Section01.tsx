@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import { Check, Key, ShieldCheck } from "lucide-react";
 import { Github } from "@thesvg/react";
@@ -8,44 +8,48 @@ import { useDemoStore, type SceneLifecycleState } from "../stores/use-demo-store
 import { cn } from "@/lib/utils";
 import { LoginView } from "@/features/auth/views/login-view";
 import { AuthContext } from "@/features/auth/context/auth-context";
-import { toast } from "@heroui/react";
+
 
 interface Section01Props {
   lifecycleState: SceneLifecycleState;
   onStateComplete: (state: SceneLifecycleState) => void;
+  currentPhaseId: string;
+  isPhaseCompleted: boolean;
+  onPhaseComplete: () => void;
 }
 
-export function Section01({ lifecycleState, onStateComplete }: Section01Props) {
+export function Section01({
+  lifecycleState,
+  onStateComplete,
+  currentPhaseId,
+  isPhaseCompleted,
+  onPhaseComplete,
+}: Section01Props) {
   const prefersReducedMotion = useReducedMotion();
-  const [stage, setStage] = useState<"logo" | "intro" | "login">("logo");
   const [logoState, setLogoState] = useState<"enter" | "exit">("enter");
   const [logoPhase, setLogoPhase] = useState<"idle" | "enter" | "centered" | "shifting" | "subtitle" | "done">("idle");
   const [verificationStep, setVerificationStep] = useState<"idle" | "verifying" | "success">("idle");
   const [isHoveringGoogle, setIsHoveringGoogle] = useState(false);
 
-  const subStage = useDemoStore((state) => state.subStage);
-  const setSubStage = useDemoStore((state) => state.setSubStage);
-  const nextSection = useDemoStore((state) => state.nextSection);
+  const setStatusMessage = useDemoStore((state) => state.setStatusMessage);
 
-  // Sync internal stage with store's subStage
-  useEffect(() => {
-    Promise.resolve().then(() => {
-      if (subStage === 0) {
-        setStage("logo");
-      } else if (subStage === 1) {
-        setStage("intro");
-      } else if (subStage === 2) {
-        setStage("login");
-      }
-    });
-  }, [subStage]);
+  const activeTimers = useRef<NodeJS.Timeout[]>([]);
 
-  // When our local stage changes, update store's subStage
+  const registerTimer = (timer: NodeJS.Timeout) => {
+    activeTimers.current.push(timer);
+    return timer;
+  };
+
+  const clearAllTimers = () => {
+    activeTimers.current.forEach(clearTimeout);
+    activeTimers.current = [];
+  };
+
   useEffect(() => {
-    Promise.resolve().then(() => {
-      setSubStage(stage === "logo" ? 0 : stage === "intro" ? 1 : 2, 3);
-    });
-  }, [stage, setSubStage]);
+    return () => clearAllTimers();
+  }, []);
+
+  const stage = currentPhaseId === "logo" ? "logo" : currentPhaseId === "intro" ? "intro" : "login";
 
   // Mock Authentication Provider handlers to prevent hitting real APIs during demo
   const mockAuthHandlers = {
@@ -62,38 +66,46 @@ export function Section01({ lifecycleState, onStateComplete }: Section01Props) {
     },
     login: async (_credentials: unknown) => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      toast.success("Demo Mode: Login successful!");
+      setStatusMessage("Demo Mode: Login successful!");
       return { success: true, nextStep: "DASHBOARD" };
     },
     loginWithGoogle: async (_idToken: string) => {
       await new Promise((resolve) => setTimeout(resolve, 1200));
-      toast.success("Demo Mode: Google SSO authenticated successfully!");
+      setStatusMessage("Demo Mode: Google SSO authenticated successfully!");
       return { success: true, nextStep: "DASHBOARD" };
     },
     companyLogin: async (payload: { organizationUsername: string }) => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      toast.success(`Demo Mode: Logged in to organization: ${payload.organizationUsername}`);
+      setStatusMessage(`Demo Mode: Logged in to organization: ${payload.organizationUsername}`);
       return { success: true, nextStep: "DASHBOARD" };
     },
     sendOtp: async (_email: string, _purpose: string) => {
       await new Promise((resolve) => setTimeout(resolve, 800));
-      toast.success("Demo Mode: OTP sent!");
+      setStatusMessage("Demo Mode: OTP sent!");
       return { success: true, data: { challengeId: "demo-challenge" } };
     },
   };
 
-  // Deterministic reset on unmount or beforeEnter transition trigger
+  // Deterministic reset on beforeEnter
   useEffect(() => {
     if (lifecycleState === "beforeEnter") {
-      Promise.resolve().then(() => {
-        setStage("logo");
+      clearAllTimers();
+      if (currentPhaseId === "logo") {
         setLogoState("enter");
         setLogoPhase("idle");
         setVerificationStep("idle");
-        setIsHoveringGoogle(false);
-      });
+      } else if (currentPhaseId === "intro") {
+        setLogoState("exit");
+        setLogoPhase("done");
+        setVerificationStep("success");
+      } else {
+        setLogoState("exit");
+        setLogoPhase("done");
+        setVerificationStep("success");
+      }
+      setIsHoveringGoogle(false);
     }
-  }, [lifecycleState]);
+  }, [lifecycleState, currentPhaseId]);
 
   // Handle body class for navigation logo synchronization
   useEffect(() => {
@@ -107,75 +119,70 @@ export function Section01({ lifecycleState, onStateComplete }: Section01Props) {
     };
   }, [stage, lifecycleState]);
 
-  // Handle stage transitions and notify engine of completion
+  // Central phase transition effect
   useEffect(() => {
-    if (lifecycleState === "active") {
-      if (stage === "logo") {
-        Promise.resolve().then(() => {
-          setLogoPhase("enter");
-        });
+    clearAllTimers();
 
-        const tCenter = setTimeout(() => {
-          setLogoPhase("centered");
-        }, 800);
+    if (lifecycleState !== "active") return;
 
-        const tShift = setTimeout(() => {
-          setLogoPhase("shifting");
-        }, 1300);
-
-        const tSubtitle = setTimeout(() => {
-          setLogoPhase("subtitle");
-        }, 2000);
-
-        const tDone = setTimeout(() => {
-          setLogoPhase("done");
-        }, 2600);
-
-        const tExit = setTimeout(() => {
-          setLogoState("exit");
-        }, 4100);
-
-        return () => {
-          clearTimeout(tCenter);
-          clearTimeout(tShift);
-          clearTimeout(tSubtitle);
-          clearTimeout(tDone);
-          clearTimeout(tExit);
-        };
-      } else if (stage === "intro") {
-        const t1 = setTimeout(() => {
-          setVerificationStep("verifying");
-        }, 800);
-
-        const t2 = setTimeout(() => {
-          setVerificationStep("success");
-        }, 2500);
-
-        return () => {
-          clearTimeout(t1);
-          clearTimeout(t2);
-        };
-      } else if (stage === "login") {
-        // Confirm scene active state complete after the login section finishes entering (800ms)
-        const tComplete = setTimeout(() => {
-          onStateComplete("active");
-        }, 800);
-        return () => clearTimeout(tComplete);
+    if (isPhaseCompleted) {
+      if (currentPhaseId === "logo") {
+        setLogoState("enter");
+        setLogoPhase("done");
+        setVerificationStep("idle");
+      } else if (currentPhaseId === "intro") {
+        setLogoState("exit");
+        setLogoPhase("done");
+        setVerificationStep("success");
+      } else if (currentPhaseId === "login") {
+        setLogoState("exit");
+        setLogoPhase("done");
+        setVerificationStep("success");
       }
-    } else if (lifecycleState === "beforeExit") {
-      onStateComplete("beforeExit");
+      onStateComplete("active");
+      return;
     }
-  }, [lifecycleState, stage, onStateComplete]);
 
-  // Pause for 1 second on verification success before transitioning into Login view
+    // Play/Animation mode
+    if (currentPhaseId === "logo") {
+      setLogoState("enter");
+      setLogoPhase("idle");
+      setVerificationStep("idle");
+
+      registerTimer(setTimeout(() => setLogoPhase("enter"), 50));
+      registerTimer(setTimeout(() => setLogoPhase("centered"), 800));
+      registerTimer(setTimeout(() => setLogoPhase("shifting"), 1300));
+      registerTimer(setTimeout(() => setLogoPhase("subtitle"), 2000));
+      registerTimer(setTimeout(() => setLogoPhase("done"), 2600));
+      registerTimer(setTimeout(() => setLogoState("exit"), 4100));
+      registerTimer(setTimeout(() => onPhaseComplete(), 4600));
+      onStateComplete("active");
+    } else if (currentPhaseId === "intro") {
+      setLogoState("exit");
+      setLogoPhase("done");
+      setVerificationStep("idle");
+
+      registerTimer(setTimeout(() => setVerificationStep("verifying"), 800));
+      registerTimer(setTimeout(() => setVerificationStep("success"), 2500));
+      onStateComplete("active");
+    } else if (currentPhaseId === "login") {
+      setLogoState("exit");
+      setLogoPhase("done");
+      setVerificationStep("success");
+
+      registerTimer(setTimeout(() => onStateComplete("active"), 800));
+    }
+  }, [currentPhaseId, isPhaseCompleted, lifecycleState, onStateComplete]);
+
+  // Auto-progress for intro success state in autoplay
   useEffect(() => {
-    if (verificationStep === "success" && stage === "intro") {
+    if (verificationStep === "success" && currentPhaseId === "intro" && !isPhaseCompleted) {
       const tLogin = setTimeout(() => {
-        setStage("login");
+        onPhaseComplete();
       }, 1000);
       return () => clearTimeout(tLogin);
     }
-  }, [verificationStep, stage]);
+  }, [verificationStep, currentPhaseId, isPhaseCompleted, onPhaseComplete]);
 
   // Framer Motion entrance variations for Intro
   const slideUp = {
@@ -232,11 +239,6 @@ export function Section01({ lifecycleState, onStateComplete }: Section01Props) {
               animate={logoState === "enter" ? { opacity: 1 } : { opacity: 0, scale: prefersReducedMotion ? 1 : 0.98 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              onAnimationComplete={() => {
-                if (logoState === "exit") {
-                  setStage("intro");
-                }
-              }}
               className="flex flex-col items-center justify-center w-full h-full min-h-[400px]"
             >
               <motion.div layout className="flex items-center justify-center gap-8">
@@ -441,10 +443,13 @@ export function Section01({ lifecycleState, onStateComplete }: Section01Props) {
                         if (googleBtn) {
                           e.stopPropagation();
                           e.preventDefault();
-                          toast.success("Demo Mode: Google SSO authenticated successfully!");
-                          setTimeout(() => {
-                            nextSection();
-                          }, 1000);
+                          setStatusMessage("Demo Mode: Google SSO authenticated successfully!");
+                          useDemoStore.setState({ isPlaying: true });
+                          registerTimer(
+                            setTimeout(() => {
+                              onPhaseComplete();
+                            }, 1000)
+                          );
                         }
                       }}
                     >

@@ -360,7 +360,12 @@ export default function Home() {
                     </div>
 
                     {/* Control Action Buttons */}
-                    <div className="flex gap-3 mt-4 justify-start">
+                    <div className="flex gap-3 mt-4 justify-start items-center">
+                      <Link href="/demo">
+                        <button className="px-4 py-2.5 rounded-lg text-xs font-semibold bg-accent hover:bg-accent/90 text-white transition-all flex items-center gap-2 cursor-pointer shadow-sm">
+                          Interactive Demo
+                        </button>
+                      </Link>
                       {!isSimulating && activeStep === 0 ? (
                         <button
                           onClick={handleStartSimulation}
@@ -636,7 +641,7 @@ export default function Home() {
                 <Typography type="body-sm" className="text-muted text-sm leading-relaxed font-light mb-4 max-w-sm">
                   Scale your engineering validation with mathematical confidence. Connect your platforms.
                 </Typography>
-                <div className="select-none pt-2">
+                <div className="select-none pt-2 flex flex-col sm:flex-row gap-4 items-center justify-center">
                   <Magnet padding={30} disabled={false} magnetStrength={30}>
                     <Link href="/login" className="inline-block">
                       <button className="px-6 h-12 rounded-xl text-xs font-semibold bg-foreground text-background hover:bg-foreground/95 transition-all flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(255,255,255,0.15)] border border-border/25 cursor-pointer">
@@ -645,6 +650,11 @@ export default function Home() {
                       </button>
                     </Link>
                   </Magnet>
+                  <Link href="/demo" className="inline-block">
+                    <button className="px-6 h-12 rounded-xl text-xs font-semibold bg-surface-secondary/30 hover:bg-surface-secondary/50 transition-all border border-border/40 text-foreground backdrop-blur-sm flex items-center justify-center gap-2 cursor-pointer">
+                      Try Interactive Demo
+                    </button>
+                  </Link>
                 </div>
               </div>
             </motion.div>
@@ -655,12 +665,13 @@ export default function Home() {
         {/* Minimalist footer */}
         <footer className="relative z-10 w-full max-w-7xl mx-auto px-6 py-8 border-t border-border/15 text-center text-xs text-muted/50 select-none flex flex-col md:flex-row justify-between items-center gap-4">
           <Typography type="body-xs" className="text-muted/50">
-            © 2026 CVerify. All rights reserved.
+            CVERIFY © 2026. REAL COMMITS. REAL CAREER
           </Typography>
-          <div className="flex gap-4">
-            <Link href="#" className="hover:text-foreground transition-colors">Privacy</Link>
-            <Link href="#" className="hover:text-foreground transition-colors">Terms</Link>
-            <Link href="#" className="hover:text-foreground transition-colors">System Status</Link>
+          <div className="flex gap-4 md:gap-6">
+            <Link href="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+            <Link href="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
+            <Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link>
+            <Link href="/status" className="hover:text-foreground transition-colors">System Status</Link>
           </div>
         </footer>
       </div>

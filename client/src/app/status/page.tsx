@@ -147,7 +147,7 @@ export default function SystemStatusPage() {
   const overallStatus = getOverallStatus();
 
   return (
-    <div className="dark min-h-screen flex flex-col justify-between bg-background text-foreground font-sans selection:bg-accent/30 selection:text-accent relative overflow-hidden">
+    <div className="min-h-screen flex flex-col justify-between bg-background text-foreground font-sans selection:bg-accent/30 selection:text-accent relative overflow-hidden">
 
       {/* Visual Ambient Blur Accents */}
       <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-cyan-900/10 blur-[120px] pointer-events-none" />
@@ -219,20 +219,19 @@ export default function SystemStatusPage() {
         ) : (
           <div className="space-y-6">
 
-            {/* 1. HERO GENERAL STATUS BANNER */}
             <div className={`p-6 md:p-8 rounded-2xl border backdrop-blur-md shadow-2xl relative overflow-hidden transition-all duration-500 ${overallStatus === 'healthy'
-                ? 'bg-emerald-950/20 border-emerald-500/30 shadow-emerald-950/10'
+                ? 'bg-success/10 border-success/30 shadow-success/10'
                 : overallStatus === 'degraded'
-                  ? 'bg-amber-950/20 border-amber-500/30 shadow-amber-950/10'
-                  : 'bg-rose-950/20 border-rose-500/30 shadow-rose-950/10'
+                  ? 'bg-warning/10 border-warning/30 shadow-warning/10'
+                  : 'bg-danger/10 border-danger/30 shadow-danger/10'
               }`}>
 
               {/* Corner status glow backdrop */}
               <div className={`absolute top-0 right-0 w-60 h-60 rounded-full blur-[80px] opacity-20 pointer-events-none translate-x-20 -translate-y-20 transition-all ${overallStatus === 'healthy'
-                  ? 'bg-emerald-500'
+                  ? 'bg-success'
                   : overallStatus === 'degraded'
-                    ? 'bg-amber-500'
-                    : 'bg-rose-500'
+                    ? 'bg-warning'
+                    : 'bg-danger'
                 }`} />
 
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
@@ -240,23 +239,23 @@ export default function SystemStatusPage() {
                   <div className="flex items-center gap-2.5">
                     <span className="relative flex h-3.5 w-3.5">
                       <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${overallStatus === 'healthy'
-                          ? 'bg-emerald-400'
+                          ? 'bg-success/80'
                           : overallStatus === 'degraded'
-                            ? 'bg-amber-400'
-                            : 'bg-rose-400'
+                            ? 'bg-warning/80'
+                            : 'bg-danger/80'
                         }`} />
                       <span className={`relative inline-flex rounded-full h-3.5 w-3.5 ${overallStatus === 'healthy'
-                          ? 'bg-emerald-500'
+                          ? 'bg-success'
                           : overallStatus === 'degraded'
-                            ? 'bg-amber-500'
-                            : 'bg-rose-500'
+                            ? 'bg-warning'
+                            : 'bg-danger'
                         }`} />
                     </span>
                     <span className={`text-sm font-extrabold uppercase tracking-widest ${overallStatus === 'healthy'
-                        ? 'text-emerald-400'
+                        ? 'text-success'
                         : overallStatus === 'degraded'
-                          ? 'text-amber-400'
-                          : 'text-rose-400'
+                          ? 'text-warning'
+                          : 'text-danger'
                       }`}>
                       {overallStatus === 'healthy'
                         ? 'Operational'
@@ -295,8 +294,8 @@ export default function SystemStatusPage() {
 
             {/* 2. INCIDENT & ERROR METRICS PANEL */}
             {errorMsg && (
-              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex gap-3 items-center backdrop-blur-md">
-                <AlertTriangle size={18} className="text-rose-400 shrink-0" />
+              <div className="p-4 rounded-xl bg-danger/10 border border-danger/20 text-danger text-xs flex gap-3 items-center backdrop-blur-md">
+                <AlertTriangle size={18} className="text-danger shrink-0" />
                 <div className="space-y-0.5">
                   <span className="font-bold block">Connectivity Alert:</span>
                   <p className="text-rose-300/80">{errorMsg}</p>
@@ -314,11 +313,11 @@ export default function SystemStatusPage() {
                     <Server size={18} />
                   </div>
                   {telemetry.ping ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-success/10 text-success border border-success/20">
                       online
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-danger/10 text-danger border border-danger/20">
                       offline
                     </span>
                   )}
@@ -341,8 +340,8 @@ export default function SystemStatusPage() {
                   </div>
                   {telemetry.health ? (
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${telemetry.health.services.database === 'healthy'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        ? 'bg-success/10 text-success border border-success/20'
+                        : 'bg-danger/10 text-danger border border-danger/20'
                       }`}>
                       {telemetry.health.services.database}
                     </span>
@@ -370,8 +369,8 @@ export default function SystemStatusPage() {
                   </div>
                   {telemetry.health ? (
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${telemetry.health.services.redis === 'healthy'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        ? 'bg-success/10 text-success border border-success/20'
+                        : 'bg-danger/10 text-danger border border-danger/20'
                       }`}>
                       {telemetry.health.services.redis}
                     </span>
@@ -399,8 +398,8 @@ export default function SystemStatusPage() {
                   </div>
                   {telemetry.health ? (
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${telemetry.health.services.auth === 'healthy'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        ? 'bg-success/10 text-success border border-success/20'
+                        : 'bg-danger/10 text-danger border border-danger/20'
                       }`}>
                       {telemetry.health.services.auth}
                     </span>
@@ -428,8 +427,8 @@ export default function SystemStatusPage() {
                   </div>
                   {telemetry.health ? (
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${(telemetry.health.services.ai || 'unhealthy') === 'healthy'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        ? 'bg-success/10 text-success border border-success/20'
+                        : 'bg-danger/10 text-danger border border-danger/20'
                       }`}>
                       {telemetry.health.services.ai || 'unhealthy'}
                     </span>
@@ -457,8 +456,8 @@ export default function SystemStatusPage() {
                   </div>
                   {telemetry.health ? (
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${(telemetry.health.services.cloudflare || 'unhealthy') === 'healthy'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        ? 'bg-success/10 text-success border border-success/20'
+                        : 'bg-danger/10 text-danger border border-danger/20'
                       }`}>
                       {telemetry.health.services.cloudflare || 'unhealthy'}
                     </span>
@@ -508,11 +507,11 @@ export default function SystemStatusPage() {
                   <div className="p-4 rounded-lg bg-surface border border-border">
                     <span className="text-[10px] text-muted font-semibold block mb-1">PING VERIFY</span>
                     {telemetry.ping ? (
-                      <span className="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                      <span className="text-sm font-bold text-success uppercase tracking-wider flex items-center gap-1">
                         <CheckCircle2 size={12} /> {telemetry.ping.message}
                       </span>
                     ) : (
-                      <span className="text-sm font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1">
+                      <span className="text-sm font-bold text-danger uppercase tracking-wider flex items-center gap-1">
                         <AlertTriangle size={12} /> FAILED
                       </span>
                     )}

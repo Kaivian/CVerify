@@ -4,6 +4,11 @@ import { type ComponentType } from "react";
 export type DemoTransitionType = "fade" | "slide-x" | "slide-y" | "scale" | "blur" | "none";
 export type DemoThemeType = "light" | "dark" | "system";
 
+export interface DemoPhase {
+  id: string;
+  label: string;
+}
+
 export interface SceneMetadata {
   id: string;
   title: string;
@@ -16,6 +21,7 @@ export interface SceneMetadata {
   showNavigation?: boolean; // Show navigation controls? Default: true
   showProgress?: boolean; // Show progress indicators? Default: true
   assetsToPreload?: string[]; // Media or assets required by this scene
+  phases: DemoPhase[]; // Centralized list of phases
 }
 
 export interface DemoSection {
@@ -36,6 +42,11 @@ export const DEMO_SECTIONS: DemoSection[] = [
       allowBack: false,
       showNavigation: true,
       showProgress: true,
+      phases: [
+        { id: "logo", label: "Welcome & Logo" },
+        { id: "intro", label: "Attestation Concept" },
+        { id: "login", label: "Secure Gateway Login" }
+      ],
       assetsToPreload: [
         "/brand/logo.png",
         "/brand/logo-white.png",
@@ -57,6 +68,10 @@ export const DEMO_SECTIONS: DemoSection[] = [
       theme: "light",
       showNavigation: true,
       showProgress: true,
+      phases: [
+        { id: "dashboard", label: "Developer Dashboard" },
+        { id: "oauth", label: "GitHub Authentication" }
+      ],
     },
     component: dynamic(() => import("./sections/Section02"), {
       ssr: false,
@@ -72,6 +87,12 @@ export const DEMO_SECTIONS: DemoSection[] = [
       theme: "light",
       showNavigation: true,
       showProgress: true,
+      phases: [
+        { id: "sync-repo", label: "Sync Repositories" },
+        { id: "show-repos", label: "Select Repositories" },
+        { id: "analyze", label: "Cryptographic Indexing" },
+        { id: "link-cv", label: "Integrate to Profile" }
+      ],
     },
     component: dynamic(() => import("./sections/Section03"), {
       ssr: false,
@@ -87,6 +108,11 @@ export const DEMO_SECTIONS: DemoSection[] = [
       theme: "light",
       showNavigation: true,
       showProgress: true,
+      phases: [
+        { id: "fill-cv", label: "Autofill Profile" },
+        { id: "add-repo", label: "Link Verified Repository" },
+        { id: "analyze-cv", label: "Verify & Analyze CV" }
+      ],
     },
     component: dynamic(() => import("./sections/Section04"), {
       ssr: false,
@@ -102,8 +128,33 @@ export const DEMO_SECTIONS: DemoSection[] = [
       theme: "light",
       showNavigation: true,
       showProgress: true,
+      phases: [
+        { id: "ai-match", label: "AI Role Compatibility" },
+        { id: "apply", label: "Submit Application" }
+      ],
     },
     component: dynamic(() => import("./sections/Section05"), {
+      ssr: false,
+    }),
+  },
+  {
+    metadata: {
+      id: "candidate-review",
+      title: "Review & Approval",
+      description: "AI ranks applicants using cryptographic proof, letting recruiters approve top talent instantly.",
+      transition: "fade",
+      background: "bg-background",
+      theme: "light",
+      showNavigation: true,
+      showProgress: true,
+      phases: [
+        { id: "discovery", label: "Candidate Discovery" },
+        { id: "ranking", label: "AI Ranking" },
+        { id: "decision", label: "Recruiter Decision" },
+        { id: "approved", label: "Hiring Approval" }
+      ],
+    },
+    component: dynamic(() => import("./sections/Section06"), {
       ssr: false,
     }),
   },
