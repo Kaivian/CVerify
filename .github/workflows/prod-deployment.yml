@@ -162,6 +162,13 @@ jobs:
               # Attempt inline bootstrap with full output
               echo '=== Attempting inline bootstrap... ==='
 
+              # Clean up malformed apt sources from failed startup script
+              # The startup script may have written literal $(lsb_release -cs) instead of jammy
+              if grep -q 'lsb_release' /etc/apt/sources.list.d/docker.list 2>/dev/null; then
+                echo 'Removing malformed docker.list...'
+                sudo rm -f /etc/apt/sources.list.d/docker.list
+              fi
+
               # Stop apt-daily to prevent lock contention
               sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
               sudo systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
@@ -190,7 +197,9 @@ jobs:
                 echo 'Installing Docker...'
                 sudo mkdir -p /etc/apt/keyrings
                 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
-                echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                CODENAME=\$(lsb_release -cs)
+                echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$CODENAME stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                echo \"Docker source configured for: \$CODENAME\"
                 sudo apt-get update 2>&1
                 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin 2>&1
               else
