@@ -74,10 +74,10 @@ jobs:
         working-directory: client
 
   # ============================================================================
-  # 2. BACKEND BUILD & UNIT TESTS
+  # 2. BACKEND BUILD, UNIT & INTEGRATION TESTS
   # ============================================================================
   backend-ci:
-    name: Backend Formatting, Build & Unit Tests
+    name: Backend Quality Gate, Unit & Integration Tests
     runs-on: ubuntu-latest
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
@@ -108,37 +108,6 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --results-directory coverage-results
 
-      - name: Upload Unit Test Coverage Results
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
-        with:
-          name: dotnet-unit-coverage-report
-          path: coverage-results/
-          retention-days: 14
-
-  # ============================================================================
-  # 3. BACKEND INTEGRATION TESTS (Testcontainers)
-  # ============================================================================
-  backend-integration-tests:
-    name: Backend Integration Tests
-    runs-on: ubuntu-latest
-    needs: [detect-changes, backend-ci] # Execute only after compilation and unit tests succeed
-    if: ${{ needs.detect-changes.outputs.backend == 'true' }}
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup .NET SDK 10.0
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          dotnet-version: '10.0.x'
-          cache: false
-
-      - name: Restore NuGet Packages
-        run: dotnet restore CVerify.Core/CVerify.sln
-
-      - name: Compile Backend Solution
-        run: dotnet build CVerify.Core/CVerify.sln --configuration Release --no-restore
-
       - name: Execute Integration Tests (Testcontainers)
         run: |
           dotnet test CVerify.Core/tests/CVerify.API.IntegrationTests/CVerify.API.IntegrationTests.csproj \
@@ -147,10 +116,10 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --results-directory coverage-results
 
-      - name: Upload Integration Coverage Results
+      - name: Upload Test Coverage Results
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
-          name: dotnet-integration-coverage-report
+          name: dotnet-coverage-reports
           path: coverage-results/
           retention-days: 14
 
@@ -206,12 +175,12 @@ jobs:
   docker-validation:
     name: Docker Image Build Validation
     runs-on: ubuntu-latest
-    needs: [detect-changes, frontend-ci, backend-integration-tests, ai-service-ci] # Block execution if quality/test gates fail
+    needs: [detect-changes, frontend-ci, backend-ci, ai-service-ci] # Block execution if quality/test gates fail
     if: |
       always() &&
       github.event_name == 'pull_request' &&
       contains(fromJSON('["success", "skipped"]'), needs.frontend-ci.result) &&
-      contains(fromJSON('["success", "skipped"]'), needs.backend-integration-tests.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.backend-ci.result) &&
       contains(fromJSON('["success", "skipped"]'), needs.ai-service-ci.result) &&
       (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ai == 'true')
     steps:
@@ -250,152 +219,6 @@ jobs:
             NEXT_PUBLIC_API_URL=http://localhost:5247/api
           tags: cverify-client:latest
 
-  # ============================================================================
-  # 6. UAT DEPLOYMENT PIPELINE
-  # ============================================================================
-  build-and-push-uat:
-    name: Build & Publish UAT Images
-    runs-on: ubuntu-latest
-    needs: [detect-changes, frontend-ci, backend-integration-tests, ai-service-ci]
-    if: |
-      always() &&
-      github.event_name == 'push' && github.ref == 'refs/heads/cverify-uat' &&
-      contains(fromJSON('["success", "skipped"]'), needs.frontend-ci.result) &&
-      contains(fromJSON('["success", "skipped"]'), needs.backend-integration-tests.result) &&
-      contains(fromJSON('["success", "skipped"]'), needs.ai-service-ci.result) &&
-      (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ai == 'true')
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Authenticate to Google Cloud (OIDC)
-        uses: google-github-actions/auth@6fc7243db563d115aa309005de2d3700b2c1ec51 # v2.1.8
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SA_EMAIL }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@e30db143798ac5a8286b71faf9d5293240d5885a # v2.1.1
-
-      - name: Configure Docker to use GAR
-        run: |
-          gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
-
-      # --- A. Backend Service Image ---
-      - name: Build and Push Core
-        if: needs.detect-changes.outputs.backend == 'true'
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
-        with:
-          context: ./CVerify.Core
-          file: ./CVerify.Core/Dockerfile
-          push: true
-          tags: |
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }}
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:uat
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Retag Core from UAT (Skip Build)
-        if: needs.detect-changes.outputs.backend == 'false'
-        run: |
-          gcloud container images add-tag \
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:uat \
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }} \
-            --quiet
-
-      # --- B. AI FastAPI Service Image ---
-      - name: Build and Push AI
-        if: needs.detect-changes.outputs.ai == 'true'
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
-        with:
-          context: ./CVerify.AI
-          file: ./CVerify.AI/Dockerfile
-          push: true
-          tags: |
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:sha-${{ github.sha }}
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:uat
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Retag AI from UAT (Skip Build)
-        if: needs.detect-changes.outputs.ai == 'false'
-        run: |
-          gcloud container images add-tag \
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:uat \
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:sha-${{ github.sha }} \
-            --quiet
-
-      # --- C. Next.js Frontend Image ---
-      - name: Build and Push Client
-        if: needs.detect-changes.outputs.frontend == 'true'
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
-        with:
-          context: ./client
-          file: ./client/Dockerfile
-          push: true
-          build-args: |
-            NEXT_PUBLIC_API_URL=${{ secrets.UAT_API_URL }}
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.UAT_GOOGLE_CLIENT_ID }}
-          tags: |
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:sha-${{ github.sha }}
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:uat
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Retag Client from UAT (Skip Build)
-        if: needs.detect-changes.outputs.frontend == 'false'
-        run: |
-          gcloud container images add-tag \
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:uat \
-            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:sha-${{ github.sha }} \
-            --quiet
-
-      # --- D. Security Container Scan ---
-      - name: Run Trivy Security Scan (Core)
-        if: needs.detect-changes.outputs.backend == 'true'
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }}'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-
-  deploy-uat:
-    name: Trigger Zero-Touch VM Deploy (UAT)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/cverify-uat'
-    needs: build-and-push-uat
-    environment: cverify-uat
-    concurrency:
-      group: deploy-uat
-      cancel-in-progress: true
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Authenticate to Google Cloud (OIDC)
-        uses: google-github-actions/auth@6fc7243db563d115aa309005de2d3700b2c1ec51 # v2.1.8
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SA_EMAIL }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@e30db143798ac5a8286b71faf9d5293240d5885a # v2.1.1
-
-      - name: Execute Deployment over Secure IAP Tunnel
-        run: |
-          gcloud compute ssh cverify-prod-vm \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
-            --zone=asia-southeast1-a \
-            --tunnel-through-iap \
-            --command="cd /app/cverify && git fetch origin && git checkout cverify-uat && git pull origin cverify-uat && ./scripts/deploy-gcp.sh Staging ${{ github.sha }}"
 
   # ============================================================================
   # 7. PRODUCTION DEPLOYMENT PIPELINE
@@ -403,12 +226,12 @@ jobs:
   build-and-push-prod:
     name: Build & Publish Production Images
     runs-on: ubuntu-latest
-    needs: [detect-changes, frontend-ci, backend-integration-tests, ai-service-ci]
+    needs: [detect-changes, frontend-ci, backend-ci, ai-service-ci]
     if: |
       always() &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
       contains(fromJSON('["success", "skipped"]'), needs.frontend-ci.result) &&
-      contains(fromJSON('["success", "skipped"]'), needs.backend-integration-tests.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.backend-ci.result) &&
       contains(fromJSON('["success", "skipped"]'), needs.ai-service-ci.result) &&
       (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ai == 'true')
     permissions:
@@ -419,13 +242,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Authenticate to Google Cloud (OIDC)
-        uses: google-github-actions/auth@6fc7243db563d115aa309005de2d3700b2c1ec51 # v2.1.8
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@e30db143798ac5a8286b71faf9d5293240d5885a # v2.1.1
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker to use GAR
         run: |
@@ -528,13 +351,13 @@ jobs:
       id-token: write
     steps:
       - name: Authenticate to Google Cloud (OIDC)
-        uses: google-github-actions/auth@6fc7243db563d115aa309005de2d3700b2c1ec51 # v2.1.8
+        uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@e30db143798ac5a8286b71faf9d5293240d5885a # v2.1.1
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Execute Deployment over Secure IAP Tunnel
         run: |
