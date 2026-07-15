@@ -177,7 +177,7 @@ resource "google_compute_instance" "app_server" {
     # Function to wait for apt locks
     wait_for_apt() {
       echo "Waiting for apt/dpkg locks..."
-      while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+      while ! flock -n /var/lib/dpkg/lock-frontend -c "true" >/dev/null 2>&1 || ! flock -n /var/lib/apt/lists/lock -c "true" >/dev/null 2>&1; do
         echo "Apt lock held by another process, sleeping 5 seconds..."
         sleep 5
       done
