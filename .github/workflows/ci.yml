@@ -1,4 +1,4 @@
-name: CVerify Core Delivery Pipeline
+name: CVerify Core Delivery & Deployment Pipeline
 
 on:
   push:
@@ -166,11 +166,12 @@ jobs:
           retention-days: 14
 
   # ============================================================================
-  # 5. DOCKER IMAGE BUILD VALIDATION
+  # 5. DOCKER IMAGE BUILD VALIDATION (PR Only)
   # ============================================================================
   docker-validation:
     name: Docker Image Build Validation
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     needs: [frontend-ci, backend-integration-tests, ai-service-ci] # Block execution if quality/test gates fail
     steps:
       - name: Checkout Source Code
@@ -204,3 +205,230 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=http://localhost:5247/api
           tags: cverify-client:latest
+
+  # ============================================================================
+  # 6. UAT DEPLOYMENT PIPELINE
+  # ============================================================================
+  build-and-push-uat:
+    name: Build & Publish UAT Images
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/cverify-uat'
+    needs: [frontend-ci, backend-integration-tests, ai-service-ci]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@6fc7243db563d115aa309005de2d3700b2c1ec51 # v2.1.8
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e30db143798ac5a8286b71faf9d5293240d5885a # v2.1.1
+
+      - name: Configure Docker to use GAR
+        run: |
+          gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      # --- A. Backend Service Image ---
+      - name: Build and Push Core
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./CVerify.Core
+          file: ./CVerify.Core/Dockerfile
+          push: true
+          tags: |
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }}
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:uat
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- B. AI FastAPI Service Image ---
+      - name: Build and Push AI
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./CVerify.AI
+          file: ./CVerify.AI/Dockerfile
+          push: true
+          tags: |
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:sha-${{ github.sha }}
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:uat
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- C. Next.js Frontend Image ---
+      - name: Build and Push Client
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./client
+          file: ./client/Dockerfile
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.UAT_API_URL }}
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.UAT_GOOGLE_CLIENT_ID }}
+          tags: |
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:sha-${{ github.sha }}
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:uat
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- D. Security Container Scan ---
+      - name: Run Trivy Security Scan (Core)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  deploy-uat:
+    name: Trigger Zero-Touch VM Deploy (UAT)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/cverify-uat'
+    needs: build-and-push-uat
+    environment: cverify-uat
+    concurrency:
+      group: deploy-uat
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@6fc7243db563d115aa309005de2d3700b2c1ec51 # v2.1.8
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e30db143798ac5a8286b71faf9d5293240d5885a # v2.1.1
+
+      - name: Execute Deployment over Secure IAP Tunnel
+        run: |
+          gcloud compute ssh cverify-prod-vm \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --zone=asia-southeast1-a \
+            --tunnel-through-iap \
+            --command="cd /app/cverify && git fetch origin && git checkout cverify-uat && git pull origin cverify-uat && ./scripts/deploy-gcp.sh Staging ${{ github.sha }}"
+
+  # ============================================================================
+  # 7. PRODUCTION DEPLOYMENT PIPELINE
+  # ============================================================================
+  build-and-push-prod:
+    name: Build & Publish Production Images
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [frontend-ci, backend-integration-tests, ai-service-ci]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@6fc7243db563d115aa309005de2d3700b2c1ec51 # v2.1.8
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e30db143798ac5a8286b71faf9d5293240d5885a # v2.1.1
+
+      - name: Configure Docker to use GAR
+        run: |
+          gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      # --- A. Backend Service Image ---
+      - name: Build and Push Core
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./CVerify.Core
+          file: ./CVerify.Core/Dockerfile
+          push: true
+          tags: |
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }}
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- B. AI FastAPI Service Image ---
+      - name: Build and Push AI
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./CVerify.AI
+          file: ./CVerify.AI/Dockerfile
+          push: true
+          tags: |
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:sha-${{ github.sha }}
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- C. Next.js Frontend Image ---
+      - name: Build and Push Client
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: ./client
+          file: ./client/Dockerfile
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.PROD_API_URL }}
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.PROD_GOOGLE_CLIENT_ID }}
+          tags: |
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:sha-${{ github.sha }}
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- D. Security Container Scan ---
+      - name: Run Trivy Security Scan (Core)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  deploy-prod:
+    name: Trigger Zero-Touch VM Deploy (Production)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-push-prod
+    environment: cverify-production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@6fc7243db563d115aa309005de2d3700b2c1ec51 # v2.1.8
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e30db143798ac5a8286b71faf9d5293240d5885a # v2.1.1
+
+      - name: Execute Deployment over Secure IAP Tunnel
+        run: |
+          gcloud compute ssh cverify-prod-vm \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --zone=asia-southeast1-a \
+            --tunnel-through-iap \
+            --command="cd /app/cverify && git fetch origin && git checkout main && git pull origin main && ./scripts/deploy-gcp.sh Production ${{ github.sha }}"
+
