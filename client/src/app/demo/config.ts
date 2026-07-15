@@ -137,5 +137,26 @@ export const DEMO_SECTIONS: DemoSection[] = [
       ssr: false,
     }),
   },
+  {
+    metadata: {
+      id: "candidate-review",
+      title: "Review & Approval",
+      description: "AI ranks applicants using cryptographic proof, letting recruiters approve top talent instantly.",
+      transition: "fade",
+      background: "bg-background",
+      theme: "light",
+      showNavigation: true,
+      showProgress: true,
+      phases: [
+        { id: "discovery", label: "Candidate Discovery" },
+        { id: "ranking", label: "AI Ranking" },
+        { id: "decision", label: "Recruiter Decision" },
+        { id: "approved", label: "Hiring Approval" }
+      ],
+    },
+    component: dynamic(() => import("./sections/Section06"), {
+      ssr: false,
+    }),
+  },
 ];
 

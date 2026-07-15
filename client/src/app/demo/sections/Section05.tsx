@@ -243,12 +243,10 @@ export function Section05({
 
     if (isPhaseCompleted) return;
 
-    registerTimer(
-      setTimeout(() => {
-        setPhase("transitioning");
-        onPhaseComplete();
-      }, 1000)
-    );
+    setTimeout(() => {
+      setPhase("transitioning");
+      onPhaseComplete();
+    }, 1000);
   }, [phase, isPhaseCompleted, onPhaseComplete, setStatusMessage]);
 
   // Reset states on beforeEnter
