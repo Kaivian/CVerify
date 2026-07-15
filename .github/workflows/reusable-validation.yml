@@ -117,6 +117,8 @@ jobs:
       contains(fromJSON('["success", "skipped"]'), needs.frontend-ci.result) &&
       contains(fromJSON('["success", "skipped"]'), needs.backend-ci.result) &&
       contains(fromJSON('["success", "skipped"]'), needs.ai-service-ci.result)
+    env:
+      GCP_WIF_PROVIDER_VAL: ${{ secrets.GCP_WIF_PROVIDER }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -124,27 +126,27 @@ jobs:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
 
       - name: Set up Cloud SDK
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker to use GAR
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
         run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
       - name: Set up Docker Buildx
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       # 1. Resolve source images for skipped services deterministically (using git log PREV_SHA)
       - name: Resolve and Tag Skipped Services
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
         run: |
           GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           CURRENT_SHA="${{ github.sha }}"
@@ -209,7 +211,7 @@ jobs:
 
       # 3. Pull or map skipped services to local docker tags to run complete compose stack
       - name: Pull Skipped Services locally for Integration Test
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
         run: |
           GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           CURRENT_SHA="${{ github.sha }}"
@@ -250,14 +252,14 @@ jobs:
 
       # 5. Spin up full stack and run End-to-End validation
       - name: Boot Compose Stack
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
         run: |
           docker compose -f docker/compose.yml -f docker/compose.testing.yml -f docker/compose.e2e-val.yml up -d
           # Wait for services to complete boot and run migrations
           sleep 15
 
       - name: Run E2E Health Checks
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
         run: |
           # 1. API Health Check
           curl -f http://localhost:5248/health || exit 1
@@ -275,7 +277,7 @@ jobs:
 
       # 6. Push built images if and only if push_images input is true
       - name: Tag and Push Verified Images to GAR
-        if: ${{ inputs.push_images == true && secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ inputs.push_images == true && env.GCP_WIF_PROVIDER_VAL != '' }}
         run: |
           GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           CURRENT_SHA="${{ github.sha }}"
@@ -295,7 +297,7 @@ jobs:
 
       # 7. Capture exact digests of the running images and upload metadata manifest to GCS
       - name: Record and Upload Build Manifest
-        if: ${{ inputs.push_images == true && secrets.GCP_WIF_PROVIDER != '' }}
+        if: ${{ inputs.push_images == true && env.GCP_WIF_PROVIDER_VAL != '' }}
         run: |
           GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           CURRENT_SHA="${{ github.sha }}"
