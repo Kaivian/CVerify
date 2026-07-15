@@ -16,18 +16,18 @@ interface DemoState {
   
   // Sub-stage tracking (for sections that have internal steps)
   subStage: number;
-  totalSubStages: number;
+  statusMessage: string | null;
+  isPlaying: boolean;
   
   // Actions
-  setSectionIndex: (index: number) => void;
+  setSectionIndex: (index: number, targetSubStage?: number) => void;
   nextSection: () => void;
   prevSection: () => void;
   setTransitionState: (state: SceneLifecycleState) => void;
   syncFromUrl: () => void;
-  setSubStage: (stage: number, total?: number) => void;
-  
-  // Helpers
-  getCurrentMetadata: () => SceneMetadata;
+  setSubStage: (stage: number) => void;
+  setStatusMessage: (message: string | null) => void;
+  completePhase: () => void;
 }
 
 // Client-side asset preloading helper
@@ -74,23 +74,28 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   navigationDirection: "none",
   transitionState: "beforeEnter",
   subStage: 0,
-  totalSubStages: 0,
+  statusMessage: null,
+  isPlaying: true,
 
-  getCurrentMetadata: () => {
-    const { currentSectionIndex } = get();
-    return DEMO_SECTIONS[currentSectionIndex]?.metadata || DEMO_SECTIONS[0].metadata;
-  },
-
-  setSectionIndex: (index: number) => {
+  setSectionIndex: (index: number, targetSubStage?: number) => {
     const { currentSectionIndex, transitionState } = get();
     
+    console.log("[Demo Engine] setSectionIndex called with", { index, targetSubStage, currentSectionIndex, transitionState });
+
     // Lock transitions during active animation states
     if (transitionState === "entering" || transitionState === "exiting") {
+      console.log("[Demo Engine] setSectionIndex returned early due to transitionState lock");
       return;
     }
 
-    if (index < 0 || index >= DEMO_SECTIONS.length) return;
-    if (index === currentSectionIndex) return;
+    if (index < 0 || index >= DEMO_SECTIONS.length) {
+      console.log("[Demo Engine] setSectionIndex returned early: index out of bounds");
+      return;
+    }
+    if (index === currentSectionIndex) {
+      console.log("[Demo Engine] setSectionIndex returned early: index is same as currentSectionIndex");
+      return;
+    }
 
     const direction = index > currentSectionIndex ? "next" : "prev";
     const nextSceneMetadata = DEMO_SECTIONS[index].metadata;
@@ -99,6 +104,8 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       currentSectionIndex: index,
       navigationDirection: direction,
       transitionState: "exiting",
+      subStage: targetSubStage !== undefined ? targetSubStage : 0,
+      statusMessage: null,
     });
 
     // Trigger URL Sync
@@ -109,40 +116,78 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   },
 
   nextSection: () => {
-    const { currentSectionIndex, subStage, totalSubStages } = get();
-    if (totalSubStages > 1 && subStage < totalSubStages - 1) {
+    const { currentSectionIndex, subStage } = get();
+    const metadata = DEMO_SECTIONS[currentSectionIndex]?.metadata;
+    const phases = metadata?.phases || [];
+
+    set({ isPlaying: true });
+
+    if (phases.length > 1 && subStage < phases.length - 1) {
       set({ subStage: subStage + 1 });
       return;
     }
-    get().setSectionIndex(currentSectionIndex + 1);
+    if (currentSectionIndex < DEMO_SECTIONS.length - 1) {
+      get().setSectionIndex(currentSectionIndex + 1, 0);
+    }
   },
 
   prevSection: () => {
-    const { currentSectionIndex, subStage, totalSubStages } = get();
-    if (totalSubStages > 1 && subStage > 0) {
-      set({ subStage: subStage - 1 });
-      return;
-    }
-    const currentMetadata = get().getCurrentMetadata();
+    const { currentSectionIndex, subStage } = get();
+    const metadata = DEMO_SECTIONS[currentSectionIndex]?.metadata;
+
+    console.log("[Demo Engine] prevSection called with", { currentSectionIndex, subStage, isPlaying: false });
+
+    set({ isPlaying: false });
 
     // Check allowBack constraint
-    if (currentMetadata.allowBack === false) {
+    if (metadata?.allowBack === false && subStage === 0) {
+      console.log("[Demo Engine] prevSection returned early due to allowBack constraint");
       return;
     }
 
-    get().setSectionIndex(currentSectionIndex - 1);
+    if (subStage > 0) {
+      console.log("[Demo Engine] prevSection decrementing subStage");
+      // Skip the transient analyze phase (subStage 2) when navigating backwards in Section 3
+      if (currentSectionIndex === 2 && (subStage === 3 || subStage === 2)) {
+        set({ subStage: 1 });
+      } else {
+        set({ subStage: subStage - 1 });
+      }
+      return;
+    }
+
+    if (currentSectionIndex > 0) {
+      const prevMetadata = DEMO_SECTIONS[currentSectionIndex - 1]?.metadata;
+      const prevPhases = prevMetadata?.phases || [];
+      console.log("[Demo Engine] prevSection navigating to previous section", { prevIndex: currentSectionIndex - 1, targetSubStage: prevPhases.length - 1 });
+      get().setSectionIndex(currentSectionIndex - 1, prevPhases.length > 1 ? prevPhases.length - 1 : 0);
+    }
   },
 
   setTransitionState: (state: SceneLifecycleState) => {
     set({ transitionState: state });
   },
 
-  setSubStage: (stage: number, total?: number) => {
-    const updates: Partial<DemoState> = { subStage: stage };
-    if (total !== undefined) {
-      updates.totalSubStages = total;
+  setSubStage: (stage: number) => {
+    set({ subStage: stage });
+  },
+
+  setStatusMessage: (message: string | null) => {
+    set({ statusMessage: message });
+  },
+
+  completePhase: () => {
+    const { isPlaying, currentSectionIndex, subStage } = get();
+    if (!isPlaying) return; // Ignore if paused
+
+    const metadata = DEMO_SECTIONS[currentSectionIndex]?.metadata;
+    const phases = metadata?.phases || [];
+
+    if (subStage < phases.length - 1) {
+      set({ subStage: subStage + 1 });
+    } else if (currentSectionIndex < DEMO_SECTIONS.length - 1) {
+      get().setSectionIndex(currentSectionIndex + 1, 0);
     }
-    set(updates);
   },
 
   syncFromUrl: () => {
@@ -166,6 +211,9 @@ export const useDemoStore = create<DemoState>((set, get) => ({
         currentSectionIndex: matchedIndex,
         navigationDirection: matchedIndex > get().currentSectionIndex ? "next" : "prev",
         transitionState: "beforeEnter",
+        subStage: 0,
+        statusMessage: null,
+        isPlaying: true,
       });
       preloadAdjacent(matchedIndex);
     }
