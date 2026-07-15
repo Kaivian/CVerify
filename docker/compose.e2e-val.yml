@@ -1,0 +1,14 @@
+# ==============================================================================
+# CVerify E2E Validation Docker Compose Override
+# ==============================================================================
+# Forces the compose stack to run using the pre-built local test images.
+# ==============================================================================
+services:
+  cverify-ai:
+    image: cverify-ai:test-local
+
+  cverify-core:
+    image: cverify-core:test-local
+
+  cverify-client:
+    image: cverify-client:test-local
