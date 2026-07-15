@@ -126,6 +126,8 @@ jobs:
             --zone=asia-southeast1-a \
             --tunnel-through-iap \
             --quiet \
+            --ssh-flag="-o ServerAliveInterval=15" \
+            --ssh-flag="-o ServerAliveCountMax=60" \
             --command="
               # Wait for VM bootstrap to complete (up to 15 minutes for cold boot)
               PREV_LINE=''
