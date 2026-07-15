@@ -73,12 +73,58 @@ EOF
 
 # 3. Execute setup resolver to layer environment files (.env)
 write_info "Running environment resolver setup..."
+export CVERIFY_SKIP_DOCKER=true
 ./setup.sh "$ENV_TITLE"
 
 # Add dynamic values to merged .env
 echo "IMAGE_TAG=sha-${GIT_SHA}" >> .env
-echo "GCP_PROJECT_ID=$(gcloud config get-value project 2>/dev/null || echo 'cverify-prod')" >> .env
+GCP_PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/project/project-id 2>/dev/null || gcloud config get-value project 2>/dev/null || echo "cverify-prod")
+echo "GCP_PROJECT_ID=${GCP_PROJECT_ID}" >> .env
 echo "GAR_REGISTRY_URL=asia-southeast1-docker.pkg.dev" >> .env
+
+# 3.5 Download and Validate Deployment Manifest from GCS
+write_info "Downloading build manifest from GCS..."
+if gcloud storage cp "gs://cverify-build-metadata-${GCP_PROJECT_ID}/manifests/sha-${GIT_SHA}.json" manifest.json 2>/dev/null; then
+  write_success "Manifest successfully downloaded."
+else
+  write_error "Failed to download manifest for SHA-${GIT_SHA} from GCS bucket!"
+  exit 1
+fi
+
+validate_manifest() {
+  local manifest_file="manifest.json"
+  if [ ! -f "$manifest_file" ]; then
+    write_error "Manifest file not found."
+    return 1
+  fi
+  
+  local m_sha=$(jq -r '.commit_sha' "$manifest_file" 2>/dev/null || echo "")
+  if [ "$m_sha" != "$GIT_SHA" ]; then
+    write_error "Manifest commit_sha ($m_sha) does not match deploy Git SHA ($GIT_SHA)!"
+    return 1
+  fi
+  
+  for svc in core ai client; do
+    local digest=$(jq -r ".services.$svc" "$manifest_file" 2>/dev/null || echo "")
+    if [ -z "$digest" ] || [ "$digest" = "null" ]; then
+      write_error "Service $svc is missing from the manifest!"
+      return 1
+    fi
+    if [[ ! "$digest" =~ ^asia-southeast1-docker\.pkg\.dev/.*@sha256:[a-f0-9]{64}$ ]]; then
+      write_error "Invalid GAR image digest format for service $svc: '$digest'"
+      return 1
+    fi
+    write_info "Validated manifest entry for $svc: $digest"
+  done
+  return 0
+}
+
+write_info "Validating deployment manifest..."
+if ! validate_manifest; then
+  write_error "Manifest validation failed. Aborting."
+  exit 1
+fi
+write_success "Deployment manifest validated successfully."
 
 # 4. Orchestrate Networks & Shared Infrastructure Layer
 SHARED_NET="cverify-infra_cverify-infra-net"
@@ -87,6 +133,40 @@ docker network create "$SHARED_NET" 2>/dev/null || true
 
 write_info "Upgrading and launching shared Database & Caching layer (cverify-infra)..."
 docker compose -p cverify-infra -f docker/compose.yml -f docker/compose.${ENV_LOWER}.yml up -d postgres redis
+
+# Wait for shared database and cache to be healthy
+write_info "Waiting for shared database and cache to be healthy..."
+for svc in postgres redis; do
+  CONTAINER_ID=""
+  for i in {1..10}; do
+    CONTAINER_ID=$(docker compose -p cverify-infra ps -q "$svc" 2>/dev/null || echo "")
+    if [ -n "$CONTAINER_ID" ]; then
+      break
+    fi
+    sleep 1
+  done
+  
+  if [ -z "$CONTAINER_ID" ]; then
+    write_error "Service $svc is not running in cverify-infra!"
+    exit 1
+  fi
+  
+  SERVICE_HEALTHY=false
+  for i in {1..30}; do
+    HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_ID" 2>/dev/null || echo "unknown")
+    if [ "$HEALTH_STATUS" = "healthy" ]; then
+      write_success "Infrastructure service $svc is healthy."
+      SERVICE_HEALTHY=true
+      break
+    fi
+    sleep 2
+  done
+  
+  if [ "$SERVICE_HEALTHY" != "true" ]; then
+    write_error "Infrastructure service $svc failed to become healthy!"
+    exit 1
+  fi
+done
 
 # 5. Determine Active vs Inactive Blue-Green Upstream Color
 NGINX_CONF_DIR="/app/cverify/docker/nginx/conf.d"
@@ -119,84 +199,76 @@ fi
 sed -i "s/CLIENT_PORT=.*/CLIENT_PORT=$TARGET_CLIENT_PORT/g" .env
 sed -i "s/CORE_PORT=.*/CORE_PORT=$TARGET_CORE_PORT/g" .env
 
-# Re-synchronize .env to all subprojects
-cp .env client/.env
-cp .env CVerify.Core/.env
-cp .env CVerify.AI/.env
-cp .env docker/.env
+# Re-synchronize .env (only docker/ is needed for production compose)
+[ -d docker ] && cp .env docker/.env
 
 # 7. Pull and Launch Target Stack
+write_info "Configuring Docker authentication helper for GCP Artifact Registry..."
+gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
 write_info "Pulling container images for $INACTIVE_COLOR stack (Tag: sha-$GIT_SHA)..."
-docker compose -p cverify-${INACTIVE_COLOR} -f docker/compose.yml -f docker/compose.${ENV_LOWER}.yml pull cverify-ai cverify-core cverify-client
+PULL_SUCCESS=false
+for attempt in {1..3}; do
+  write_info "Pull attempt $attempt/3..."
+  if docker compose -p cverify-${INACTIVE_COLOR} -f docker/compose.yml -f docker/compose.${ENV_LOWER}.yml pull cverify-ai cverify-core cverify-client; then
+    PULL_SUCCESS=true
+    write_success "Images pulled successfully."
+    break
+  fi
+  write_warning "Pull attempt $attempt failed. Retrying in 10 seconds..."
+  sleep 10
+done
+
+if [ "$PULL_SUCCESS" != "true" ]; then
+  write_error "Failed to pull images after 3 attempts. Aborting."
+  exit 1
+fi
 
 write_info "Starting app containers for $INACTIVE_COLOR stack..."
 docker compose -p cverify-${INACTIVE_COLOR} -f docker/compose.yml -f docker/compose.${ENV_LOWER}.yml up -d cverify-ai cverify-core cverify-client
 
-# 8. Pre-Traffic Smoke Testing Protocol
+# 8. Pre-Traffic Smoke Testing Protocol (Native Docker Health Check)
 write_info "Starting pre-traffic smoke tests on $INACTIVE_COLOR stack..."
 SMOKE_TEST_PASS=true
 
-# Wait for containers to boot
-sleep 10
+for svc in cverify-ai cverify-core cverify-client; do
+  CONTAINER_ID=""
+  # Wait briefly for Docker to register container creation
+  for i in {1..5}; do
+    CONTAINER_ID=$(docker compose -p cverify-${INACTIVE_COLOR} ps -q "$svc" 2>/dev/null || echo "")
+    if [ -n "$CONTAINER_ID" ]; then
+      break
+    fi
+    sleep 1
+  done
 
-# Test 1: Container Liveness
-write_info "Smoke Test 1/5: Checking container states..."
-RUNNING_CONTAINERS=$(docker compose -p cverify-${INACTIVE_COLOR} ps --filter "status=running" -q | wc -l)
-if [ "$RUNNING_CONTAINERS" -ne 3 ]; then
-  write_error "Some app containers failed to boot! (Running: $RUNNING_CONTAINERS/3)"
-  SMOKE_TEST_PASS=false
-else
-  write_success "All 3 app containers are running."
-fi
-
-# Test 2: Backend API ping
-if [ "$SMOKE_TEST_PASS" = true ]; then
-  write_info "Smoke Test 2/5: Pinging API health endpoint..."
-  API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${TARGET_CORE_PORT}/health || echo "Failed")
-  if [ "$API_STATUS" != "200" ]; then
-    write_error "Backend Core API failed health ping! (Status: $API_STATUS)"
+  if [ -z "$CONTAINER_ID" ]; then
+    write_error "Service $svc is not running!"
     SMOKE_TEST_PASS=false
-  else
-    write_success "Backend Core API is healthy."
+    break
   fi
-fi
 
-# Test 3: Backend DB Connection
-if [ "$SMOKE_TEST_PASS" = true ]; then
-  write_info "Smoke Test 3/5: Checking database connectivity..."
-  DB_STATUS=$(curl -s http://localhost:${TARGET_CORE_PORT}/health | jq -r '.status // .Health // "Healthy"' 2>/dev/null || echo "Healthy")
-  if [ "$DB_STATUS" = "Unhealthy" ]; then
-    write_error "Backend Core DB connection check failed!"
-    SMOKE_TEST_PASS=false
-  else
-    write_success "Database connection verified."
-  fi
-fi
+  write_info "Checking health for service $svc (Container: $CONTAINER_ID)..."
+  SERVICE_HEALTHY=false
+  for i in {1..30}; do
+    HEALTH_STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_ID" 2>/dev/null || echo "unknown")
+    if [ "$HEALTH_STATUS" = "healthy" ]; then
+      write_success "Service $svc is healthy."
+      SERVICE_HEALTHY=true
+      break
+    elif [ "$HEALTH_STATUS" = "unhealthy" ]; then
+      write_error "Service $svc has failed health check (unhealthy)."
+      break
+    fi
+    echo "Waiting for service $svc to become healthy (current status: $HEALTH_STATUS)..."
+    sleep 5
+  done
 
-# Test 4: Frontend SSR Render Check
-if [ "$SMOKE_TEST_PASS" = true ]; then
-  write_info "Smoke Test 4/5: Pinging Client Frontend SSR..."
-  FRONTEND_SIGNATURE=$(curl -s --fail http://localhost:${TARGET_CLIENT_PORT} | grep -q "html" && echo "Pass" || echo "Fail")
-  if [ "$FRONTEND_SIGNATURE" != "Pass" ]; then
-    write_error "Frontend SSR returned invalid content!"
+  if [ "$SERVICE_HEALTHY" != "true" ]; then
     SMOKE_TEST_PASS=false
-  else
-    write_success "Frontend SSR page render verified."
+    break
   fi
-fi
-
-# Test 5: AI Service Internal handshake
-if [ "$SMOKE_TEST_PASS" = true ]; then
-  write_info "Smoke Test 5/5: Checking AI Service connectivity..."
-  # AI runs internal, we check it via docker container logs or curling it internally from host network
-  AI_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || echo "Failed")
-  if [ "$AI_STATUS" != "200" ]; then
-    write_error "AI Service failed health check! (Status: $AI_STATUS)"
-    SMOKE_TEST_PASS=false
-  else
-    write_success "AI Service is healthy."
-  fi
-fi
+done
 
 # 9. Handle Swapping or Rollback
 END_TIME=$(date +%s)
@@ -235,9 +307,10 @@ EOF
 {"timestamp":"$(date -u +"%Y-%m-%dT%H:%M:%SZ")","environment":"$ENV_TITLE","commit_sha":"$GIT_SHA","triggered_by":"github-actions-sa","stack_color_deployed":"$INACTIVE_COLOR","duration_seconds":$DURATION,"status":"SUCCESS","migrations_run":true,"rollback_applied":false,"rollback_reason":null}
 EOF
 
-  # Cleanup old unused images to conserve VM disk space
-  write_info "Cleaning up old images on host..."
+  # Cleanup old unused images and networks to conserve VM disk space
+  write_info "Cleaning up old images and networks on host..."
   docker image prune -a --filter "until=168h" -f
+  docker network prune -f
   
   write_success "Deployment completed successfully in ${DURATION}s!"
   exit 0
@@ -248,8 +321,8 @@ else
   write_warning "Capturing container logs..."
   docker compose -p cverify-${INACTIVE_COLOR} logs --tail=100 > "/var/log/cverify/failed-deploy-${GIT_SHA}.log"
   
-  # Shutdown the inactive stack
-  docker compose -p cverify-${INACTIVE_COLOR} -f docker/compose.yml -f docker/compose.${ENV_LOWER}.yml stop
+  # Shutdown and remove the inactive stack (prevent orphan containers/networks)
+  docker compose -p cverify-${INACTIVE_COLOR} -f docker/compose.yml -f docker/compose.${ENV_LOWER}.yml down -v
   
   # Write failure audit log
   cat <<EOF >> /var/log/cverify/deployments.log

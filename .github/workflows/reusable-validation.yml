@@ -324,3 +324,17 @@ jobs:
           # Upload manifest to GCS
           gcloud storage cp manifest.json "gs://cverify-build-metadata-${GCP_PROJECT}/manifests/sha-${CURRENT_SHA}.json"
           echo "Manifest successfully written to gs://cverify-build-metadata-${GCP_PROJECT}/manifests/sha-${CURRENT_SHA}.json"
+
+      # 8. Package orchestration files and upload to GCS
+      - name: Package and Upload Orchestration Bundle
+        if: ${{ inputs.push_images == true && env.GCP_WIF_PROVIDER_VAL != '' }}
+        run: |
+          GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          CURRENT_SHA="${{ github.sha }}"
+          
+          # Package only orchestration and configuration files (no application source code)
+          tar -czf deployment.tar.gz docker scripts setup.sh .env.defaults .env.production
+          
+          # Upload package to GCS
+          gcloud storage cp deployment.tar.gz "gs://cverify-build-metadata-${GCP_PROJECT}/deployments/sha-${CURRENT_SHA}.tar.gz"
+          echo "Orchestration bundle successfully written to gs://cverify-build-metadata-${GCP_PROJECT}/deployments/sha-${CURRENT_SHA}.tar.gz"

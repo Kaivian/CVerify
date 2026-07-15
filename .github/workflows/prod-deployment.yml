@@ -107,7 +107,17 @@ jobs:
               "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/$svc:latest" \
               --quiet
           done
-          echo "Digests successfully promoted to production tags."
+          
+          # Promote manifest and orchestration bundle in GCS
+          UAT_SHA="${{ steps.resolve-sha.outputs.UAT_SHA }}"
+          gcloud storage cp \
+            "gs://cverify-build-metadata-$GCP_PROJECT/manifests/sha-${UAT_SHA}.json" \
+            "gs://cverify-build-metadata-$GCP_PROJECT/manifests/sha-${PROD_SHA}.json"
+          
+          gcloud storage cp \
+            "gs://cverify-build-metadata-$GCP_PROJECT/deployments/sha-${UAT_SHA}.tar.gz" \
+            "gs://cverify-build-metadata-$GCP_PROJECT/deployments/sha-${PROD_SHA}.tar.gz"
+          echo "Manifest and orchestration bundle successfully promoted in GCS."
 
       - name: Trigger Zero-Touch VM Deployment
         run: |
@@ -115,4 +125,29 @@ jobs:
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --zone=asia-southeast1-a \
             --tunnel-through-iap \
-            --command="for i in {1..30}; do if [ -d /app/cverify ]; then break; fi; echo 'Waiting for VM initialization...'; sleep 10; done; cd /app/cverify && git fetch origin && git checkout main && git pull origin main && ./scripts/deploy-gcp.sh Production ${{ github.sha }}"
+            --quiet \
+            --command="
+              # Wait for VM bootstrap to complete
+              for i in {1..30}; do
+                if [ -f /var/log/cverify-bootstrap-done ]; then break; fi
+                echo 'Waiting for VM bootstrap to complete...'
+                sleep 10
+              done
+              
+              if [ ! -f /var/log/cverify-bootstrap-done ]; then
+                echo 'Error: VM bootstrap timed out.'
+                exit 1
+              fi
+              
+              # Download versioned orchestration package from GCS
+              gcloud storage cp gs://cverify-build-metadata-${{ secrets.GCP_PROJECT_ID }}/deployments/sha-${{ github.sha }}.tar.gz /tmp/deployment.tar.gz
+              
+              # Extract package to app folder
+              sudo mkdir -p /app/cverify
+              sudo chown -R ubuntu:ubuntu /app/cverify
+              tar -xzf /tmp/deployment.tar.gz -C /app/cverify
+              
+              # Execute deployer
+              cd /app/cverify
+              ./scripts/deploy-gcp.sh Production ${{ github.sha }}
+            "

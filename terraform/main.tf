@@ -75,7 +75,7 @@ resource "google_artifact_registry_repository" "cverify_registry" {
 # 2. SECRET MANAGER
 # ==============================================================================
 resource "google_secret_manager_secret" "cverify_secrets" {
-  secret_id = "cverify-prod-secrets"
+  secret_id = "cverify-production-secrets"
   replication {
     auto {}
   }
@@ -149,6 +149,45 @@ resource "google_service_account_iam_member" "github_sa_bind" {
 }
 
 # ==============================================================================
+# 4.5 VM SERVICE ACCOUNT & IAM BINDINGS
+# ==============================================================================
+resource "google_service_account" "vm_sa" {
+  account_id   = "cverify-prod-vm-sa"
+  display_name = "CVerify Production VM Instance Service Account"
+}
+
+resource "google_project_iam_member" "vm_logging" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.vm_sa.email}"
+}
+
+resource "google_project_iam_member" "vm_monitoring" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.vm_sa.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "vm_registry_reader" {
+  location   = google_artifact_registry_repository.cverify_registry.location
+  repository = google_artifact_registry_repository.cverify_registry.name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${google_service_account.vm_sa.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "vm_secrets_accessor" {
+  secret_id = google_secret_manager_secret.cverify_secrets.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.vm_sa.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vm_storage_viewer" {
+  bucket = google_storage_bucket.metadata_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.vm_sa.email}"
+}
+
+# ==============================================================================
 # 5. COMPUTE ENGINE VM INSTANCE
 # ==============================================================================
 resource "google_compute_instance" "app_server" {
@@ -168,6 +207,11 @@ resource "google_compute_instance" "app_server" {
     network = "default"
     # Assign public IP, but restrict SSH access via IAP using firewall rules
     access_config {} 
+  }
+
+  service_account {
+    email  = google_service_account.vm_sa.email
+    scopes = ["cloud-platform"]
   }
 
   metadata_startup_script = <<-EOT
@@ -190,24 +234,63 @@ resource "google_compute_instance" "app_server" {
     # 1. Update system dependencies
     apt-get update
     wait_for_apt
-    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release nginx jq git
+    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release jq git
     
     # 2. Add Docker repository and key
     mkdir -p /etc/apt/keyrings
     wait_for_apt
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
+    fi
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
     
-    # 3. Install Docker Engine and Compose Plugin
+    # 3. Add Google Cloud SDK repository and install CLI
+    if ! command -v gcloud &> /dev/null; then
+      echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+      curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --yes --dearmor -o /usr/share/keyrings/cloud.google.gpg
+      wait_for_apt
+      apt-get update
+      wait_for_apt
+      apt-get install -y google-cloud-cli
+    fi
+
+    # 4. Install Docker Engine and Compose Plugin
     wait_for_apt
     apt-get update
     wait_for_apt
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
     
-    # 4. Set up deployer user and directory permissions
+    # 5. Disable host Nginx service if installed to prevent port 80/443 conflicts
+    if systemctl is-active --quiet nginx; then
+      systemctl stop nginx
+    fi
+    if systemctl is-enabled --quiet nginx; then
+      systemctl disable nginx
+    fi
+
+    # 6. Set up directory permissions and deployer user groups
     mkdir -p /app/cverify
     chown -R ubuntu:ubuntu /app/cverify
     usermod -aG docker ubuntu
+
+    # 7. Set up logging directory and logrotate
+    mkdir -p /var/log/cverify
+    chown -R ubuntu:ubuntu /var/log/cverify
+
+    cat <<'EOF' > /etc/logrotate.d/cverify
+    /var/log/cverify/*.log {
+        daily
+        rotate 7
+        compress
+        delaycompress
+        missingok
+        notifempty
+        create 0640 ubuntu ubuntu
+    }
+    EOF
+
+    # 8. Create bootstrap completed marker
+    echo "done" > /var/log/cverify-bootstrap-done
   EOT
 }
 
