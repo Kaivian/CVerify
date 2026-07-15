@@ -15,11 +15,39 @@ permissions:
 
 jobs:
   # ============================================================================
+  # 0. DETECT PATH CHANGES
+  # ============================================================================
+  detect-changes:
+    name: Detect Changed Components
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      ai: ${{ steps.filter.outputs.ai }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Linter/Quality/Build Paths Filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'client/**'
+            backend:
+              - 'CVerify.Core/**'
+            ai:
+              - 'CVerify.AI/**'
+
+  # ============================================================================
   # 1. FRONTEND BUILD & QUALITY GATE
   # ============================================================================
   frontend-ci:
     name: Frontend Build & Lint
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -49,6 +77,8 @@ jobs:
   backend-ci:
     name: Backend Formatting, Build & Unit Tests
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -89,7 +119,8 @@ jobs:
   backend-integration-tests:
     name: Backend Integration Tests
     runs-on: ubuntu-latest
-    needs: backend-ci # Execute only after compilation and unit tests succeed
+    needs: [detect-changes, backend-ci] # Execute only after compilation and unit tests succeed
+    if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -127,6 +158,8 @@ jobs:
   ai-service-ci:
     name: AI Service Setup & Tests
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.ai == 'true' }}
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -171,8 +204,14 @@ jobs:
   docker-validation:
     name: Docker Image Build Validation
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    needs: [frontend-ci, backend-integration-tests, ai-service-ci] # Block execution if quality/test gates fail
+    needs: [detect-changes, frontend-ci, backend-integration-tests, ai-service-ci] # Block execution if quality/test gates fail
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      contains(fromJSON('["success", "skipped"]'), needs.frontend-ci.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.backend-integration-tests.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.ai-service-ci.result) &&
+      (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ai == 'true')
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -181,6 +220,7 @@ jobs:
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
       - name: Build Backend Docker Image (Dry Run)
+        if: needs.detect-changes.outputs.backend == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./CVerify.Core
@@ -189,6 +229,7 @@ jobs:
           tags: cverify-core:latest
 
       - name: Build AI Service Docker Image (Dry Run)
+        if: needs.detect-changes.outputs.ai == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./CVerify.AI
@@ -197,6 +238,7 @@ jobs:
           tags: cverify-ai:latest
 
       - name: Build Frontend Docker Image (Dry Run)
+        if: needs.detect-changes.outputs.frontend == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./client
@@ -212,8 +254,14 @@ jobs:
   build-and-push-uat:
     name: Build & Publish UAT Images
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/cverify-uat'
-    needs: [frontend-ci, backend-integration-tests, ai-service-ci]
+    needs: [detect-changes, frontend-ci, backend-integration-tests, ai-service-ci]
+    if: |
+      always() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/cverify-uat' &&
+      contains(fromJSON('["success", "skipped"]'), needs.frontend-ci.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.backend-integration-tests.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.ai-service-ci.result) &&
+      (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ai == 'true')
     permissions:
       contents: read
       id-token: write
@@ -239,6 +287,7 @@ jobs:
 
       # --- A. Backend Service Image ---
       - name: Build and Push Core
+        if: needs.detect-changes.outputs.backend == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./CVerify.Core
@@ -250,8 +299,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Retag Core from UAT (Skip Build)
+        if: needs.detect-changes.outputs.backend == 'false'
+        run: |
+          gcloud container images add-tag \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:uat \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }} \
+            --quiet
+
       # --- B. AI FastAPI Service Image ---
       - name: Build and Push AI
+        if: needs.detect-changes.outputs.ai == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./CVerify.AI
@@ -263,8 +321,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Retag AI from UAT (Skip Build)
+        if: needs.detect-changes.outputs.ai == 'false'
+        run: |
+          gcloud container images add-tag \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:uat \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:sha-${{ github.sha }} \
+            --quiet
+
       # --- C. Next.js Frontend Image ---
       - name: Build and Push Client
+        if: needs.detect-changes.outputs.frontend == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./client
@@ -279,8 +346,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Retag Client from UAT (Skip Build)
+        if: needs.detect-changes.outputs.frontend == 'false'
+        run: |
+          gcloud container images add-tag \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:uat \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:sha-${{ github.sha }} \
+            --quiet
+
       # --- D. Security Container Scan ---
       - name: Run Trivy Security Scan (Core)
+        if: needs.detect-changes.outputs.backend == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }}'
@@ -325,8 +401,14 @@ jobs:
   build-and-push-prod:
     name: Build & Publish Production Images
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [frontend-ci, backend-integration-tests, ai-service-ci]
+    needs: [detect-changes, frontend-ci, backend-integration-tests, ai-service-ci]
+    if: |
+      always() &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      contains(fromJSON('["success", "skipped"]'), needs.frontend-ci.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.backend-integration-tests.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.ai-service-ci.result) &&
+      (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ai == 'true')
     permissions:
       contents: read
       id-token: write
@@ -352,6 +434,7 @@ jobs:
 
       # --- A. Backend Service Image ---
       - name: Build and Push Core
+        if: needs.detect-changes.outputs.backend == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./CVerify.Core
@@ -363,8 +446,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Retag Core from Latest (Skip Build)
+        if: needs.detect-changes.outputs.backend == 'false'
+        run: |
+          gcloud container images add-tag \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:latest \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }} \
+            --quiet
+
       # --- B. AI FastAPI Service Image ---
       - name: Build and Push AI
+        if: needs.detect-changes.outputs.ai == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./CVerify.AI
@@ -376,8 +468,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Retag AI from Latest (Skip Build)
+        if: needs.detect-changes.outputs.ai == 'false'
+        run: |
+          gcloud container images add-tag \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:latest \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/ai:sha-${{ github.sha }} \
+            --quiet
+
       # --- C. Next.js Frontend Image ---
       - name: Build and Push Client
+        if: needs.detect-changes.outputs.frontend == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./client
@@ -392,8 +493,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Retag Client from Latest (Skip Build)
+        if: needs.detect-changes.outputs.frontend == 'false'
+        run: |
+          gcloud container images add-tag \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:latest \
+            asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/client:sha-${{ github.sha }} \
+            --quiet
+
       # --- D. Security Container Scan ---
       - name: Run Trivy Security Scan (Core)
+        if: needs.detect-changes.outputs.backend == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cverify/core:sha-${{ github.sha }}'
