@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence } from "framer-motion";
@@ -24,6 +24,41 @@ export function DemoContainer() {
   const subStage = useDemoStore((state) => state.subStage);
   const isPlaying = useDemoStore((state) => state.isPlaying);
   const completePhase = useDemoStore((state) => state.completePhase);
+
+  const [introStage, setIntroStage] = useState<"blank" | "header" | "navigation" | "content">(
+    currentSectionIndex === 0 ? "blank" : "content"
+  );
+  const [hasPlayedIntro, setHasPlayedIntro] = useState(false);
+
+  useEffect(() => {
+    if (currentSectionIndex === 0) {
+      if (!hasPlayedIntro) {
+        setIntroStage("blank");
+
+        const timer1 = setTimeout(() => {
+          setIntroStage("header");
+        }, 500);
+
+        const timer2 = setTimeout(() => {
+          setIntroStage("navigation");
+        }, 900);
+
+        const timer3 = setTimeout(() => {
+          setIntroStage("content");
+          setHasPlayedIntro(true);
+        }, 1300);
+
+        return () => {
+          clearTimeout(timer1);
+          clearTimeout(timer2);
+          clearTimeout(timer3);
+        };
+      }
+    } else {
+      setHasPlayedIntro(false);
+      setIntroStage("content");
+    }
+  }, [currentSectionIndex, hasPlayedIntro]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const metadata = DEMO_SECTIONS[currentSectionIndex]?.metadata || DEMO_SECTIONS[0].metadata;
@@ -98,7 +133,12 @@ export function DemoContainer() {
       </div>
 
       {/* Floating Header */}
-      <header className="w-full px-8 h-20 flex items-center justify-between border-b border-border/20 z-30 pointer-events-none absolute top-0 left-0 bg-linear-to-b from-background via-background/60 to-transparent">
+      <header
+        className={cn(
+          "w-full px-8 h-20 flex items-center justify-between border-b border-border/20 z-30 pointer-events-none absolute top-0 left-0 bg-linear-to-b from-background via-background/60 to-transparent transition-opacity duration-500",
+          (introStage === "header" || introStage === "navigation" || introStage === "content") ? "opacity-100" : "opacity-0"
+        )}
+      >
         <div className="flex items-center gap-3 pointer-events-auto select-none">
           <Link href="/" className="rounded-md">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -126,7 +166,12 @@ export function DemoContainer() {
       </header>
 
       {/* Dynamic Animated Scene Region */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-6 flex items-center justify-center relative z-10 pt-20 pb-28">
+      <main
+        className={cn(
+          "flex-1 w-full max-w-7xl mx-auto px-6 flex items-center justify-center relative z-10 pt-20 pb-28 transition-opacity duration-500",
+          introStage === "content" ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+      >
         <AnimatePresence
           mode="wait"
           onExitComplete={() => {
@@ -152,7 +197,12 @@ export function DemoContainer() {
       </main>
 
       {/* Floating Control Footer */}
-      <footer className="w-full px-8 py-6 border-t border-border/20 z-30 pointer-events-none absolute bottom-0 left-0 bg-linear-to-t from-background via-background/60 to-transparent flex flex-col gap-6">
+      <footer
+        className={cn(
+          "w-full px-8 py-6 border-t border-border/20 z-30 pointer-events-none absolute bottom-0 left-0 bg-linear-to-t from-background via-background/60 to-transparent flex flex-col gap-6 transition-opacity duration-500",
+          (introStage === "navigation" || introStage === "content") ? "opacity-100" : "opacity-0"
+        )}
+      >
         <div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="w-full md:flex-1">
             <DemoProgress />
@@ -162,6 +212,14 @@ export function DemoContainer() {
           </div>
         </div>
       </footer>
+
+      {/* White intro overlay */}
+      <div
+        className={cn(
+          "absolute inset-0 bg-white z-9999 w-screen h-screen transition-opacity duration-500 pointer-events-none",
+          introStage === "blank" ? "opacity-100" : "opacity-0"
+        )}
+      />
     </div>
   );
 }
