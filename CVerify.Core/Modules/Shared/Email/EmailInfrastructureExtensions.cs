@@ -1,5 +1,5 @@
 using System;
-using System.Net.Http;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -60,15 +60,10 @@ public static class EmailInfrastructureExtensions
         services.AddSingleton<IEmailTemplateService, EmailTemplateService>();
         services.AddSingleton<IEmailAuditLogger, StructuredEmailAuditLogger>();
 
-        // 3. Register standard and typed HttpClient for SendGrid REST endpoint dispatch
-        services.AddHttpClient<SendGridHttpSender>();
+        // 3. Register transport senders
+        services.AddTransient<SmtpEmailSender>();
 
-        // 4. Register transport senders
-        services.AddTransient<MailKitSmtpSender>();
-        services.AddTransient<SendGridHttpSender>();
-        services.AddTransient<FailoverEmailSender>();
-
-        // 5. Build and register the modern Polly v8 Resilience Pipeline
+        // 4. Build and register the modern Polly v8 Resilience Pipeline
         services.AddSingleton<ResiliencePipeline>(sp =>
         {
             var settings = sp.GetRequiredService<IOptions<EmailSettings>>().Value;
@@ -85,10 +80,9 @@ public static class EmailInfrastructureExtensions
                 OnRetry = args =>
                 {
                     // Inspect context property parameters to log retry audits cleanly via our observer
-                    if (args.Context.Properties.TryGetValue(new ResiliencePropertyKey<EmailMessage>("Message"), out var message) &&
-                        args.Context.Properties.TryGetValue(new ResiliencePropertyKey<string>("Provider"), out var provider))
+                    if (args.Context.Properties.TryGetValue(new ResiliencePropertyKey<EmailMessage>("Message"), out var message))
                     {
-                        auditLogger.LogRetry(message, provider, args.AttemptNumber + 1, args.Outcome.Exception!);
+                        auditLogger.LogRetry(message, args.AttemptNumber + 1, args.Outcome.Exception!);
                     }
                     return default;
                 }
@@ -119,25 +113,11 @@ public static class EmailInfrastructureExtensions
                 .Build();
         });
 
-        // 6. Register Keyed Services for transport decorator mapping
-        services.AddKeyedTransient<IEmailSender>("raw", (sp, key) =>
-        {
-            var settings = sp.GetRequiredService<IOptions<EmailSettings>>().Value;
-
-            return settings.Provider switch
-            {
-                EmailProvider.Smtp => sp.GetRequiredService<MailKitSmtpSender>(),
-                EmailProvider.SendGrid => sp.GetRequiredService<SendGridHttpSender>(),
-                EmailProvider.Failover => sp.GetRequiredService<FailoverEmailSender>(),
-                _ => throw new InvalidOperationException($"Unsupported email provider configuration: '{settings.Provider}'")
-            };
-        });
-
-        // 7. Configure background channel enqueuer and draining worker processor
+        // 5. Configure background channel enqueuer and draining worker processor
         services.AddSingleton<IEmailQueue, BackgroundEmailQueue>();
         services.AddHostedService<BackgroundEmailQueueProcessor>();
 
-        // 8. Register the primary IEmailSender interface public binding
+        // 6. Register the primary IEmailSender interface public binding
         services.AddTransient<IEmailSender>(sp =>
         {
             var settings = sp.GetRequiredService<IOptions<EmailSettings>>().Value;
@@ -150,14 +130,14 @@ public static class EmailInfrastructureExtensions
                     sp.GetRequiredService<ILogger<QueuedEmailSenderDecorator>>());
             }
 
-            return sp.GetRequiredKeyedService<IEmailSender>("raw");
+            return sp.GetRequiredService<SmtpEmailSender>();
         });
 
-        // 9. Register business-level service
+        // 7. Register business-level service
         services.AddScoped<IEmailRecipientResolver, EmailRecipientResolver>();
         services.AddTransient<IEmailService, EmailService>();
 
-        // 10. Register health monitoring diagnostics integration
+        // 8. Register health monitoring diagnostics integration
         services.AddHealthChecks()
             .AddCheck<EmailProviderHealthCheck>("email_provider");
 

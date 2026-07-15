@@ -1,4 +1,3 @@
-
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,16 +14,16 @@ namespace CVerify.API.Modules.Shared.Email.Services;
 /// <summary>
 /// Dispatches emails over SMTP using MailKit and MimeKit within a Polly resilience pipeline.
 /// </summary>
-public class MailKitSmtpSender : IEmailSender
+public class SmtpEmailSender : IEmailSender
 {
     private readonly EmailSettings _settings;
     private readonly IEmailAuditLogger _auditLogger;
     private readonly ResiliencePipeline _resiliencePipeline;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="MailKitSmtpSender"/> class.
+    /// Initializes a new instance of the <see cref="SmtpEmailSender"/> class.
     /// </summary>
-    public MailKitSmtpSender(
+    public SmtpEmailSender(
         IOptions<EmailSettings> settings,
         IEmailAuditLogger auditLogger,
         ResiliencePipeline resiliencePipeline)
@@ -35,7 +34,7 @@ public class MailKitSmtpSender : IEmailSender
     }
 
     /// <inheritdoc />
-    public async Task SendEmailAsync(EmailMessage message, CancellationToken cancellationToken = default)
+    public virtual async Task SendEmailAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -73,7 +72,6 @@ public class MailKitSmtpSender : IEmailSender
         // Setup Polly Context with Message Reference for Audit Logging inside pipelines
         var pollyContext = ResilienceContextPool.Shared.Get(cancellationToken);
         pollyContext.Properties.Set(new ResiliencePropertyKey<EmailMessage>("Message"), message);
-        pollyContext.Properties.Set(new ResiliencePropertyKey<string>("Provider"), "SMTP");
 
         StructuredEmailAuditLogger.LogDeliveryStage("SmtpSender", "", message.Category.ToString(), message.ToEmail, message.CorrelationId);
 
@@ -117,11 +115,11 @@ public class MailKitSmtpSender : IEmailSender
                 await client.DisconnectAsync(true, ct.CancellationToken).ConfigureAwait(false);
             }, pollyContext).ConfigureAwait(false);
 
-            _auditLogger.LogSent(message, "SMTP");
+            _auditLogger.LogSent(message);
         }
         catch (Exception ex)
         {
-            _auditLogger.LogFailed(message, "SMTP", ex);
+            _auditLogger.LogFailed(message, ex);
             throw new EmailSendingException($"SMTP transport failed to deliver email to {recipientEmail}.", ex);
         }
         finally

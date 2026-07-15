@@ -27,38 +27,38 @@ public class StructuredEmailAuditLogger : IEmailAuditLogger
     }
 
     /// <inheritdoc />
-    public void LogSent(EmailMessage message, string provider)
+    public void LogSent(EmailMessage message)
     {
         var timestamp = DateTime.UtcNow;
         _logger.LogInformation(
-            "EMAIL_AUDIT_SENT: Destination: {ToEmail} | Name: {ToName} | Subject: {Subject} | Provider: {Provider} | CorrelationID: {CorrelationId} | Category: {Category} | Timestamp: {Timestamp}",
-            message.ToEmail, message.ToName, message.Subject, provider, message.CorrelationId, message.Category, timestamp);
+            "EMAIL_AUDIT_SENT: Destination: {ToEmail} | Name: {ToName} | Subject: {Subject} | CorrelationID: {CorrelationId} | Category: {Category} | Timestamp: {Timestamp}",
+            message.ToEmail, message.ToName, message.Subject, message.CorrelationId, message.Category, timestamp);
 
-        PushToBuffer($"[{timestamp:HH:mm:ss.fff}] [SENT] [Provider: {provider}] To: {message.ToEmail} | Subject: '{message.Subject}' | CorrelationID: {message.CorrelationId} | Category: {message.Category}");
+        PushToBuffer($"[{timestamp:HH:mm:ss.fff}] [SENT] To: {message.ToEmail} | Subject: '{message.Subject}' | CorrelationID: {message.CorrelationId} | Category: {message.Category}");
     }
 
     /// <inheritdoc />
-    public void LogFailed(EmailMessage message, string provider, Exception exception)
+    public void LogFailed(EmailMessage message, Exception exception)
     {
         var timestamp = DateTime.UtcNow;
         _logger.LogError(
             exception,
-            "EMAIL_AUDIT_FAILED: Destination: {ToEmail} | Name: {ToName} | Subject: {Subject} | Provider: {Provider} | CorrelationID: {CorrelationId} | Category: {Category} | Error: {ErrorMessage} | Timestamp: {Timestamp}",
-            message.ToEmail, message.ToName, message.Subject, provider, message.CorrelationId, message.Category, exception.Message, timestamp);
+            "EMAIL_AUDIT_FAILED: Destination: {ToEmail} | Name: {ToName} | Subject: {Subject} | CorrelationID: {CorrelationId} | Category: {Category} | Error: {ErrorMessage} | Timestamp: {Timestamp}",
+            message.ToEmail, message.ToName, message.Subject, message.CorrelationId, message.Category, exception.Message, timestamp);
 
-        PushToBuffer($"[{timestamp:HH:mm:ss.fff}] [FAILED] [Provider: {provider}] To: {message.ToEmail} | Subject: '{message.Subject}' | Error: {exception.Message} | CorrelationID: {message.CorrelationId}");
+        PushToBuffer($"[{timestamp:HH:mm:ss.fff}] [FAILED] To: {message.ToEmail} | Subject: '{message.Subject}' | Error: {exception.Message} | CorrelationID: {message.CorrelationId}");
     }
 
     /// <inheritdoc />
-    public void LogRetry(EmailMessage message, string provider, int attempt, Exception exception)
+    public void LogRetry(EmailMessage message, int attempt, Exception exception)
     {
         var timestamp = DateTime.UtcNow;
         _logger.LogWarning(
             exception,
-            "EMAIL_AUDIT_RETRY: Attempt: {Attempt} | Destination: {ToEmail} | Name: {ToName} | Subject: {Subject} | Provider: {Provider} | CorrelationID: {CorrelationId} | Category: {Category} | Error: {ErrorMessage} | Timestamp: {Timestamp}",
-            attempt, message.ToEmail, message.ToName, message.Subject, provider, message.CorrelationId, message.Category, exception.Message, timestamp);
+            "EMAIL_AUDIT_RETRY: Attempt: {Attempt} | Destination: {ToEmail} | Name: {ToName} | Subject: {Subject} | CorrelationID: {CorrelationId} | Category: {Category} | Error: {ErrorMessage} | Timestamp: {Timestamp}",
+            attempt, message.ToEmail, message.ToName, message.Subject, message.CorrelationId, message.Category, exception.Message, timestamp);
 
-        PushToBuffer($"[{timestamp:HH:mm:ss.fff}] [RETRY #{attempt}] [Provider: {provider}] To: {message.ToEmail} | Subject: '{message.Subject}' | Error: {exception.Message} | CorrelationID: {message.CorrelationId}");
+        PushToBuffer($"[{timestamp:HH:mm:ss.fff}] [RETRY #{attempt}] To: {message.ToEmail} | Subject: '{message.Subject}' | Error: {exception.Message} | CorrelationID: {message.CorrelationId}");
     }
 
     /// <summary>

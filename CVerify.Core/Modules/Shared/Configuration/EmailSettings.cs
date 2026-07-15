@@ -13,10 +13,6 @@ public class EmailSettings
     /// </summary>
     public const string SectionName = "EmailSettings";
 
-    /// <summary>
-    /// The active transport delivery pathway. Defaults to SMTP.
-    /// </summary>
-    public EmailProvider Provider { get; set; } = EmailProvider.Smtp;
 
     /// <summary>
     /// The sender's email address. Must be a valid email address format.
@@ -59,10 +55,6 @@ public class EmailSettings
     /// </summary>
     public SmtpSettings Smtp { get; set; } = new();
 
-    /// <summary>
-    /// Nested configurations specifically dedicated to SendGrid API connections.
-    /// </summary>
-    public SendGridSettings SendGrid { get; set; } = new();
 
     /// <summary>
     /// Toggles whether legacy flat email templates are rendered without layout wrappers.
@@ -162,13 +154,4 @@ public class SmtpSettings
     public bool EnableSsl { get; set; } = true;
 }
 
-/// <summary>
-/// Configurations specific to the SendGrid REST transport.
-/// </summary>
-public class SendGridSettings
-{
-    /// <summary>
-    /// Bearer API Key utilized to authenticate with SendGrid REST endpoints.
-    /// </summary>
-    public string ApiKey { get; set; } = null!;
-}
+

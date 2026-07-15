@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using FluentAssertions;
 using Moq;
 using Xunit;
@@ -26,7 +27,7 @@ public class BackgroundQueueTests
     private readonly Mock<IServiceProvider> _serviceProviderMock;
     private readonly Mock<IServiceScopeFactory> _scopeFactoryMock;
     private readonly Mock<IServiceScope> _scopeMock;
-    private readonly Mock<IEmailSender> _rawSenderMock;
+    private readonly Mock<SmtpEmailSender> _rawSenderMock;
     private readonly Mock<ILogger<BackgroundEmailQueueProcessor>> _loggerMock;
     private readonly BackgroundEmailQueueProcessor _processor;
 
@@ -39,13 +40,17 @@ public class BackgroundQueueTests
         _serviceProviderMock = new Mock<IServiceProvider>();
         _scopeFactoryMock = new Mock<IServiceScopeFactory>();
         _scopeMock = new Mock<IServiceScope>();
-        _rawSenderMock = new Mock<IEmailSender>();
+
+        var settings = new EmailSettings { TimeoutSeconds = 30 };
+        var optionsMock = new Mock<IOptions<EmailSettings>>();
+        optionsMock.Setup(o => o.Value).Returns(settings);
+        var auditLoggerMock = new Mock<IEmailAuditLogger>();
+        var pipeline = Polly.ResiliencePipeline.Empty;
+
+        _rawSenderMock = new Mock<SmtpEmailSender>(optionsMock.Object, auditLoggerMock.Object, pipeline);
         _loggerMock = new Mock<ILogger<BackgroundEmailQueueProcessor>>();
 
-        // Cast service provider mock to mock keyed provider and setup "raw" IEmailSender resolution BEFORE accessing .Object
-        var keyedProvider = _serviceProviderMock.As<IKeyedServiceProvider>();
-        keyedProvider.Setup(k => k.GetKeyedService(typeof(IEmailSender), "raw")).Returns(_rawSenderMock.Object);
-        keyedProvider.Setup(k => k.GetRequiredKeyedService(typeof(IEmailSender), "raw")).Returns(_rawSenderMock.Object);
+        _serviceProviderMock.Setup(s => s.GetService(typeof(SmtpEmailSender))).Returns(_rawSenderMock.Object);
 
         // Setup DI scope structures
         _scopeMock.Setup(s => s.ServiceProvider).Returns(_serviceProviderMock.Object);
