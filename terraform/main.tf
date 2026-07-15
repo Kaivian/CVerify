@@ -224,3 +224,23 @@ resource "google_compute_firewall" "allow_web" {
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["cverify-vm"]
 }
+
+# ==============================================================================
+# 6. STORAGE BUCKET FOR BUILD METADATA MANIFESTS
+# ==============================================================================
+resource "google_storage_bucket" "metadata_bucket" {
+  name                        = "cverify-build-metadata-${var.project_id}"
+  location                    = var.region
+  force_destroy               = true
+  uniform_bucket_level_access = true
+
+  versioning {
+    enabled = true
+  }
+}
+
+resource "google_storage_bucket_iam_member" "deployer_storage_admin" {
+  bucket = google_storage_bucket.metadata_bucket.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.deployer.email}"
+}
