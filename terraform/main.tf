@@ -55,7 +55,7 @@ resource "google_artifact_registry_repository" "cverify_registry" {
     id     = "keep-release-versions"
     action = "KEEP"
     condition {
-      tag_state    = "tagged"
+      tag_state    = "TAGGED"
       tag_prefixes = ["v"]
     }
   }
@@ -64,7 +64,7 @@ resource "google_artifact_registry_repository" "cverify_registry" {
     id     = "delete-old-commits"
     action = "DELETE"
     condition {
-      tag_state    = "tagged"
+      tag_state    = "TAGGED"
       tag_prefixes = ["sha-"]
       older_than   = "2592000s" # 30 days
     }
@@ -95,10 +95,12 @@ resource "google_iam_workload_identity_pool_provider" "github_provider" {
   display_name                       = "GitHub Actions Provider"
   
   attribute_mapping = {
-    "google.subject"       = "assertion.subject"
+    "google.subject"       = "assertion.sub"
     "attribute.actor"      = "assertion.actor"
     "attribute.repository" = "assertion.repository"
   }
+
+  attribute_condition = "attribute.repository == '${var.github_repository}'"
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
@@ -122,7 +124,7 @@ resource "google_project_iam_member" "gar_writer" {
 
 resource "google_project_iam_member" "iap_tunnel_user" {
   project = var.project_id
-  role    = "roles/iap.tunnelDestGroupUser"
+  role    = "roles/iap.tunnelResourceAccessor"
   member  = "serviceAccount:${google_service_account.deployer.email}"
 }
 
@@ -142,7 +144,7 @@ resource "google_project_iam_member" "compute_instance_admin" {
 # Allow GitHub Actions repository to assume the service account role
 resource "google_service_account_iam_member" "github_sa_bind" {
   service_account_id = google_service_account.deployer.name
-  role               = "roles/iam.serviceAccountUser"
+  role               = "roles/iam.serviceAccountTokenCreator"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_pool.name}/attribute.repository/${var.github_repository}"
 }
 
@@ -221,4 +223,24 @@ resource "google_compute_firewall" "allow_web" {
 
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["cverify-vm"]
+}
+
+# ==============================================================================
+# 6. STORAGE BUCKET FOR BUILD METADATA MANIFESTS
+# ==============================================================================
+resource "google_storage_bucket" "metadata_bucket" {
+  name                        = "cverify-build-metadata-${var.project_id}"
+  location                    = var.region
+  force_destroy               = true
+  uniform_bucket_level_access = true
+
+  versioning {
+    enabled = true
+  }
+}
+
+resource "google_storage_bucket_iam_member" "deployer_storage_admin" {
+  bucket = google_storage_bucket.metadata_bucket.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.deployer.email}"
 }
