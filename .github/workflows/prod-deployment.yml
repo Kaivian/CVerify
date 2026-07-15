@@ -111,8 +111,8 @@ jobs:
 
       - name: Trigger Zero-Touch VM Deployment
         run: |
-          gcloud compute ssh cverify-prod-vm \
+          gcloud compute ssh ubuntu@cverify-prod-vm \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --zone=asia-southeast1-a \
             --tunnel-through-iap \
-            --command="cd /app/cverify && git fetch origin && git checkout main && git pull origin main && ./scripts/deploy-gcp.sh Production ${{ github.sha }}"
+            --command="for i in {1..30}; do if [ -d /app/cverify ]; then break; fi; echo 'Waiting for VM initialization...'; sleep 10; done; cd /app/cverify && git fetch origin && git checkout main && git pull origin main && ./scripts/deploy-gcp.sh Production ${{ github.sha }}"
