@@ -250,6 +250,9 @@ jobs:
               sudo chown -R ubuntu:ubuntu /app/cverify
               tar -xzf /tmp/deployment.tar.gz -C /app/cverify
               
+              # Ensure all scripts have execute permission
+              find /app/cverify -name '*.sh' -exec chmod +x {} +
+              
               # Execute deployer
               cd /app/cverify
               ./scripts/deploy-gcp.sh Production ${{ github.sha }}
