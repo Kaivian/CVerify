@@ -203,11 +203,11 @@ foreach ($portKey in $portKeys) {
 }
 
 # Check URLs
-$urlKeys = @("FRONTEND_URL", "INTERNAL_API_URL")
+$urlKeys = @("FRONTEND_URL", "INTERNAL_API_URL", "NEXT_PUBLIC_API_URL")
 foreach ($urlKey in $urlKeys) {
     if ($mergedHash.ContainsKey($urlKey)) {
         $urlVal = $mergedHash[$urlKey]
-        if (-not ($urlVal -match "^https?://")) {
+        if ($urlVal -ne "" -and -not ($urlVal -match "^https?://")) {
             $missingRequired += "$urlKey (Invalid URL: '$urlVal')"
         }
     }
