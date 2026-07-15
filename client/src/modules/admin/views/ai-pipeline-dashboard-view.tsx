@@ -90,7 +90,7 @@ const CustomTaskNode: React.FC<NodeProps> = ({ data }) => {
         <h5 className="font-bold text-foreground text-xs truncate">{customData.taskName}</h5>
         {customData.status === "Running" && (
           <div className="w-full bg-primary/20 h-1 rounded-full overflow-hidden mt-1">
-            <div className="bg-primary h-full rounded-full" style={{ width: `${customData.progress}%` }}></div>
+            <div className="bg-primary h-full rounded-full" style={{ width: `${customData.progress}%` }} />
           </div>
         )}
       </div>
@@ -737,7 +737,7 @@ export const AiPipelineDashboardView: React.FC<DashboardProps> = ({ pipelineSlug
                   )}
                 </div>
 
-                <div className="border-t border-border/40 my-3"></div>
+                <div className="border-t border-border/40 my-3" />
 
                 {/* Repository breakdown */}
                 <div className="space-y-2">
@@ -793,7 +793,7 @@ export const AiPipelineDashboardView: React.FC<DashboardProps> = ({ pipelineSlug
                             <span className="block">CPU Utilization</span>
                             <div className="flex items-center space-x-1.5 mt-0.5">
                               <div className="flex-1 bg-border h-1.5 rounded-full overflow-hidden">
-                                <div className="bg-primary h-full" style={{ width: `${worker.cpuUsagePercent}%` }}></div>
+                                <div className="bg-primary h-full" style={{ width: `${worker.cpuUsagePercent}%` }} />
                               </div>
                               <span className="font-mono text-foreground font-semibold">{worker.cpuUsagePercent}%</span>
                             </div>
@@ -802,7 +802,7 @@ export const AiPipelineDashboardView: React.FC<DashboardProps> = ({ pipelineSlug
                             <span className="block">RAM Utilization</span>
                             <div className="flex items-center space-x-1.5 mt-0.5">
                               <div className="flex-1 bg-border h-1.5 rounded-full overflow-hidden">
-                                <div className="bg-success h-full" style={{ width: `${worker.memoryUsagePercent}%` }}></div>
+                                <div className="bg-success h-full" style={{ width: `${worker.memoryUsagePercent}%` }} />
                               </div>
                               <span className="font-mono text-foreground font-semibold">{worker.memoryUsagePercent}%</span>
                             </div>

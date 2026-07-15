@@ -19,16 +19,16 @@ public class QueueDiscoveryService : IQueueDiscoveryService
     {
         var endpoints = _redis.GetEndPoints();
         var server = _redis.GetServer(endpoints[0]);
-        
+
         // Scan keys in Redis
         var keys = server.Keys(pattern: "pipeline:queue:*").Select(k => k.ToString()).ToList();
-        
+
         var queues = keys
             .Select(k => k.Replace("pipeline:queue:", ""))
             .Where(q => !q.Contains(":paused:") && !q.StartsWith("paused:")) // Excludepaused state keys
             .Distinct()
             .ToList();
-            
+
         // Ensure CVerify default queues are always registered
         var defaultQueues = new[] { "git", "static", "aggregation", "ai" };
         foreach (var def in defaultQueues)

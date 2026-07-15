@@ -45,12 +45,12 @@ services:
   cverify-client:
     build:
       args:
-        - NEXT_PUBLIC_API_URL=http://localhost:${CORE_PORT:-5250}/api
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5250/api}
         - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-your_google_client_id_here}
     env_file:
       - ../.env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:${CORE_PORT:-5250}/api
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5250/api}
       PORT: 3000
       JWT_SECRET: ${JWT_KEY}
     ports:

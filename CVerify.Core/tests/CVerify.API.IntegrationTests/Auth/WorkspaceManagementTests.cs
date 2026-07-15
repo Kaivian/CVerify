@@ -128,6 +128,7 @@ public class WorkspaceManagementTests : BaseIntegrationTest
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var bootstrapService = scope.ServiceProvider.GetRequiredService<IOrganizationBootstrapService>();
 
         var membership = new OrganizationMembership
         {
@@ -141,8 +142,30 @@ public class WorkspaceManagementTests : BaseIntegrationTest
         db.OrganizationMemberships.Add(membership);
         await db.SaveChangesAsync();
 
-        // Initialize business roles and run migration script to populate role assignments
         await DbInitializer.InitializeAsync(db);
+
+        if (role == "OWNER" || role == "REPRESENTATIVE")
+        {
+            await bootstrapService.BootstrapOrganizationAsync(orgId, userId);
+        }
+        else
+        {
+            await bootstrapService.SeedDefaultRolesForTenantAsync(orgId);
+            var viewerRole = await db.Roles.FirstOrDefaultAsync(r => r.TenantId == orgId && r.Name == "viewer");
+            if (viewerRole != null)
+            {
+                db.RoleAssignments.Add(new RoleAssignment
+                {
+                    Id = Guid.CreateVersion7(),
+                    UserId = userId,
+                    RoleId = viewerRole.Id,
+                    ScopeType = "ORGANIZATION",
+                    ScopeId = orgId,
+                    AssignedAt = DateTimeOffset.UtcNow
+                });
+                await db.SaveChangesAsync();
+            }
+        }
     }
 
     [Fact]

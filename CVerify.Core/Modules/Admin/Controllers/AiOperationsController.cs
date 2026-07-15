@@ -156,7 +156,7 @@ public class AiOperationsController : ControllerBase
         long pendingQueueSize = 0;
         var meta = PipelineRegistry.Pipelines.FirstOrDefault(p => p.Id == pipelineType);
         var activeQueues = await _queueService.DiscoverActiveQueuesAsync(cancellationToken);
-        
+
         foreach (var q in activeQueues)
         {
             if (meta == null || meta.QueueTypes.Contains(q))
@@ -183,14 +183,14 @@ public class AiOperationsController : ControllerBase
         {
             var date = DateTimeOffset.UtcNow.AddDays(-i).Date;
             var dayRuns = trendExecutions.Where(e => e.CreatedAtUtc.Date == date).ToList();
-            
+
             var tCount = dayRuns.Count;
             var cCount = dayRuns.Count(e => e.Status == "Completed");
             var fCount = dayRuns.Count(e => e.Status == "Failed");
             var cnCount = dayRuns.Count(e => e.Status == "Cancelled");
             var tokens = dayRuns.Sum(e => (e.TotalInputTokens ?? 0) + (e.TotalOutputTokens ?? 0));
             var cost = dayRuns.Sum(e => e.CumulativeCostUsd);
-            
+
             double avgLat = 0;
             var completedRuns = dayRuns.Where(e => e.Status == "Completed" && e.StartedAt.HasValue && e.CompletedAt.HasValue).ToList();
             if (completedRuns.Any())
@@ -504,7 +504,7 @@ public class AiOperationsController : ControllerBase
     public async Task<IActionResult> PauseQueue(string queueName, CancellationToken cancellationToken)
     {
         await _queueService.PauseQueueAsync(queueName, cancellationToken);
-        
+
         await _eventPublisher.PublishAsync(
             eventType: "admin:ai:queue:paused",
             resourceType: "ai-operations",

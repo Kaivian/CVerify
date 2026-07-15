@@ -22,7 +22,7 @@ public class VaultSecretProvider : ISecretProvider
 
         // Placeholder logic: fallback to environment or simulate secure retrieval
         Console.WriteLine($"[VaultSecretProvider] Retrieving key '{key}' from Secure Vault: {_vaultName}...");
-        
+
         return Environment.GetEnvironmentVariable(key) ?? "";
     }
 }
