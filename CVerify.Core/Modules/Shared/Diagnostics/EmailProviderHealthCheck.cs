@@ -10,7 +10,7 @@ using CVerify.API.Modules.Shared.Configuration;
 namespace CVerify.API.Modules.Shared.Diagnostics;
 
 /// <summary>
-/// Exposes real-time connectivity state checks for active SMTP and SendGrid gateways to the ASP.NET Core Health Checks middleware.
+/// Exposes real-time connectivity state checks for the SMTP gateway to the ASP.NET Core Health Checks middleware.
 /// </summary>
 public class EmailProviderHealthCheck : IHealthCheck
 {
@@ -29,32 +29,18 @@ public class EmailProviderHealthCheck : IHealthCheck
     {
         try
         {
-            // If SMTP or Failover mode is active, check SMTP socket reachability
-            if (_settings.Provider == EmailProvider.Smtp || _settings.Provider == EmailProvider.Failover)
+            using var tcpClient = new TcpClient();
+
+            // Set a strict 5-second socket connection timeout
+            var connectTask = tcpClient.ConnectAsync(_settings.Smtp.Host, _settings.Smtp.Port, cancellationToken);
+            await connectTask.AsTask().WaitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+
+            if (!tcpClient.Connected)
             {
-                using var tcpClient = new TcpClient();
-
-                // Set a strict 5-second socket connection timeout
-                var connectTask = tcpClient.ConnectAsync(_settings.Smtp.Host, _settings.Smtp.Port, cancellationToken);
-                await connectTask.AsTask().WaitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
-
-                if (!tcpClient.Connected)
-                {
-                    return HealthCheckResult.Unhealthy($"SMTP transport is unreachable. Failed to open TCP socket connection to {_settings.Smtp.Host}:{_settings.Smtp.Port}");
-                }
+                return HealthCheckResult.Unhealthy($"SMTP transport is unreachable. Failed to open TCP socket connection to {_settings.Smtp.Host}:{_settings.Smtp.Port}");
             }
 
-            // If SendGrid or Failover mode is active, check DNS resolution of the SendGrid API endpoint
-            if (_settings.Provider == EmailProvider.SendGrid || _settings.Provider == EmailProvider.Failover)
-            {
-                var ips = await global::System.Net.Dns.GetHostAddressesAsync("api.sendgrid.com", cancellationToken).ConfigureAwait(false);
-                if (ips.Length == 0)
-                {
-                    return HealthCheckResult.Unhealthy("SendGrid transport is unhealthy. DNS resolution for 'api.sendgrid.com' failed.");
-                }
-            }
-
-            return HealthCheckResult.Healthy($"Email infrastructure operational. Primary provider: {_settings.Provider}");
+            return HealthCheckResult.Healthy("Email infrastructure operational via SMTP.");
         }
         catch (Exception ex)
         {
