@@ -127,15 +127,17 @@ jobs:
             --tunnel-through-iap \
             --quiet \
             --command="
-              # Wait for VM bootstrap to complete
-              for i in {1..30}; do
+              # Wait for VM bootstrap to complete (up to 15 minutes for cold boot)
+              for i in {1..90}; do
                 if [ -f /var/log/cverify-bootstrap-done ]; then break; fi
                 echo 'Waiting for VM bootstrap to complete...'
-                sleep 10
+                sleep 30
               done
               
               if [ ! -f /var/log/cverify-bootstrap-done ]; then
-                echo 'Error: VM bootstrap timed out.'
+                echo 'Error: VM bootstrap timed out after 15 minutes.'
+                echo '--- Startup script logs ---'
+                sudo journalctl -u google-startup-scripts --no-pager -n 80 2>/dev/null || true
                 exit 1
               fi
               
