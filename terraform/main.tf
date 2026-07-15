@@ -222,29 +222,48 @@ resource "google_compute_instance" "app_server" {
 
   metadata_startup_script = <<-EOT
     #!/bin/bash
-    set -e
     
+    # Skip bootstrap if already completed (idempotent on reboot)
+    if [ -f /var/log/cverify-bootstrap-done ]; then
+      echo "Bootstrap already completed, skipping."
+      exit 0
+    fi
+
+    # Redirect all output to a log file for diagnostics
+    exec > >(tee -a /var/log/cverify-bootstrap.log) 2>&1
+    echo "=== Bootstrap started at $(date -u) ==="
+
     # Function to wait for apt locks
     wait_for_apt() {
-      echo "Waiting for apt/dpkg locks..."
       while ! flock -n /var/lib/dpkg/lock-frontend -c "true" >/dev/null 2>&1 || ! flock -n /var/lib/apt/lists/lock -c "true" >/dev/null 2>&1; do
         echo "Apt lock held by another process, sleeping 5 seconds..."
         sleep 5
       done
-      echo "Apt locks released."
     }
 
-    # Wait for initial locks
-    wait_for_apt
-    
+    # Retry wrapper for apt commands
+    apt_retry() {
+      local max_attempts=3
+      for attempt in $(seq 1 $max_attempts); do
+        wait_for_apt
+        if "$@"; then
+          return 0
+        fi
+        echo "Command failed (attempt $attempt/$max_attempts): $*"
+        sleep 10
+      done
+      echo "ERROR: Command failed after $max_attempts attempts: $*"
+      return 1
+    }
+
+    set -e
+
     # 1. Update system dependencies
-    apt-get update
-    wait_for_apt
-    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release jq git
+    apt_retry apt-get update
+    apt_retry apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release jq git
     
     # 2. Add Docker repository and key
     mkdir -p /etc/apt/keyrings
-    wait_for_apt
     if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
       curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
     fi
@@ -254,17 +273,15 @@ resource "google_compute_instance" "app_server" {
     if ! command -v gcloud &> /dev/null; then
       echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
       curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --yes --dearmor -o /usr/share/keyrings/cloud.google.gpg
-      wait_for_apt
-      apt-get update
-      wait_for_apt
-      apt-get install -y google-cloud-cli
+      apt_retry apt-get update
+      apt_retry apt-get install -y google-cloud-cli
     fi
 
     # 4. Install Docker Engine and Compose Plugin
-    wait_for_apt
-    apt-get update
-    wait_for_apt
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    if ! command -v docker &> /dev/null; then
+      apt_retry apt-get update
+      apt_retry apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    fi
     
     # 5. Disable host Nginx service if installed to prevent port 80/443 conflicts
     if systemctl is-active --quiet nginx; then
@@ -296,6 +313,7 @@ resource "google_compute_instance" "app_server" {
     EOF
 
     # 8. Create bootstrap completed marker
+    echo "=== Bootstrap completed at $(date -u) ==="
     echo "done" > /var/log/cverify-bootstrap-done
   EOT
 }
