@@ -11,7 +11,7 @@ export function AdminDashboardView() {
     <div className="space-y-6 font-outfit">
       
       {/* Header Banner */}
-      <div className="dark flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-background border border-border text-foreground select-none">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-background border border-border text-foreground select-none">
         <div className="space-y-1">
           <Typography type="h2" className="text-xl font-bold flex items-center gap-2 text-foreground">
             System Administrator Console{' '}
