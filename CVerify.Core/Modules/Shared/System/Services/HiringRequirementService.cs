@@ -13,6 +13,7 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.System.DTOs;
+using CVerify.API.Modules.Profiles.Services;
 
 namespace CVerify.API.Modules.Shared.System.Services;
 
@@ -26,6 +27,7 @@ public class HiringRequirementService : IHiringRequirementService
     private readonly ILogger<HiringRequirementService> _logger;
     private readonly IAiStreamingSessionService _streamingSessionService;
     private readonly IAiCancellationManager _cancellationManager;
+    private readonly ITechnologyNormalizationService _normalizationService;
 
     public HiringRequirementService(
         ApplicationDbContext context,
@@ -35,7 +37,8 @@ public class HiringRequirementService : IHiringRequirementService
         IConnectionMultiplexer redis,
         ILogger<HiringRequirementService> logger,
         IAiStreamingSessionService streamingSessionService,
-        IAiCancellationManager cancellationManager)
+        IAiCancellationManager cancellationManager,
+        ITechnologyNormalizationService normalizationService)
     {
         _context = context;
         _catalogService = catalogService;
@@ -45,6 +48,7 @@ public class HiringRequirementService : IHiringRequirementService
         _logger = logger;
         _streamingSessionService = streamingSessionService;
         _cancellationManager = cancellationManager;
+        _normalizationService = normalizationService;
     }
 
     public async Task<HiringRequirement> CreateDraftAsync(CreateHiringRequirementRequestDto request, Guid userId, CancellationToken cancellationToken)
@@ -211,11 +215,12 @@ public class HiringRequirementService : IHiringRequirementService
             _context.TechnologyRequirements.RemoveRange(req.TechnologyRequirements);
             foreach (var skill in request.Skills)
             {
+                var norm = await _normalizationService.NormalizeAsync(skill.Name, cancellationToken);
                 req.TechnologyRequirements.Add(new TechnologyRequirement
                 {
                     Id = Guid.CreateVersion7(),
                     HiringRequirementId = req.Id,
-                    Name = skill.Name,
+                    Name = norm.NormalizedName, // Save canonical display name
                     Priority = skill.Priority,
                     SfiaLevel = skill.SfiaLevel
                 });

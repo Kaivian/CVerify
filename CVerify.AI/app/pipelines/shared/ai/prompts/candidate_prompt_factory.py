@@ -24,6 +24,7 @@ class CandidatePromptFactory:
     def get_skill_taxonomy_mapper_prompt(self, inputs: Dict[str, Any]) -> str:
         skill_graph = inputs.get("skillEvidenceGraph", {})
         cv_skills = inputs.get("cvSkills", [])
+        pre_normalized = inputs.get("preNormalizedSkills", [])
         cv = inputs.get("cv", {})
         projects = cv.get("projects", [])
         experiences = cv.get("experiences", [])
@@ -34,14 +35,17 @@ class CandidatePromptFactory:
             f"Projects: {json.dumps(projects, indent=2)}\n"
             f"Experiences: {json.dumps(experiences, indent=2)}\n\n"
             f"CV DECLARED SKILLS: {json.dumps(cv_skills)}\n\n"
+            f"PRE-NORMALIZED SKILL MAPPINGS (USE THESE CANONICAL IDENTITIES):\n"
+            f"{json.dumps(pre_normalized, indent=2)}\n\n"
             f"TASK:\n"
             f"1. For each detected skill node or CV declared skill, map it to the closest SFIA 9 skill category and O*NET occupation.\n"
             f"2. Normalize skill names (e.g., ReactJS → React, Spring Boot → Spring Framework).\n"
-            f"3. Cross-reference CV declared skills with code evidence. Mark declared-but-unproven skills. If a skill has no code evidence "
+            f"3. For any raw skill names present in PRE-NORMALIZED SKILL MAPPINGS, you MUST use the exact 'skillId' and 'normalizedName' specified in the mapping. Do not invent new names or IDs for them.\n"
+            f"4. Cross-reference CV declared skills with code evidence. Mark declared-but-unproven skills. If a skill has no code evidence "
             f"in the graph but is used in self-declared CV projects or work experience, set evidenceStrength to 'weak' (or 'self_declared') "
             f"and set declaredInCv to true.\n\n"
             f"Return JSON:\n"
-            f'{{"mappedSkills": [{{"rawName": "string", "normalizedName": "string", '
+            f'{{"mappedSkills": [{{"rawName": "string", "normalizedName": "string", "skillId": "string", '
             f'"sfiaCategory": "string", "onetCode": "string", "evidenceStrength": "none|weak|moderate|strong", '
             f'"declaredInCv": true}}], '
             f'"unmatchedCvSkills": ["list of skills declared in CV but not found in code evidence or CV projects"]}}'

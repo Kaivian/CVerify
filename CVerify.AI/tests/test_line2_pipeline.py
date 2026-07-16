@@ -1314,6 +1314,52 @@ class TestContractSafeguards(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx3.problemSolvingScore, 85.0)
 
 
+class TestSkillTaxonomyMapperNormalization(unittest.IsolatedAsyncioTestCase):
+    async def test_unmatched_cv_skills_normalization(self):
+        from app.pipelines.candidate.tasks.taxonomy_mapper import SkillTaxonomyMapper
+        from app.pipelines.candidate.context import PipelineContext
+        
+        mapper = SkillTaxonomyMapper()
+        mapper.claude_service = AsyncMock()
+        
+        test_cases = [
+            # Case 1: list of dicts with 'skill' key
+            (
+                '{"mappedSkills": [], "unmatchedCvSkills": [{"skill": "Node.js", "reason": "not in code"}, {"skill": "MongoDB", "reason": "missing"}]}',
+                ["Node.js", "MongoDB"]
+            ),
+            # Case 2: list of strings
+            (
+                '{"mappedSkills": [], "unmatchedCvSkills": ["React", "Python"]}',
+                ["React", "Python"]
+            ),
+            # Case 3: dictionary mapping skills to reasons
+            (
+                '{"mappedSkills": [], "unmatchedCvSkills": {"Docker": "no container files", "Kubernetes": "no yaml"}}',
+                ["Docker", "Kubernetes"]
+            ),
+            # Case 4: mixed strings and dicts
+            (
+                '{"mappedSkills": [], "unmatchedCvSkills": ["AWS", {"skill": "GCP", "reason": "none"}]}',
+                ["AWS", "GCP"]
+            )
+        ]
+        
+        for raw_output, expected in test_cases:
+            mapper.claude_service.analyze_repo_with_telemetry.return_value = (raw_output, {})
+            
+            ctx = PipelineContext(
+                cv={"projects": [], "experiences": []},
+                repositoryAssessments=[],
+                backgroundRepositories=[],
+                cvSkills=[],
+                skillEvidenceGraph={"nodes": []}
+            )
+            
+            res = await mapper._execute_internal(ctx, "test-correlation")
+            self.assertEqual(res["unmatchedCvSkills"], expected)
+
+
 if __name__ == "__main__":
     unittest.main()
 

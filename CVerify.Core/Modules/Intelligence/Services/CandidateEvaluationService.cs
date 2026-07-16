@@ -221,10 +221,28 @@ public class CandidateEvaluationService : ICandidateEvaluationService
             }
         }
 
+        // Build a mapping from raw name (OriginalName, SkillName) to canonical slug from verified skills
+        var nameToCanonicalSlug = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cs in verifiedSkills)
+        {
+            var canonicalSlug = !string.IsNullOrEmpty(cs.SkillId)
+                ? cs.SkillId.Replace("skill:", "").ToLowerInvariant().Trim()
+                : cs.SkillName.ToLowerInvariant().Trim();
+
+            nameToCanonicalSlug[cs.SkillName] = canonicalSlug;
+            if (!string.IsNullOrEmpty(cs.OriginalName))
+            {
+                nameToCanonicalSlug[cs.OriginalName] = canonicalSlug;
+            }
+        }
+
         // Process verified candidate assessment skills
         foreach (var cs in verifiedSkills)
         {
-            var slug = cs.SkillName.ToLowerInvariant().Trim();
+            var slug = !string.IsNullOrEmpty(cs.SkillId)
+                ? cs.SkillId.Replace("skill:", "").ToLowerInvariant().Trim()
+                : cs.SkillName.ToLowerInvariant().Trim();
+
             if (string.IsNullOrEmpty(slug)) continue;
 
             if (!consolidated.TryGetValue(slug, out var item))
@@ -256,7 +274,12 @@ public class CandidateEvaluationService : ICandidateEvaluationService
         // Process self-declared skills (only add if not already verified)
         foreach (var sd in selfDeclaredSkills)
         {
-            var slug = sd.Skill.ToLowerInvariant().Trim();
+            var slug = !string.IsNullOrEmpty(sd.SkillId)
+                ? sd.SkillId.Replace("skill:", "").ToLowerInvariant().Trim()
+                : (nameToCanonicalSlug.TryGetValue(sd.Skill, out var canonicalSlug)
+                    ? canonicalSlug
+                    : GetCleanSlug(sd.Skill));
+
             if (string.IsNullOrEmpty(slug)) continue;
 
             if (!consolidated.TryGetValue(slug, out var item))
@@ -568,5 +591,14 @@ public class CandidateEvaluationService : ICandidateEvaluationService
         public double Confidence { get; set; } = 1.0;
         public string Rationale { get; set; } = "";
         public string TargetFilePath { get; set; } = "";
+    }
+
+    private static string GetCleanSlug(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "";
+        var cleaned = name.Trim().ToLowerInvariant()
+            .Replace("#", "sharp")
+            .Replace("+", "plus");
+        return System.Text.RegularExpressions.Regex.Replace(cleaned, @"[^a-z0-9]", "");
     }
 }

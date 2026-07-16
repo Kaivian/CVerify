@@ -8,6 +8,7 @@ using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.Modules.Profiles.Services;
 
@@ -15,6 +16,7 @@ public class CareerService : ICareerService
 {
     private readonly ApplicationDbContext _context;
     private readonly ICareerReadinessEngine _readinessEngine;
+    private readonly ITechnologyNormalizationService _normalizationService;
 
     // Standardized Taxonomies Registries for Validation
     private static readonly HashSet<string> ValidCompanyStages = new(StringComparer.OrdinalIgnoreCase)
@@ -34,10 +36,14 @@ public class CareerService : ICareerService
         "Tech Lead", "Engineering Manager"
     };
 
-    public CareerService(ApplicationDbContext context, ICareerReadinessEngine readinessEngine)
+    public CareerService(
+        ApplicationDbContext context,
+        ICareerReadinessEngine readinessEngine,
+        ITechnologyNormalizationService normalizationService)
     {
         _context = context;
         _readinessEngine = readinessEngine;
+        _normalizationService = normalizationService;
     }
 
     public async Task<CareerPreferencesDashboardResponse> GetCareerDashboardAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -176,11 +182,14 @@ public class CareerService : ICareerService
 
             foreach (var s in skills)
             {
+                var normResult = await _normalizationService.NormalizeAsync(s, cancellationToken);
                 var userSkill = new UserSkill
                 {
                     Id = Guid.CreateVersion7(),
                     UserId = userId,
                     Skill = s,
+                    SkillId = normResult.SkillId,
+                    NormalizedName = normResult.NormalizedName,
                     CreatedAt = DateTimeOffset.UtcNow
                 };
                 _context.UserSkills.Add(userSkill);

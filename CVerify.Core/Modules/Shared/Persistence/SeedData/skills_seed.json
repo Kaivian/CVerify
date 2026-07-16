@@ -1,0 +1,347 @@
+{
+  "skills": [
+    {
+      "skillId": "skill:react",
+      "displayName": "React",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["react", "reactjs", "react.js"]
+    },
+    {
+      "skillId": "skill:vue-js",
+      "displayName": "Vue.js",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["vue", "vuejs", "vue.js"]
+    },
+    {
+      "skillId": "skill:angular",
+      "displayName": "Angular",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["angular", "angularjs"]
+    },
+    {
+      "skillId": "skill:next-js",
+      "displayName": "Next.js",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["next.js", "nextjs"]
+    },
+    {
+      "skillId": "skill:nuxt-js",
+      "displayName": "Nuxt.js",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["nuxt.js", "nuxtjs"]
+    },
+    {
+      "skillId": "skill:svelte",
+      "displayName": "Svelte",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["svelte"]
+    },
+    {
+      "skillId": "skill:typescript",
+      "displayName": "TypeScript",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["typescript", "ts"]
+    },
+    {
+      "skillId": "skill:javascript",
+      "displayName": "JavaScript",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["javascript", "js"]
+    },
+    {
+      "skillId": "skill:webpack",
+      "displayName": "Webpack",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["webpack"]
+    },
+    {
+      "skillId": "skill:vite",
+      "displayName": "Vite",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["vite"]
+    },
+    {
+      "skillId": "skill:tailwind-css",
+      "displayName": "Tailwind CSS",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["tailwind", "tailwindcss"]
+    },
+    {
+      "skillId": "skill:node-js",
+      "displayName": "Node.js",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["node", "nodejs", "node.js"]
+    },
+    {
+      "skillId": "skill:mern-stack",
+      "displayName": "MERN Stack",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["mern", "mern stack"]
+    },
+    {
+      "skillId": "skill:spring-framework",
+      "displayName": "Spring Framework",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["spring", "spring boot", "spring-boot", "springboot"]
+    },
+    {
+      "skillId": "skill:fastapi",
+      "displayName": "FastAPI",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["fastapi"]
+    },
+    {
+      "skillId": "skill:django",
+      "displayName": "Django",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["django"]
+    },
+    {
+      "skillId": "skill:flask",
+      "displayName": "Flask",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["flask"]
+    },
+    {
+      "skillId": "skill:express-js",
+      "displayName": "Express.js",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["express", "express.js", "expressjs"]
+    },
+    {
+      "skillId": "skill:nestjs",
+      "displayName": "NestJS",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["nestjs", "nest.js"]
+    },
+    {
+      "skillId": "skill:laravel",
+      "displayName": "Laravel",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["laravel"]
+    },
+    {
+      "skillId": "skill:ruby-on-rails",
+      "displayName": "Ruby on Rails",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["rails", "ruby on rails"]
+    },
+    {
+      "skillId": "skill:asp-net",
+      "displayName": "ASP.NET",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["asp.net"]
+    },
+    {
+      "skillId": "skill:asp-net-core",
+      "displayName": "ASP.NET Core",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["asp.net core", "aspnetcore"]
+    },
+    {
+      "skillId": "skill:gin-go",
+      "displayName": "Gin (Go)",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["gin"]
+    },
+    {
+      "skillId": "skill:fiber-go",
+      "displayName": "Fiber (Go)",
+      "sfiaCategory": "Software Development",
+      "onetCode": "15-1252.00",
+      "aliases": ["fiber"]
+    },
+    {
+      "skillId": "skill:python",
+      "displayName": "Python",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["python"]
+    },
+    {
+      "skillId": "skill:java",
+      "displayName": "Java",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["java"]
+    },
+    {
+      "skillId": "skill:csharp",
+      "displayName": "C#",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["c#", "csharp"]
+    },
+    {
+      "skillId": "skill:cplusplus",
+      "displayName": "C++",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["c++", "cpp"]
+    },
+    {
+      "skillId": "skill:go",
+      "displayName": "Go",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["go", "golang"]
+    },
+    {
+      "skillId": "skill:rust",
+      "displayName": "Rust",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["rust"]
+    },
+    {
+      "skillId": "skill:kotlin",
+      "displayName": "Kotlin",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["kotlin"]
+    },
+    {
+      "skillId": "skill:swift",
+      "displayName": "Swift",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["swift"]
+    },
+    {
+      "skillId": "skill:ruby",
+      "displayName": "Ruby",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["ruby"]
+    },
+    {
+      "skillId": "skill:php",
+      "displayName": "PHP",
+      "sfiaCategory": "Programming/Scripting",
+      "onetCode": "15-1252.00",
+      "aliases": ["php"]
+    },
+    {
+      "skillId": "skill:postgresql",
+      "displayName": "PostgreSQL",
+      "sfiaCategory": "Database Administration",
+      "onetCode": "15-1245.00",
+      "aliases": ["postgresql", "postgres"]
+    },
+    {
+      "skillId": "skill:mysql",
+      "displayName": "MySQL",
+      "sfiaCategory": "Database Administration",
+      "onetCode": "15-1245.00",
+      "aliases": ["mysql"]
+    },
+    {
+      "skillId": "skill:mongodb",
+      "displayName": "MongoDB",
+      "sfiaCategory": "Database Administration",
+      "onetCode": "15-1245.00",
+      "aliases": ["mongodb", "mongo", "mongodb & mongoose", "mongoose"]
+    },
+    {
+      "skillId": "skill:redis",
+      "displayName": "Redis",
+      "sfiaCategory": "Database Administration",
+      "onetCode": "15-1245.00",
+      "aliases": ["redis"]
+    },
+    {
+      "skillId": "skill:sqlite",
+      "displayName": "SQLite",
+      "sfiaCategory": "Database Administration",
+      "onetCode": "15-1245.00",
+      "aliases": ["sqlite"]
+    },
+    {
+      "skillId": "skill:sql-server",
+      "displayName": "SQL Server",
+      "sfiaCategory": "Database Administration",
+      "onetCode": "15-1245.00",
+      "aliases": ["sql server", "mssql"]
+    },
+    {
+      "skillId": "skill:docker",
+      "displayName": "Docker",
+      "sfiaCategory": "Infrastructure Management",
+      "onetCode": "15-1244.00",
+      "aliases": ["docker"]
+    },
+    {
+      "skillId": "skill:kubernetes",
+      "displayName": "Kubernetes",
+      "sfiaCategory": "Infrastructure Management",
+      "onetCode": "15-1244.00",
+      "aliases": ["kubernetes", "k8s"]
+    },
+    {
+      "skillId": "skill:terraform",
+      "displayName": "Terraform",
+      "sfiaCategory": "Infrastructure Management",
+      "onetCode": "15-1244.00",
+      "aliases": ["terraform"]
+    },
+    {
+      "skillId": "skill:aws",
+      "displayName": "AWS",
+      "sfiaCategory": "Cloud Computing",
+      "onetCode": "15-1244.00",
+      "aliases": ["aws"]
+    },
+    {
+      "skillId": "skill:google-cloud-platform",
+      "displayName": "Google Cloud Platform",
+      "sfiaCategory": "Cloud Computing",
+      "onetCode": "15-1244.00",
+      "aliases": ["gcp", "google cloud", "google cloud platform"]
+    },
+    {
+      "skillId": "skill:microsoft-azure",
+      "displayName": "Microsoft Azure",
+      "sfiaCategory": "Cloud Computing",
+      "onetCode": "15-1244.00",
+      "aliases": ["azure", "microsoft azure"]
+    },
+    {
+      "skillId": "skill:git",
+      "displayName": "Git",
+      "sfiaCategory": "Software Configuration Management",
+      "onetCode": "15-1299.08",
+      "aliases": ["git"]
+    },
+    {
+      "skillId": "skill:github",
+      "displayName": "GitHub",
+      "sfiaCategory": "Software Configuration Management",
+      "onetCode": "15-1299.08",
+      "aliases": ["github"]
+    }
+  ]
+}
