@@ -148,6 +148,7 @@ jobs:
       # 1. Resolve source images for skipped services deterministically (using git log PREV_SHA)
       - name: Resolve and Tag Skipped Services
         if: ${{ env.GCP_WIF_PROVIDER_VAL != '' }}
+        id: resolve-skipped
         run: |
           GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           CURRENT_SHA="${{ github.sha }}"
@@ -162,7 +163,7 @@ jobs:
                 "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA" --quiet
             else
               echo "Backend image sha-$PREV_SHA not found in registry. Forcing build."
-              echo "FORCE_BUILD_BACKEND=true" >> $GITHUB_ENV
+              echo "force_backend=true" >> $GITHUB_OUTPUT
             fi
           fi
           
@@ -176,7 +177,7 @@ jobs:
                 "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA" --quiet
             else
               echo "AI image sha-$PREV_SHA not found in registry. Forcing build."
-              echo "FORCE_BUILD_AI=true" >> $GITHUB_ENV
+              echo "force_ai=true" >> $GITHUB_OUTPUT
             fi
           fi
           
@@ -190,7 +191,7 @@ jobs:
                 "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA" --quiet
             else
               echo "Frontend image sha-$PREV_SHA not found in registry. Forcing build."
-              echo "FORCE_BUILD_FRONTEND=true" >> $GITHUB_ENV
+              echo "force_frontend=true" >> $GITHUB_OUTPUT
             fi
           fi
 
@@ -198,7 +199,7 @@ jobs:
       - name: Build Core Candidate Image
         if: |
           needs.detect-changes.outputs.backend == 'true' ||
-          env.FORCE_BUILD_BACKEND == 'true'
+          steps.resolve-skipped.outputs.force_backend == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./CVerify.Core
@@ -210,7 +211,7 @@ jobs:
       - name: Build AI Candidate Image
         if: |
           needs.detect-changes.outputs.ai == 'true' ||
-          env.FORCE_BUILD_AI == 'true'
+          steps.resolve-skipped.outputs.force_ai == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./CVerify.AI
@@ -222,7 +223,7 @@ jobs:
       - name: Build Client Candidate Image
         if: |
           needs.detect-changes.outputs.frontend == 'true' ||
-          env.FORCE_BUILD_FRONTEND == 'true'
+          steps.resolve-skipped.outputs.force_frontend == 'true'
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: ./client
@@ -239,19 +240,19 @@ jobs:
           CURRENT_SHA="${{ github.sha }}"
           
           if [ "${{ needs.detect-changes.outputs.backend }}" = "false" ] || [ "${{ needs.detect-changes.outputs.backend }}" = "" ]; then
-            if [ "$FORCE_BUILD_BACKEND" != "true" ]; then
+            if [ "${{ steps.resolve-skipped.outputs.force_backend }}" != "true" ]; then
               docker pull "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA"
               docker tag "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA" cverify-core:test-local
             fi
           fi
           if [ "${{ needs.detect-changes.outputs.ai }}" = "false" ] || [ "${{ needs.detect-changes.outputs.ai }}" = "" ]; then
-            if [ "$FORCE_BUILD_AI" != "true" ]; then
+            if [ "${{ steps.resolve-skipped.outputs.force_ai }}" != "true" ]; then
               docker pull "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA"
               docker tag "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA" cverify-ai:test-local
             fi
           fi
           if [ "${{ needs.detect-changes.outputs.frontend }}" = "false" ] || [ "${{ needs.detect-changes.outputs.frontend }}" = "" ]; then
-            if [ "$FORCE_BUILD_FRONTEND" != "true" ]; then
+            if [ "${{ steps.resolve-skipped.outputs.force_frontend }}" != "true" ]; then
               docker pull "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA"
               docker tag "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA" cverify-client:test-local
             fi
@@ -310,15 +311,15 @@ jobs:
           GCP_PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           CURRENT_SHA="${{ github.sha }}"
           
-          if [ "${{ needs.detect-changes.outputs.backend }}" = "true" ] || [ "$FORCE_BUILD_BACKEND" = "true" ]; then
+          if [ "${{ needs.detect-changes.outputs.backend }}" = "true" ] || [ "${{ steps.resolve-skipped.outputs.force_backend }}" = "true" ]; then
             docker tag cverify-core:test-local "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA"
             docker push "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/core:sha-$CURRENT_SHA"
           fi
-          if [ "${{ needs.detect-changes.outputs.ai }}" = "true" ] || [ "$FORCE_BUILD_AI" = "true" ]; then
+          if [ "${{ needs.detect-changes.outputs.ai }}" = "true" ] || [ "${{ steps.resolve-skipped.outputs.force_ai }}" = "true" ]; then
             docker tag cverify-ai:test-local "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA"
             docker push "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/ai:sha-$CURRENT_SHA"
           fi
-          if [ "${{ needs.detect-changes.outputs.frontend }}" = "true" ] || [ "$FORCE_BUILD_FRONTEND" = "true" ]; then
+          if [ "${{ needs.detect-changes.outputs.frontend }}" = "true" ] || [ "${{ steps.resolve-skipped.outputs.force_frontend }}" = "true" ]; then
             docker tag cverify-client:test-local "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA"
             docker push "asia-southeast1-docker.pkg.dev/$GCP_PROJECT/cverify/client:sha-$CURRENT_SHA"
           fi
