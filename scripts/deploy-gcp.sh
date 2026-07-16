@@ -225,7 +225,7 @@ if [ "$PULL_SUCCESS" != "true" ]; then
 fi
 
 write_info "Starting app containers for $INACTIVE_COLOR stack..."
-docker compose -p cverify-${INACTIVE_COLOR} -f docker/compose.yml -f docker/compose.${ENV_LOWER}.yml up -d cverify-ai cverify-core cverify-client
+docker compose -p cverify-${INACTIVE_COLOR} -f docker/compose.yml -f docker/compose.${ENV_LOWER}.yml up -d --no-deps cverify-ai cverify-core cverify-client
 
 # 8. Pre-Traffic Smoke Testing Protocol (Native Docker Health Check)
 write_info "Starting pre-traffic smoke tests on $INACTIVE_COLOR stack..."
