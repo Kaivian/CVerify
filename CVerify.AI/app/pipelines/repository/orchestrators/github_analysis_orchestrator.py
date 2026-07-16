@@ -218,8 +218,8 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         # Combine bullets, prioritizing high value
         selected_bullets = high_value_bullets + low_value_bullets
         
-        # Cap at 4 bullet points
-        selected_bullets = selected_bullets[:4]
+        # Cap at 3 bullet points (to match CvSynthesisContract max_length limit)
+        selected_bullets = selected_bullets[:3]
         
         # Fallback if empty
         if not selected_bullets:
@@ -3370,7 +3370,7 @@ class GitHubAnalysisOrchestrator(IGitHubAnalysisOrchestrator):
         clone_dir = os.path.join(job_dir, "repo")
 
         if not os.path.exists(meta_path):
-            raise Exception("Workspace metadata not found. Repository Structure task must run first.")
+            raise FileNotFoundError("Workspace metadata not found. Repository Structure task must run first.")
 
         with open(meta_path, "r", encoding="utf-8") as f_in:
             meta = json.load(f_in)

@@ -73,7 +73,7 @@ class RepoIntelligenceClient:
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
                     response = await client.get(url)
                     if response.status_code == 404:
-                        logger.warning(
+                        logger.info(
                             "Artifact '%s' not found for job %s (404)",
                             artifact_key, job_id
                         )

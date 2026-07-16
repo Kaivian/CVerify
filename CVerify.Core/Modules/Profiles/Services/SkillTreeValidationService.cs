@@ -15,7 +15,7 @@ public class SkillTreeValidationService : ISkillTreeValidationService
         "Domain", "Subdomain", "Technology", "Framework", "Library", "Tool", "Methodology"
     };
 
-    private const int MaxAllowedDepth = 5;
+    private const int MaxAllowedDepth = 10;
 
     public Task<List<CandidateSkillTreeNode>> ValidateAndNormalizeTreeAsync(
         Guid candidateId,

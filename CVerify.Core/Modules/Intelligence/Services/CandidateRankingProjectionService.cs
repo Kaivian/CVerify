@@ -92,8 +92,9 @@ public class CandidateRankingProjectionService : ICandidateRankingProjectionServ
                 currentRank++;
             }
 
-            // 6. Atomically replace projections in a single transaction
-            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            // 6. Atomically replace projections (enlisting in current transaction if active)
+            var hasActiveTransaction = _context.Database.CurrentTransaction != null;
+            var transaction = !hasActiveTransaction ? await _context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false) : null;
             try
             {
                 if (existingProjections.Values.Any())
@@ -107,7 +108,11 @@ public class CandidateRankingProjectionService : ICandidateRankingProjectionServ
                 }
 
                 await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                }
                 stopwatch.Stop();
 
                 _logger.LogInformation("Successfully rebuilt {Count} candidate ranking projections in {DurationMs}ms. Action: Rebuild", sortedProjections.Count, stopwatch.ElapsedMilliseconds);
@@ -115,9 +120,19 @@ public class CandidateRankingProjectionService : ICandidateRankingProjectionServ
             catch (Exception ex)
             {
                 stopwatch.Stop();
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                if (transaction != null)
+                {
+                    await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                }
                 _logger.LogError(ex, "Error executing transaction during ranking projections rebuild in {DurationMs}ms. Action: Rebuild. Rollback successful.", stopwatch.ElapsedMilliseconds);
                 throw;
+            }
+            finally
+            {
+                if (transaction != null)
+                {
+                    await transaction.DisposeAsync().ConfigureAwait(false);
+                }
             }
         }
         catch (Exception ex)
