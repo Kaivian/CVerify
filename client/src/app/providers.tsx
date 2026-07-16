@@ -17,14 +17,14 @@ import { type User } from "../types/auth.types";
 
 export function Providers({
   children,
-  locale,
+  locale: _locale,
   initialUser,
 }: {
   children: React.ReactNode;
   locale: string;
   initialUser: User | null;
 }) {
-  const [storeInitialized] = useState(() => {
+  const [_storeInitialized] = useState(() => {
     if (initialUser) {
       useAuthStore.setState({
         isAuthenticated: true,
