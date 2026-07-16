@@ -8,6 +8,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.SourceCode.Entities;
+using CVerify.API.Modules.Profiles.Entities;
+using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.Modules.SourceCode.BackgroundWorkers;
 
@@ -36,6 +38,40 @@ public class AnalysisQueueRecoverySweeper : BackgroundService
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+            // 1. Sweep stuck candidate assessments
+            var activeCandidateStates = new[] { "Queued", "Running" };
+            var stuckCandidateAssessments = await context.CandidateAssessments
+                .Where(ca => activeCandidateStates.Contains(ca.Status))
+                .ToListAsync(stoppingToken);
+
+            if (stuckCandidateAssessments.Any())
+            {
+                _logger.LogInformation("Found {Count} stuck candidate assessments. Marking them as Failed due to server restart.", stuckCandidateAssessments.Count);
+                
+                foreach (var ca in stuckCandidateAssessments)
+                {
+                    ca.Status = "Failed";
+                    ca.FailedStage = ca.FailedStage ?? "Initialize";
+                    ca.FailureReason = "Job interrupted by server reboot or restart.";
+                    ca.CompletedAtUtc = _timeProvider.GetUtcNow();
+                    
+                    // Fail the transient streaming session and durable pipeline execution if they exist
+                    var streamingSessionService = scope.ServiceProvider.GetRequiredService<IAiStreamingSessionService>();
+                    try
+                    {
+                        await streamingSessionService.UpdateSessionStatusAsync(ca.Id, "Failed", "Job interrupted by server reboot or restart.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to update streaming session status to Failed for stuck assessment {AssessmentId}", ca.Id);
+                    }
+                }
+
+                await context.SaveChangesAsync(stoppingToken);
+                _logger.LogInformation("Successfully swept and updated stuck candidate assessments.");
+            }
+
+            // 2. Sweep stuck repository analysis jobs
             var activeStates = new[] { "Queued", "Preparing", "CloningRepository", "DetectingTechnologyStack", "SamplingCode", "RunningAgents", "AggregatingResults", "SavingReport" };
 
             var stuckJobs = await context.AnalysisJobs

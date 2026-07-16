@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -11,13 +12,16 @@ public class CandidateAssessmentPipelineOrchestrator : IPipelineOrchestrator
 {
     private readonly ICandidateAssessmentService _assessmentService;
     private readonly ApplicationDbContext _context;
+    private readonly ICandidateAssessmentQueue _queue;
 
     public CandidateAssessmentPipelineOrchestrator(
         ICandidateAssessmentService assessmentService,
-        ApplicationDbContext context)
+        ApplicationDbContext context,
+        ICandidateAssessmentQueue queue)
     {
         _assessmentService = assessmentService;
         _context = context;
+        _queue = queue;
     }
 
     public string PipelineType => "candidate-assessment";
@@ -52,8 +56,18 @@ public class CandidateAssessmentPipelineOrchestrator : IPipelineOrchestrator
         var assessment = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == executionId, cancellationToken);
         if (assessment == null) return false;
 
+        var terminalStates = new[] { "Completed", "Failed", "Cancelled" };
+        if (terminalStates.Contains(assessment.Status))
+        {
+            return false;
+        }
+
         assessment.Status = "Running";
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Re-enqueue the candidate assessment to trigger background worker execution
+        await _queue.EnqueueAssessmentAsync(executionId);
+
         return true;
     }
 }

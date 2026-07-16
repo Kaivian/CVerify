@@ -354,6 +354,34 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         var stage = await _dbContext.AiStreamingStages
             .FirstOrDefaultAsync(s => s.SessionId == sessionId && s.StageId == stageId);
 
+        bool skipTransient = false;
+        if (stage != null && (stage.Status == "Completed" || stage.Status == "Failed"))
+        {
+            if (retryCount <= stage.RetryCount && status != "Pending" && status != "Running")
+            {
+                skipTransient = true;
+            }
+        }
+
+        // 2. Durable PipelineStage upsert
+        var pStage = await _dbContext.PipelineStages
+            .FirstOrDefaultAsync(s => s.ExecutionId == sessionId && s.StageId == stageId);
+
+        bool skipDurable = false;
+        if (pStage != null && (pStage.Status == "Completed" || pStage.Status == "Failed"))
+        {
+            if (retryCount <= pStage.RetryCount && status != "Pending" && status != "Running")
+            {
+                skipDurable = true;
+            }
+        }
+
+        if (skipTransient && skipDurable)
+        {
+            return stage ?? new AiStreamingStage();
+        }
+
+        // 1. Transient streaming stage
         if (stage == null)
         {
             stage = new AiStreamingStage
@@ -379,7 +407,7 @@ public class AiStreamingSessionService : IAiStreamingSessionService
 
             _dbContext.AiStreamingStages.Add(stage);
         }
-        else
+        else if (!skipTransient)
         {
             stage.Status = status;
             stage.Progress = progress;
@@ -405,9 +433,6 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         }
 
         // 2. Durable PipelineStage upsert
-        var pStage = await _dbContext.PipelineStages
-            .FirstOrDefaultAsync(s => s.ExecutionId == sessionId && s.StageId == stageId);
-
         if (pStage == null)
         {
             pStage = new PipelineStage
@@ -433,7 +458,7 @@ public class AiStreamingSessionService : IAiStreamingSessionService
 
             _dbContext.PipelineStages.Add(pStage);
         }
-        else
+        else if (!skipDurable)
         {
             pStage.Status = status;
             pStage.Progress = (decimal)progress;
