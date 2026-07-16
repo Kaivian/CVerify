@@ -274,6 +274,17 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
 
         updatedStages[stageIndex] = updatedStage;
 
+        // Auto-complete any preceding pending/running stages to prevent UI stuck states
+        for (let i = 0; i < stageIndex; i++) {
+          if (updatedStages[i].status === "Pending" || updatedStages[i].status === "Running") {
+            updatedStages[i] = {
+              ...updatedStages[i],
+              status: "Completed",
+              completedAt: updatedStages[i].completedAt || new Date().toISOString()
+            };
+          }
+        }
+
         // Fetch intermediate snapshot only on the actual stage completion event
         if (event.eventType === "STAGE_COMPLETED" && registryDef?.actions.fetchSnapshot) {
           registryDef.actions.fetchSnapshot(activeSession.id)

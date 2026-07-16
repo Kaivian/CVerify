@@ -18,6 +18,23 @@ public class RepositorySkillAttribution
     [MaxLength(100)]
     public string SkillName { get; set; } = null!;
 
+    [Required]
+    [MaxLength(100)]
+    public string SkillId { get; set; } = null!;
+
+    [Required]
+    [MaxLength(20)]
+    public string TaxonomyVersion { get; set; } = "2026.07";
+
+    [MaxLength(100)]
+    public string? OriginalName { get; set; }
+
+    [MaxLength(50)]
+    public string? NormalizationSource { get; set; }
+
+    [MaxLength(100)]
+    public string? PipelineTraceId { get; set; }
+
     public double ContributionWeight { get; set; }
 
     public double Confidence { get; set; }
