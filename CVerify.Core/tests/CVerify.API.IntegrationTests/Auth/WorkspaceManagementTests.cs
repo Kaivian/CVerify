@@ -154,16 +154,25 @@ public class WorkspaceManagementTests : BaseIntegrationTest
             var viewerRole = await db.Roles.FirstOrDefaultAsync(r => r.TenantId == orgId && r.Name == "viewer");
             if (viewerRole != null)
             {
-                db.RoleAssignments.Add(new RoleAssignment
+                var hasAssignment = await db.RoleAssignments.AnyAsync(ra =>
+                    ra.UserId == userId &&
+                    ra.RoleId == viewerRole.Id &&
+                    ra.ScopeType == "ORGANIZATION" &&
+                    ra.ScopeId == orgId);
+
+                if (!hasAssignment)
                 {
-                    Id = Guid.CreateVersion7(),
-                    UserId = userId,
-                    RoleId = viewerRole.Id,
-                    ScopeType = "ORGANIZATION",
-                    ScopeId = orgId,
-                    AssignedAt = DateTimeOffset.UtcNow
-                });
-                await db.SaveChangesAsync();
+                    db.RoleAssignments.Add(new RoleAssignment
+                    {
+                        Id = Guid.CreateVersion7(),
+                        UserId = userId,
+                        RoleId = viewerRole.Id,
+                        ScopeType = "ORGANIZATION",
+                        ScopeId = orgId,
+                        AssignedAt = DateTimeOffset.UtcNow
+                    });
+                    await db.SaveChangesAsync();
+                }
             }
         }
     }
