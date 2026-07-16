@@ -223,7 +223,7 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
     }
   },
 
-  connectProgressStream: (userId: string) => {
+  connectProgressStream: (_userId: string) => {
     set({
       streamStatus: 'connecting',
       streamProgress: 0,
