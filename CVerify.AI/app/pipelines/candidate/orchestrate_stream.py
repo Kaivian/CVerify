@@ -327,69 +327,80 @@ class CandidateAssessmentStreamOrchestrator:
             }
 
             try:
-                event_queue = asyncio.Queue()
+                bg_task = None
+                try:
+                    event_queue = asyncio.Queue()
 
-                async def event_callback(evt: PipelineEvent) -> None:
-                    await event_queue.put(evt)
+                    async def event_callback(evt: PipelineEvent) -> None:
+                        await event_queue.put(evt)
 
-                # Execute directly using the modular orchestrator uniform task runner with callback
-                task_coro = self.orchestrator.execute_task(
-                    task_alias,
-                    synthetic_job_id,
-                    inputs,
-                    correlation_id,
-                    event_callback=event_callback
-                )
-                bg_task = asyncio.create_task(task_coro)
+                    # Execute directly using the modular orchestrator uniform task runner with callback
+                    task_coro = self.orchestrator.execute_task(
+                        task_alias,
+                        synthetic_job_id,
+                        inputs,
+                        correlation_id,
+                        event_callback=event_callback
+                    )
+                    bg_task = asyncio.create_task(task_coro)
 
-                while not bg_task.done() or not event_queue.empty():
-                    try:
-                        event = await asyncio.wait_for(event_queue.get(), timeout=0.05)
-                        yield {
-                            "status": "Running",
-                            "step": task_alias,
-                            "message": f"Task {task_alias} emitted {event.eventType}.",
-                            "percentage": current_pct,
-                            "event": event.model_dump()
-                        }
-                        event_queue.task_done()
-                    except asyncio.TimeoutError:
-                        if bg_task.done():
-                            break
+                    while not bg_task.done() or not event_queue.empty():
+                        try:
+                            event = await asyncio.wait_for(event_queue.get(), timeout=0.05)
+                            yield {
+                                "status": "Running",
+                                "step": task_alias,
+                                "message": f"Task {task_alias} emitted {event.eventType}.",
+                                "percentage": current_pct,
+                                "event": event.model_dump()
+                            }
+                            event_queue.task_done()
+                        except asyncio.TimeoutError:
+                            if bg_task.done():
+                                break
 
-                result = await bg_task
+                    result = await bg_task
 
-                if result.get("status") != "Completed":
-                    raise ValueError(result.get("errorMessage") or f"Task {task_name} failed.")
+                    if result.get("status") != "Completed":
+                        raise ValueError(result.get("errorMessage") or f"Task {task_name} failed.")
 
-                # Extract resultData and merge it back into inputs
-                result_data = json.loads(result["resultData"])
-                inputs = {**inputs, **result_data}
-                task_telemetry = result.get("telemetry") or {}
+                    # Extract resultData and merge it back into inputs
+                    result_data = json.loads(result["resultData"])
+                    inputs = {**inputs, **result_data}
+                    task_telemetry = result.get("telemetry") or {}
 
-                # Unpack single-key wrapper for artifact types if they are nested in task outputs
-                json_payload = result_data
-                if artifact_type == "CandidateProfile" and "candidateProfile" in result_data:
-                    json_payload = result_data["candidateProfile"]
-                elif artifact_type == "SkillsList" and "skillProficiencies" in result_data:
-                    json_payload = result_data["skillProficiencies"]
-                elif artifact_type == "ImprovementPlan" and "improvementPlan" in result_data:
-                    json_payload = result_data["improvementPlan"]
+                    # Unpack single-key wrapper for artifact types if they are nested in task outputs
+                    json_payload = result_data
+                    if artifact_type == "CandidateProfile" and "candidateProfile" in result_data:
+                        json_payload = result_data["candidateProfile"]
+                    elif artifact_type == "SkillsList" and "skillProficiencies" in result_data:
+                        json_payload = result_data["skillProficiencies"]
+                    elif artifact_type == "ImprovementPlan" and "improvementPlan" in result_data:
+                        json_payload = result_data["improvementPlan"]
 
-                # Emit completion
-                completion_pct = round(10.0 + (90.0 * (idx + 1) / len(STAGES)), 1)
-                yield {
-                    "status": "Completed",
-                    "step": task_alias,
-                    "message": f"Completed task {task_alias} ({task_name}).",
-                    "percentage": completion_pct,
-                    "artifactType": artifact_type,
-                    "jsonData": json.dumps(json_payload),
-                    "inputTokens": task_telemetry.get("promptTokens"),
-                    "outputTokens": task_telemetry.get("completionTokens"),
-                    "costUsd": task_telemetry.get("estimatedCostUsd"),
-                    "modelName": task_telemetry.get("modelName")
-                }
+                    # Emit completion
+                    completion_pct = round(10.0 + (90.0 * (idx + 1) / len(STAGES)), 1)
+                    yield {
+                        "status": "Completed",
+                        "step": task_alias,
+                        "message": f"Completed task {task_alias} ({task_name}).",
+                        "percentage": completion_pct,
+                        "artifactType": artifact_type,
+                        "jsonData": json.dumps(json_payload),
+                        "inputTokens": task_telemetry.get("promptTokens"),
+                        "outputTokens": task_telemetry.get("completionTokens"),
+                        "costUsd": task_telemetry.get("estimatedCostUsd"),
+                        "modelName": task_telemetry.get("modelName")
+                    }
+                finally:
+                    if bg_task and not bg_task.done():
+                        bg_task.cancel()
+                        try:
+                            await bg_task
+                        except asyncio.CancelledError:
+                            pass
+                        except Exception as ce:
+                            logger.error(f"Error while cancelling background task: {ce}", extra=extra)
 
             except Exception as e:
                 logger.exception(f"Error executing Candidate Evaluation stage {task_name}: {e}", extra=extra)

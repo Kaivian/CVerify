@@ -52,8 +52,6 @@ interface CandidateAssessmentState {
   clearError: () => void;
 }
 
-const activeEventSource: EventSource | null = null;
-
 const FALLBACK_STAGES: AssessmentStageDto[] = [
   { id: 'FetchLine1', name: 'Retrieve Repository Artifacts', description: 'Fetches verified static analysis, provenance, and git telemetry artifacts for the candidate\'s active repositories.' },
   { id: 'ConsolidateLine1', name: 'Consolidate Repository Signals', description: 'Merges multidimensional capability signals, code quality scores, and commit telemetry across all repositories.' },
@@ -127,7 +125,8 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
       // we can automatically reconnect to the progress stream if we have the userId.
       if (latestAssessment && (latestAssessment.status === 'Queued' || latestAssessment.status === 'Running')) {
         const userId = latestAssessment.userId;
-        if (userId && !activeEventSource) {
+        const activeSessionId = useStreamingStore.getState().activeSession?.id;
+        if (userId && activeSessionId !== latestAssessment.id) {
           get().connectProgressStream(userId);
           // Auto-open modal if the user hasn't closed it in this session
           if (!get().hasClosedProgressModal) {
@@ -224,7 +223,7 @@ export const useCandidateAssessmentStore = create<CandidateAssessmentState>((set
     }
   },
 
-  connectProgressStream: (userId: string) => {
+  connectProgressStream: (_userId: string) => {
     set({
       streamStatus: 'connecting',
       streamProgress: 0,
