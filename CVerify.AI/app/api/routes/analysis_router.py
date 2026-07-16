@@ -430,6 +430,43 @@ async def calculate_scores_endpoint(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+class TaxonomyNormalizeRequest(BaseModel):
+    skills: List[str]
+
+
+@router.post("/api/v1/taxonomy/normalize")
+async def taxonomy_normalize(
+    request_data: TaxonomyNormalizeRequest,
+    correlation_id: str = Depends(verify_hmac_signature)
+):
+    from app.pipelines.candidate.skill_taxonomy import normalize_batch
+    results = normalize_batch(request_data.skills)
+    return {"results": results}
+
+
+@router.get("/api/v1/taxonomy/skills")
+async def get_taxonomy_skills(
+    correlation_id: str = Depends(verify_hmac_signature)
+):
+    from app.pipelines.candidate.skill_taxonomy import SKILL_TAXONOMY
+    skills_list = []
+    seen = set()
+    for raw_name, entry in SKILL_TAXONOMY.items():
+        # clean slug name is computed by lowercasing and replacing spaces/chars
+        from app.pipelines.candidate.skill_taxonomy import make_skill_id
+        slug = make_skill_id(entry.normalized_name)
+        skill_id = f"skill:{slug}"
+        if skill_id not in seen:
+            seen.add(skill_id)
+            skills_list.append({
+                "skillId": skill_id,
+                "displayName": entry.normalized_name,
+                "sfiaCategory": entry.sfia_category,
+                "onetCode": entry.onet_code
+            })
+    return {"skills": skills_list}
+
+
 
 
 

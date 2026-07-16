@@ -266,6 +266,13 @@ class CandidateAssessmentStreamOrchestrator:
             }
             return
 
+        yield {
+            "status": "Completed",
+            "step": "FetchLine1",
+            "message": "Successfully retrieved repository artifacts.",
+            "percentage": 8.0
+        }
+
         # 3. Consolidate Artifacts
         yield {
             "status": "Running",
@@ -281,6 +288,13 @@ class CandidateAssessmentStreamOrchestrator:
         consolidated_graph = build_real_skill_graph(eligible_repos)
         maturity_inputs = build_real_maturity_inputs(eligible_repos)
         problems_inputs = build_real_problem_solving_inputs(eligible_repos)
+
+        yield {
+            "status": "Completed",
+            "step": "ConsolidateLine1",
+            "message": "Successfully consolidated codebase signals.",
+            "percentage": 12.0
+        }
 
         inputs = {
             "repoIntelligenceReport": consolidated_report,
