@@ -344,6 +344,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RepositoryCapability> RepositoryCapabilities => Set<RepositoryCapability>();
     public DbSet<RepositorySkillAttribution> RepositorySkillAttributions => Set<RepositorySkillAttribution>();
     public DbSet<CanonicalSkill> CanonicalSkills => Set<CanonicalSkill>();
+    public DbSet<CanonicalSkillAlias> CanonicalSkillAliases => Set<CanonicalSkillAlias>();
     public DbSet<RepositoryDomain> RepositoryDomains => Set<RepositoryDomain>();
     public DbSet<RepositoryIntelligenceSignal> RepositoryIntelligenceSignals => Set<RepositoryIntelligenceSignal>();
     public DbSet<CandidateSkill> CandidateSkills => Set<CandidateSkill>();
@@ -1650,6 +1651,12 @@ public class ApplicationDbContext : DbContext
         {
             entity.ToTable("canonical_skills");
             entity.HasKey(x => new { x.SkillId, x.TaxonomyVersion });
+        });
+
+        modelBuilder.Entity<CanonicalSkillAlias>(entity =>
+        {
+            entity.ToTable("canonical_skill_aliases");
+            entity.HasKey(x => new { x.AliasName });
         });
 
         modelBuilder.Entity<CandidateSkill>(entity =>

@@ -13,6 +13,7 @@ using CVerify.API.Modules.Profiles.DTOs;
 using CVerify.API.Modules.Profiles.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.System.Services;
 using CVerify.API.Modules.Intelligence.Services;
 
@@ -32,6 +33,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
     private readonly IAiStreamingSessionService _streamingSessionService;
     private readonly IAiCancellationManager _cancellationManager;
     private readonly ICandidateRankingProjectionService _rankingProjectionService;
+    private readonly ITechnologyNormalizationService _normalizationService;
 
     public CandidateAssessmentService(
         ApplicationDbContext context,
@@ -45,7 +47,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         ISkillTreeValidationService validationService,
         IAiStreamingSessionService streamingSessionService,
         IAiCancellationManager cancellationManager,
-        ICandidateRankingProjectionService rankingProjectionService)
+        ICandidateRankingProjectionService rankingProjectionService,
+        ITechnologyNormalizationService normalizationService)
     {
         _context = context;
         _queue = queue;
@@ -59,6 +62,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         _streamingSessionService = streamingSessionService;
         _cancellationManager = cancellationManager;
         _rankingProjectionService = rankingProjectionService;
+        _normalizationService = normalizationService;
     }
 
     public async Task<CandidateReadinessDto> GetReadinessStatusAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -505,17 +509,54 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 throw new Exception("Candidate user profile not found.");
             }
 
-            // Resolve CV skills
-            var cvSkills = await _context.UserSkills
+            // Resolve CV skills (normalized)
+            var userSkills = await _context.UserSkills
                 .Where(us => us.UserId == assessment.UserId)
-                .Select(us => us.Skill)
                 .ToListAsync(cancellationToken);
+
+            var normalizedCvSkills = new List<object>();
+            var processedSkillNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var us in userSkills)
+            {
+                if (processedSkillNames.Contains(us.Skill)) continue;
+                processedSkillNames.Add(us.Skill);
+
+                var skillId = us.SkillId;
+                var normalizedName = us.NormalizedName;
+
+                if (string.IsNullOrEmpty(skillId) || string.IsNullOrEmpty(normalizedName))
+                {
+                    var norm = await _normalizationService.NormalizeAsync(us.Skill, cancellationToken);
+                    skillId = norm.SkillId;
+                    normalizedName = norm.NormalizedName;
+                }
+
+                normalizedCvSkills.Add(new
+                {
+                    originalName = us.Skill,
+                    normalizedName = normalizedName,
+                    skillId = skillId
+                });
+            }
 
             var careerPref = await _context.CareerPreferences
                 .FirstOrDefaultAsync(cp => cp.UserId == assessment.UserId, cancellationToken);
             if (careerPref?.TargetSkills != null)
             {
-                cvSkills = cvSkills.Concat(careerPref.TargetSkills).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                foreach (var ts in careerPref.TargetSkills)
+                {
+                    if (processedSkillNames.Contains(ts)) continue;
+                    processedSkillNames.Add(ts);
+
+                    var norm = await _normalizationService.NormalizeAsync(ts, cancellationToken);
+                    normalizedCvSkills.Add(new
+                    {
+                        originalName = ts,
+                        normalizedName = norm.NormalizedName,
+                        skillId = norm.SkillId
+                    });
+                }
             }
 
             // Resolve Working Experience (Rich)
@@ -619,7 +660,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                         location = userProfile.Location,
                         socialLinks = userProfile.SocialLinks
                     },
-                    skills = cvSkills,
+                    skills = normalizedCvSkills,
                     experiences = experienceList,
                     educations = educationList,
                     certifications = achievementsList,
@@ -1062,55 +1103,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                         rawSkillsInfo.Add((skillName, category, confidence, evidenceList));
                     }
 
-                    // Call taxonomy normalization endpoint
+                    // Resolve mappings locally using TechnologyNormalizationService
                     var normalizedMappings = new Dictionary<string, (string SkillId, string NormalizedName, string Category, string OnetCode, bool Found)>(StringComparer.OrdinalIgnoreCase);
-                    if (rawSkillsList.Any())
+                    foreach (var rawInfo in rawSkillsInfo)
                     {
-                        try
-                        {
-                            using var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
-                            var taxPath = "/api/v1/taxonomy/normalize";
-                            var taxPayload = JsonSerializer.Serialize(new { skills = rawSkillsList });
-                            var taxMessage = new HttpRequestMessage(HttpMethod.Post, taxPath)
-                            {
-                                Content = new StringContent(taxPayload, Encoding.UTF8, "application/json")
-                            };
-
-                            var (sig, ts, nonce) = _hmacService.CreateSignatureHeaders("POST", taxPath, taxPayload);
-                            taxMessage.Headers.Add("X-Client-Id", "cverify-core");
-                            taxMessage.Headers.Add("X-Timestamp", ts);
-                            taxMessage.Headers.Add("X-Nonce", nonce);
-                            taxMessage.Headers.Add("X-Correlation-Id", jobId.ToString());
-                            taxMessage.Headers.Add("X-Signature", sig);
-
-                            using var taxResponse = await httpClient.SendAsync(taxMessage, cancellationToken);
-                            if (taxResponse.IsSuccessStatusCode)
-                            {
-                                var taxJson = await taxResponse.Content.ReadAsStringAsync(cancellationToken);
-                                using var taxDoc = JsonDocument.Parse(taxJson);
-                                if (taxDoc.RootElement.TryGetProperty("results", out var resProp) && resProp.ValueKind == JsonValueKind.Array)
-                                {
-                                    foreach (var res in resProp.EnumerateArray())
-                                    {
-                                        var rName = res.GetProperty("rawName").GetString() ?? "";
-                                        var sId = res.GetProperty("skillId").GetString() ?? "";
-                                        var nName = res.GetProperty("normalizedName").GetString() ?? "";
-                                        var sCat = res.GetProperty("sfiaCategory").GetString() ?? "Unknown";
-                                        var oCode = res.GetProperty("onetCode").GetString() ?? "";
-                                        var fnd = res.GetProperty("found").GetBoolean();
-
-                                        if (!string.IsNullOrEmpty(rName))
-                                        {
-                                            normalizedMappings[rName] = (sId, nName, sCat, oCode, fnd);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to call taxonomy normalize endpoint for job {JobId}", jobId);
-                        }
+                        var norm = await _normalizationService.NormalizeAsync(rawInfo.Name, cancellationToken);
+                        normalizedMappings[rawInfo.Name] = (norm.SkillId, norm.NormalizedName, norm.SfiaCategory, norm.OnetCode, norm.Found);
                     }
 
                     // Project to DB using normalized data

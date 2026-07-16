@@ -41,6 +41,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
     private readonly IAiStreamingSessionService _streamingSessionService;
     private readonly IAiCancellationManager _cancellationManager;
     private readonly IOutboxPublisher _outboxPublisher;
+    private readonly ITechnologyNormalizationService _normalizationService;
 
     public RepositoryAnalysisService(
         ApplicationDbContext context,
@@ -56,7 +57,8 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         IServiceScopeFactory scopeFactory,
         IAiStreamingSessionService streamingSessionService,
         IAiCancellationManager cancellationManager,
-        IOutboxPublisher outboxPublisher)
+        IOutboxPublisher outboxPublisher,
+        ITechnologyNormalizationService normalizationService)
     {
         _context = context;
         _queue = queue;
@@ -72,6 +74,7 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         _streamingSessionService = streamingSessionService;
         _cancellationManager = cancellationManager;
         _outboxPublisher = outboxPublisher;
+        _normalizationService = normalizationService;
     }
 
     public async Task<Guid> EnqueueAnalysisJobAsync(Guid userId, Guid repositoryId)
@@ -2025,55 +2028,12 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
                             rawSkillsInfo.Add((skillName, category, confidence, evidenceList));
                         }
 
-                        // Call taxonomy normalization endpoint
+                        // Resolve mappings locally using TechnologyNormalizationService
                         var normalizedMappings = new Dictionary<string, (string SkillId, string NormalizedName, string Category, string OnetCode, bool Found)>(StringComparer.OrdinalIgnoreCase);
-                        if (rawSkillsList.Any())
+                        foreach (var rawInfo in rawSkillsInfo)
                         {
-                            try
-                            {
-                                using var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
-                                var taxPath = "/api/v1/taxonomy/normalize";
-                                var taxPayload = JsonSerializer.Serialize(new { skills = rawSkillsList });
-                                var taxMessage = new HttpRequestMessage(HttpMethod.Post, taxPath)
-                                {
-                                    Content = new StringContent(taxPayload, Encoding.UTF8, "application/json")
-                                };
-
-                                var (sig, ts, nonce) = _hmacService.CreateSignatureHeaders("POST", taxPath, taxPayload);
-                                taxMessage.Headers.Add("X-Client-Id", "cverify-core");
-                                taxMessage.Headers.Add("X-Timestamp", ts);
-                                taxMessage.Headers.Add("X-Nonce", nonce);
-                                taxMessage.Headers.Add("X-Correlation-Id", jobId.ToString());
-                                taxMessage.Headers.Add("X-Signature", sig);
-
-                                using var taxResponse = await httpClient.SendAsync(taxMessage, cancellationToken);
-                                if (taxResponse.IsSuccessStatusCode)
-                                {
-                                    var taxJson = await taxResponse.Content.ReadAsStringAsync(cancellationToken);
-                                    using var taxDoc = JsonDocument.Parse(taxJson);
-                                    if (taxDoc.RootElement.TryGetProperty("results", out var resProp) && resProp.ValueKind == JsonValueKind.Array)
-                                    {
-                                        foreach (var res in resProp.EnumerateArray())
-                                        {
-                                            var rName = res.GetProperty("rawName").GetString() ?? "";
-                                            var sId = res.GetProperty("skillId").GetString() ?? "";
-                                            var nName = res.GetProperty("normalizedName").GetString() ?? "";
-                                            var sCat = res.GetProperty("sfiaCategory").GetString() ?? "Unknown";
-                                            var oCode = res.GetProperty("onetCode").GetString() ?? "";
-                                            var fnd = res.GetProperty("found").GetBoolean();
-
-                                            if (!string.IsNullOrEmpty(rName))
-                                            {
-                                                normalizedMappings[rName] = (sId, nName, sCat, oCode, fnd);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError(ex, "Failed to call taxonomy normalize endpoint for job {JobId}", jobId);
-                            }
+                            var norm = await _normalizationService.NormalizeAsync(rawInfo.Name, cancellationToken);
+                            normalizedMappings[rawInfo.Name] = (norm.SkillId, norm.NormalizedName, norm.SfiaCategory, norm.OnetCode, norm.Found);
                         }
 
                         // Project to DB using normalized data

@@ -37,6 +37,7 @@ public class CandidateAssessmentRelationalProjectionTests : IDisposable
     private readonly Mock<IAiStreamingSessionService> _streamingSessionServiceMock;
     private readonly Mock<IAiCancellationManager> _cancellationManagerMock;
     private readonly Mock<ICandidateRankingProjectionService> _rankingProjectionServiceMock;
+    private readonly Mock<ITechnologyNormalizationService> _normalizationServiceMock;
 
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _jobId = Guid.NewGuid();
@@ -62,8 +63,12 @@ public class CandidateAssessmentRelationalProjectionTests : IDisposable
         _streamingSessionServiceMock = new Mock<IAiStreamingSessionService>();
         _cancellationManagerMock = new Mock<IAiCancellationManager>();
         _rankingProjectionServiceMock = new Mock<ICandidateRankingProjectionService>();
-    }
+        _normalizationServiceMock = new Mock<ITechnologyNormalizationService>();
 
+        _normalizationServiceMock.Setup(n => n.NormalizeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string rawName, CancellationToken ct) => new NormalizedSkillResult(
+                $"skill:{rawName.ToLowerInvariant()}", rawName, "Emerging Technology", "15-1252.00", false));
+    }
     private CandidateAssessmentService CreateService()
     {
         return new CandidateAssessmentService(
@@ -78,7 +83,8 @@ public class CandidateAssessmentRelationalProjectionTests : IDisposable
             _validationServiceMock.Object,
             _streamingSessionServiceMock.Object,
             _cancellationManagerMock.Object,
-            _rankingProjectionServiceMock.Object
+            _rankingProjectionServiceMock.Object,
+            _normalizationServiceMock.Object
         );
     }
 

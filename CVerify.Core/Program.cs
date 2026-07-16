@@ -472,6 +472,7 @@ builder.Services.AddSingleton<CVerify.API.Modules.Shared.System.Services.IAiCanc
 builder.Services.AddScoped<IAiStreamingSessionService, AiStreamingSessionService>();
 builder.Services.AddScoped<ISkillTreeValidationService, SkillTreeValidationService>();
 builder.Services.AddSingleton<ICandidateAssessmentQueue, BackgroundCandidateAssessmentQueue>();
+builder.Services.AddScoped<ITechnologyNormalizationService, TechnologyNormalizationService>();
 
 // Register Public Workspace Seeder Plugins
 builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, JobVacancyModuleSeeder>();
@@ -481,6 +482,7 @@ builder.Services.AddScoped<IPublicWorkspaceModuleSeeder, WorkspacePostModuleSeed
 builder.Services.AddScoped<ISeederModule, PermissionSeeder>();
 builder.Services.AddScoped<ISeederModule, SystemRoleSeeder>();
 builder.Services.AddScoped<ISeederModule, CapabilityCatalogSeeder>();
+builder.Services.AddScoped<ISeederModule, TechnologyTaxonomySeeder>();
 builder.Services.AddScoped<ISeederModule, ForumMetadataSeeder>();
 builder.Services.AddScoped<ISeederModule, TenantRoleSeeder>();
 builder.Services.AddScoped<ISeederModule, DemoOrganizationSeeder>();
