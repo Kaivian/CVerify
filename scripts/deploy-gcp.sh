@@ -377,6 +377,38 @@ http {
             proxy_set_header   X-Forwarded-Proto $scheme;
         }
 
+        location /hubs/ {
+            proxy_pass         http://cverify_api;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade $http_upgrade;
+            proxy_set_header   Connection "upgrade";
+            proxy_set_header   Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+            
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
+            proxy_buffering off;
+        }
+
+        location /api/v1/streaming/ {
+            proxy_pass         http://cverify_api;
+            proxy_http_version 1.1;
+            proxy_set_header   Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+
+            proxy_buffering off;
+            proxy_cache off;
+            proxy_read_timeout 3600s;
+            chunked_transfer_encoding on;
+        }
+
+
         location /nginx-health {
             access_log off;
             add_header Content-Type text/plain;
