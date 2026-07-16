@@ -49,6 +49,80 @@ let timerInterval: NodeJS.Timeout | null = null;
 let logBuffer: StreamingLog[] = [];
 let bufferInterval: NodeJS.Timeout | null = null;
 
+const mergeDbStages = (
+  pipelineId: string,
+  sessionId: string,
+  dbStages: Partial<StreamingStage & { detailsJson?: string }>[]
+): StreamingStage[] => {
+  const config = pipelineRegistry.get(pipelineId);
+  const registryStages: StreamingStage[] = config
+    ? config.stages.map(s => ({
+        id: s.id,
+        sessionId,
+        stageId: s.id,
+        stageName: s.name,
+        parentStageId: s.parentStageId,
+        status: "Pending",
+        progress: 0,
+        description: s.description,
+        retryCount: 0
+      }))
+    : [];
+
+  if (!dbStages || dbStages.length === 0) {
+    return registryStages;
+  }
+
+  const dbMap = new Map<string, Partial<StreamingStage & { detailsJson?: string }>>();
+  dbStages.forEach(s => {
+    const key = (s.stageId || s.id || "").toLowerCase();
+    if (key) dbMap.set(key, s);
+  });
+
+  const merged = registryStages.map(r => {
+    const dbStage = dbMap.get(r.stageId.toLowerCase());
+    if (dbStage) {
+      dbMap.delete(r.stageId.toLowerCase());
+      const stageStatus = dbStage.status as StreamingStage["status"] | undefined;
+      return {
+        ...r,
+        status: stageStatus || r.status,
+        progress: dbStage.progress !== undefined ? dbStage.progress : r.progress,
+        description: dbStage.description || r.description,
+        details: dbStage.details || dbStage.detailsJson || r.details,
+        retryCount: dbStage.retryCount || r.retryCount,
+        durationMs: dbStage.durationMs || r.durationMs,
+        startedAt: dbStage.startedAt || r.startedAt,
+        completedAt: dbStage.completedAt || r.completedAt,
+      };
+    }
+    return r;
+  });
+
+  // Append any extra stages that were in the DB but not in the registry
+  dbMap.forEach((dbStage) => {
+    const stageId = dbStage.stageId || dbStage.id || "";
+    const stageStatus = (dbStage.status as StreamingStage["status"]) || "Pending";
+    merged.push({
+      id: dbStage.id || stageId,
+      sessionId,
+      stageId: stageId,
+      stageName: dbStage.stageName || stageId,
+      parentStageId: dbStage.parentStageId,
+      status: stageStatus,
+      progress: dbStage.progress || 0,
+      description: dbStage.description || "",
+      details: dbStage.details || dbStage.detailsJson,
+      retryCount: dbStage.retryCount || 0,
+      durationMs: dbStage.durationMs,
+      startedAt: dbStage.startedAt,
+      completedAt: dbStage.completedAt,
+    });
+  });
+
+  return merged;
+};
+
 export const useStreamingStore = create<StreamingState>((set, get) => {
   const cleanupConnection = () => {
     if (eventSource) {
@@ -474,12 +548,10 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
         streamingHistoryApi.fetchSessionDetails(sessionId)
           .then(details => {
             const { session, stages: dbStages } = details;
+            const pipelineIdToUse = session.pipelineId || pipelineId;
             set({ 
               activeSession: session,
-              stages: dbStages.map(s => ({
-                ...s,
-                stageName: s.stageName || s.stageId
-              }))
+              stages: mergeDbStages(pipelineIdToUse, sessionId, dbStages)
             });
             if (session.status === "Completed" || session.status === "Failed") {
               cleanupConnection();
@@ -553,10 +625,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
 
         set({
           activeSession: session,
-          stages: dbStages.map(s => ({
-            ...s,
-            stageName: s.stageName || s.stageId
-          })),
+          stages: mergeDbStages(session.pipelineId, sessionId, dbStages),
           logs,
           elapsedMs: duration,
           errorMessage: session.status === "Failed" ? session.errorMessage : null,
