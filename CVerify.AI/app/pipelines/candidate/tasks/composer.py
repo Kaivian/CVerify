@@ -22,7 +22,7 @@ class CandidateProfileComposer(BaseTask):
     @property
     def dependencies(self) -> List[str]:
         # Depends on all upstream steps to compile the final JSON profile
-        return ["L2-001", "L2-002", "L2-003", "L2-004", "L2-005", "L2-006", "L2-007", "L2-008", "L2-009", "L2-010", "L2-011", "L2-012", "L2-013"]
+        return ["L2-001", "L2-002", "L2-003", "L2-004", "L2-005", "L2-006", "L2-007", "L2-008", "L2-009", "L2-010", "L2-011", "L2-012", "L2-013", "L2-016"]
 
     @property
     def input_keys(self) -> List[str]:
@@ -43,7 +43,7 @@ class CandidateProfileComposer(BaseTask):
     async def _execute_internal(self, context: PipelineContext, correlation_id: str) -> Dict[str, Any]:
         cv = context.cv or {}
         repository_assessments = context.repositoryAssessments or []
-        cv_skills = context.cvSkills or []
+        cv_skills = [s.normalizedName for s in context.cvSkills or []]
         skill_proficiencies = context.skillProficiencies or []
 
         # Load scoring policy

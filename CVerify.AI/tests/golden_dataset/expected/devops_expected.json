@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "candidate-profile-v3",
+  "candidateScore": 45,
+  "candidateScoreLabel": "Middle",
+  "careerLevel": "L2",
+  "careerLevelLabel": "Middle",
+  "careerLevelConfidence": 0.85,
+  "cohortPercentile": 45.3565,
+  "cohortVersion": "v0.0.0-fallback",
+  "cohortPercentileRange": {
+    "min": 26.47,
+    "max": 64.25,
+    "margin": 18.89
+  },
+  "capabilityVector": {
+    "version": "2.0.0",
+    "skillDepth": 60,
+    "ownership": 36,
+    "architecture": 52,
+    "problemSolving": 34,
+    "impact": 12,
+    "dimensions": {
+      "skillDepth": 60,
+      "ownership": 36,
+      "architecture": 52,
+      "problemSolving": 34,
+      "impact": 12
+    },
+    "rawSignals": {
+      "rawSkillDepth": 285.0,
+      "rawOwnership": 21.45,
+      "rawArchitecture": 226.12,
+      "rawProblemSolving": 36.4,
+      "rawImpact": 7.2
+    }
+  },
+  "evidenceCompleteness": "FULL",
+  "cloneRiskClassification": "clean",
+  "technicalDepth": 90.0,
+  "technicalBreadth": 30.0,
+  "leadershipPotential": 50.0,
+  "executionStrength": 67.5,
+  "trustLevel": 80.4,
+  "trustScoreMetrics": {
+    "verifiedSkillRatio": 0.6,
+    "verifiedRepositoryRatio": 1.0,
+    "verifiedEvidenceRatio": 0.81,
+    "candidateTrustScore": 80.4
+  },
+  "skills": [
+    {
+      "skillName": "Kubernetes",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via k8s-infra-configs:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-dop-1\", \"repositoryName\": \"k8s-infra-configs\", \"confidence\": 0.0, \"contributionWeight\": 0.9}]}}"
+    },
+    {
+      "skillName": "Docker",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via k8s-infra-configs:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-dop-1\", \"repositoryName\": \"k8s-infra-configs\", \"confidence\": 0.0, \"contributionWeight\": 0.8}]}}"
+    },
+    {
+      "skillName": "Terraform",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via k8s-infra-configs:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-dop-1\", \"repositoryName\": \"k8s-infra-configs\", \"confidence\": 0.0, \"contributionWeight\": 0.85}]}}"
+    },
+    {
+      "skillName": "GitHub Actions",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    },
+    {
+      "skillName": "Shell",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    }
+  ],
+  "domainProfiles": [],
+  "bestFitRoles": [
+    {
+      "roleTitle": "Software Engineer",
+      "matchScore": 45.3565,
+      "confidence": 0.85,
+      "rank": 1,
+      "matchingEngineVersion": "VectorArchetypeV2",
+      "evidence": "{\"rationale\": \"Calculated based on primary capability score and profile alignment.\", \"levelFit\": \"exact\"}",
+      "engineMetadata": "{\"matchingEngine\": \"VectorArchetypeMatchingV2\", \"capabilityVector\": {\"version\": \"2.0.0\", \"skillDepth\": 60, \"ownership\": 36, \"architecture\": 52, \"problemSolving\": 34, \"impact\": 12, \"dimensions\": {\"skillDepth\": 60, \"ownership\": 36, \"architecture\": 52, \"problemSolving\": 34, \"impact\": 12}, \"rawSignals\": {\"rawSkillDepth\": 285.0, \"rawOwnership\": 21.45, \"rawArchitecture\": 226.12, \"rawProblemSolving\": 36.4, \"rawImpact\": 7.2}}}"
+    }
+  ],
+  "strengthsWeaknesses": [
+    {
+      "findingType": "Strength",
+      "topic": "Engineering Capability",
+      "description": "Solid engineering execution verified by repository assessments.",
+      "evidence": null
+    }
+  ],
+  "keyStrengths": [
+    "Solid engineering execution verified by repository assessments."
+  ],
+  "watchPoints": [],
+  "evidenceGovernance": [
+    {
+      "repositoryId": "repo-dop-1",
+      "repositoryName": "k8s-infra-configs",
+      "cvProjectEntryId": null,
+      "cvProjectName": null,
+      "cvVerificationLevel": "AiAnalyzed",
+      "trustLevel": 3,
+      "authorshipPercent": 80.0,
+      "scoreContributionPercent": 100.0
+    }
+  ],
+  "scoreBreakdown": {
+    "skillDepth": {
+      "score": 59.8,
+      "weight": 0.35
+    },
+    "ownership": {
+      "score": 36.45,
+      "weight": 0.25
+    },
+    "architecture": {
+      "score": 51.55,
+      "weight": 0.2
+    },
+    "problemSolving": {
+      "score": 33.9,
+      "weight": 0.12
+    },
+    "impact": {
+      "score": 11.7,
+      "weight": 0.08
+    }
+  }
+}

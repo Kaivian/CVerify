@@ -2158,10 +2158,11 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         using var doc = JsonDocument.Parse(resultJson);
         JsonElement root = doc.RootElement;
 
-        // Enforce strict schema validation and fail-fast reprocessing logic (composer v2 enforcement)
-        if (!root.TryGetProperty("schemaVersion", out var schemaProp) || schemaProp.GetString() != "candidate-profile-v2")
+        // Enforce strict schema validation and fail-fast reprocessing logic (composer v2/v3 enforcement)
+        if (!root.TryGetProperty("schemaVersion", out var schemaProp) ||
+            (schemaProp.GetString() != "candidate-profile-v2" && schemaProp.GetString() != "candidate-profile-v3"))
         {
-            throw new InvalidDataException("Invalid assessment schema. Reprocess requires 'candidate-profile-v2'.");
+            throw new InvalidDataException("Invalid assessment schema. Reprocess requires 'candidate-profile-v2' or 'candidate-profile-v3'.");
         }
 
         if (!root.TryGetProperty("trustScoreMetrics", out var trustMetricsProp) || trustMetricsProp.ValueKind != JsonValueKind.Object)

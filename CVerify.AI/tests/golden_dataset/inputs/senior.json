@@ -1,0 +1,50 @@
+{
+  "cv": {
+    "cvId": "cv-senior-456",
+    "skills": ["Python", "PostgreSQL", "Redis", "Docker", "REST API"],
+    "experiences": [
+      {
+        "durationMonths": 60.0,
+        "company": "Enterprise Solutions",
+        "jobTitle": "Senior Software Engineer",
+        "description": "Architected distributed systems, scaled database layers, and integrated high-throughput caching structures."
+      }
+    ],
+    "projects": [
+      {
+        "cvProjectId": "proj-sen-1",
+        "name": "Order Management System",
+        "description": "High-availability order processing backend service using Python, Redis, and Postgres.",
+        "technologies": ["Python", "PostgreSQL", "Redis"]
+      }
+    ]
+  },
+  "repositoryAssessments": [
+    {
+      "repositoryId": "repo-sen-1",
+      "repositoryName": "order-service",
+      "overallScore": 85.0,
+      "cvVerificationLevel": "AiAnalyzed",
+      "trustLevel": 3,
+      "intelligenceSignal": {
+        "ownershipSignal": 75.0,
+        "leadershipSignal": 65.0,
+        "consistencySignal": 80.0
+      },
+      "qualityMetrics": {
+        "complexityScore": 75.0,
+        "cloneRiskClassification": "clean"
+      },
+      "capabilities": [
+        {"name": "Database Scaling", "category": "database", "difficultyScore": 8.0, "maturity": "Advanced"},
+        {"name": "Cache Architecture", "category": "architecture", "difficultyScore": 8.5, "maturity": "Advanced"},
+        {"name": "API Design", "category": "backend", "difficultyScore": 8.0, "maturity": "Advanced"}
+      ],
+      "skillAttributions": [
+        {"skillName": "Python", "contributionWeight": 0.9},
+        {"skillName": "PostgreSQL", "contributionWeight": 0.8},
+        {"skillName": "Redis", "contributionWeight": 0.85}
+      ]
+    }
+  ]
+}

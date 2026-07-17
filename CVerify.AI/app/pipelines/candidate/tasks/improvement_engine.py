@@ -131,7 +131,8 @@ class CandidateImprovementEngine(BaseTask):
 
         # ── 2. Recommendation Generation Layer ───────────────────────────────
         # Define target role archetype vector based on topMatch suggestions or backend default
-        top_role = (profile.get("bestFitRoles", [{}])[0] or {}).get("roleTitle", "Senior Backend Engineer")
+        best_fit = profile.get("bestFitRoles") or []
+        top_role = (best_fit[0] if best_fit else {}).get("roleTitle", "Senior Backend Engineer")
         
         # Determine archetype targets
         target_arch = 150.0

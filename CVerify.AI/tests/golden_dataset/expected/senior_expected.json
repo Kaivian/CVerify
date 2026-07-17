@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "candidate-profile-v3",
+  "candidateScore": 48,
+  "candidateScoreLabel": "Middle",
+  "careerLevel": "L2",
+  "careerLevelLabel": "Middle",
+  "careerLevelConfidence": 0.85,
+  "cohortPercentile": 47.975,
+  "cohortVersion": "v0.0.0-fallback",
+  "cohortPercentileRange": {
+    "min": 28.28,
+    "max": 67.67,
+    "margin": 19.7
+  },
+  "capabilityVector": {
+    "version": "2.0.0",
+    "skillDepth": 61,
+    "ownership": 41,
+    "architecture": 58,
+    "problemSolving": 31,
+    "impact": 15,
+    "dimensions": {
+      "skillDepth": 61,
+      "ownership": 41,
+      "architecture": 58,
+      "problemSolving": 31,
+      "impact": 15
+    },
+    "rawSignals": {
+      "rawSkillDepth": 300.0,
+      "rawOwnership": 27.03,
+      "rawArchitecture": 315.38,
+      "rawProblemSolving": 33.0,
+      "rawImpact": 9.0
+    }
+  },
+  "evidenceCompleteness": "FULL",
+  "cloneRiskClassification": "clean",
+  "technicalDepth": 85.0,
+  "technicalBreadth": 50.0,
+  "leadershipPotential": 65.0,
+  "executionStrength": 65.0,
+  "trustLevel": 81.92,
+  "trustScoreMetrics": {
+    "verifiedSkillRatio": 0.6,
+    "verifiedRepositoryRatio": 1.0,
+    "verifiedEvidenceRatio": 0.85,
+    "candidateTrustScore": 81.92
+  },
+  "skills": [
+    {
+      "skillName": "Python",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via order-service:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-sen-1\", \"repositoryName\": \"order-service\", \"confidence\": 0.0, \"contributionWeight\": 0.9}]}}"
+    },
+    {
+      "skillName": "PostgreSQL",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via order-service:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-sen-1\", \"repositoryName\": \"order-service\", \"confidence\": 0.0, \"contributionWeight\": 0.8}]}}"
+    },
+    {
+      "skillName": "Redis",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via order-service:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-sen-1\", \"repositoryName\": \"order-service\", \"confidence\": 0.0, \"contributionWeight\": 0.85}]}}"
+    },
+    {
+      "skillName": "Docker",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    },
+    {
+      "skillName": "REST API",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    }
+  ],
+  "domainProfiles": [],
+  "bestFitRoles": [
+    {
+      "roleTitle": "Software Engineer",
+      "matchScore": 47.975,
+      "confidence": 0.85,
+      "rank": 1,
+      "matchingEngineVersion": "VectorArchetypeV2",
+      "evidence": "{\"rationale\": \"Calculated based on primary capability score and profile alignment.\", \"levelFit\": \"exact\"}",
+      "engineMetadata": "{\"matchingEngine\": \"VectorArchetypeMatchingV2\", \"capabilityVector\": {\"version\": \"2.0.0\", \"skillDepth\": 61, \"ownership\": 41, \"architecture\": 58, \"problemSolving\": 31, \"impact\": 15, \"dimensions\": {\"skillDepth\": 61, \"ownership\": 41, \"architecture\": 58, \"problemSolving\": 31, \"impact\": 15}, \"rawSignals\": {\"rawSkillDepth\": 300.0, \"rawOwnership\": 27.03, \"rawArchitecture\": 315.38, \"rawProblemSolving\": 33.0, \"rawImpact\": 9.0}}}"
+    }
+  ],
+  "strengthsWeaknesses": [
+    {
+      "findingType": "Strength",
+      "topic": "Engineering Capability",
+      "description": "Solid engineering execution verified by repository assessments.",
+      "evidence": null
+    }
+  ],
+  "keyStrengths": [
+    "Solid engineering execution verified by repository assessments."
+  ],
+  "watchPoints": [],
+  "evidenceGovernance": [
+    {
+      "repositoryId": "repo-sen-1",
+      "repositoryName": "order-service",
+      "cvProjectEntryId": null,
+      "cvProjectName": null,
+      "cvVerificationLevel": "AiAnalyzed",
+      "trustLevel": 3,
+      "authorshipPercent": 75.0,
+      "scoreContributionPercent": 100.0
+    }
+  ],
+  "scoreBreakdown": {
+    "skillDepth": {
+      "score": 61.0,
+      "weight": 0.35
+    },
+    "ownership": {
+      "score": 40.7,
+      "weight": 0.25
+    },
+    "architecture": {
+      "score": 57.5,
+      "weight": 0.2
+    },
+    "problemSolving": {
+      "score": 31.35,
+      "weight": 0.12
+    },
+    "impact": {
+      "score": 14.85,
+      "weight": 0.08
+    }
+  }
+}

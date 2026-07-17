@@ -418,7 +418,7 @@ async def calculate_scores_endpoint(
     logger.info("Initiated deterministic scoring calculation", extra=extra_log)
     try:
         from app.pipelines.candidate.scoring_engine import score_candidate_deterministic
-        from app.pipelines.candidate.contracts import CandidateAssessmentV2Contract
+        from app.pipelines.candidate.contracts import CandidateAssessmentV3Contract
         
         profile = score_candidate_deterministic(
             cv=request_data.cv,
@@ -429,7 +429,7 @@ async def calculate_scores_endpoint(
         )
         
         # Enforce contract verification boundary
-        CandidateAssessmentV2Contract.model_validate(profile)
+        CandidateAssessmentV3Contract.model_validate(profile)
         return profile
     except Exception as e:
         logger.error(f"Error during deterministic scoring: {e}", extra=extra_log)

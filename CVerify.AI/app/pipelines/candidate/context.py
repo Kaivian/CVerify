@@ -1,5 +1,30 @@
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional, Any
+from pydantic import BaseModel, Field, field_validator
+from typing import Dict, List, Optional, Any, Union
+
+class CvSkill(BaseModel):
+    originalName: str
+    normalizedName: str
+    skillId: str
+
+class MappedSkill(BaseModel):
+    rawName: str
+    normalizedName: str
+    skillId: str
+    sfiaCategory: str
+    onetCode: str
+    evidenceStrength: str  # none|weak|moderate|strong
+    declaredInCv: bool
+
+class SkillTreeNode(BaseModel):
+    id: str
+    parentId: Optional[str] = None
+    displayName: str
+    category: str
+    proficiencyLevel: str
+    confidenceScore: float
+    estimatedExperience: float
+    supportingEvidence: Optional[Dict[str, Any]] = None
+    children: List["SkillTreeNode"] = Field(default_factory=list)
 
 class PipelineContext(BaseModel):
     # Core Raw Inputs
@@ -13,7 +38,7 @@ class PipelineContext(BaseModel):
     skillEvidenceGraph: Dict[str, Any] = Field(default_factory=dict)
     maturityInputs: Dict[str, Any] = Field(default_factory=dict)
     problemsInputs: Dict[str, Any] = Field(default_factory=dict)
-    cvSkills: List[str] = Field(default_factory=list)
+    cvSkills: List[CvSkill] = Field(default_factory=list)
     workingExperience: List[Dict[str, Any]] = Field(default_factory=list)
 
     # Vector Scoring Outputs
@@ -30,7 +55,7 @@ class PipelineContext(BaseModel):
     rawImpact: Optional[float] = None
 
     # Step Outputs (CamelCase to match prompt requirements & payload JSON)
-    mappedSkills: Optional[List[Dict[str, Any]]] = None
+    mappedSkills: Optional[List[MappedSkill]] = None
     unmatchedCvSkills: Optional[List[str]] = None
     skillProficiencies: Optional[List[Dict[str, Any]]] = None
     strongestDomains: Optional[List[Dict[str, Any]]] = None
@@ -107,7 +132,27 @@ class PipelineContext(BaseModel):
     # Composites
     candidateProfile: Optional[Dict[str, Any]] = None
     improvementPlan: Optional[Dict[str, Any]] = None
-    skillTree: Optional[Dict[str, Any]] = None
+    skillTree: Optional[Union[SkillTreeNode, List[SkillTreeNode]]] = None
+
+    @field_validator("cvSkills", mode="before")
+    @classmethod
+    def validate_cv_skills(cls, v):
+        if not isinstance(v, list):
+            return v
+        validated = []
+        for item in v:
+            if isinstance(item, str):
+                from app.pipelines.candidate.skill_taxonomy import make_skill_id
+                validated.append({
+                    "originalName": item,
+                    "normalizedName": item,
+                    "skillId": f"skill:emerging-{make_skill_id(item)}"
+                })
+            elif isinstance(item, dict):
+                validated.append(item)
+            elif isinstance(item, CvSkill):
+                validated.append(item)
+        return validated
 
     def update(self, **kwargs) -> "PipelineContext":
         """Creates a new instance of PipelineContext with updated attributes, enforcing immutability."""
@@ -146,7 +191,7 @@ class PipelineContext(BaseModel):
             "commits": self.problemsInputs.get("commits", []) if self.problemsInputs else []
         }
         legacy["codeQualityData"] = self.maturityInputs.get("codeQualityData", {}) if self.maturityInputs else {}
-        legacy["cvSkills"] = self.cvSkills
+        legacy["cvSkills"] = [s.normalizedName for s in self.cvSkills]
         legacy["workingExperience"] = self.workingExperience
         
         return legacy
@@ -159,4 +204,8 @@ class PipelineEvent(BaseModel):
     taskId: str
     payload: Dict[str, Any] = Field(default_factory=dict)
     stateSnapshot: Dict[str, Any] = Field(default_factory=dict)
+
+# Rebuild recursive SkillTreeNode to resolve forward references
+SkillTreeNode.model_rebuild()
+
 

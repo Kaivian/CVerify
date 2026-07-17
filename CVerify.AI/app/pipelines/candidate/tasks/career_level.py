@@ -11,7 +11,7 @@ def calculate_vector_scores(context: PipelineContext) -> Dict[str, float]:
     # 1. Skill Depth (Logarithmic)
     a_sd, b_sd = 22.0, 0.05
     raw_skills = 0.0
-    cv_skills = context.cvSkills
+    cv_skills = [s.normalizedName for s in context.cvSkills]
     skill_proficiencies = context.skillProficiencies or []
     repository_assessments = context.repositoryAssessments or []
     
