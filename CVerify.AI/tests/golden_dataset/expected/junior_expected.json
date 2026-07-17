@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "candidate-profile-v3",
+  "candidateScore": 23,
+  "candidateScoreLabel": "Intern",
+  "careerLevel": "Intern",
+  "careerLevelLabel": "Intern",
+  "careerLevelConfidence": 0.85,
+  "cohortPercentile": 23.464,
+  "cohortVersion": "v0.0.0-fallback",
+  "cohortPercentileRange": {
+    "min": 3.46,
+    "max": 43.46,
+    "margin": 20.0
+  },
+  "capabilityVector": {
+    "version": "2.0.0",
+    "skillDepth": 50,
+    "ownership": 8,
+    "architecture": 0,
+    "problemSolving": 27,
+    "impact": 8,
+    "dimensions": {
+      "skillDepth": 50,
+      "ownership": 8,
+      "architecture": 0,
+      "problemSolving": 27,
+      "impact": 8
+    },
+    "rawSignals": {
+      "rawSkillDepth": 175.0,
+      "rawOwnership": 4.32,
+      "rawArchitecture": 0.0,
+      "rawProblemSolving": 25.56,
+      "rawImpact": 1.8
+    }
+  },
+  "evidenceCompleteness": "PARTIAL",
+  "cloneRiskClassification": "clean",
+  "technicalDepth": 20.0,
+  "technicalBreadth": 10.0,
+  "leadershipPotential": 0.0,
+  "executionStrength": 25.0,
+  "trustLevel": 64.61,
+  "trustScoreMetrics": {
+    "verifiedSkillRatio": 0.67,
+    "verifiedRepositoryRatio": 1.0,
+    "verifiedEvidenceRatio": 0.37,
+    "candidateTrustScore": 64.61
+  },
+  "skills": [
+    {
+      "skillName": "JavaScript",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    },
+    {
+      "skillName": "HTML",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via blog-static:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-jun-1\", \"repositoryName\": \"blog-static\", \"confidence\": 0.0, \"contributionWeight\": 0.8}]}}"
+    },
+    {
+      "skillName": "CSS",
+      "score": 75.0,
+      "confidence": 0.85,
+      "level": "Practitioner",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via blog-static:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-jun-1\", \"repositoryName\": \"blog-static\", \"confidence\": 0.0, \"contributionWeight\": 0.7}]}}"
+    }
+  ],
+  "domainProfiles": [],
+  "bestFitRoles": [
+    {
+      "roleTitle": "Software Engineer",
+      "matchScore": 23.464,
+      "confidence": 0.85,
+      "rank": 1,
+      "matchingEngineVersion": "VectorArchetypeV2",
+      "evidence": "{\"rationale\": \"Calculated based on primary capability score and profile alignment.\", \"levelFit\": \"exact\"}",
+      "engineMetadata": "{\"matchingEngine\": \"VectorArchetypeMatchingV2\", \"capabilityVector\": {\"version\": \"2.0.0\", \"skillDepth\": 50, \"ownership\": 8, \"architecture\": 0, \"problemSolving\": 27, \"impact\": 8, \"dimensions\": {\"skillDepth\": 50, \"ownership\": 8, \"architecture\": 0, \"problemSolving\": 27, \"impact\": 8}, \"rawSignals\": {\"rawSkillDepth\": 175.0, \"rawOwnership\": 4.32, \"rawArchitecture\": 0.0, \"rawProblemSolving\": 25.56, \"rawImpact\": 1.8}}}"
+    }
+  ],
+  "strengthsWeaknesses": [
+    {
+      "findingType": "Strength",
+      "topic": "Engineering Capability",
+      "description": "Solid engineering execution verified by repository assessments.",
+      "evidence": null
+    }
+  ],
+  "keyStrengths": [
+    "Solid engineering execution verified by repository assessments."
+  ],
+  "watchPoints": [],
+  "evidenceGovernance": [
+    {
+      "repositoryId": "repo-jun-1",
+      "repositoryName": "blog-static",
+      "cvProjectEntryId": null,
+      "cvProjectName": null,
+      "cvVerificationLevel": "RepositoryLinked",
+      "trustLevel": 2,
+      "authorshipPercent": 85.0,
+      "scoreContributionPercent": 100.0
+    }
+  ],
+  "scoreBreakdown": {
+    "skillDepth": {
+      "score": 50.0,
+      "weight": 0.35
+    },
+    "ownership": {
+      "score": 8.4,
+      "weight": 0.25
+    },
+    "architecture": {
+      "score": 0.0,
+      "weight": 0.2
+    },
+    "problemSolving": {
+      "score": 27.1,
+      "weight": 0.12
+    },
+    "impact": {
+      "score": 7.65,
+      "weight": 0.08
+    }
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "candidate-profile-v3",
+  "candidateScore": 36,
+  "candidateScoreLabel": "Junior",
+  "careerLevel": "L1",
+  "careerLevelLabel": "Junior",
+  "careerLevelConfidence": 0.85,
+  "cohortPercentile": 36.1575,
+  "cohortVersion": "v0.0.0-fallback",
+  "cohortPercentileRange": {
+    "min": 16.16,
+    "max": 56.16,
+    "margin": 20.0
+  },
+  "capabilityVector": {
+    "version": "2.0.0",
+    "skillDepth": 50,
+    "ownership": 28,
+    "architecture": 38,
+    "problemSolving": 27,
+    "impact": 10,
+    "dimensions": {
+      "skillDepth": 50,
+      "ownership": 28,
+      "architecture": 38,
+      "problemSolving": 27,
+      "impact": 10
+    },
+    "rawSignals": {
+      "rawSkillDepth": 175.0,
+      "rawOwnership": 13.35,
+      "rawArchitecture": 114.75,
+      "rawProblemSolving": 25.56,
+      "rawImpact": 3.6
+    }
+  },
+  "evidenceCompleteness": "PARTIAL",
+  "cloneRiskClassification": "clean",
+  "technicalDepth": 70.0,
+  "technicalBreadth": 30.0,
+  "leadershipPotential": 0.0,
+  "executionStrength": 25.0,
+  "trustLevel": 73.06,
+  "trustScoreMetrics": {
+    "verifiedSkillRatio": 0.4,
+    "verifiedRepositoryRatio": 1.0,
+    "verifiedEvidenceRatio": 0.78,
+    "candidateTrustScore": 73.06
+  },
+  "skills": [
+    {
+      "skillName": "JavaScript",
+      "score": 75.0,
+      "confidence": 0.85,
+      "level": "Practitioner",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via e2e-playwright-tests:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-qa-1\", \"repositoryName\": \"e2e-playwright-tests\", \"confidence\": 0.0, \"contributionWeight\": 0.75}]}}"
+    },
+    {
+      "skillName": "Playwright",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via e2e-playwright-tests:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-qa-1\", \"repositoryName\": \"e2e-playwright-tests\", \"confidence\": 0.0, \"contributionWeight\": 0.8}]}}"
+    },
+    {
+      "skillName": "Jest",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    },
+    {
+      "skillName": "CI/CD",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    },
+    {
+      "skillName": "Testing",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    }
+  ],
+  "domainProfiles": [],
+  "bestFitRoles": [
+    {
+      "roleTitle": "Software Engineer",
+      "matchScore": 36.1575,
+      "confidence": 0.85,
+      "rank": 1,
+      "matchingEngineVersion": "VectorArchetypeV2",
+      "evidence": "{\"rationale\": \"Calculated based on primary capability score and profile alignment.\", \"levelFit\": \"exact\"}",
+      "engineMetadata": "{\"matchingEngine\": \"VectorArchetypeMatchingV2\", \"capabilityVector\": {\"version\": \"2.0.0\", \"skillDepth\": 50, \"ownership\": 28, \"architecture\": 38, \"problemSolving\": 27, \"impact\": 10, \"dimensions\": {\"skillDepth\": 50, \"ownership\": 28, \"architecture\": 38, \"problemSolving\": 27, \"impact\": 10}, \"rawSignals\": {\"rawSkillDepth\": 175.0, \"rawOwnership\": 13.35, \"rawArchitecture\": 114.75, \"rawProblemSolving\": 25.56, \"rawImpact\": 3.6}}}"
+    }
+  ],
+  "strengthsWeaknesses": [
+    {
+      "findingType": "Strength",
+      "topic": "Engineering Capability",
+      "description": "Solid engineering execution verified by repository assessments.",
+      "evidence": null
+    }
+  ],
+  "keyStrengths": [
+    "Solid engineering execution verified by repository assessments."
+  ],
+  "watchPoints": [],
+  "evidenceGovernance": [
+    {
+      "repositoryId": "repo-qa-1",
+      "repositoryName": "e2e-playwright-tests",
+      "cvProjectEntryId": null,
+      "cvProjectName": null,
+      "cvVerificationLevel": "RepositoryLinked",
+      "trustLevel": 2,
+      "authorshipPercent": 85.0,
+      "scoreContributionPercent": 100.0
+    }
+  ],
+  "scoreBreakdown": {
+    "skillDepth": {
+      "score": 50.0,
+      "weight": 0.35
+    },
+    "ownership": {
+      "score": 27.95,
+      "weight": 0.25
+    },
+    "architecture": {
+      "score": 38.25,
+      "weight": 0.2
+    },
+    "problemSolving": {
+      "score": 27.1,
+      "weight": 0.12
+    },
+    "impact": {
+      "score": 9.6,
+      "weight": 0.08
+    }
+  }
+}
