@@ -1104,9 +1104,27 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
     private async Task ProjectRelationalDataAsync(Guid assessmentId, Guid jobId, double overallScore, CancellationToken cancellationToken)
     {
-        // Check if already projected
-        var exists = await _context.RepositoryCapabilities.AnyAsync(c => c.RepositoryAssessmentId == assessmentId, cancellationToken);
+        // Check if already projected (all relational assets must exist)
+        var exists = await _context.RepositoryCapabilities.AnyAsync(c => c.RepositoryAssessmentId == assessmentId, cancellationToken)
+            && await _context.RepositoryDomains.AnyAsync(c => c.RepositoryAssessmentId == assessmentId, cancellationToken)
+            && await _context.RepositorySkillAttributions.AnyAsync(c => c.RepositoryAssessmentId == assessmentId, cancellationToken)
+            && await _context.RepositoryIntelligenceSignals.AnyAsync(c => c.RepositoryAssessmentId == assessmentId, cancellationToken);
         if (exists) return;
+
+        // Remove existing records for idempotency before re-projecting
+        var oldCapabilities = await _context.RepositoryCapabilities.Where(x => x.RepositoryAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.RepositoryCapabilities.RemoveRange(oldCapabilities);
+
+        var oldSkills = await _context.RepositorySkillAttributions.Where(x => x.RepositoryAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.RepositorySkillAttributions.RemoveRange(oldSkills);
+
+        var oldDomains = await _context.RepositoryDomains.Where(x => x.RepositoryAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.RepositoryDomains.RemoveRange(oldDomains);
+
+        var oldSignals = await _context.RepositoryIntelligenceSignals.Where(x => x.RepositoryAssessmentId == assessmentId).ToListAsync(cancellationToken);
+        _context.RepositoryIntelligenceSignals.RemoveRange(oldSignals);
+
+        await _context.SaveChangesAsync(cancellationToken);
 
         var results = await _context.AnalysisTaskResults
             .Include(r => r.Task)
