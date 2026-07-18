@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0.0",
+  "metadata": {
+    "modelIdentifier": "claude-3-5-sonnet",
+    "promptVersion": "2.0",
+    "generatedAtUtc": "2026-07-18T09:24:00Z"
+  },
+  "jobDescription": {
+    "markdownContent": "# Senior Backend Developer - Engineering\n\n## About the Role\nWe are looking for a Senior Backend Developer...\n\n## Business Goals & Outcomes\nScale transaction throughput...\n\n## 30-60-90 Day Milestones\nSuccess milestones...\n\n## Key Responsibilities\n- Design APIs\n- Optimize DB\n\n## Required Capabilities\n- Database Query Tuning\n- REST API Design\n\n## Technology Stack\n- C# .NET\n- PostgreSQL\n\n## Preferred Skills\n- Redis\n- Docker\n\n## Experience Requirements\n5+ years of backend development\n\n## Qualifications\nBachelor's in CS\n\n## Soft Skills\nCollaboration and communication\n\n## Benefits & Compensation\n$120,000 - $160,000 range\n\n## Hiring Process\n1. Resume Review\n2. Live Code Test",
+    "title": "Senior Backend Developer",
+    "department": "Engineering",
+    "summary": "We are looking for a Senior Backend Developer to scale transaction throughput.",
+    "responsibilities": [
+      "Design and implement robust REST APIs for transactions.",
+      "Optimize slow database queries and scaling configurations."
+    ],
+    "skills": [
+      "db.query-tuning",
+      "net.api-design"
+    ]
+  },
+  "assessmentRubric": {
+    "scoringRules": {
+      "minimumMaturityThreshold": "Practitioner",
+      "selfDeclaredMatchCeiling": 0.40,
+      "additionalRules": [
+        "Verify candidate has actual blame ownership of queries."
+      ]
+    },
+    "evidenceRequirements": [
+      {
+        "capabilityId": "db.query-tuning",
+        "evidenceType": "AstSignature",
+        "rationale": "High contributor attribution on DB schema files.",
+        "expectedMetric": "Git Blame authorship > 40%"
+      },
+      {
+        "capabilityId": "net.api-design",
+        "evidenceType": "AstSignature",
+        "rationale": "Directly created controller actions.",
+        "expectedMetric": "Git Blame authorship > 35%"
+      }
+    ]
+  },
+  "interviewBlueprint": {
+    "questions": [
+      {
+        "capabilityId": "db.query-tuning",
+        "questionText": "Describe a time you optimized a slow query...",
+        "gradingRubric": "Look for EXPLAIN execution plan analysis."
+      },
+      {
+        "capabilityId": "net.api-design",
+        "questionText": "How do you design REST APIs to prevent duplicate actions?",
+        "gradingRubric": "Look for idempotency key implementations."
+      }
+    ],
+    "dimensions": [
+      "Code Hygiene",
+      "Problem Solving",
+      "Architecture Intent"
+    ]
+  },
+  "jobPostMetadata": {
+    "experienceRange": "5+ years",
+    "degreeRequirement": "Bachelor's in Computer Science or equivalent",
+    "industryCategory": "Software Engineering",
+    "coverUrl": "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=600&auto=format&fit=crop",
+    "tags": [
+      "Backend",
+      "C#",
+      "PostgreSQL"
+    ]
+  },
+  "candidateDiscoveryProfile": {
+    "keyKeywords": [
+      "C#",
+      "PostgreSQL",
+      "API Design",
+      "Query Tuning"
+    ],
+    "minimumYearsOfExperience": 5,
+    "priorityWeights": {
+      "db.query-tuning": 0.6,
+      "net.api-design": 0.4
+    },
+    "trustRequirements": {
+      "minimumTrustScore": 60.0,
+      "requireVerifiedEmail": true
+    }
+  }
+}

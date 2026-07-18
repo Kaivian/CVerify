@@ -182,7 +182,7 @@ public class CandidateMatchService : ICandidateMatchService
             // Map factors / outputs to the DTO breakdown
             var breakdown = new MatchBreakdownDto(
                 Math.Round(matchResult.CapabilityFitScore, 2),
-                Math.Round(matchResult.PreferenceFitScore, 2),
+                Math.Round(matchResult.CapabilityFitScore, 2),
                 Math.Round(matchResult.RoleFitScore, 2),
                 Math.Round(matchResult.PreferenceFitScore, 2),
                 Math.Round(matchResult.CapabilityFitScore, 2),

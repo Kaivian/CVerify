@@ -56,36 +56,49 @@ public class ExplainableMatchService : IExplainableMatchService
         // 1. Fetch Candidate Capability Intelligence DTO
         var intelligence = await _evaluationService.GetCapabilityIntelligenceAsync(candidateId).ConfigureAwait(false);
 
-        // 2. Build Unified Job Requirement DTO
-        var jobRequirement = new UnifiedJobRequirement
-        {
-            JobOrRequirementId = job.Id,
-            Skills = job.Skills,
-            Seniority = job.Experience,
-            RequiresLeadership = job.Requirements.Any(r => r.Contains("lead", StringComparison.OrdinalIgnoreCase) || r.Contains("manage", StringComparison.OrdinalIgnoreCase)),
-            SalaryMin = null,
-            SalaryMax = null,
-            WorkplaceType = job.WorkplaceType
-        };
+        List<RequiredCapabilityDto> requiredCapabilities;
+        List<string> requiredSkills = job.Skills;
+        decimal? salaryMin = null;
+        decimal? salaryMax = null;
+        string workplaceType = job.WorkplaceType;
+        bool requiresLeadership = job.Requirements.Any(r => r.Contains("lead", StringComparison.OrdinalIgnoreCase) || r.Contains("manage", StringComparison.OrdinalIgnoreCase));
 
-        if (job.RequirementSnapshot != null && !string.IsNullOrEmpty(job.RequirementSnapshot.CapabilitiesJson))
+        if (job.RequirementSnapshot != null)
         {
-            var snapshotCaps = JsonSerializer.Deserialize<List<RequirementCapabilityDto>>(
-                job.RequirementSnapshot.CapabilitiesJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+            var snapshot = job.RequirementSnapshot;
 
-            jobRequirement.Capabilities = snapshotCaps.Select(c => new RequiredCapabilityDto
+            var snapshotCaps = !string.IsNullOrEmpty(snapshot.CapabilitiesJson)
+                ? JsonSerializer.Deserialize<List<RequirementCapabilityDto>>(snapshot.CapabilitiesJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new()
+                : new();
+
+            requiredCapabilities = snapshotCaps.Select(c => new RequiredCapabilityDto
             {
                 CapabilityId = c.CapabilityId,
                 Name = c.Name,
                 Weight = c.Priority == RequirementPriority.MustHave ? 1.5f : 1.0f,
                 ExpectedProficiency = c.ExpectedProficiency
             }).ToList();
+
+            var techReqs = !string.IsNullOrEmpty(snapshot.TechnologyRequirementsJson)
+                ? JsonSerializer.Deserialize<List<TechnologyRequirementDto>>(snapshot.TechnologyRequirementsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new()
+                : new();
+            requiredSkills = techReqs.Select(t => t.Name).ToList();
+
+            var responsibilities = !string.IsNullOrEmpty(snapshot.ResponsibilitiesJson)
+                ? JsonSerializer.Deserialize<List<ResponsibilityDto>>(snapshot.ResponsibilitiesJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new()
+                : new();
+
+            requiresLeadership = responsibilities.Any(r => r.OwnershipLevel == OwnershipLevel.Leader || r.IsLeadership) ||
+                                 snapshotCaps.Any(c => c.OwnershipLevel == OwnershipLevel.Leader);
+
+            salaryMin = snapshot.SalaryMin;
+            salaryMax = snapshot.SalaryMax;
+            workplaceType = snapshot.WorkplaceType;
         }
         else
         {
             // Fallback: build capabilities from simple JobVacancy.Skills list
-            jobRequirement.Capabilities = job.Skills.Select(s => new RequiredCapabilityDto
+            requiredCapabilities = job.Skills.Select(s => new RequiredCapabilityDto
             {
                 CapabilityId = s.ToLowerInvariant().Trim(),
                 Name = s,
@@ -93,6 +106,19 @@ public class ExplainableMatchService : IExplainableMatchService
                 ExpectedProficiency = 2
             }).ToList();
         }
+
+        // 2. Build Unified Job Requirement DTO
+        var jobRequirement = new UnifiedJobRequirement
+        {
+            JobOrRequirementId = job.Id,
+            Skills = requiredSkills,
+            Seniority = job.Experience,
+            RequiresLeadership = requiresLeadership,
+            SalaryMin = salaryMin,
+            SalaryMax = salaryMax,
+            WorkplaceType = workplaceType,
+            Capabilities = requiredCapabilities
+        };
 
         // 3. Delegate score calculation to the consolidated engine
         var matchResult = await _matchingEngine.EvaluateMatchAsync(intelligence, jobRequirement).ConfigureAwait(false);
@@ -129,7 +155,7 @@ public class ExplainableMatchService : IExplainableMatchService
         foreach (var exp in matchResult.Explanations)
         {
             var node = await _context.CapabilityNodes
-                .FirstOrDefaultAsync(n => n.Slug == exp.AssertionText || n.Name.ToLower() == exp.AssertionText.ToLower())
+                .FirstOrDefaultAsync(n => n.Slug == exp.CapabilitySlug || n.Slug == exp.AssertionText || n.Name.ToLower() == exp.AssertionText.ToLower())
                 .ConfigureAwait(false);
 
             _context.MatchingExplanations.Add(new MatchingExplanation

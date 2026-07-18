@@ -1,0 +1,67 @@
+{
+  "id": "0190c12e-1e42-70b1-b9a5-7f41cf6b7d12",
+  "title": "Senior Backend Developer",
+  "department": "Engineering",
+  "seniority": "Senior",
+  "workplaceType": "Remote",
+  "city": "San Francisco",
+  "employmentType": "Full-Time",
+  "salaryMin": 120000.0,
+  "salaryMax": 160000.0,
+  "currency": "USD",
+  "timezoneRange": "UTC-8 to UTC-5",
+  "degreeRequirement": "Bachelor's in Computer Science or equivalent",
+  "benefits": ["Medical Insurance", "401k Match", "Flexible PTO"],
+  "languageRequirements": ["English"],
+  "headcount": 2,
+  "hiringReason": "Scaling the core transaction processing platform.",
+  "businessProblem": "High processing latency during peak transaction volumes.",
+  "outcomes": [
+    "Reduce processing latency of transaction API by 30%.",
+    "Establish reliable dead-letter queue handling for asynchronous events."
+  ],
+  "responsibilities": [
+    {
+      "text": "Design and implement robust REST APIs for transactions.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    },
+    {
+      "text": "Optimize slow database queries and scaling configurations.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    }
+  ],
+  "capabilities": [
+    {
+      "capabilityId": "db.query-tuning",
+      "name": "Database Query Tuning",
+      "category": "Database",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    },
+    {
+      "capabilityId": "net.api-design",
+      "name": "REST API Design",
+      "category": "Backend",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    }
+  ],
+  "skills": [
+    {
+      "name": "C# .NET",
+      "priority": "MustHave",
+      "sfiaLevel": 5
+    },
+    {
+      "name": "PostgreSQL",
+      "priority": "MustHave",
+      "sfiaLevel": 4
+    }
+  ]
+}

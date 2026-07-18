@@ -1,0 +1,67 @@
+{
+  "id": "0190c12e-1e42-70b1-b9a5-7f41cf6b7d16",
+  "title": "Senior AI Engineer",
+  "department": "AI Research",
+  "seniority": "Senior",
+  "workplaceType": "Remote",
+  "city": "Boston",
+  "employmentType": "Full-Time",
+  "salaryMin": 140000.0,
+  "salaryMax": 190000.0,
+  "currency": "USD",
+  "timezoneRange": "UTC-5 to UTC-3",
+  "degreeRequirement": "Master's or Ph.D. in Computer Science, Machine Learning, or related field",
+  "benefits": ["Medical Insurance", "Annual Bonus", "Flexible Workspace"],
+  "languageRequirements": ["English"],
+  "headcount": 1,
+  "hiringReason": "Building production LLM-based agent pipelines and optimization layers.",
+  "businessProblem": "High cost and latency in running generative LLM pipeline workflows.",
+  "outcomes": [
+    "Reduce LLM token usage and pricing costs by 25% via prompt optimization and caching.",
+    "Implement evaluations and grading loops for LLM accuracy."
+  ],
+  "responsibilities": [
+    {
+      "text": "Design agentic orchestration workflows and prompt validation chains.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    },
+    {
+      "text": "Fine-tune and optimize prompt context formatting and caching rules.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    }
+  ],
+  "capabilities": [
+    {
+      "capabilityId": "ai.llm-agent",
+      "name": "LLM Orchestration & Agents",
+      "category": "AI",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    },
+    {
+      "capabilityId": "ai.evaluation",
+      "name": "Model Evaluation & Grading",
+      "category": "AI",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    }
+  ],
+  "skills": [
+    {
+      "name": "LangChain / LangGraph",
+      "priority": "MustHave",
+      "sfiaLevel": 5
+    },
+    {
+      "name": "Python",
+      "priority": "MustHave",
+      "sfiaLevel": 5
+    }
+  ]
+}
