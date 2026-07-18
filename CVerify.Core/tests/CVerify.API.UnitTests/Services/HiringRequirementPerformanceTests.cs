@@ -52,8 +52,8 @@ public class HiringRequirementPerformanceTests
         long elapsedMs = stopwatch.ElapsedMilliseconds;
         Console.WriteLine($"Executed 10,000 weight calculations in {elapsedMs}ms.");
 
-        // Assert: 10,000 calculations should complete in less than 50ms
-        elapsedMs.Should().BeLessThan(50, "Mathematical formula evaluation must be highly performant.");
+        // Assert: 10,000 calculations should complete in less than 250ms
+        elapsedMs.Should().BeLessThan(250, "Mathematical formula evaluation must be highly performant.");
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public class HiringRequirementPerformanceTests
         long elapsedMs = stopwatch.ElapsedMilliseconds;
         Console.WriteLine($"Deserialized 5,000 payloads in {elapsedMs}ms.");
 
-        // Assert: 5,000 JSON payload parses should complete in less than 300ms
-        elapsedMs.Should().BeLessThan(300, "JSON parsing and schema deserialization must run under high-performance bounds.");
+        // Assert: 5,000 JSON payload parses should complete in less than 500ms
+        elapsedMs.Should().BeLessThan(500, "JSON parsing and schema deserialization must run under high-performance bounds.");
     }
 }

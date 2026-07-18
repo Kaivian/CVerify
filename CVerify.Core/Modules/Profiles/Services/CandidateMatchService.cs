@@ -348,10 +348,10 @@ public class CandidateMatchService : ICandidateMatchService
             run.RawResultsJson = JsonSerializer.Serialize(matches);
 
             await _context.SaveChangesAsync(cancellationToken);
-            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Completed", summaryData: run.RawResultsJson);
-            await _streamingSessionService.UpdateSessionProgressAsync(run.HiringRequirementId, 100.0, "Completed");
             await _streamingSessionService.UpsertStageAsync(run.HiringRequirementId, "Completed", "Completed", "Completed", 100.0, "Discovery run completed.");
+            await _streamingSessionService.UpdateSessionProgressAsync(run.HiringRequirementId, 100.0, "Completed");
             await PublishProgressAsync(run.HiringRequirementId, "Completed", "Completed", "Discovery run completed.", 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Completed", summaryData: run.RawResultsJson);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -365,8 +365,8 @@ public class CandidateMatchService : ICandidateMatchService
                 await _context.SaveChangesAsync(CancellationToken.None);
             }
 
-            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Cancelled");
             await PublishProgressAsync(run.HiringRequirementId, "Cancelled", "Cancelled", "Discovery run cancelled by user.", 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Cancelled");
         }
         catch (Exception ex)
         {
@@ -381,8 +381,8 @@ public class CandidateMatchService : ICandidateMatchService
                 await _context.SaveChangesAsync(CancellationToken.None);
             }
 
-            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Failed", errorMessage: ex.Message);
             await PublishProgressAsync(run.HiringRequirementId, "Failed", "Failed", $"Discovery run failed: {ex.Message}", 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(run.HiringRequirementId, "Failed", errorMessage: ex.Message);
         }
         finally
         {
