@@ -1,0 +1,67 @@
+{
+  "id": "0190c12e-1e42-70b1-b9a5-7f41cf6b7d17",
+  "title": "Senior Data Engineer",
+  "department": "Data Engineering",
+  "seniority": "Senior",
+  "workplaceType": "Remote",
+  "city": "Denver",
+  "employmentType": "Full-Time",
+  "salaryMin": 125000.0,
+  "salaryMax": 165000.0,
+  "currency": "USD",
+  "timezoneRange": "UTC-7 to UTC-5",
+  "degreeRequirement": "Bachelor's degree in Math, Statistics, CS, or equivalent experience",
+  "benefits": ["Medical Insurance", "Commuter Benefits", "Equity Options"],
+  "languageRequirements": ["English"],
+  "headcount": 1,
+  "hiringReason": "Re-architecting the central data warehouse pipelines for real-time analytics.",
+  "businessProblem": "Batch processing lag causes reports to be delayed by up to 24 hours.",
+  "outcomes": [
+    "Reduce ingestion lag from 24 hours to under 5 minutes for streaming data analytics.",
+    "Optimize storage costs on Snowflake by 20% through custom schema partition rules."
+  ],
+  "responsibilities": [
+    {
+      "text": "Design, build, and maintain streaming and batch ETL pipelines using Apache Spark.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    },
+    {
+      "text": "Manage and partition data warehouse clusters on Snowflake or BigQuery.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    }
+  ],
+  "capabilities": [
+    {
+      "capabilityId": "data.spark",
+      "name": "Apache Spark Data Processing",
+      "category": "Data",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    },
+    {
+      "capabilityId": "data.snowflake",
+      "name": "Snowflake Data Warehousing",
+      "category": "Data",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    }
+  ],
+  "skills": [
+    {
+      "name": "Apache Spark",
+      "priority": "MustHave",
+      "sfiaLevel": 5
+    },
+    {
+      "name": "SQL",
+      "priority": "MustHave",
+      "sfiaLevel": 5
+    }
+  ]
+}

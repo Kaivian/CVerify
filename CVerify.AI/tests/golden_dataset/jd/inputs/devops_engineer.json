@@ -1,0 +1,67 @@
+{
+  "id": "0190c12e-1e42-70b1-b9a5-7f41cf6b7d14",
+  "title": "Senior DevOps Engineer",
+  "department": "Infrastructure",
+  "seniority": "Senior",
+  "workplaceType": "Remote",
+  "city": "Austin",
+  "employmentType": "Full-Time",
+  "salaryMin": 130000.0,
+  "salaryMax": 175000.0,
+  "currency": "USD",
+  "timezoneRange": "UTC-6 to UTC-4",
+  "degreeRequirement": "No strict degree requirement, AWS/Kubernetes certifications preferred",
+  "benefits": ["Medical Insurance", "Home Office Stipend", "Learning Budget"],
+  "languageRequirements": ["English"],
+  "headcount": 1,
+  "hiringReason": "Automating multi-region deployment and tightening Kubernetes security policies.",
+  "businessProblem": "Frequent deployment delays and lack of unified security audits in cluster configs.",
+  "outcomes": [
+    "Reduce deployment lead time to production from days to under 30 minutes.",
+    "Implement automated CIS benchmark compliance checks for all Kubernetes clusters."
+  ],
+  "responsibilities": [
+    {
+      "text": "Maintain and orchestrate multi-tenant Kubernetes clusters on AWS.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    },
+    {
+      "text": "Design and manage IaC pipelines using Terraform.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    }
+  ],
+  "capabilities": [
+    {
+      "capabilityId": "infra.kubernetes",
+      "name": "Kubernetes Administration",
+      "category": "Infrastructure",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    },
+    {
+      "capabilityId": "infra.terraform",
+      "name": "Terraform Infrastructure as Code",
+      "category": "Infrastructure",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    }
+  ],
+  "skills": [
+    {
+      "name": "Kubernetes",
+      "priority": "MustHave",
+      "sfiaLevel": 5
+    },
+    {
+      "name": "Terraform",
+      "priority": "MustHave",
+      "sfiaLevel": 4
+    }
+  ]
+}

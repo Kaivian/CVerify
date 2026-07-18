@@ -1150,6 +1150,40 @@ public class HiringRequirementService : IHiringRequirementService
                     UpdatedAt = DateTimeOffset.UtcNow
                 });
             }
+
+            if (artifactType.Equals("JobPostMetadata", StringComparison.OrdinalIgnoreCase))
+            {
+                var vacancy = await _context.JobVacancies
+                    .FirstOrDefaultAsync(v => v.HiringRequirementId == requirementId, cancellationToken);
+                if (vacancy != null && vacancy.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(jsonData);
+                        var root = doc.RootElement;
+                        if (root.TryGetProperty("experienceRange", out var expProp)) vacancy.Experience = expProp.GetString() ?? vacancy.Experience;
+                        if (root.TryGetProperty("degreeRequirement", out var degProp)) vacancy.Degree = degProp.GetString() ?? vacancy.Degree;
+                        if (root.TryGetProperty("industryCategory", out var catProp)) vacancy.Category = catProp.GetString() ?? vacancy.Category;
+                        if (root.TryGetProperty("coverUrl", out var covProp)) vacancy.CoverUrl = covProp.GetString() ?? vacancy.CoverUrl;
+                        if (root.TryGetProperty("tags", out var tagsProp) && tagsProp.ValueKind == JsonValueKind.Array)
+                        {
+                            vacancy.Tags = tagsProp.EnumerateArray().Select(t => t.GetString() ?? "").Where(t => !string.IsNullOrEmpty(t)).ToList();
+                        }
+                        vacancy.UpdatedAt = DateTimeOffset.UtcNow;
+                    }
+                    catch { }
+                }
+            }
+            else if (artifactType.Equals("CandidateDiscoveryProfile", StringComparison.OrdinalIgnoreCase))
+            {
+                var vacancy = await _context.JobVacancies
+                    .FirstOrDefaultAsync(v => v.HiringRequirementId == requirementId, cancellationToken);
+                if (vacancy != null && vacancy.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase))
+                {
+                    vacancy.DiscoveryProfileJson = jsonData;
+                    vacancy.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);
