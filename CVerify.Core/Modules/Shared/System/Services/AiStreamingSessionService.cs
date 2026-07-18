@@ -753,7 +753,7 @@ public class AiStreamingSessionService : IAiStreamingSessionService
                             stage.Status == "Running" ? "STAGE_STARTED" : "STAGE_PROGRESS";
 
             var stageTimestamp = stage.CompletedAt ?? stage.StartedAt ?? session.CreatedAtUtc;
-            
+
             historicalItems.Add((stageTimestamp, seqNum => new
             {
                 eventId = Guid.CreateVersion7().ToString(),
