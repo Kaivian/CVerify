@@ -48,6 +48,8 @@ let eventSource: EventSource | null = null;
 let timerInterval: NodeJS.Timeout | null = null;
 let logBuffer: StreamingLog[] = [];
 let bufferInterval: NodeJS.Timeout | null = null;
+const processedEventIds = new Set<string>();
+let lastSequenceNumber = 0;
 
 const mergeDbStages = (
   pipelineId: string,
@@ -138,6 +140,8 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
       bufferInterval = null;
     }
     logBuffer = [];
+    processedEventIds.clear();
+    lastSequenceNumber = 0;
     set({ latestTextChunk: null });
   };
 
@@ -228,6 +232,20 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
   const processStreamingEvent = (event: StandardizedStreamingEvent) => {
     const { activeSession, stages, targetId } = get();
     if (!activeSession) return;
+
+    // Idempotency & out-of-order deduplication
+    if (event.eventId && processedEventIds.has(event.eventId)) {
+      return;
+    }
+    if (event.sequenceNumber !== undefined && event.sequenceNumber > 0 && event.sequenceNumber <= lastSequenceNumber) {
+      return;
+    }
+    if (event.eventId) {
+      processedEventIds.add(event.eventId);
+    }
+    if (event.sequenceNumber !== undefined && event.sequenceNumber > 0) {
+      lastSequenceNumber = event.sequenceNumber;
+    }
 
     if (event.chunk !== undefined) {
       set({ latestTextChunk: event.chunk });
@@ -321,6 +339,8 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
           stageStatus = "Completed";
         } else if (event.eventType === "STAGE_FAILED") {
           stageStatus = "Failed";
+        } else if (event.stageStatus) {
+          stageStatus = event.stageStatus as StreamingStage["status"];
         } else if (stage.status === "Completed" || stage.status === "Failed") {
           // Preserve terminal stage status — LOG_EVENT, TOKEN_UPDATED, etc.
           // must not regress a completed/failed stage back to Running.
@@ -332,7 +352,9 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
         const updatedStage: StreamingStage = {
           ...stage,
           status: stageStatus,
-          progress: event.progress !== undefined ? event.progress : stage.progress,
+          progress: event.stageProgress !== undefined 
+            ? event.stageProgress 
+            : (event.eventType === "STAGE_COMPLETED" ? 100 : event.progress !== undefined ? event.progress : stage.progress),
           description: event.message || stage.description,
           details: event.jsonData || stage.details,
         };

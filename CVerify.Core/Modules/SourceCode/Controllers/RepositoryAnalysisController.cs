@@ -350,7 +350,17 @@ public class RepositoryAnalysisController : ControllerBase
                 await Response.WriteAsync($"data: {message}\n\n", HttpContext.RequestAborted);
                 await Response.Body.FlushAsync(HttpContext.RequestAborted);
 
-                if (doc.RootElement.TryGetProperty("status", out var statusProp))
+                if (doc.RootElement.TryGetProperty("eventType", out var etProp) || doc.RootElement.TryGetProperty("EventType", out etProp))
+                {
+                    var eventType = etProp.GetString();
+                    if (eventType == "SESSION_COMPLETED" || eventType == "SESSION_FAILED" || eventType == "SESSION_CANCELLED")
+                    {
+                        await Response.WriteAsync("data: [DONE]\n\n", HttpContext.RequestAborted);
+                        await Response.Body.FlushAsync(HttpContext.RequestAborted);
+                        break;
+                    }
+                }
+                else if (doc.RootElement.TryGetProperty("status", out var statusProp))
                 {
                     var status = statusProp.GetString();
                     if (status != null && terminalStates.Contains(status))

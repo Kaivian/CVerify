@@ -959,11 +959,9 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             }
 
             var profileArtifactJson = profileArtifact?.JsonData;
-            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Completed", summaryData: profileArtifactJson);
             await _streamingSessionService.AddLogAsync(assessment.Id, "CandidateProfileComposer", "Success", "Orchestrator", "Candidate Assessment pipeline completed successfully.");
-
-            // Publish final completion
             await PublishProgressAsync(assessment.UserId, "Completed", "CandidateProfileComposer", "Candidate Assessment completed successfully.", 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Completed", summaryData: profileArtifactJson);
         }
         catch (OperationCanceledException)
         {
@@ -983,16 +981,16 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 await _context.SaveChangesAsync(CancellationToken.None);
             }
 
-            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
             await PublishProgressAsync(assessment.UserId, "Cancelled", "Cancelled", "Assessment cancelled by user.", 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
         }
         catch (Exception ex)
         {
             var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id, CancellationToken.None);
             if (freshAssess != null && freshAssess.Status == "Cancelled")
             {
-                await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
                 await PublishProgressAsync(assessment.UserId, "Cancelled", "Cancelled", "Assessment cancelled by user.", 100.0);
+                await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
                 return;
             }
 
@@ -1003,11 +1001,9 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
             await _context.SaveChangesAsync(CancellationToken.None);
 
-            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Failed", errorMessage: ex.Message);
             await _streamingSessionService.AddLogAsync(assessment.Id, "Failed", "Error", "Orchestrator", $"Pipeline failed: {ex.Message}");
-
-            // Publish failure
             await PublishProgressAsync(assessment.UserId, "Failed", assessment.FailedStage ?? "Failed", ex.Message, 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Failed", errorMessage: ex.Message);
         }
         finally
         {

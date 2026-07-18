@@ -79,12 +79,19 @@ export interface StreamingSession {
 }
 
 export interface StandardizedStreamingEvent {
+  eventId?: string;
+  sequenceNumber?: number;
+  correlationId?: string;
+  schemaVersion?: string;
+  producer?: string;
   sessionId: string;
   pipelineId: string;
   eventType: StreamingEventType;
   status: StreamingStatus;
   timestamp: string;
   progress?: number;
+  stageStatus?: StreamingStatus;
+  stageProgress?: number;
   message?: string;
   stageId?: string;
   parentStageId?: string;
