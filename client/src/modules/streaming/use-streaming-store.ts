@@ -51,6 +51,26 @@ let bufferInterval: NodeJS.Timeout | null = null;
 const processedEventIds = new Set<string>();
 let lastSequenceNumber = 0;
 
+// Canonical State Machine Transition Rules
+export const isValidSessionTransition = (current: StreamingStatus, target: StreamingStatus): boolean => {
+  if (current === target) return true;
+  const terminal = ["Completed", "Failed", "Cancelled"];
+  if (terminal.includes(current)) return false;
+  if (current === "Pending" && (target === "Running" || target === "Connecting")) return true;
+  if (current === "Connecting" && (target === "Running" || target === "Pending")) return true;
+  if (current === "Running" && terminal.includes(target)) return true;
+  return false;
+};
+
+export const isValidStageTransition = (current: StreamingStage["status"], target: StreamingStage["status"], isRetry: boolean = false): boolean => {
+  if (current === target) return true;
+  if (current === "Pending" && (target === "Running" || target === "Completed" || target === "Failed" || target === "Skipped")) return true;
+  if (current === "Running" && (target === "Completed" || target === "Failed" || target === "Skipped")) return true;
+  if (current === "Failed" && target === "Running" && isRetry) return true;
+  if ((current === "Completed" || current === "Skipped") && target === "Running" && isRetry) return true;
+  return false;
+};
+
 const mergeDbStages = (
   pipelineId: string,
   sessionId: string,
@@ -256,9 +276,11 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
     // Only session-level events (SESSION_COMPLETED, etc.) carry the true session status.
     const isStageEvent = event.eventType?.startsWith("STAGE_") || event.eventType === "TOKEN_UPDATED" || event.eventType === "COST_UPDATED" || event.eventType === "METRIC_UPDATED" || event.eventType === "LOG_EVENT";
     const terminalStatuses = ["Completed", "Failed", "Cancelled"];
-    const effectiveStatus = (isStageEvent && terminalStatuses.includes(event.status || ""))
-      ? activeSession.status
-      : (event.status || activeSession.status);
+    
+    let effectiveStatus = activeSession.status;
+    if (!isStageEvent && event.status && isValidSessionTransition(activeSession.status, event.status)) {
+      effectiveStatus = event.status;
+    }
 
     const updatedSession: StreamingSession = {
       ...activeSession,
@@ -334,20 +356,20 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
       const stageIndex = updatedStages.findIndex(s => s.stageId === event.stageId);
       if (stageIndex !== -1) {
         const stage = updatedStages[stageIndex];
-        let stageStatus: StreamingStage["status"];
+        let targetStageStatus: StreamingStage["status"] = stage.status;
         if (event.eventType === "STAGE_COMPLETED") {
-          stageStatus = "Completed";
+          targetStageStatus = "Completed";
         } else if (event.eventType === "STAGE_FAILED") {
-          stageStatus = "Failed";
-        } else if (event.stageStatus) {
-          stageStatus = event.stageStatus as StreamingStage["status"];
-        } else if (stage.status === "Completed" || stage.status === "Failed") {
-          // Preserve terminal stage status — LOG_EVENT, TOKEN_UPDATED, etc.
-          // must not regress a completed/failed stage back to Running.
-          stageStatus = stage.status;
-        } else {
-          stageStatus = "Running";
+          targetStageStatus = "Failed";
+        } else if (event.eventType === "STAGE_STARTED") {
+          targetStageStatus = "Running";
+        } else if (event.stageStatus && isValidStageTransition(stage.status, event.stageStatus as StreamingStage["status"])) {
+          targetStageStatus = event.stageStatus as StreamingStage["status"];
+        } else if (stage.status === "Pending" && (event.eventType === "STAGE_PROGRESS" || (event.stageProgress !== undefined && event.stageProgress > 0))) {
+          targetStageStatus = "Running";
         }
+
+        const stageStatus = isValidStageTransition(stage.status, targetStageStatus) ? targetStageStatus : stage.status;
 
         const updatedStage: StreamingStage = {
           ...stage,
@@ -370,16 +392,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
 
         updatedStages[stageIndex] = updatedStage;
 
-        // Auto-complete any preceding pending/running stages to prevent UI stuck states
-        for (let i = 0; i < stageIndex; i++) {
-          if (updatedStages[i].status === "Pending" || updatedStages[i].status === "Running") {
-            updatedStages[i] = {
-              ...updatedStages[i],
-              status: "Completed",
-              completedAt: updatedStages[i].completedAt || new Date().toISOString()
-            };
-          }
-        }
+        // Backend is the single source of truth — auto-completion of preceding stages has been eliminated.
 
         // Fetch intermediate snapshot only on the actual stage completion event
         if (event.eventType === "STAGE_COMPLETED" && registryDef?.actions.fetchSnapshot) {

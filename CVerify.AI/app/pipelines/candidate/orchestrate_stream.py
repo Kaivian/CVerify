@@ -316,9 +316,26 @@ class CandidateAssessmentStreamOrchestrator:
         # Synthetic job ID for L2 calls
         synthetic_job_id = f"candidate-assess-{cv_id}"
 
-        # 4. Sequentially execute Pipeline 2 tasks L2-001 -> L2-015
+        failed_tasks = set()
+        skipped_tasks = set()
+        task_statuses = {}
+
+        # 4. Sequentially execute Pipeline 2 tasks L2-001 -> L2-016
         for idx, (task_alias, task_name, artifact_type) in enumerate(STAGES):
             current_pct = round(10.0 + (90.0 * idx / len(STAGES)), 1)
+            
+            # Check if this task was marked as skipped due to upstream failure
+            if task_alias in skipped_tasks:
+                logger.warning(f"Skipping task {task_alias} ({task_name}) due to upstream dependency failure.")
+                task_statuses[task_alias] = "SKIPPED"
+                yield {
+                    "status": "Skipped",
+                    "step": task_alias,
+                    "message": f"Task {task_alias} ({task_name}) skipped due to upstream failure.",
+                    "percentage": current_pct
+                }
+                continue
+
             yield {
                 "status": "Running",
                 "step": task_alias,
@@ -364,6 +381,8 @@ class CandidateAssessmentStreamOrchestrator:
                     if result.get("status") != "Completed":
                         raise ValueError(result.get("errorMessage") or f"Task {task_name} failed.")
 
+                    task_statuses[task_alias] = "COMPLETED"
+
                     # Extract resultData and merge it back into inputs
                     result_data = json.loads(result["resultData"])
                     inputs = {**inputs, **result_data}
@@ -404,19 +423,31 @@ class CandidateAssessmentStreamOrchestrator:
 
             except Exception as e:
                 logger.exception(f"Error executing Candidate Evaluation stage {task_name}: {e}", extra=extra)
+                task_statuses[task_alias] = "FAILED"
+                failed_tasks.add(task_alias)
+                
+                # Mark downstream dependents as skipped
+                downstream = self.orchestrator._dag.get_downstream_dependents(task_alias)
+                skipped_tasks.update(downstream)
+
                 yield {
                     "status": "Failed",
                     "step": task_alias,
                     "message": f"Stage {task_name} failed: {str(e)}",
                     "percentage": current_pct
                 }
-                return
+                
+                # If critical gate task failed, fail the entire pipeline
+                if task_alias == "L2-006":
+                    return
 
-        # Success final yield
+        # Compute final overall pipeline status
+        final_status = self.orchestrator._dag.compute_pipeline_status(task_statuses)
+
         yield {
-            "status": "Completed",
+            "status": final_status,
             "step": "Complete",
-            "message": "Candidate Assessment completed successfully.",
+            "message": f"Candidate Assessment finished with status: {final_status}.",
             "percentage": 100.0
         }
 

@@ -154,10 +154,68 @@ class PipelineContext(BaseModel):
                 validated.append(item)
         return validated
 
+    @field_validator("mappedSkills", mode="before")
+    @classmethod
+    def validate_mapped_skills(cls, v):
+        if not isinstance(v, list):
+            return v
+        validated = []
+        for item in v:
+            if isinstance(item, dict):
+                hydrated = dict(item)
+                hydrated.setdefault("sfiaCategory", "Software Development")
+                hydrated.setdefault("onetCode", "15-1252.00")
+                hydrated.setdefault("evidenceStrength", "weak")
+                if "declaredInCv" not in hydrated or hydrated["declaredInCv"] is None:
+                    hydrated["declaredInCv"] = False
+                validated.append(hydrated)
+            else:
+                validated.append(item)
+        return validated
+
+    @field_validator("skillTree", mode="before")
+    @classmethod
+    def validate_skill_tree(cls, v):
+        if not v:
+            return v
+        def _sanitize_dict_node(node: dict) -> dict:
+            n_id = str(node.get("id") or "skill-node")
+            d_name = node.get("displayName")
+            if not d_name:
+                slug_part = n_id.split("/")[-1]
+                d_name = slug_part.replace("-", " ").replace("_", " ").title()
+            
+            raw_children = node.get("children") or []
+            sanitized_children = []
+            if isinstance(raw_children, list):
+                for child in raw_children:
+                    if isinstance(child, dict):
+                        sanitized_children.append(_sanitize_dict_node(child))
+                    elif isinstance(child, SkillTreeNode):
+                        sanitized_children.append(child)
+
+            return {
+                "id": n_id,
+                "parentId": node.get("parentId"),
+                "displayName": d_name,
+                "category": node.get("category") or "Technology",
+                "proficiencyLevel": node.get("proficiencyLevel") or "Working",
+                "confidenceScore": float(node.get("confidenceScore") if node.get("confidenceScore") is not None else 0.5),
+                "estimatedExperience": float(node.get("estimatedExperience") if node.get("estimatedExperience") is not None else 0.0),
+                "supportingEvidence": node.get("supportingEvidence"),
+                "children": sanitized_children,
+            }
+
+        if isinstance(v, dict):
+            return _sanitize_dict_node(v)
+        elif isinstance(v, list):
+            return [_sanitize_dict_node(item) if isinstance(item, dict) else item for item in v]
+        return v
+
     def update(self, **kwargs) -> "PipelineContext":
         """Creates a new instance of PipelineContext with updated attributes, enforcing immutability."""
         current_data = self.model_dump()
-        allowed_private = {"_hybridSource", "_ruleBasedPrimary", "_ruleBasedStyle"}
+        allowed_private = {"_hybridSource", "_ruleBasedPrimary", "_ruleBasedStyle", "_audit_logger", "_circuit_breaker"}
         
         for key, value in kwargs.items():
             if key not in current_data and key not in allowed_private:

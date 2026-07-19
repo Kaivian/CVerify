@@ -47,7 +47,7 @@ class CandidatePromptFactory:
             f"Return JSON:\n"
             f'{{"mappedSkills": [{{"rawName": "string", "normalizedName": "string", "skillId": "string", '
             f'"sfiaCategory": "string", "onetCode": "string", "evidenceStrength": "none|weak|moderate|strong", '
-            f'"declaredInCv": true}}], '
+            f'"declaredInCv": true|false}}], '
             f'"unmatchedCvSkills": ["list of skills declared in CV but not found in code evidence or CV projects"]}}'
         )
 
