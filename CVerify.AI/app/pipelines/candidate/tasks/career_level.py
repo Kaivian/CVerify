@@ -3,6 +3,7 @@ import json
 import math
 from app.pipelines.candidate.base_task import BaseTask
 from app.pipelines.candidate.context import PipelineContext, PipelineEvent
+from app.pipelines.shared.ai.recovery.policies import TaskRecoveryPolicy
 from app.core.services.claude_service import ClaudeService
 from app.pipelines.shared.ai.prompts.candidate_prompt_factory import CandidatePromptFactory
 
@@ -410,6 +411,10 @@ class CareerLevelGate(BaseTask):
     @property
     def output_keys(self) -> List[str]:
         return ["gatePassed", "finalLevel", "finalLevelLabel", "finalScore", "gateViolations", "gateRationale"]
+
+    @property
+    def recovery_policy(self) -> TaskRecoveryPolicy:
+        return TaskRecoveryPolicy.STRICT_FAIL_FAST
 
     def __init__(self):
         self.claude_service = ClaudeService()

@@ -215,7 +215,7 @@ class PipelineContext(BaseModel):
     def update(self, **kwargs) -> "PipelineContext":
         """Creates a new instance of PipelineContext with updated attributes, enforcing immutability."""
         current_data = self.model_dump()
-        allowed_private = {"_hybridSource", "_ruleBasedPrimary", "_ruleBasedStyle"}
+        allowed_private = {"_hybridSource", "_ruleBasedPrimary", "_ruleBasedStyle", "_audit_logger", "_circuit_breaker"}
         
         for key, value in kwargs.items():
             if key not in current_data and key not in allowed_private:
