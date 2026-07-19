@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Type, Optional, Callable
+from typing import Dict, Any, Type, Optional, Callable, List
 from pydantic import BaseModel
 
 logger = logging.getLogger("schema_versioning")
