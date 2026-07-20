@@ -556,6 +556,9 @@ builder.Services.AddSingleton<ILoggerProvider>(sp => sp.GetRequiredService<Obser
 builder.Services.AddSingleton<IObservabilityMetricsCollector, ObservabilityMetricsCollector>();
 builder.Services.AddHostedService<ObservabilityMetricsBroadcasterWorker>();
 
+// Register Admin Dashboard Control Center Services
+builder.Services.AddScoped<IAdminDashboardFacade, AdminDashboardFacade>();
+
 
 // Configure JWT Authentication
 builder.Services.AddAuthentication(options =>
