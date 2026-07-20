@@ -128,16 +128,34 @@ jobs:
             --quiet \
             --command="
               # Wait for VM bootstrap to complete (up to 15 minutes for cold boot)
+              PREV_LINE=''
               for i in {1..90}; do
-                if [ -f /var/log/cverify-bootstrap-done ]; then break; fi
-                echo 'Waiting for VM bootstrap to complete...'
-                sleep 30
+                if [ -f /var/log/cverify-bootstrap-done ]; then
+                  echo '[Bootstrap] Completed successfully.'
+                  break
+                fi
+                
+                # Show live progress from startup script log
+                if [ -f /var/log/cverify-bootstrap.log ]; then
+                  CURR_LINE=\$(tail -n 1 /var/log/cverify-bootstrap.log 2>/dev/null || echo '')
+                  if [ \"\$CURR_LINE\" != \"\$PREV_LINE\" ] && [ -n \"\$CURR_LINE\" ]; then
+                    echo \"[Bootstrap \${i}/90] \$CURR_LINE\"
+                    PREV_LINE=\$CURR_LINE
+                  else
+                    echo \"[Bootstrap \${i}/90] Still running...\"
+                  fi
+                else
+                  echo \"[Bootstrap \${i}/90] Startup script not started yet...\"
+                fi
+                sleep 10
               done
               
               if [ ! -f /var/log/cverify-bootstrap-done ]; then
                 echo 'Error: VM bootstrap timed out after 15 minutes.'
-                echo '--- Startup script logs ---'
-                sudo journalctl -u google-startup-scripts --no-pager -n 80 2>/dev/null || true
+                echo '--- Last 50 lines of bootstrap log ---'
+                sudo cat /var/log/cverify-bootstrap.log 2>/dev/null | tail -n 50 || true
+                echo '--- Startup script journal ---'
+                sudo journalctl -u google-startup-scripts --no-pager -n 30 2>/dev/null || true
                 exit 1
               fi
               
