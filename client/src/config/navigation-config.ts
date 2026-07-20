@@ -543,7 +543,7 @@ export const adminNavigationConfig: NavigationNode[] = [
   createAdminSection('admin-verification-section', 'Enterprise Operations', 'verification'),
   createAdminSection('admin-intelligence-section', 'AI Operations', 'intelligence'),
   createAdminSection('admin-security-section', 'Security', 'security'),
-  createAdminSection('admin-system-section', 'System & Configuration', 'system'),
+  createAdminSection('admin-system-section', 'Monitoring', 'system'),
 ].filter((section) => section.children.length > 0);
 
 export const adminCompanyNavigationConfig: NavigationNode[] = [
