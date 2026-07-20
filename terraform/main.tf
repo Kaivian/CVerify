@@ -187,6 +187,12 @@ resource "google_storage_bucket_iam_member" "vm_storage_viewer" {
   member = "serviceAccount:${google_service_account.vm_sa.email}"
 }
 
+resource "google_service_account_iam_member" "deployer_sa_user" {
+  service_account_id = google_service_account.vm_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.deployer.email}"
+}
+
 # ==============================================================================
 # 5. COMPUTE ENGINE VM INSTANCE
 # ==============================================================================
