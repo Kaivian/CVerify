@@ -103,6 +103,54 @@ public class SharedTestcontainerFixture : IAsyncLifetime
         await connection.OpenAsync().ConfigureAwait(false);
         using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+
+        // Seed __EFMigrationsHistory with all applied migration IDs to prevent EF Core MigrateAsync conflicts
+        var seedMigrationsSql = @"
+            INSERT INTO public.""__EFMigrationsHistory"" (migration_id, product_version) VALUES
+            ('20260611091911_AddNotificationSystem', '10.0.4'),
+            ('20260614071252_AddWorkspacePostsTable', '10.0.4'),
+            ('20260614100549_AddJobVacanciesTable', '10.0.4'),
+            ('20260615093611_AddCandidateAssessments', '10.0.4'),
+            ('20260615141609_AddExternalOrganizations', '10.0.4'),
+            ('20260615152001_AddProjectEntriesAndLinks', '10.0.4'),
+            ('20260615171115_AddRepositoryAssessments', '10.0.4'),
+            ('20260616080806_AddRepositoryIntelligenceTables', '10.0.4'),
+            ('20260616082519_AddCandidateIntelligenceTablesPhase2', '10.0.4'),
+            ('20260620101455_AddMetadataToJobVacancy', '10.0.4'),
+            ('20260620103710_AddHiringRequirementSystem', '10.0.4'),
+            ('20260620104410_AddDraftJobDescription', '10.0.4'),
+            ('20260620120213_AddCapabilityCatalogTaxonomy', '10.0.4'),
+            ('20260620140210_AddRequirementArtifacts', '10.0.4'),
+            ('20260621102139_AddJobVacancyWorkflowRedesign', '10.0.4'),
+            ('20260621103138_AddJobVacancyCascadeDelete', '10.0.4'),
+            ('20260621172337_AddHiringLifecycleAndDiscoveryRuns', '10.0.4'),
+            ('20260621173554_MakeTriggeredByIdNullable', '10.0.4'),
+            ('20260621175628_AddCapabilityRegistryAndGraphSchema', '10.0.4'),
+            ('20260621183546_AddTalentIntelligenceGraph', '10.0.4'),
+            ('20260621185145_AddPublicJobsAndInteractions', '10.0.4'),
+            ('20260621194522_AddCandidateEvaluationSnapshotsAndProjections', '10.0.4'),
+            ('20260622183209_AddRankingAndFollows', '10.0.4'),
+            ('20260623181310_AddWorkspaceDescriptionAndOwner', '10.0.4'),
+            ('20260628104720_AddCandidateSkillTreeNodes', '10.0.4'),
+            ('20260628120042_AddAiSuggestionsJsonToUserProfile', '10.0.4'),
+            ('20260628143050_AddAiStreamingTables', '10.0.4'),
+            ('20260629103220_AddCandidateAssessmentMetadataColumns', '10.0.4'),
+            ('20260629114108_UpdateBioMaxLength', '10.0.4'),
+            ('20260629120025_AddProfessionalBioToAssessment', '10.0.4'),
+            ('20260701142634_AddForumModule', '10.0.4'),
+            ('20260707095049_AddUserCvSettings', '10.0.4'),
+            ('20260714050836_AddSecurityEventsModule', '10.0.4'),
+            ('20260714054243_AddAuditLogComplianceSchema', '10.0.4'),
+            ('20260714063454_AddEnterpriseOperations', '10.0.4'),
+            ('20260714071924_AddDurablePipelineExecution', '10.0.4'),
+            ('20260714072225_AddCurrentStepToPipelineExecution', '10.0.4'),
+            ('20260716063940_AddCanonicalSkillAndTaxonomyFields', '10.0.4'),
+            ('20260716114046_AddSkillAliasesTableAndExpandUserSkills', '10.0.4'),
+            ('20260721105711_AddOrganizationCandidates', '10.0.4')
+            ON CONFLICT (migration_id) DO NOTHING;";
+
+        using var seedCommand = new NpgsqlCommand(seedMigrationsSql, connection);
+        await seedCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 }
 
