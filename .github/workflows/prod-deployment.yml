@@ -119,7 +119,7 @@ jobs:
             "gs://cverify-build-metadata-$GCP_PROJECT/deployments/sha-${PROD_SHA}.tar.gz"
           echo "Manifest and orchestration bundle successfully promoted in GCS."
 
-      - name: Trigger Zero-Touch VM Deployment
+      - name: Ensure VM Bootstrap Complete
         run: |
           gcloud compute ssh ubuntu@cverify-prod-vm \
             --project=${{ secrets.GCP_PROJECT_ID }} \
@@ -129,38 +129,110 @@ jobs:
             --ssh-flag="-o ServerAliveInterval=15" \
             --ssh-flag="-o ServerAliveCountMax=60" \
             --command="
-              # Wait for VM bootstrap to complete (up to 15 minutes for cold boot)
-              PREV_LINE=''
-              for i in {1..90}; do
-                if [ -f /var/log/cverify-bootstrap-done ]; then
-                  echo '[Bootstrap] Completed successfully.'
-                  break
-                fi
-                
-                # Show live progress from startup script log
-                if [ -f /var/log/cverify-bootstrap.log ]; then
-                  CURR_LINE=\$(tail -n 1 /var/log/cverify-bootstrap.log 2>/dev/null || echo '')
-                  if [ \"\$CURR_LINE\" != \"\$PREV_LINE\" ] && [ -n \"\$CURR_LINE\" ]; then
-                    echo \"[Bootstrap \${i}/90] \$CURR_LINE\"
-                    PREV_LINE=\$CURR_LINE
-                  else
-                    echo \"[Bootstrap \${i}/90] Still running...\"
-                  fi
-                else
-                  echo \"[Bootstrap \${i}/90] Startup script not started yet...\"
-                fi
-                sleep 10
-              done
-              
-              if [ ! -f /var/log/cverify-bootstrap-done ]; then
-                echo 'Error: VM bootstrap timed out after 15 minutes.'
-                echo '--- Last 50 lines of bootstrap log ---'
-                sudo cat /var/log/cverify-bootstrap.log 2>/dev/null | tail -n 50 || true
-                echo '--- Startup script journal ---'
-                sudo journalctl -u google-startup-scripts --no-pager -n 30 2>/dev/null || true
-                exit 1
+              set -e
+
+              # If bootstrap already completed, skip
+              if [ -f /var/log/cverify-bootstrap-done ]; then
+                echo '[Bootstrap] Already completed.'
+                exit 0
               fi
-              
+
+              echo '=== Bootstrap not complete. Running diagnostics... ==='
+
+              # Show bootstrap log if exists (startup script output)
+              if [ -f /var/log/cverify-bootstrap.log ]; then
+                echo '--- Startup script log ---'
+                sudo cat /var/log/cverify-bootstrap.log 2>/dev/null || true
+              fi
+
+              # Network diagnostics
+              echo '--- Network diagnostics ---'
+              echo 'IP config:' && ip addr show 2>/dev/null | grep inet || true
+              echo 'Default route:' && ip route show default 2>/dev/null || true
+              echo 'DNS config:' && cat /etc/resolv.conf 2>/dev/null || true
+              echo 'DNS test:' && nslookup archive.ubuntu.com 2>&1 || true
+              echo 'Curl test:' && curl -svI --max-time 5 https://archive.ubuntu.com 2>&1 | head -20 || true
+              echo 'Metadata test:' && curl -sf --max-time 3 -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/zone 2>&1 || true
+
+              # Check apt state
+              echo '--- Apt diagnostics ---'
+              echo 'Apt sources:' && cat /etc/apt/sources.list 2>/dev/null || true
+              echo 'Lock holders:' && sudo fuser /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock 2>&1 || echo 'No locks held'
+
+              # Attempt inline bootstrap with full output
+              echo '=== Attempting inline bootstrap... ==='
+
+              # Stop apt-daily to prevent lock contention
+              sudo systemctl stop apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+              sudo systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+              sudo systemctl kill --kill-whom=all apt-daily.service 2>/dev/null || true
+
+              # Wait for cloud-init
+              if command -v cloud-init &>/dev/null; then
+                echo 'Waiting for cloud-init...'
+                sudo cloud-init status --wait 2>/dev/null || true
+              fi
+
+              # Try apt-get update with full error output
+              echo 'Running apt-get update...'
+              sudo apt-get update 2>&1 || {
+                echo 'apt-get update failed. Trying with fix-broken...'
+                sudo dpkg --configure -a 2>&1 || true
+                sudo apt-get update --fix-missing 2>&1
+              }
+
+              # Install required packages
+              echo 'Installing base packages...'
+              sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release jq git 2>&1
+
+              # Docker
+              if ! command -v docker &>/dev/null; then
+                echo 'Installing Docker...'
+                sudo mkdir -p /etc/apt/keyrings
+                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
+                echo \"deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable\" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                sudo apt-get update 2>&1
+                sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin 2>&1
+              else
+                echo 'Docker already installed.'
+              fi
+
+              # gcloud
+              if ! command -v gcloud &>/dev/null; then
+                echo 'Installing Google Cloud CLI...'
+                echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list
+                curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloud.google.gpg
+                sudo apt-get update 2>&1
+                sudo apt-get install -y google-cloud-cli 2>&1
+              else
+                echo 'gcloud already installed.'
+              fi
+
+              # Post-install config
+              sudo mkdir -p /app/cverify
+              sudo chown -R ubuntu:ubuntu /app/cverify
+              sudo usermod -aG docker ubuntu
+              sudo mkdir -p /var/log/cverify
+              sudo chown -R ubuntu:ubuntu /var/log/cverify
+
+              # Re-enable apt-daily
+              sudo systemctl start apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+
+              # Mark bootstrap complete
+              echo 'done' | sudo tee /var/log/cverify-bootstrap-done
+              echo '[Bootstrap] Inline bootstrap completed successfully.'
+            "
+
+      - name: Deploy Application
+        run: |
+          gcloud compute ssh ubuntu@cverify-prod-vm \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --zone=asia-southeast1-a \
+            --tunnel-through-iap \
+            --quiet \
+            --ssh-flag="-o ServerAliveInterval=15" \
+            --ssh-flag="-o ServerAliveCountMax=60" \
+            --command="
               # Download versioned orchestration package from GCS
               gcloud storage cp gs://cverify-build-metadata-${{ secrets.GCP_PROJECT_ID }}/deployments/sha-${{ github.sha }}.tar.gz /tmp/deployment.tar.gz
               
