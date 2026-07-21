@@ -7,8 +7,7 @@ import { membersService } from "../services/members.service";
 import { rolesService } from "../services/roles.service";
 import { type MemberDetails, type OrganizationInvitation, type PreAssignedRole } from "../types/workspace.types";
 import { type BusinessRoleDetailsDto, type AssignScopedRoleDto } from "../types/roles.types";
-import { Card } from "@/components/ui/card";
-import { Table, Typography, Chip, Button, Spinner, Dropdown, Avatar, toast, DatePicker, DateField, Calendar } from "@heroui/react";
+import { Table, Typography, Chip, Button, Spinner, Dropdown, Avatar, toast, DatePicker, DateField, Calendar, Card } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
 import {
   Users,
@@ -649,8 +648,8 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
       (activeTab === "directory"
         ? totalCount
         : activeTab === "invitations"
-        ? invTotalCount
-        : logTotalCount) / pageSize
+          ? invTotalCount
+          : logTotalCount) / pageSize
     ) || 1;
 
   return (
@@ -694,12 +693,12 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
           <div className="flex flex-wrap items-center gap-4">
             {/* Quick Micro-Stats */}
             <div className="flex gap-4 px-4 py-2 bg-surface-secondary/40 border border-border/40 rounded-xl">
-              <div className="text-center min-w-[60px]">
+              <div className="text-center min-w-15">
                 <div className="text-base font-bold text-foreground">{totalCount}</div>
                 <div className="text-[9px] uppercase tracking-wider text-muted font-bold">Members</div>
               </div>
               <div className="w-px bg-separator/60 self-stretch" />
-              <div className="text-center min-w-[60px]">
+              <div className="text-center min-w-15">
                 <div className="text-base font-bold text-foreground">{invTotalCount}</div>
                 <div className="text-[9px] uppercase tracking-wider text-muted font-bold">Pending</div>
               </div>
@@ -725,8 +724,8 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               setPage(1);
             }}
             className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeTab === "directory"
-                ? "bg-surface text-foreground shadow-sm border border-border/30"
-                : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
+              ? "bg-surface text-foreground shadow-sm border border-border/30"
+              : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
               }`}
           >
             <Users size={13} />
@@ -738,8 +737,8 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               setInvPage(1);
             }}
             className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeTab === "invitations"
-                ? "bg-surface text-foreground shadow-sm border border-border/30"
-                : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
+              ? "bg-surface text-foreground shadow-sm border border-border/30"
+              : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
               }`}
           >
             <Mail size={13} />
@@ -751,8 +750,8 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               setLogPage(1);
             }}
             className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${activeTab === "logs"
-                ? "bg-surface text-foreground shadow-sm border border-border/30"
-                : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
+              ? "bg-surface text-foreground shadow-sm border border-border/30"
+              : "text-muted hover:text-foreground hover:bg-surface-secondary/30"
               }`}
           >
             <Activity size={13} />
@@ -894,7 +893,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                                   </div>
                                 </Table.Cell>
                                 <Table.Cell className="py-4">
-                                  <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                  <div className="flex flex-wrap gap-1 max-w-50">
                                     {member.roles.length === 0 ? (
                                       <span className="text-[10px] text-muted font-light">No Roles Assigned</span>
                                     ) : (
@@ -934,7 +933,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                                     </Dropdown.Trigger>
                                     <Dropdown.Popover
                                       placement="bottom end"
-                                      className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] outline-hidden animate-in fade-in duration-100 z-50 font-outfit"
+                                      className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-42.5 outline-hidden animate-in fade-in duration-100 z-50 font-outfit"
                                     >
                                       <Dropdown.Menu aria-label="Member Actions">
                                         <Dropdown.Item key="roles" onClick={() => handleOpenManageRoles(member)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer text-foreground hover:bg-surface-secondary focus:bg-surface-secondary outline-none select-none transition-colors duration-150">
@@ -1058,7 +1057,7 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                                   </div>
                                 </Table.Cell>
                                 <Table.Cell className="py-4">
-                                  <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                  <div className="flex flex-wrap gap-1 max-w-50">
                                     {inv.preAssignedRoles.map((r, idx) => (
                                       <Chip
                                         key={idx}
@@ -1354,12 +1353,12 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
                                   </div>
                                 </Table.Cell>
                                 <Table.Cell className="py-4">
-                                  <div className="text-xs text-muted truncate max-w-[150px]" title={log.actorEmail}>
+                                  <div className="text-xs text-muted truncate max-w-37.5" title={log.actorEmail}>
                                     {log.actorEmail}
                                   </div>
                                 </Table.Cell>
                                 <Table.Cell className="py-4">
-                                  <div className="text-xs text-muted truncate max-w-[150px]" title={log.targetEmail || ""}>
+                                  <div className="text-xs text-muted truncate max-w-37.5" title={log.targetEmail || ""}>
                                     {log.targetEmail || <span className="text-muted/40">—</span>}
                                   </div>
                                 </Table.Cell>
@@ -1587,14 +1586,14 @@ export const WorkspaceMembersView: React.FC<WorkspaceMembersViewProps> = ({
               </Chip>
             </div>
 
-            <div className="flex-1 overflow-y-auto max-h-[300px] pr-1 space-y-2.5">
+            <div className="flex-1 overflow-y-auto max-h-75 pr-1 space-y-2.5">
               {inviteBatch.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-surface-secondary/20 rounded-2xl border border-dashed border-border/80">
                   <Mail className="text-muted/40 mb-2" size={24} />
                   <Typography type="body-xs" className="text-muted font-medium">
                     No invitees added yet
                   </Typography>
-                  <Typography type="body-xs" className="text-muted/65 mt-1 max-w-[180px]">
+                  <Typography type="body-xs" className="text-muted/65 mt-1 max-w-45">
                     Configure email and roles, then click "Add Invitee to Batch"
                   </Typography>
                 </div>

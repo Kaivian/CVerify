@@ -2,6 +2,7 @@
 
 import React, { useMemo, useEffect, useState } from "react";
 import { useAuth } from "../../../features/auth/hooks/use-auth";
+import { useEffectivePermissions } from "../../../features/auth/hooks/use-effective-permissions";
 import { useSidebarMode } from "../../../providers/sidebar-mode-provider";
 import { useActiveWorkspace } from "../../../features/workspace/hooks/use-active-workspace";
 import { filterNavigationNodes, resolveSidebarNavigation } from "../../../lib/navigation-utils";
@@ -45,7 +46,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
   hideSwitcher = false,
   hideActiveWorkspaceBanner = false,
 }) => {
-  const { user, isAuthenticated, hasPermission } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const userRole = user?.role || "USER";
 
   const { activeWorkspace } = useWorkspace();
@@ -67,12 +68,19 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   const pathname = usePathname();
 
-  // Derive active workspace slug directly from URL path segment
+  // Derive active workspace slug directly from URL path segment (supports /business/ and /organization/)
   const activeWorkspaceSlug = useMemo(() => {
-    if (pathname?.startsWith("/business/")) {
-      const slug = pathname.split("/business/")[1]?.split("/")[0] || "";
-      if (slug === "organizations") return "";
-      return slug;
+    if (pathname) {
+      if (pathname.startsWith("/business/")) {
+        const slug = pathname.split("/business/")[1]?.split("/")[0] || "";
+        if (slug === "organizations") return "";
+        return slug;
+      }
+      if (pathname.startsWith("/organization/")) {
+        const slug = pathname.split("/organization/")[1]?.split("/")[0] || "";
+        if (slug === "organizations") return "";
+        return slug;
+      }
     }
     return "";
   }, [pathname]);
@@ -83,31 +91,37 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     return myOrganizations && myOrganizations.length > 0 ? myOrganizations[0].slug : "";
   }, [activeWorkspaceSlug, myOrganizations]);
 
-  // Fetch workspace details to run permission checks
+  // Centralized single source of truth permission resolver
+  const {
+    hasEffectivePermission,
+    hasAnyPermission,
+    hasRole: hasEffectiveRole,
+    workspacePermissions,
+    workspaceUserRole,
+    isMember,
+  } = useEffectivePermissions(currentOrgSlug);
+
+  // Fetch workspace details to run permission checks for ANY logged-in user with an active org slug
   useEffect(() => {
-    if (currentOrgSlug && userRole !== "USER") {
+    if (currentOrgSlug) {
       fetchWorkspace(currentOrgSlug);
     }
-  }, [currentOrgSlug, fetchWorkspace, userRole]);
+  }, [currentOrgSlug, fetchWorkspace]);
 
   const workspaceDetails = useMemo(() => {
     return currentOrgSlug ? workspacesStore[currentOrgSlug] : null;
   }, [currentOrgSlug, workspacesStore]);
-
-  const workspacePermissions = useMemo(() => workspaceDetails?.permissions || [], [workspaceDetails]);
-  const workspaceUserRole = useMemo(() => workspaceDetails?.userRole || null, [workspaceDetails]);
 
   // Active sub-workspaces hook
   const { activeWorkspaceId, setActiveWorkspaceId, workspaces } = useActiveWorkspace(currentOrgSlug);
   const activeWorkspaceObj = useMemo(() => workspaces.find(w => w.id === activeWorkspaceId), [workspaces, activeWorkspaceId]);
   const activeWorkspaceName = activeWorkspaceObj?.displayName || "Select Workspace";
 
-  // Helper check for role & permissions at workspace level
+  // Helper check for role & permissions at workspace level using EffectivePermissionResolver
   const hasWorkspaceAccess = (node: NavigationNode) => {
     const reqPerms = node.requiredWorkspacePermissions;
     if (reqPerms && reqPerms.length > 0) {
-      // Strictly permission-based checking (no role-specific bypasses)
-      const hasPerm = reqPerms.some((p) => workspacePermissions.includes(p));
+      const hasPerm = hasAnyPermission(reqPerms);
       if (!hasPerm) return false;
     }
 
@@ -130,6 +144,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         result = result.replace(/\[username\]/g, username).replace(/:username/g, username);
       } else {
         result = result.replace(/\/\[username\]/g, "/user/profile").replace(/\/:username/g, "/user/profile");
+      }
+      // If pathname starts with /organization/, normalize the link to /organization/ as well
+      if (pathname?.startsWith("/organization/")) {
+        result = result.replace(/^\/business\//, "/organization/");
       }
       return result;
     };
@@ -156,25 +174,35 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     return node;
   };
 
-  // Filter navigation nodes based on user role, global permissions, and workspace permissions
+  // Filter navigation nodes based on centralized effective permissions
   const filteredNodes = useMemo(() => {
     const filterRecurse = (nodes: NavigationNode[]): NavigationNode[] => {
       return nodes
         .map((node) => {
-          // 1. Role-based check
-          if (node.requiredRoles && !node.requiredRoles.includes(userRole)) {
-            return null;
-          }
-
-          // 2. Global permission check
-          if (node.requiredPermissions) {
-            const passes = node.requiredPermissions.some((p) => hasPermission(p));
-            if (!passes) {
+          // 1. Workspace / granular permissions check via Effective Permission Resolver
+          if (node.requiredWorkspacePermissions && node.requiredWorkspacePermissions.length > 0) {
+            if (!hasAnyPermission(node.requiredWorkspacePermissions)) {
               return null;
             }
           }
 
-          // 2.5 Feature flag check
+          // 2. Global permission check via Effective Permission Resolver
+          if (node.requiredPermissions && node.requiredPermissions.length > 0) {
+            if (!hasAnyPermission(node.requiredPermissions)) {
+              return null;
+            }
+          }
+
+          // 3. Role-based check (passes if user has global role OR active enterprise role OR is active member for enterprise views)
+          if (node.requiredRoles && node.requiredRoles.length > 0) {
+            const matchesRole = hasEffectiveRole(node.requiredRoles);
+            const isOrgScopedRoute = node.id.startsWith("company-") || node.id.startsWith("workspace-") || node.id.includes("organization");
+            if (!matchesRole && !(isOrgScopedRoute && isMember)) {
+              return null;
+            }
+          }
+
+          // 3.5 Feature flag check
           if (node.featureFlag) {
             const userPerms = user?.permissions || [];
             if (!isModuleEnabled({ featureFlag: node.featureFlag }, userPerms)) {
@@ -182,11 +210,11 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
             }
           }
 
-          // 3. Workspace membership and permission check
+          // 4. Workspace membership and permission check
           const hasWorkspacePerms = node.requiredWorkspacePermissions && node.requiredWorkspacePermissions.length > 0;
           const isWorkspaceRoute = node.id.startsWith("workspace-") || node.id.startsWith("org-") || hasWorkspacePerms;
           if (isWorkspaceRoute) {
-            if (!currentOrgSlug || !workspaceDetails || workspaceUserRole === null) {
+            if (!currentOrgSlug || !isMember) {
               return null;
             }
             if (!hasWorkspaceAccess(node)) {
@@ -194,7 +222,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
             }
           }
 
-          // 4. Recursive child filtering
+          // 5. Recursive child filtering
           if (node.type === "group" || node.type === "section") {
             const filteredChildren = filterRecurse(node.children);
             if (filteredChildren.length === 0) {
@@ -215,7 +243,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
     const rawNodes = filterRecurse(targetConfig);
     return rawNodes.map(resolveNodeHref);
-  }, [sidebarMode, userRole, user, hasPermission, currentOrgSlug, workspaceDetails, workspaceUserRole, workspacePermissions]);
+  }, [sidebarMode, userRole, user, hasAnyPermission, hasEffectiveRole, isMember, currentOrgSlug, workspaceDetails, workspaceUserRole, workspacePermissions]);
 
   // Dedicated specialized components workspace navigation sections
   const componentSections = useMemo(() => [
@@ -416,7 +444,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       </div>
 
       {/* Organization Switcher at the bottom */}
-      {!hideSwitcher && userRole === "BUSINESS" && (
+      {!hideSwitcher && (userRole === "BUSINESS" || (myOrganizations && myOrganizations.length > 0)) && (
         <div className="mt-auto pt-3 border-t border-separator/50 w-full shrink-0 min-w-0">
           <WorkspaceSwitcher collapsed={collapsed} isMobile={isMobile} />
         </div>

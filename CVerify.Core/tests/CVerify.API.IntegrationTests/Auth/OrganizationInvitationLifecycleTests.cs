@@ -15,9 +15,11 @@ using CVerify.API.Modules.Auth.DTOs;
 using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Domain.Enums;
 using CVerify.API.Modules.Shared.Persistence;
+using CVerify.API.Modules.Shared.Email.Services;
 
 namespace CVerify.API.IntegrationTests.Auth;
 
+[Collection("Shared Containers Collection")]
 public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
 {
     public OrganizationInvitationLifecycleTests(SharedTestcontainerFixture containerFixture) : base(containerFixture)
@@ -110,6 +112,38 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
         return org;
     }
 
+    private async Task ProcessOutboxMessagesAsync()
+    {
+        using var scope = Factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+        var timeProvider = scope.ServiceProvider.GetRequiredService<TimeProvider>();
+
+        var pending = await context.OutboxMessages.Where(m => m.ProcessedAt == null).ToListAsync();
+        foreach (var message in pending)
+        {
+            if (message.Type == "SystemNotificationEmail")
+            {
+                var payload = System.Text.Json.JsonSerializer.Deserialize<SystemNotificationPayloadTemp>(message.Payload);
+                if (payload != null)
+                {
+                    await emailService.SendSecurityAlertEmailAsync(payload.Email, payload.Subject, payload.Content);
+                }
+            }
+            message.ProcessedAt = timeProvider.GetUtcNow();
+        }
+        await context.SaveChangesAsync();
+    }
+
+    private class SystemNotificationPayloadTemp
+    {
+        public string Email { get; set; } = null!;
+        public string CompanyName { get; set; } = null!;
+        public string Subject { get; set; } = null!;
+        public string Content { get; set; } = null!;
+        public string CorrelationId { get; set; } = null!;
+    }
+
     [Fact]
     public async Task Invitation_FullLifecycle_ShouldSucceed()
     {
@@ -117,11 +151,12 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
         var org = await SeedOrganizationAsync("inv-org", "Invitation Org", "admin@invorg.com");
         var (adminUserId, adminCookie) = await RegisterAndLoginUserAsync("admin@invorg.com", "SecurePassword123!", "Admin User");
 
+        // The admin membership is auto-provisioned as OWNER because user's email matches org's representative email on login.
         Guid tenantRoleId;
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var role = await db.Roles.FirstAsync(r => r.TenantId == org.Id && r.Domain == "TENANT" && r.IsActive);
+            var role = await db.Roles.FirstAsync(r => r.TenantId == org.Id && r.Domain == "TENANT" && r.Name == "administrator" && r.IsActive);
             tenantRoleId = role.Id;
         }
 
@@ -141,6 +176,9 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
         var inviteResponse = await adminClient.PostAsJsonAsync($"/api/organizations/{org.Username}/invitations", inviteDto);
         inviteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
+        // Process Outbox to send the email
+        await ProcessOutboxMessagesAsync();
+
         // Verify invitation details
         Guid invitationId;
         string? tokenHash1;
@@ -158,6 +196,9 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
         // 3. Re-invite to verify Deduplication
         var inviteResponse2 = await adminClient.PostAsJsonAsync($"/api/organizations/{org.Username}/invitations", inviteDto);
         inviteResponse2.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // Process Outbox again
+        await ProcessOutboxMessagesAsync();
 
         // Verify deduplication has reused the row but refreshed token
         using (var scope = Factory.Services.CreateScope())
@@ -204,8 +245,10 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var isMember = await db.OrganizationMemberships.AnyAsync(om => om.OrganizationId == org.Id && om.UserId == inviteeUserId && om.Status == "active");
-            isMember.Should().BeTrue();
+            var membership = await db.OrganizationMemberships.FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == inviteeUserId);
+            membership.Should().NotBeNull();
+            membership!.Status.Should().Be("active");
+            membership.Role.Should().Be("REPRESENTATIVE"); // Resolved dynamically from 'administrator'
 
             var hasRole = await db.RoleAssignments.AnyAsync(ra => ra.UserId == inviteeUserId && ra.RoleId == tenantRoleId && ra.ScopeType == "ORGANIZATION" && ra.ScopeId == org.Id);
             hasRole.Should().BeTrue();
@@ -233,11 +276,12 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
         var org = await SeedOrganizationAsync("dec-org", "Decline Org", "admin@decorg.com");
         var (adminUserId, adminCookie) = await RegisterAndLoginUserAsync("admin@decorg.com", "SecurePassword123!", "Admin User");
 
+        // Admin membership is auto-provisioned on login.
         Guid tenantRoleId;
         using (var scope = Factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var role = await db.Roles.FirstAsync(r => r.TenantId == org.Id && r.Domain == "TENANT" && r.IsActive);
+            var role = await db.Roles.FirstAsync(r => r.TenantId == org.Id && r.Domain == "TENANT" && r.Name == "administrator" && r.IsActive);
             tenantRoleId = role.Id;
         }
 
@@ -255,6 +299,8 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
 
         var inviteResponse = await adminClient.PostAsJsonAsync($"/api/organizations/{org.Username}/invitations", inviteDto);
         inviteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await ProcessOutboxMessagesAsync();
 
         // Get token from email
         EmailSender.SentMessages.Should().NotBeEmpty();
@@ -301,5 +347,137 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
         // 5. Try to accept a declined invitation - should fail
         var acceptDeclinedResponse = await inviteeClient.PostAsJsonAsync("/api/invitations/accept", new AcceptInvitationDto(plainToken));
         acceptDeclinedResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task WorkspaceScopedInvitation_ShouldSynchronizeWorkspaceMembers()
+    {
+        var org = await SeedOrganizationAsync("ws-sync-org", "Workspace Sync Org", "admin@wssync.com");
+        var (adminUserId, adminCookie) = await RegisterAndLoginUserAsync("admin@wssync.com", "SecurePassword123!", "Admin User");
+
+        // Admin membership is auto-provisioned on login.
+        Guid workspaceId;
+        Guid tenantRoleId;
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var ws = new Workspace
+            {
+                Id = Guid.CreateVersion7(),
+                OrganizationId = org.Id,
+                OwnerId = adminUserId,
+                DisplayName = "Engineering",
+                Slug = "engineering",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            db.Workspaces.Add(ws);
+            await db.SaveChangesAsync();
+
+            workspaceId = ws.Id;
+            var role = await db.Roles.FirstAsync(r => r.TenantId == org.Id && r.Domain == "TENANT" && r.Name == "recruiter" && r.IsActive);
+            tenantRoleId = role.Id;
+        }
+
+        EmailSender.Clear();
+
+        // Invite recruiter for WORKSPACE scope
+        var inviteeEmail = "ws-recruiter@test.com";
+        var inviteDto = new CreateInvitationsDto(new()
+        {
+            new InviteMemberDto(inviteeEmail, new() { new PreAssignedRoleDto(tenantRoleId, "WORKSPACE", workspaceId) })
+        });
+
+        var adminClient = Factory.CreateClient();
+        adminClient.DefaultRequestHeaders.Add("Cookie", adminCookie);
+
+        var inviteResponse = await adminClient.PostAsJsonAsync($"/api/organizations/{org.Username}/invitations", inviteDto);
+        inviteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await ProcessOutboxMessagesAsync();
+
+        // Get token from email
+        var sentEmail = EmailSender.SentMessages.Last();
+        var tokenPrefix = "accept?token=";
+        var tokenStartIdx = sentEmail.HtmlContent.IndexOf(tokenPrefix) + tokenPrefix.Length;
+        var endIdx = sentEmail.HtmlContent.IndexOf('\n', tokenStartIdx);
+        if (endIdx == -1) endIdx = sentEmail.HtmlContent.Length;
+        var plainToken = sentEmail.HtmlContent.Substring(tokenStartIdx, endIdx - tokenStartIdx).Trim();
+
+        // Accept invitation
+        var (inviteeUserId, inviteeCookie) = await RegisterAndLoginUserAsync(inviteeEmail, "SecurePassword123!", "Recruiter Invitee");
+        var inviteeClient = Factory.CreateClient();
+        inviteeClient.DefaultRequestHeaders.Add("Cookie", inviteeCookie);
+
+        var acceptResponse = await inviteeClient.PostAsJsonAsync("/api/invitations/accept", new AcceptInvitationDto(plainToken));
+        acceptResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Verify WorkspaceMember creation
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var wsMember = await db.WorkspaceMembers.FirstOrDefaultAsync(wm => wm.WorkspaceId == workspaceId && wm.UserId == inviteeUserId);
+            wsMember.Should().NotBeNull();
+            wsMember!.Role.Should().Be("member"); // 'recruiter' maps to 'member' in workspaces
+        }
+    }
+
+    [Fact]
+    public async Task Invitation_PrivilegeEscalation_ShouldBeBlocked()
+    {
+        var org = await SeedOrganizationAsync("esc-org", "Escalation Org", "admin@esc.com");
+
+        // Register a high privilege user (OWNER) and a low privilege user (RECRUITER)
+        var (ownerUserId, ownerCookie) = await RegisterAndLoginUserAsync("admin@esc.com", "SecurePassword123!", "Admin Owner");
+        var (recruiterUserId, recruiterCookie) = await RegisterAndLoginUserAsync("recruiter@esc.com", "SecurePassword123!", "Recruiter User");
+
+        Guid adminRoleId;
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var recruiterRole = await db.Roles.Include(r => r.Permissions).FirstAsync(r => r.TenantId == org.Id && r.Domain == "TENANT" && r.Name == "recruiter");
+            var manageMembersPermission = await db.Permissions.FirstAsync(p => p.Name == "organization:members:manage");
+            recruiterRole.Permissions.Add(manageMembersPermission);
+
+            // recruiter@esc.com is NOT the representative admin@esc.com, so we manually seed its membership.
+            db.OrganizationMemberships.Add(new OrganizationMembership
+            {
+                Id = Guid.CreateVersion7(),
+                OrganizationId = org.Id,
+                UserId = recruiterUserId,
+                Role = "MEMBER", // Cache role is MEMBER for recruiter
+                Status = "active",
+                JoinedAt = DateTimeOffset.UtcNow
+            });
+
+            db.RoleAssignments.Add(new RoleAssignment
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = recruiterUserId,
+                RoleId = recruiterRole.Id,
+                ScopeType = "ORGANIZATION",
+                ScopeId = org.Id,
+                AssignedAt = DateTimeOffset.UtcNow
+            });
+
+            var adminRole = await db.Roles.FirstAsync(r => r.TenantId == org.Id && r.Domain == "TENANT" && r.Name == "administrator");
+            adminRoleId = adminRole.Id;
+
+            await db.SaveChangesAsync();
+        }
+
+        // Recruiter tries to invite another user as an Administrator
+        var inviteDto = new CreateInvitationsDto(new()
+        {
+            new InviteMemberDto("target@esc.com", new() { new PreAssignedRoleDto(adminRoleId, "ORGANIZATION", org.Id) })
+        });
+
+        var recruiterClient = Factory.CreateClient();
+        recruiterClient.DefaultRequestHeaders.Add("Cookie", recruiterCookie);
+
+        var inviteResponse = await recruiterClient.PostAsJsonAsync($"/api/organizations/{org.Username}/invitations", inviteDto);
+        inviteResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest); // Escalation blocked!
     }
 }

@@ -29,9 +29,11 @@ export const isActiveRoute = (
     return pathname === '/';
   }
 
-  // Helper check for root and normalization
-  const cleanPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
-  let cleanHref = href.endsWith('/') && href.length > 1 ? href.slice(0, -1) : href;
+  // Helper check for root and normalization (standardize /organization to /business)
+  const cleanPath = (pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname)
+    .replace(/^\/organization(?=\/|$)/, '/business');
+  let cleanHref = (href.endsWith('/') && href.length > 1 ? href.slice(0, -1) : href)
+    .replace(/^\/organization(?=\/|$)/, '/business');
 
   if (cleanHref.includes("[slug]") || cleanHref.includes(":slug")) {
     const pathSegments = cleanPath.split("/");

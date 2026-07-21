@@ -30,6 +30,7 @@ public class OrganizationInvitationService : IOrganizationInvitationService
     private readonly IActivityEventPublisher _activityEventPublisher;
     private readonly IOrganizationAuthorizationService _authService;
     private readonly EnvConfiguration _envConfig;
+    private readonly IOrganizationMembershipSyncService _membershipSyncService;
 
     public OrganizationInvitationService(
         ApplicationDbContext context,
@@ -39,7 +40,8 @@ public class OrganizationInvitationService : IOrganizationInvitationService
         ILogger<OrganizationInvitationService> logger,
         IActivityEventPublisher activityEventPublisher,
         IOrganizationAuthorizationService authService,
-        EnvConfiguration envConfig)
+        EnvConfiguration envConfig,
+        IOrganizationMembershipSyncService membershipSyncService)
     {
         _context = context;
         _timeProvider = timeProvider;
@@ -49,6 +51,7 @@ public class OrganizationInvitationService : IOrganizationInvitationService
         _activityEventPublisher = activityEventPublisher;
         _authService = authService;
         _envConfig = envConfig;
+        _membershipSyncService = membershipSyncService;
     }
 
     private string NormalizeEmail(string email)
@@ -72,98 +75,135 @@ public class OrganizationInvitationService : IOrganizationInvitationService
             throw new ValidationException("Organization not found.");
         }
 
-        var utcNow = _timeProvider.GetUtcNow();
-        var expiresAt = utcNow.AddDays(7);
-
-        // Fetch actor permissions once for role escalation checks
-        var actorPerms = actorUserId.HasValue
-            ? await _authService.GetPermissionsAsync(actorUserId.Value, orgId, cancellationToken)
-            : new List<string>();
-        bool isSuperAdmin = PermissionEvaluator.HasPermission(actorPerms, "*", orgId);
-
-        foreach (var invitee in dto.Invitees)
+        using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken);
+        try
         {
-            var normalizedEmail = NormalizeEmail(invitee.Email);
+            var utcNow = _timeProvider.GetUtcNow();
+            var expiresAt = utcNow.AddDays(7);
 
-            // Check if user is already a member
-            var isMember = await _context.OrganizationMemberships
-                .AnyAsync(om => om.OrganizationId == orgId && om.User.Email == normalizedEmail && om.Status == "active", cancellationToken);
+            // Fetch actor permissions once for role escalation checks
+            var actorPerms = actorUserId.HasValue
+                ? await _authService.GetPermissionsAsync(actorUserId.Value, orgId, cancellationToken)
+                : new List<string>();
+            bool isSuperAdmin = PermissionEvaluator.HasPermission(actorPerms, "*", orgId);
 
-            if (isMember)
+            foreach (var invitee in dto.Invitees)
             {
-                throw new ValidationException($"User with email {invitee.Email} is already a member of this organization.");
-            }
+                var normalizedEmail = NormalizeEmail(invitee.Email);
 
-            // Pre-validate all pre-assigned roles and perform escalation checks
-            foreach (var roleDto in invitee.Roles)
-            {
-                var targetRole = await _context.Roles
-                    .Include(r => r.Permissions)
-                    .FirstOrDefaultAsync(r => r.Id == roleDto.RoleId && r.TenantId == orgId && r.Domain == "TENANT" && r.IsActive, cancellationToken);
+                // Check if user is already a member
+                var isMember = await _context.OrganizationMemberships
+                    .AnyAsync(om => om.OrganizationId == orgId && om.User.Email == normalizedEmail && om.Status == "active", cancellationToken);
 
-                if (targetRole == null)
+                if (isMember)
                 {
-                    throw new ValidationException($"Selected business role {roleDto.RoleId} is invalid or inactive.");
+                    throw new ValidationException($"User with email {invitee.Email} is already a member of this organization.");
                 }
 
-                if (actorUserId.HasValue && !isSuperAdmin)
+                // Pre-validate all pre-assigned roles and perform escalation checks
+                foreach (var roleDto in invitee.Roles)
                 {
-                    foreach (var perm in targetRole.Permissions)
-                    {
-                        bool hasPermission = PermissionEvaluator.HasPermission(
-                            actorPerms,
-                            perm.Name,
-                            orgId,
-                            roleDto.ScopeType,
-                            roleDto.ScopeId);
+                    var targetRole = await _context.Roles
+                        .Include(r => r.Permissions)
+                        .FirstOrDefaultAsync(r => r.Id == roleDto.RoleId && r.TenantId == orgId && r.Domain == "TENANT" && r.IsActive, cancellationToken);
 
-                        if (!hasPermission)
+                    if (targetRole == null)
+                    {
+                        throw new ValidationException($"Selected business role {roleDto.RoleId} is invalid or inactive.");
+                    }
+
+                    if (actorUserId.HasValue && !isSuperAdmin)
+                    {
+                        foreach (var perm in targetRole.Permissions)
                         {
-                            throw new ValidationException($"Role escalation detected: You do not have permission '{perm.DisplayName}' in the requested scope to assign this role.");
+                            bool hasPermission = PermissionEvaluator.HasPermission(
+                                actorPerms,
+                                perm.Name,
+                                orgId,
+                                roleDto.ScopeType,
+                                roleDto.ScopeId);
+
+                            if (!hasPermission)
+                            {
+                                throw new ValidationException($"Role escalation detected: You do not have permission '{perm.DisplayName}' in the requested scope to assign this role.");
+                            }
                         }
                     }
                 }
-            }
 
-            // Generate secure random token
-            var rawToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-            var tokenHash = ComputeSha256(rawToken);
+                // Generate secure random token
+                var rawToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+                var tokenHash = ComputeSha256(rawToken);
 
-            // Check if the user already has a registered account on the platform
-            var targetUser = await _context.FindUserByVerifiedEmailAsync(normalizedEmail, cancellationToken);
-            bool isExistingUser = targetUser != null;
+                // Check if the user already has a registered account on the platform
+                var targetUser = await _context.FindUserByVerifiedEmailAsync(normalizedEmail, cancellationToken);
+                bool isExistingUser = targetUser != null;
 
-            // Enforce only one active Pending invitation per Organization + Email
-            var existingPending = await _context.OrganizationInvitations
-                .Include(oi => oi.PreAssignedRoles)
-                .FirstOrDefaultAsync(oi => oi.OrganizationId == orgId && oi.InviteeEmail == normalizedEmail && oi.Status == "Pending", cancellationToken);
+                // Enforce only one active Pending invitation per Organization + Email
+                var existingPending = await _context.OrganizationInvitations
+                    .Include(oi => oi.PreAssignedRoles)
+                    .FirstOrDefaultAsync(oi => oi.OrganizationId == orgId && oi.InviteeEmail == normalizedEmail && oi.Status == "Pending", cancellationToken);
 
-            Guid invitationId;
+                Guid invitationId;
 
-            if (existingPending != null)
-            {
-                invitationId = existingPending.Id;
-                existingPending.TokenHash = tokenHash;
-                existingPending.ExpiresAt = expiresAt;
-                existingPending.DiscoveryNotifiedAt = isExistingUser ? utcNow : null;
-                existingPending.InvitedByUserId = actorUserId;
-
-                // Re-seed roles if they differ
-                var rolesDiffer = existingPending.PreAssignedRoles.Count != invitee.Roles.Count ||
-                    invitee.Roles.Any(r => !existingPending.PreAssignedRoles.Any(pr =>
-                        pr.RoleId == r.RoleId &&
-                        pr.ScopeType.Equals(r.ScopeType, StringComparison.OrdinalIgnoreCase) &&
-                        pr.ScopeId == r.ScopeId));
-
-                if (rolesDiffer)
+                if (existingPending != null)
                 {
-                    _context.OrganizationInvitationRoles.RemoveRange(existingPending.PreAssignedRoles);
+                    invitationId = existingPending.Id;
+                    existingPending.TokenHash = tokenHash;
+                    existingPending.ExpiresAt = expiresAt;
+                    existingPending.DiscoveryNotifiedAt = isExistingUser ? utcNow : null;
+                    existingPending.InvitedByUserId = actorUserId;
+
+                    // Re-seed roles if they differ
+                    var rolesDiffer = existingPending.PreAssignedRoles.Count != invitee.Roles.Count ||
+                        invitee.Roles.Any(r => !existingPending.PreAssignedRoles.Any(pr =>
+                            pr.RoleId == r.RoleId &&
+                            pr.ScopeType.Equals(r.ScopeType, StringComparison.OrdinalIgnoreCase) &&
+                            pr.ScopeId == r.ScopeId));
+
+                    if (rolesDiffer)
+                    {
+                        _context.OrganizationInvitationRoles.RemoveRange(existingPending.PreAssignedRoles);
+                        foreach (var roleDto in invitee.Roles)
+                        {
+                            var invitationRole = new OrganizationInvitationRole
+                            {
+                                Id = Guid.CreateVersion7(),
+                                InvitationId = existingPending.Id,
+                                RoleId = roleDto.RoleId,
+                                ScopeType = roleDto.ScopeType.Trim().ToUpperInvariant(),
+                                ScopeId = roleDto.ScopeId
+                            };
+
+                            _context.OrganizationInvitationRoles.Add(invitationRole);
+                        }
+                    }
+                }
+                else
+                {
+                    var invitation = new OrganizationInvitation
+                    {
+                        Id = Guid.CreateVersion7(),
+                        OrganizationId = orgId,
+                        InviteeEmail = normalizedEmail,
+                        TokenHash = tokenHash,
+                        InvitedByUserId = actorUserId,
+                        Status = "Pending",
+                        CreatedAt = utcNow,
+                        ExpiresAt = expiresAt,
+                        DiscoveryNotifiedAt = isExistingUser ? utcNow : null
+                    };
+
+                    _context.OrganizationInvitations.Add(invitation);
+                    invitationId = invitation.Id;
+
+                    // Pre-assign roles and scopes
                     foreach (var roleDto in invitee.Roles)
                     {
                         var invitationRole = new OrganizationInvitationRole
                         {
                             Id = Guid.CreateVersion7(),
-                            InvitationId = existingPending.Id,
+                            InvitationId = invitation.Id,
                             RoleId = roleDto.RoleId,
                             ScopeType = roleDto.ScopeType.Trim().ToUpperInvariant(),
                             ScopeId = roleDto.ScopeId
@@ -172,77 +212,54 @@ public class OrganizationInvitationService : IOrganizationInvitationService
                         _context.OrganizationInvitationRoles.Add(invitationRole);
                     }
                 }
-            }
-            else
-            {
-                var invitation = new OrganizationInvitation
-                {
-                    Id = Guid.CreateVersion7(),
-                    OrganizationId = orgId,
-                    InviteeEmail = normalizedEmail,
-                    TokenHash = tokenHash,
-                    InvitedByUserId = actorUserId,
-                    Status = "Pending",
-                    CreatedAt = utcNow,
-                    ExpiresAt = expiresAt,
-                    DiscoveryNotifiedAt = isExistingUser ? utcNow : null
-                };
 
-                _context.OrganizationInvitations.Add(invitation);
-                invitationId = invitation.Id;
-
-                // Pre-assign roles and scopes
-                foreach (var roleDto in invitee.Roles)
-                {
-                    var invitationRole = new OrganizationInvitationRole
-                    {
-                        Id = Guid.CreateVersion7(),
-                        InvitationId = invitation.Id,
-                        RoleId = roleDto.RoleId,
-                        ScopeType = roleDto.ScopeType.Trim().ToUpperInvariant(),
-                        ScopeId = roleDto.ScopeId
-                    };
-
-                    _context.OrganizationInvitationRoles.Add(invitationRole);
-                }
-            }
-
-            // Publish Platform Event (InvitationCreated)
-            await _activityEventPublisher.PublishAsync(
-                eventType: ActivityEventTypes.InvitationCreated,
-                resourceType: "organization_invitation",
-                resourceId: invitationId,
-                organizationId: orgId,
-                actorUserId: actorUserId,
-                payload: new { inviteeEmail = normalizedEmail, isResend = (existingPending != null), rolesCount = invitee.Roles.Count }
-            );
-
-            // If user is already registered, dispatch an immediate InvitationDiscovered event to trigger the in-app notification
-            if (isExistingUser)
-            {
+                // Publish Platform Event (InvitationCreated)
                 await _activityEventPublisher.PublishAsync(
-                    eventType: ActivityEventTypes.InvitationDiscovered,
+                    eventType: ActivityEventTypes.InvitationCreated,
                     resourceType: "organization_invitation",
                     resourceId: invitationId,
                     organizationId: orgId,
                     actorUserId: actorUserId,
-                    payload: new { inviteeEmail = normalizedEmail }
+                    payload: new { inviteeEmail = normalizedEmail, isResend = (existingPending != null), rolesCount = invitee.Roles.Count }
                 );
+
+                // If user is already registered, dispatch an immediate InvitationDiscovered event to trigger the in-app notification
+                if (isExistingUser)
+                {
+                    await _activityEventPublisher.PublishAsync(
+                        eventType: ActivityEventTypes.InvitationDiscovered,
+                        resourceType: "organization_invitation",
+                        resourceId: invitationId,
+                        organizationId: orgId,
+                        actorUserId: actorUserId,
+                        payload: new { inviteeEmail = normalizedEmail }
+                    );
+                }
+
+                // Send Email (Defer using Outbox Pattern)
+                var onboardingUrl = $"{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/invitations/accept?token={rawToken}";
+                var emailBody = $"Hi there,\n\nYou have been invited to join {org.Name} on CVerify.\n\nTo accept this invitation and configure your account, please click the link below:\n{onboardingUrl}\n\nThis invitation will expire on {expiresAt:MMMM dd, yyyy}.";
+
+                var correlationId = Guid.NewGuid().ToString("N");
+                var payload = new
+                {
+                    Email = normalizedEmail,
+                    CompanyName = org.Name,
+                    Subject = $"Invitation to join {org.Name}",
+                    Content = emailBody,
+                    CorrelationId = correlationId
+                };
+                _context.AddAndAuditOutboxMessage("SystemNotificationEmail", normalizedEmail, correlationId, payload, utcNow);
             }
 
-            // Send Email (Enqueue or Send directly)
-            var onboardingUrl = $"{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/invitations/accept?token={rawToken}";
-            var emailBody = $"Hi there,\n\nYou have been invited to join {org.Name} on CVerify.\n\nTo accept this invitation and configure your account, please click the link below:\n{onboardingUrl}\n\nThis invitation will expire on {expiresAt:MMMM dd, yyyy}.";
-
-            await _emailService.SendSecurityAlertEmailAsync(
-                normalizedEmail,
-                $"Invitation to join {org.Name}",
-                emailBody,
-                cancellationToken: cancellationToken
-            );
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
-
-        await _context.SaveChangesAsync(cancellationToken);
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task<PaginatedInvitationsResponseDto> GetInvitationsAsync(Guid orgId, string? status, int page, int pageSize, CancellationToken cancellationToken)
@@ -331,55 +348,69 @@ public class OrganizationInvitationService : IOrganizationInvitationService
             throw new ValidationException($"Cannot resend an invitation with status '{invite.Status}'.");
         }
 
-        var utcNow = _timeProvider.GetUtcNow();
-        var expiresAt = utcNow.AddDays(7);
-
-        // Generate new token
-        var rawToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        var tokenHash = ComputeSha256(rawToken);
-
-        // Check if the user already has a registered account on the platform
-        var targetUser = await _context.FindUserByVerifiedEmailAsync(invite.InviteeEmail, cancellationToken);
-        bool isExistingUser = targetUser != null;
-
-        invite.TokenHash = tokenHash;
-        invite.ExpiresAt = expiresAt;
-        invite.Status = "Pending";
-        invite.DiscoveryNotifiedAt = isExistingUser ? utcNow : null;
-
-        await _activityEventPublisher.PublishAsync(
-            eventType: ActivityEventTypes.InvitationResent,
-            resourceType: "organization_invitation",
-            resourceId: invitationId,
-            organizationId: orgId,
-            actorUserId: actorUserId,
-            payload: new { inviteeEmail = invite.InviteeEmail }
-        );
-
-        // If user is already registered, dispatch an immediate InvitationDiscovered event to trigger the in-app notification
-        if (isExistingUser)
+        using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken);
+        try
         {
+            var utcNow = _timeProvider.GetUtcNow();
+            var expiresAt = utcNow.AddDays(7);
+
+            // Generate new token
+            var rawToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+            var tokenHash = ComputeSha256(rawToken);
+
+            // Check if the user already has a registered account on the platform
+            var targetUser = await _context.FindUserByVerifiedEmailAsync(invite.InviteeEmail, cancellationToken);
+            bool isExistingUser = targetUser != null;
+
+            invite.TokenHash = tokenHash;
+            invite.ExpiresAt = expiresAt;
+            invite.Status = "Pending";
+            invite.DiscoveryNotifiedAt = isExistingUser ? utcNow : null;
+
             await _activityEventPublisher.PublishAsync(
-                eventType: ActivityEventTypes.InvitationDiscovered,
+                eventType: ActivityEventTypes.InvitationResent,
                 resourceType: "organization_invitation",
                 resourceId: invitationId,
                 organizationId: orgId,
                 actorUserId: actorUserId,
                 payload: new { inviteeEmail = invite.InviteeEmail }
             );
+
+            // If user is already registered, dispatch an immediate InvitationDiscovered event to trigger the in-app notification
+            if (isExistingUser)
+            {
+                await _activityEventPublisher.PublishAsync(
+                    eventType: ActivityEventTypes.InvitationDiscovered,
+                    resourceType: "organization_invitation",
+                    resourceId: invitationId,
+                    organizationId: orgId,
+                    actorUserId: actorUserId,
+                    payload: new { inviteeEmail = invite.InviteeEmail }
+                );
+            }
+
+            var onboardingUrl = $"{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/invitations/accept?token={rawToken}";
+            var emailBody = $"Hi there,\n\nYour invitation to join {invite.Organization.Name} on CVerify has been resent.\n\nTo accept and configure your account, please click the link below:\n{onboardingUrl}\n\nThis invitation will expire on {expiresAt:MMMM dd, yyyy}.";
+
+            var correlationId = Guid.NewGuid().ToString("N");
+            var payload = new
+            {
+                Email = invite.InviteeEmail,
+                CompanyName = invite.Organization.Name,
+                Subject = $"Resent: Invitation to join {invite.Organization.Name}",
+                Content = emailBody,
+                CorrelationId = correlationId
+            };
+            _context.AddAndAuditOutboxMessage("SystemNotificationEmail", invite.InviteeEmail, correlationId, payload, utcNow);
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
-
-        var onboardingUrl = $"{_envConfig.Auth.FrontendUrl.TrimEnd('/')}/invitations/accept?token={rawToken}";
-        var emailBody = $"Hi there,\n\nYour invitation to join {invite.Organization.Name} on CVerify has been resent.\n\nTo accept and configure your account, please click the link below:\n{onboardingUrl}\n\nThis invitation will expire on {expiresAt:MMMM dd, yyyy}.";
-
-        await _emailService.SendSecurityAlertEmailAsync(
-            invite.InviteeEmail,
-            $"Resent: Invitation to join {invite.Organization.Name}",
-            emailBody,
-            cancellationToken: cancellationToken
-        );
-
-        await _context.SaveChangesAsync(cancellationToken);
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task CancelInvitationAsync(Guid orgId, Guid? actorUserId, Guid invitationId, CancellationToken cancellationToken)
@@ -500,7 +531,7 @@ public class OrganizationInvitationService : IOrganizationInvitationService
                 membership.JoinedAt = utcNow;
             }
 
-            // Create Organization Role Assignments
+            // Create Organization Role Assignments & Workspace Member mappings
             foreach (var preRole in invite.PreAssignedRoles)
             {
                 var roleExists = await _context.RoleAssignments
@@ -522,6 +553,40 @@ public class OrganizationInvitationService : IOrganizationInvitationService
                     };
                     _context.RoleAssignments.Add(assignment);
                 }
+
+                if (preRole.ScopeType == "WORKSPACE")
+                {
+                    var wsMemberExists = await _context.WorkspaceMembers
+                        .AnyAsync(wm => wm.WorkspaceId == preRole.ScopeId && wm.UserId == userId, cancellationToken);
+
+                    if (!wsMemberExists)
+                    {
+                        var role = await _context.Roles.FindAsync(new object[] { preRole.RoleId }, cancellationToken);
+                        string wsRole = "member";
+                        if (role != null)
+                        {
+                            var roleName = role.Name.Trim().ToLowerInvariant();
+                            if (roleName == "owner" || roleName == "administrator")
+                            {
+                                wsRole = "workspace_admin";
+                            }
+                            else if (roleName == "hr_manager" || roleName == "hiring_manager")
+                            {
+                                wsRole = "editor";
+                            }
+                        }
+
+                        var wsMember = new WorkspaceMember
+                        {
+                            Id = Guid.CreateVersion7(),
+                            WorkspaceId = preRole.ScopeId,
+                            UserId = userId,
+                            Role = wsRole,
+                            JoinedAt = utcNow
+                        };
+                        _context.WorkspaceMembers.Add(wsMember);
+                    }
+                }
             }
 
             // Mark invitation consumed
@@ -530,6 +595,10 @@ public class OrganizationInvitationService : IOrganizationInvitationService
             invite.ConsumedByUserId = userId;
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Synchronize the display role based on assignments
+            await _membershipSyncService.SynchronizeMembershipRoleAsync(invite.OrganizationId, userId, cancellationToken);
+
             await transaction.CommitAsync(cancellationToken);
 
             // Invalidate Redis permissions cache for user
@@ -722,7 +791,7 @@ public class OrganizationInvitationService : IOrganizationInvitationService
                 membership.JoinedAt = utcNow;
             }
 
-            // Create Organization Role Assignments
+            // Create Organization Role Assignments & Workspace Member mappings
             foreach (var preRole in invite.PreAssignedRoles)
             {
                 var roleExists = await _context.RoleAssignments
@@ -744,6 +813,40 @@ public class OrganizationInvitationService : IOrganizationInvitationService
                     };
                     _context.RoleAssignments.Add(assignment);
                 }
+
+                if (preRole.ScopeType == "WORKSPACE")
+                {
+                    var wsMemberExists = await _context.WorkspaceMembers
+                        .AnyAsync(wm => wm.WorkspaceId == preRole.ScopeId && wm.UserId == userId, cancellationToken);
+
+                    if (!wsMemberExists)
+                    {
+                        var role = await _context.Roles.FindAsync(new object[] { preRole.RoleId }, cancellationToken);
+                        string wsRole = "member";
+                        if (role != null)
+                        {
+                            var roleName = role.Name.Trim().ToLowerInvariant();
+                            if (roleName == "owner" || roleName == "administrator")
+                            {
+                                wsRole = "workspace_admin";
+                            }
+                            else if (roleName == "hr_manager" || roleName == "hiring_manager")
+                            {
+                                wsRole = "editor";
+                            }
+                        }
+
+                        var wsMember = new WorkspaceMember
+                        {
+                            Id = Guid.CreateVersion7(),
+                            WorkspaceId = preRole.ScopeId,
+                            UserId = userId,
+                            Role = wsRole,
+                            JoinedAt = utcNow
+                        };
+                        _context.WorkspaceMembers.Add(wsMember);
+                    }
+                }
             }
 
             // Mark invitation consumed
@@ -752,6 +855,10 @@ public class OrganizationInvitationService : IOrganizationInvitationService
             invite.ConsumedByUserId = userId;
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            // Synchronize the display role based on assignments
+            await _membershipSyncService.SynchronizeMembershipRoleAsync(invite.OrganizationId, userId, cancellationToken);
+
             await transaction.CommitAsync(cancellationToken);
 
             // Invalidate Redis permissions cache for user

@@ -32,13 +32,19 @@ public class TalentDiscoveryController : ControllerBase
     }
 
     [HttpGet("api/v1/intelligence/search")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CVerify.API.Modules.Shared.System.DTOs.PaginatedResultDto<object>))]
     public async Task<IActionResult> Search(
         [FromQuery] string? query,
         [FromQuery] string? location,
         [FromQuery] int minTrustScore = 0,
+        [FromQuery] string? sortBy = "highest_trust",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 12,
         CancellationToken cancellationToken = default)
     {
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 12;
+
         // Query search profiles from the read-model projection
         var dbQuery = _context.CandidateSearchProfiles.AsQueryable();
 
@@ -52,7 +58,34 @@ public class TalentDiscoveryController : ControllerBase
             dbQuery = dbQuery.Where(p => p.TrustScore >= minTrustScore);
         }
 
+        if (!string.IsNullOrEmpty(query))
+        {
+            var cleanQuery = query.ToLowerInvariant();
+            dbQuery = dbQuery.Where(p => p.FullName.ToLower().Contains(cleanQuery) ||
+                                         (p.Headline != null && p.Headline.ToLower().Contains(cleanQuery)) ||
+                                         p.CapabilitiesJson.ToLower().Contains(cleanQuery));
+        }
+
+        // Sorting
+        switch (sortBy?.ToLowerInvariant())
+        {
+            case "highest_trust":
+                dbQuery = dbQuery.OrderByDescending(p => p.TrustScore);
+                break;
+            case "alphabetical":
+                dbQuery = dbQuery.OrderBy(p => p.FullName);
+                break;
+            case "recently_updated":
+            default:
+                dbQuery = dbQuery.OrderByDescending(p => p.LastProjectedAt);
+                break;
+        }
+
+        var totalCount = await dbQuery.CountAsync(cancellationToken).ConfigureAwait(false);
+
         var results = await dbQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(p => new
             {
                 p.CandidateId,
@@ -67,18 +100,7 @@ public class TalentDiscoveryController : ControllerBase
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        // Simple text-based capability name filtering as a fallback if semantic embedding match is pending
-        if (!string.IsNullOrEmpty(query))
-        {
-            var cleanQuery = query.ToLowerInvariant();
-            results = results
-                .Where(r => r.FullName.ToLower().Contains(cleanQuery) ||
-                            r.Headline?.ToLower().Contains(cleanQuery) == true ||
-                            r.CapabilitiesJson.ToLower().Contains(cleanQuery))
-                .ToList();
-        }
-
-        return Ok(results);
+        return Ok(new CVerify.API.Modules.Shared.System.DTOs.PaginatedResultDto<object>(results, totalCount, page, pageSize));
     }
 
     [HttpGet("api/v1/intelligence/candidate/{id}")]

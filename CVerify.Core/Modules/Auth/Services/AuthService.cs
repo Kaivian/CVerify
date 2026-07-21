@@ -900,7 +900,8 @@ public class AuthService : IAuthService
         var userId = Guid.Parse(userIdClaim.Value);
 
         var actorTypeClaim = _httpContextAccessor.HttpContext?.User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
@@ -2965,7 +2966,8 @@ public class AuthService : IAuthService
             return Enumerable.Empty<SessionInfo>();
 
         var actorType = user.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorType, "organization", StringComparison.OrdinalIgnoreCase);
 
         // Primary: Retrieve current SessionId from the cryptographically verified JWT 'sid' claim
         var currentSessionIdClaim = user.FindFirst("sid")?.Value;
@@ -3030,7 +3032,8 @@ public class AuthService : IAuthService
         if (idClaim == null || !Guid.TryParse(idClaim.Value, out var targetId)) return false;
 
         var actorType = user.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorType, "organization", StringComparison.OrdinalIgnoreCase);
 
         // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
         var lockKey = $"lock:user:sessions:{targetId}";
@@ -3114,7 +3117,8 @@ public class AuthService : IAuthService
         if (idClaim == null || !Guid.TryParse(idClaim.Value, out var targetId)) return false;
 
         var actorType = user.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorType, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorType, "organization", StringComparison.OrdinalIgnoreCase);
 
         // Coarse-grained distributed concurrency lock at user scope to serialize session mutations
         var lockKey = $"lock:user:sessions:{targetId}";

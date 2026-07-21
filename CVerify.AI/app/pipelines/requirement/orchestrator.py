@@ -43,12 +43,12 @@ class RequirementArtifactsOrchestrator:
             raise ValueError(f"Failed to extract and repair JSON from Claude response: {repair_err}")
 
     async def _call_claude_with_validation(
-        self, system: str, user: str, pydantic_model: Any, correlation_id: str, max_retries: int = 2
+        self, system: str, user: str, pydantic_model: Any, correlation_id: str, max_retries: int = 2, on_token = None
     ) -> tuple[Any, dict]:
         attempt = 0
         current_user_prompt = user
         while True:
-            raw, telemetry = await self.claude_service.analyze_repo_with_telemetry(system, current_user_prompt, correlation_id)
+            raw, telemetry = await self.claude_service.analyze_repo_with_telemetry(system, current_user_prompt, correlation_id, on_token=on_token)
             try:
                 parsed = self._repair_and_extract_json(raw, correlation_id)
                 validated = pydantic_model(**parsed)
@@ -78,6 +78,7 @@ class RequirementArtifactsOrchestrator:
     async def generate_all_artifacts_async(
         self, requirement_data: Dict[str, Any], correlation_id: str = "system"
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        import asyncio
         extra = {"correlation_id": correlation_id}
         req_id = requirement_data.get("id", "unknown")
         logger.info(f"Starting Requirement Artifacts Generation Orchestrator for Requirement: {req_id}", extra=extra)
@@ -93,9 +94,46 @@ class RequirementArtifactsOrchestrator:
             system = self.prompt_factory.get_system_prompt()
             user = self.prompt_factory.get_unified_requirements_prompt(requirement_data)
             
-            unified_validated, telemetry = await self._call_claude_with_validation(
-                system, user, UnifiedRequirementArtifactsResponse, correlation_id
-            )
+            token_queue: asyncio.Queue = asyncio.Queue()
+
+            async def on_token_received(token: str):
+                await token_queue.put(token)
+
+            async def run_claude():
+                try:
+                    res, tele = await self._call_claude_with_validation(
+                        system, user, UnifiedRequirementArtifactsResponse, correlation_id, on_token=on_token_received
+                    )
+                    await token_queue.put(("DONE", res, tele))
+                except BaseException as ex:
+                    await token_queue.put(("ERROR", ex))
+
+            claude_task = asyncio.create_task(run_claude())
+
+            unified_validated = None
+            telemetry = {}
+
+            while True:
+                item = await token_queue.get()
+                if isinstance(item, tuple):
+                    status_type = item[0]
+                    if status_type == "DONE":
+                        unified_validated = item[1]
+                        telemetry = item[2]
+                        break
+                    elif status_type == "ERROR":
+                        raise item[1]
+                else:
+                    # Token chunk
+                    yield {
+                        "status": "Running",
+                        "step": "GenerateUnifiedRequirements",
+                        "message": "Generating unified hiring requirement package...",
+                        "percentage": 25.0,
+                        "chunk": item
+                    }
+
+            await claude_task
 
             # Extract JD
             jd_payload = {
@@ -122,7 +160,8 @@ class RequirementArtifactsOrchestrator:
                     "inputTokens": telemetry.get("promptTokens", 0),
                     "outputTokens": telemetry.get("completionTokens", 0),
                     "estimatedCostUsd": telemetry.get("estimatedCostUsd", 0.0),
-                    "durationMs": telemetry.get("durationMs", 0)
+                    "durationMs": telemetry.get("durationMs", 0),
+                    "ttftMs": telemetry.get("ttftMs", 0)
                 }
             }
 

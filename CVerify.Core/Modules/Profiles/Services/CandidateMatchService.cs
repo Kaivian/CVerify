@@ -329,7 +329,27 @@ public class CandidateMatchService : ICandidateMatchService
 
             // Perform the actual matching calculation
             var matches = await GetCandidateMatchesAsync(run.HiringRequirementId, cancellationToken);
-            await Task.Delay(500, cancellationToken);
+
+            // Stream candidate matches progressively
+            for (int i = 0; i < matches.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var candidateMatch = matches[i];
+                double candidateProgress = 80.0 + ((double)(i + 1) / matches.Count) * 15.0;
+
+                var eventPayload = new
+                {
+                    status = "Running",
+                    step = "Ranking",
+                    message = $"Matched candidate {candidateMatch.FullName} ({candidateMatch.MatchScore:F0}% Fit)",
+                    percentage = candidateProgress,
+                    candidateMatch = candidateMatch
+                };
+                var json = JsonSerializer.Serialize(eventPayload);
+                var subscriber = _redis.GetSubscriber();
+                await subscriber.PublishAsync($"hiring:requirement:progress:{run.HiringRequirementId}", json);
+                await _streamingSessionService.StreamTextChunkAsync(run.HiringRequirementId, "Ranking", json);
+            }
 
             // 4. Completed
             await _context.Entry(run).ReloadAsync(cancellationToken);

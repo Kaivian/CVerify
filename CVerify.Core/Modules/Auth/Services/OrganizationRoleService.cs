@@ -10,6 +10,7 @@ using CVerify.API.Modules.Shared.Domain.Entities;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.System.Services;
+using CVerify.API.Modules.Shared.Security.Authorization;
 
 namespace CVerify.API.Modules.Auth.Services;
 
@@ -17,11 +18,19 @@ public class OrganizationRoleService : IOrganizationRoleService
 {
     private readonly ApplicationDbContext _context;
     private readonly ICacheService _cacheService;
+    private readonly IOrganizationMembershipSyncService _membershipSyncService;
+    private readonly IOrganizationAuthorizationService _authorizationService;
 
-    public OrganizationRoleService(ApplicationDbContext context, ICacheService cacheService)
+    public OrganizationRoleService(
+        ApplicationDbContext context,
+        ICacheService cacheService,
+        IOrganizationMembershipSyncService membershipSyncService,
+        IOrganizationAuthorizationService authorizationService)
     {
         _context = context;
         _cacheService = cacheService;
+        _membershipSyncService = membershipSyncService;
+        _authorizationService = authorizationService;
     }
 
     public async Task<List<OrganizationRoleDetailsDto>> GetRolesAsync(Guid orgId, CancellationToken cancellationToken)
@@ -252,6 +261,35 @@ public class OrganizationRoleService : IOrganizationRoleService
             throw new ValidationException("Selected organization role was not found.");
         }
 
+        // Privilege Escalation Check
+        if (actorUserId.HasValue)
+        {
+            var actorPerms = await _authorizationService.GetPermissionsAsync(actorUserId.Value, orgId, cancellationToken);
+            bool isSuperAdmin = PermissionEvaluator.HasPermission(actorPerms, "*", orgId);
+
+            if (!isSuperAdmin)
+            {
+                var targetRoleWithPerms = await _context.Roles
+                    .Include(r => r.Permissions)
+                    .FirstAsync(r => r.Id == dto.RoleId, cancellationToken);
+
+                foreach (var perm in targetRoleWithPerms.Permissions)
+                {
+                    bool hasPermission = PermissionEvaluator.HasPermission(
+                        actorPerms,
+                        perm.Name,
+                        orgId,
+                        dto.ScopeType,
+                        dto.ScopeId);
+
+                    if (!hasPermission)
+                    {
+                        throw new ValidationException($"Role escalation detected: You do not have permission '{perm.DisplayName}' in the requested scope to assign this role.");
+                    }
+                }
+            }
+        }
+
         // Validate target member exists in org
         var isMember = await _context.OrganizationMemberships
             .AnyAsync(om => om.OrganizationId == orgId && om.UserId == dto.UserId, cancellationToken);
@@ -274,21 +312,35 @@ public class OrganizationRoleService : IOrganizationRoleService
             throw new ValidationException("This role assignment already exists.");
         }
 
-        var assignment = new RoleAssignment
+        using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken);
+        try
         {
-            UserId = dto.UserId,
-            RoleId = dto.RoleId,
-            ScopeType = scopeTypeNormalized,
-            ScopeId = dto.ScopeId
-        };
+            var assignment = new RoleAssignment
+            {
+                UserId = dto.UserId,
+                RoleId = dto.RoleId,
+                ScopeType = scopeTypeNormalized,
+                ScopeId = dto.ScopeId
+            };
 
-        _context.RoleAssignments.Add(assignment);
+            _context.RoleAssignments.Add(assignment);
 
-        await LogAuditAsync(orgId, actorUserId, "ROLE_ASSIGNED", role.DisplayName, targetUserId: dto.UserId, scopeType: scopeTypeNormalized, scopeId: dto.ScopeId);
-        await _context.SaveChangesAsync(cancellationToken);
+            await LogAuditAsync(orgId, actorUserId, "ROLE_ASSIGNED", role.DisplayName, targetUserId: dto.UserId, scopeType: scopeTypeNormalized, scopeId: dto.ScopeId);
+            await _context.SaveChangesAsync(cancellationToken);
 
-        // Invalidate Redis permissions cache
-        await InvalidatePermissionsCacheAsync(orgId, dto.UserId);
+            // Synchronize the display role based on updated assignments
+            await _membershipSyncService.SynchronizeMembershipRoleAsync(orgId, dto.UserId, cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+
+            // Invalidate Redis permissions cache
+            await InvalidatePermissionsCacheAsync(orgId, dto.UserId);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task RevokeRoleAsync(Guid orgId, Guid? actorUserId, AssignScopedRoleDto dto, CancellationToken cancellationToken)
@@ -319,13 +371,27 @@ public class OrganizationRoleService : IOrganizationRoleService
             }
         }
 
-        _context.RoleAssignments.Remove(assignment);
+        using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken);
+        try
+        {
+            _context.RoleAssignments.Remove(assignment);
 
-        await LogAuditAsync(orgId, actorUserId, "ROLE_REVOKED", assignment.Role.DisplayName, targetUserId: dto.UserId, scopeType: scopeTypeNormalized, scopeId: dto.ScopeId);
-        await _context.SaveChangesAsync(cancellationToken);
+            await LogAuditAsync(orgId, actorUserId, "ROLE_REVOKED", assignment.Role.DisplayName, targetUserId: dto.UserId, scopeType: scopeTypeNormalized, scopeId: dto.ScopeId);
+            await _context.SaveChangesAsync(cancellationToken);
 
-        // Invalidate Redis permissions cache
-        await InvalidatePermissionsCacheAsync(orgId, dto.UserId);
+            // Synchronize the display role based on updated assignments
+            await _membershipSyncService.SynchronizeMembershipRoleAsync(orgId, dto.UserId, cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+
+            // Invalidate Redis permissions cache
+            await InvalidatePermissionsCacheAsync(orgId, dto.UserId);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task<PaginatedAuditLogsResponseDto> GetAuditLogsAsync(Guid orgId, int page, int pageSize, CancellationToken cancellationToken)
@@ -457,7 +523,12 @@ public class OrganizationRoleService : IOrganizationRoleService
 [Obsolete("Use OrganizationRoleService instead")]
 public class BusinessRoleService : OrganizationRoleService, IBusinessRoleService
 {
-    public BusinessRoleService(ApplicationDbContext context, ICacheService cacheService) : base(context, cacheService)
+    public BusinessRoleService(
+        ApplicationDbContext context,
+        ICacheService cacheService,
+        IOrganizationMembershipSyncService membershipSyncService,
+        IOrganizationAuthorizationService authorizationService)
+        : base(context, cacheService, membershipSyncService, authorizationService)
     {
     }
 }

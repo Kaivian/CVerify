@@ -220,11 +220,16 @@ export const routesConfig: Record<string, RouteMetadata> = {
     translationKey: 'common:dashboard.settings',
     fallbackLabel: 'Workspace Settings',
   },
+  '/business/[organizationSlug]/talent-pool': {
+    path: '/business/[organizationSlug]/talent-pool',
+    translationKey: 'common:dashboard.talentPool',
+    fallbackLabel: 'Talent Pool',
+  },
 };
 
 const BASE_RESERVED_WORDS = [
   "admin", "api", "login", "register", "settings", "dashboard", "profile", "privacy", "terms", "support", "help",
-  "chat", "business", "user", "organization", "auth", "system", "unauthorized", "company-onboarding",
+  "chat", "business", "user", "organization", "organizations", "auth", "system", "unauthorized", "company-onboarding",
   "company-verification", "continue-with-email", "forgot-password", "gateway", "reset-password", "verify-email",
   "workspace-setup", "company-setup", "cv", "ranking", "forum", "jobs", "invitations"
 ];
@@ -313,8 +318,11 @@ export const getDynamicSegmentLabel = (segment: string): string => {
  * Finds matching route metadata for a path, handling both static and dynamic routes.
  */
 export const getRouteMetadata = (pathname: string): RouteMetadata | null => {
-  if (routesConfig[pathname]) {
-    return routesConfig[pathname];
+  // Normalize '/organization' to '/business' for metadata config matching
+  const normalizedPath = pathname.replace(/^\/organization(?=\/|$)/, '/business');
+
+  if (routesConfig[normalizedPath]) {
+    return routesConfig[normalizedPath];
   }
 
   // Iterate registry patterns
@@ -327,7 +335,7 @@ export const getRouteMetadata = (pathname: string): RouteMetadata | null => {
       .replace(/:[a-zA-Z0-9_]+/g, '[^/]+');
       
     const regex = new RegExp(`^${pattern}$`);
-    if (regex.test(pathname)) {
+    if (regex.test(normalizedPath)) {
       return routesConfig[key];
     }
   }

@@ -2,8 +2,7 @@
 
 import React, { useEffect } from "react";
 import { useWorkspaceStore } from "../store/use-workspace-store";
-import { Card } from "@/components/ui/card";
-import { Typography, Chip } from "@heroui/react";
+import { Typography, Chip, Card, Skeleton } from "@heroui/react";
 import { 
   Building2, 
   Globe, 
@@ -16,7 +15,6 @@ import {
   Gift, 
   Map
 } from "lucide-react";
-import { SkeletonLoader } from "@/components/ui/states";
 import { getTagLabel } from "../types/workspace.types";
 import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 
@@ -61,8 +59,10 @@ export const WorkspacePublicProfileView: React.FC<WorkspacePublicProfileViewProp
     return (
       <div className="space-y-6 max-w-7xl mx-auto p-4 font-outfit text-foreground">
         <div className="h-10 w-48 bg-separator/50 animate-pulse rounded-lg mb-4" />
-        <Card className="p-0 overflow-hidden">
-          <SkeletonLoader rows={6} columns={4} />
+        <Card className="p-6 space-y-4">
+          <Skeleton className="h-8 w-1/3 rounded-lg" />
+          <Skeleton className="h-4 w-2/3 rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
         </Card>
       </div>
     );
