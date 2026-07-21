@@ -94,7 +94,7 @@ export const createPasswordSchema = z
 
 export const registerCompanySchema = z.object({
   companyName: z.string().min(2, { message: 'Company name must be at least 2 characters' }),
-  taxCode: z.string().regex(/^\d{10}$/, { message: 'Tax code must be exactly 10 digits' }),
+  taxCode: z.string().regex(/^\d{10}(-\d{3})?$/, { message: 'Tax code must be 10 digits or 10 digits with 3-digit branch code' }),
   companyEmail: z.string().email({ message: 'Invalid company email address' }),
   agreeTerms: z.boolean().refine((val) => val === true, {
     message: 'You must agree to the terms',
@@ -103,7 +103,7 @@ export const registerCompanySchema = z.object({
 
 export const registerOrganizationSchema = z.object({
   organizationName: z.string().min(2, { message: 'Organization name must be at least 2 characters' }),
-  taxCode: z.string().regex(/^\d{10}$/, { message: 'Tax code must be exactly 10 digits' }),
+  taxCode: z.string().regex(/^\d{10}(-\d{3})?$/, { message: 'Tax code must be 10 digits or 10 digits with 3-digit branch code' }),
   organizationEmail: z.string().email({ message: 'Invalid organization email address' }),
   agreeTerms: z.boolean().refine((val) => val === true, {
     message: 'You must agree to the terms',
@@ -114,10 +114,10 @@ export const setupWorkspaceSchema = z
   .object({
     verificationToken: z.string(),
     companyEmail: z.string().email(),
-    organizationUsername: z.string().regex(/^[a-z0-9_]{3,30}$/, {
-      message: 'Workspace name must be 3-30 characters, lowercase alphanumeric or underscore',
+    organizationUsername: z.string().regex(/^[a-z0-9-]{4,32}$/, {
+      message: 'Workspace handle must be 4-32 characters, lowercase alphanumeric or dash',
     }),
-    password: passwordValidation,
+    password: enterprisePasswordValidation,
     confirmPassword: z.string().min(1, { message: 'Confirm password is required.' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -129,10 +129,10 @@ export const setupOrganizationWorkspaceSchema = z
   .object({
     verificationToken: z.string(),
     organizationEmail: z.string().email(),
-    organizationUsername: z.string().regex(/^[a-z0-9_]{3,30}$/, {
-      message: 'Workspace name must be 3-30 characters, lowercase alphanumeric or underscore',
+    organizationUsername: z.string().regex(/^[a-z0-9-]{4,32}$/, {
+      message: 'Workspace handle must be 4-32 characters, lowercase alphanumeric or dash',
     }),
-    password: passwordValidation,
+    password: enterprisePasswordValidation,
     confirmPassword: z.string().min(1, { message: 'Confirm password is required.' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
