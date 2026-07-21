@@ -30,3 +30,13 @@ export function setCookie(name: string, value: string, maxAgeSeconds: number = 3
   if (typeof document === 'undefined') return;
   document.cookie = `${name}=${value}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax; Secure`;
 }
+
+/**
+ * Deletes a cookie by name.
+ * No-op when called server-side.
+ */
+export function deleteCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax; Secure`;
+}
+

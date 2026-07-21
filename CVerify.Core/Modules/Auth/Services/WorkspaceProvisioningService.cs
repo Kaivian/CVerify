@@ -341,7 +341,7 @@ public class WorkspaceProvisioningService : IWorkspaceProvisioningService
 
     public async Task<SetupWorkspaceResponse> CompleteOnboardingAsync(CompleteOnboardingRequest request, string userAgent, string ipAddress, CancellationToken cancellationToken = default)
     {
-        await _passwordPolicyService.ValidateAndThrowAsync(request.Password, "Default");
+        await _passwordPolicyService.ValidateAndThrowAsync(request.Password, "Enterprise");
 
         var step2Payload = OnboardingTokenHelper.VerifyToken(request.Step2Token, _envConfig.Jwt.Key);
         if (step2Payload == null || step2Payload["step"] != "2")

@@ -14,6 +14,7 @@ import { SignalRProvider } from "../providers/signalr-provider";
 
 import { useAuthStore } from "../features/auth/store/use-auth-store";
 import { type User } from "../types/auth.types";
+import { getCookie } from "../infrastructure/http/cookies";
 
 export function Providers({
   children,
@@ -62,16 +63,20 @@ export function Providers({
   useEffect(() => {
     initializeSession(true);
 
+    const shouldRevalidate = () =>
+      useAuthStore.getState().isAuthenticated ||
+      getCookie("cverify_has_session") === "true";
+
     // Revalidate on visibility change (e.g. user returns to the tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && shouldRevalidate()) {
         initializeSession(true);
       }
     };
 
     // Revalidate on page restore (e.g. BFCache / Browser Back Button from external site)
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
+      if (event.persisted && shouldRevalidate()) {
         console.log("[Auth System] App restored from BFCache. Force revalidating session.");
         initializeSession(true);
       }
@@ -79,13 +84,17 @@ export function Providers({
 
     // Detect browser back/forward navigation within the same session
     const handlePopState = () => {
-      console.log("[Auth System] Browser popstate detected. Force revalidating session.");
-      initializeSession(true);
+      if (shouldRevalidate()) {
+        console.log("[Auth System] Browser popstate detected. Force revalidating session.");
+        initializeSession(true);
+      }
     };
 
     // Detect when the window regains focus (e.g., clicking back into the app)
     const handleFocus = () => {
-      initializeSession(true);
+      if (shouldRevalidate()) {
+        initializeSession(true);
+      }
     };
 
     window.addEventListener("visibilitychange", handleVisibilityChange);
