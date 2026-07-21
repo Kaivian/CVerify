@@ -329,14 +329,14 @@ public class CandidateMatchService : ICandidateMatchService
 
             // Perform the actual matching calculation
             var matches = await GetCandidateMatchesAsync(run.HiringRequirementId, cancellationToken);
-            
+
             // Stream candidate matches progressively
             for (int i = 0; i < matches.Count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var candidateMatch = matches[i];
                 double candidateProgress = 80.0 + ((double)(i + 1) / matches.Count) * 15.0;
-                
+
                 var eventPayload = new
                 {
                     status = "Running",

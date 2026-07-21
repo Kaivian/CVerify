@@ -427,7 +427,7 @@ public class OrganizationInvitationLifecycleTests : BaseIntegrationTest
     public async Task Invitation_PrivilegeEscalation_ShouldBeBlocked()
     {
         var org = await SeedOrganizationAsync("esc-org", "Escalation Org", "admin@esc.com");
-        
+
         // Register a high privilege user (OWNER) and a low privilege user (RECRUITER)
         var (ownerUserId, ownerCookie) = await RegisterAndLoginUserAsync("admin@esc.com", "SecurePassword123!", "Admin Owner");
         var (recruiterUserId, recruiterCookie) = await RegisterAndLoginUserAsync("recruiter@esc.com", "SecurePassword123!", "Recruiter User");
