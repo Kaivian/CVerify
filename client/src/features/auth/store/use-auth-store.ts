@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { type User, type UserRole, type ResourceActionPermission, type BootstrapState } from '../../../types/auth.types';
 import { AUTH_KEYS, AUTH_EVENTS } from '../../../lib/constants';
+import { setCookie, deleteCookie } from '../../../infrastructure/http/cookies';
 
 interface AuthState {
   user: User | null;
@@ -43,6 +44,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       switch (type) {
         case AUTH_EVENTS.LOGOUT:
           // Silent local logout without rebroadcasting
+          deleteCookie('cverify_has_session');
           set({
             user: null,
             isAuthenticated: false,
@@ -54,6 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           
         case AUTH_EVENTS.LOGIN:
           // Sync login user from other tab
+          setCookie('cverify_has_session', 'true');
           set({
             user: payload,
             isAuthenticated: true,
@@ -97,6 +100,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     setAuthStatusAndNextStep: (status, nextStep) => set({ status, nextStep }),
 
     login: (user) => {
+      setCookie('cverify_has_session', 'true');
       set({
         user,
         isAuthenticated: true,
@@ -118,6 +122,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem("cverify_company_onboarding_state");
       }
+      deleteCookie('cverify_has_session');
       set({
         user: null,
         isAuthenticated: false,
