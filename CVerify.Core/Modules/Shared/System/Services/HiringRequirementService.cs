@@ -568,96 +568,98 @@ public class HiringRequirementService : IHiringRequirementService
 
     public async Task GenerateArtifactsAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
-        var req = await _context.HiringRequirements
-            .Include(r => r.BusinessOutcomes)
-            .Include(r => r.Responsibilities)
-            .Include(r => r.Capabilities)
-                .ThenInclude(c => c.EvidenceSignals)
-            .Include(r => r.TechnologyRequirements)
-            .Include(r => r.EvaluationRubrics)
-            .Include(r => r.InterviewBlueprints)
-            .Include(r => r.RequirementArtifacts)
-            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
-
-        if (req == null)
-        {
-            throw new KeyNotFoundException("Hiring requirement not found.");
-        }
-
-        if (req.Status.Equals("Published", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Cannot regenerate artifacts for a published requirement.");
-        }
-
-        req.Status = "Generating";
-        await _context.SaveChangesAsync(cancellationToken);
-
-        // Initialize unified streaming session
-        await _streamingSessionService.CreateSessionAsync(req.Id, "jd-generation", userId, req.WorkspaceId, "Claude 3.5 Sonnet", "Anthropic", "1.0.0");
-        await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Running");
-
-        // Broadcast starting progress
-        await PublishProgressAsync(req.Id, "Running", "Initialize", "Initiating requirement artifacts generation...", 0.0);
-
-        // Prepare the payload for FastAPI
-        var payload = new
-        {
-            requirementData = new
-            {
-                id = req.Id.ToString(),
-                title = req.Title,
-                department = req.Department,
-                seniority = req.Seniority,
-                workplaceType = req.WorkplaceType,
-                city = req.City,
-                employmentType = req.EmploymentType,
-                salaryMin = req.SalaryMin,
-                salaryMax = req.SalaryMax,
-                currency = req.Currency,
-                timezoneRange = req.TimezoneRange,
-                degreeRequirement = req.DegreeRequirement,
-                benefits = req.Benefits,
-                languageRequirements = req.LanguageRequirements,
-                headcount = req.Headcount,
-                hiringReason = req.HiringReason,
-                businessProblem = req.BusinessProblem,
-                outcomes = req.BusinessOutcomes.Select(o => o.Text).ToList(),
-                responsibilities = req.Responsibilities.Select(r => new { text = r.Text, priority = r.Priority.ToString(), ownershipLevel = r.OwnershipLevel.ToString(), isLeadership = r.IsLeadership }).ToList(),
-                capabilities = req.Capabilities.Select(c => new { capabilityId = c.CapabilityId, name = c.Name, category = c.Category, priority = c.Priority.ToString(), ownershipLevel = c.OwnershipLevel.ToString(), expectedProficiency = c.ExpectedProficiency }).ToList(),
-                skills = req.TechnologyRequirements.Select(t => new { name = t.Name, priority = t.Priority.ToString(), sfiaLevel = t.SfiaLevel }).ToList()
-            }
-        };
-
-        var payloadJson = JsonSerializer.Serialize(payload);
-        var path = "/api/v1/hiring-requirements/generate/stream";
-
-        var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
-        var requestMessage = new HttpRequestMessage(HttpMethod.Post, path)
-        {
-            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
-        };
-
-        var (signature, timestamp, nonce) = _hmacService.CreateSignatureHeaders("POST", path, payloadJson);
-        requestMessage.Headers.Add("X-Client-Id", "cverify-core");
-        requestMessage.Headers.Add("X-Timestamp", timestamp);
-        requestMessage.Headers.Add("X-Nonce", nonce);
-        requestMessage.Headers.Add("X-Correlation-Id", req.Id.ToString());
-        requestMessage.Headers.Add("X-Signature", signature);
+        var linkedToken = _cancellationManager.Register(id, cancellationToken);
 
         try
         {
-            using var response = await httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var req = await _context.HiringRequirements
+                .Include(r => r.BusinessOutcomes)
+                .Include(r => r.Responsibilities)
+                .Include(r => r.Capabilities)
+                    .ThenInclude(c => c.EvidenceSignals)
+                .Include(r => r.TechnologyRequirements)
+                .Include(r => r.EvaluationRubrics)
+                .Include(r => r.InterviewBlueprints)
+                .Include(r => r.RequirementArtifacts)
+                .FirstOrDefaultAsync(r => r.Id == id, linkedToken);
+
+            if (req == null)
+            {
+                throw new KeyNotFoundException("Hiring requirement not found.");
+            }
+
+            if (req.Status.Equals("Published", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Cannot regenerate artifacts for a published requirement.");
+            }
+
+            req.Status = "Generating";
+            await _context.SaveChangesAsync(linkedToken);
+
+            // Initialize unified streaming session
+            await _streamingSessionService.CreateSessionAsync(req.Id, "jd-generation", userId, req.WorkspaceId, "Claude 3.5 Sonnet", "Anthropic", "1.0.0");
+            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Running");
+
+            // Broadcast starting progress
+            await PublishProgressAsync(req.Id, "Running", "Initialize", "Initiating requirement artifacts generation...", 0.0);
+
+            // Prepare the payload for FastAPI
+            var payload = new
+            {
+                requirementData = new
+                {
+                    id = req.Id.ToString(),
+                    title = req.Title,
+                    department = req.Department,
+                    seniority = req.Seniority,
+                    workplaceType = req.WorkplaceType,
+                    city = req.City,
+                    employmentType = req.EmploymentType,
+                    salaryMin = req.SalaryMin,
+                    salaryMax = req.SalaryMax,
+                    currency = req.Currency,
+                    timezoneRange = req.TimezoneRange,
+                    degreeRequirement = req.DegreeRequirement,
+                    benefits = req.Benefits,
+                    languageRequirements = req.LanguageRequirements,
+                    headcount = req.Headcount,
+                    hiringReason = req.HiringReason,
+                    businessProblem = req.BusinessProblem,
+                    outcomes = req.BusinessOutcomes.Select(o => o.Text).ToList(),
+                    responsibilities = req.Responsibilities.Select(r => new { text = r.Text, priority = r.Priority.ToString(), ownershipLevel = r.OwnershipLevel.ToString(), isLeadership = r.IsLeadership }).ToList(),
+                    capabilities = req.Capabilities.Select(c => new { capabilityId = c.CapabilityId, name = c.Name, category = c.Category, priority = c.Priority.ToString(), ownershipLevel = c.OwnershipLevel.ToString(), expectedProficiency = c.ExpectedProficiency }).ToList(),
+                    skills = req.TechnologyRequirements.Select(t => new { name = t.Name, priority = t.Priority.ToString(), sfiaLevel = t.SfiaLevel }).ToList()
+                }
+            };
+
+            var payloadJson = JsonSerializer.Serialize(payload);
+            var path = "/api/v1/hiring-requirements/generate/stream";
+
+            var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
+            };
+
+            var (signature, timestamp, nonce) = _hmacService.CreateSignatureHeaders("POST", path, payloadJson);
+            requestMessage.Headers.Add("X-Client-Id", "cverify-core");
+            requestMessage.Headers.Add("X-Timestamp", timestamp);
+            requestMessage.Headers.Add("X-Nonce", nonce);
+            requestMessage.Headers.Add("X-Correlation-Id", req.Id.ToString());
+            requestMessage.Headers.Add("X-Signature", signature);
+
+            using var response = await httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, linkedToken);
             if (!response.IsSuccessStatusCode)
             {
-                var errorMsg = await response.Content.ReadAsStringAsync(cancellationToken);
+                var errorMsg = await response.Content.ReadAsStringAsync(linkedToken);
                 throw new HttpRequestException($"AI service returned status code {response.StatusCode}: {errorMsg}");
             }
 
-            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var stream = await response.Content.ReadAsStreamAsync(linkedToken);
             using var reader = new global::System.IO.StreamReader(stream);
 
             string? line;
-            while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
+            while ((line = await reader.ReadLineAsync(linkedToken)) != null)
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 if (line.StartsWith("data: "))
@@ -729,14 +731,22 @@ public class HiringRequirementService : IHiringRequirementService
         {
             try
             {
-                req.Status = "Draft";
-                await _context.SaveChangesAsync(CancellationToken.None);
+                var requirementToReset = await _context.HiringRequirements.FirstOrDefaultAsync(r => r.Id == id, CancellationToken.None);
+                if (requirementToReset != null)
+                {
+                    requirementToReset.Status = "Draft";
+                    await _context.SaveChangesAsync(CancellationToken.None);
+                }
             }
             catch { }
-            _logger.LogError(ex, "Error generating artifacts for hiring requirement {RequirementId}", req.Id);
-            await PublishProgressAsync(req.Id, "Failed", "Failed", ex.Message, 100.0);
-            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Failed", errorMessage: ex.Message);
+            _logger.LogError(ex, "Error generating artifacts for hiring requirement {RequirementId}", id);
+            await PublishProgressAsync(id, "Failed", "Failed", ex.Message, 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(id, "Failed", errorMessage: ex.Message);
             throw;
+        }
+        finally
+        {
+            _cancellationManager.Unregister(id);
         }
     }
 

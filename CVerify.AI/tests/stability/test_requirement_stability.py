@@ -39,7 +39,7 @@ async def test_requirement_stability_cancellation(mock_analyze):
 @patch("app.core.services.claude_service.ClaudeService.analyze_repo_with_telemetry")
 async def test_requirement_concurrency_isolation(mock_analyze):
     """Runs multiple concurrent generation runs to ensure complete isolation and prevent crosstalk."""
-    async def side_effect(system, user, corr):
+    async def side_effect(system, user, corr, **kwargs):
         res = dict(MOCK_CLAUDE_RESPONSE)
         # Inject correlation ID into title to verify no crosstalk
         res["jobDescription"] = dict(res["jobDescription"])
