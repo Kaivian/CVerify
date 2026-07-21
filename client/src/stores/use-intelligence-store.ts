@@ -44,7 +44,7 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
     try {
       const { searchQuery, searchLocation, minTrustScore } = get();
       const results = await intelligenceApi.searchCandidates(searchQuery, searchLocation, minTrustScore);
-      set({ searchResults: results, isLoading: false });
+      set({ searchResults: results.items, isLoading: false });
     } catch (err: any) {
       set({ error: err.message || 'Failed to search candidates', isLoading: false });
     }

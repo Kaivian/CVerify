@@ -231,6 +231,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<OrganizationAuthority> OrganizationAuthorities => Set<OrganizationAuthority>();
     public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
     public DbSet<OrganizationFollower> OrganizationFollowers => Set<OrganizationFollower>();
+    public DbSet<OrganizationCandidate> OrganizationCandidates => Set<OrganizationCandidate>();
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
     public DbSet<VerificationLink> VerificationLinks => Set<VerificationLink>();
     public DbSet<OrganizationVerification> OrganizationVerifications => Set<OrganizationVerification>();
@@ -437,6 +438,31 @@ public class ApplicationDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(of => of.OrganizationId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OrganizationCandidate>(entity =>
+        {
+            entity.ToTable("organization_candidates");
+            entity.Property(oc => oc.Id).ValueGeneratedNever();
+            entity.HasIndex(oc => new { oc.OrganizationId, oc.CandidateId })
+                  .IsUnique()
+                  .HasDatabaseName("idx_organization_candidates_composite");
+            entity.HasOne(oc => oc.Organization)
+                  .WithMany()
+                  .HasForeignKey(oc => oc.OrganizationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(oc => oc.Candidate)
+                  .WithMany()
+                  .HasForeignKey(oc => oc.CandidateId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(oc => oc.SavedBy)
+                  .WithMany()
+                  .HasForeignKey(oc => oc.SavedById)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(oc => oc.Recruiter)
+                  .WithMany()
+                  .HasForeignKey(oc => oc.RecruiterId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<OrganizationAuthority>().Property(oa => oa.Id).ValueGeneratedNever();
