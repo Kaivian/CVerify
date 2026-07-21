@@ -233,24 +233,53 @@ resource "google_compute_instance" "app_server" {
     exec > >(tee -a /var/log/cverify-bootstrap.log) 2>&1
     echo "=== Bootstrap started at $(date -u) ==="
 
-    # Function to wait for apt locks
+    # --- Pre-flight: wait for system readiness ---
+
+    # 1a. Wait for network/DNS to be ready (up to 2 minutes)
+    echo "Waiting for network readiness..."
+    for i in $(seq 1 24); do
+      if curl -sf --max-time 3 -o /dev/null https://archive.ubuntu.com 2>/dev/null; then
+        echo "Network is ready."
+        break
+      fi
+      if [ "$i" -eq 24 ]; then
+        echo "WARNING: Network readiness check timed out, proceeding anyway."
+      fi
+      sleep 5
+    done
+
+    # 1b. Wait for cloud-init to finish (it runs apt-get and holds locks)
+    echo "Waiting for cloud-init to complete..."
+    if command -v cloud-init &> /dev/null; then
+      cloud-init status --wait 2>/dev/null || true
+    fi
+    echo "cloud-init finished."
+
+    # 1c. Stop apt-daily timers to prevent lock contention during bootstrap
+    echo "Disabling apt-daily timers..."
+    systemctl stop apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+    systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+    systemctl kill --kill-whom=all apt-daily.service 2>/dev/null || true
+    systemctl kill --kill-whom=all apt-daily-upgrade.service 2>/dev/null || true
+
+    # Function to wait for all apt/dpkg locks
     wait_for_apt() {
-      while ! flock -n /var/lib/dpkg/lock-frontend -c "true" >/dev/null 2>&1 || ! flock -n /var/lib/apt/lists/lock -c "true" >/dev/null 2>&1; do
+      while fuser /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null; do
         echo "Apt lock held by another process, sleeping 5 seconds..."
         sleep 5
       done
     }
 
-    # Retry wrapper for apt commands
+    # Retry wrapper for apt commands (5 attempts, 15s backoff)
     apt_retry() {
-      local max_attempts=3
+      local max_attempts=5
       for attempt in $(seq 1 $max_attempts); do
         wait_for_apt
         if "$@"; then
           return 0
         fi
         echo "Command failed (attempt $attempt/$max_attempts): $*"
-        sleep 10
+        sleep 15
       done
       echo "ERROR: Command failed after $max_attempts attempts: $*"
       return 1
@@ -258,32 +287,45 @@ resource "google_compute_instance" "app_server" {
 
     set -e
 
-    # 1. Update system dependencies
-    apt_retry apt-get update
-    apt_retry apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release jq git
+    # --- Package installation ---
+
+    # 2. Update system dependencies
+    echo "Updating apt package index..."
+    apt_retry apt-get update -qq
+    echo "Installing base packages..."
+    apt_retry apt-get install -y -qq apt-transport-https ca-certificates curl gnupg lsb-release jq git
     
-    # 2. Add Docker repository and key
+    # 3. Add Docker repository and key
+    echo "Configuring Docker repository..."
     mkdir -p /etc/apt/keyrings
     if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
       curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
     fi
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
     
-    # 3. Add Google Cloud SDK repository and install CLI
+    # 4. Add Google Cloud SDK repository and install CLI
     if ! command -v gcloud &> /dev/null; then
+      echo "Installing Google Cloud CLI..."
       echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
-      curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --yes --dearmor -o /usr/share/keyrings/cloud.google.gpg
-      apt_retry apt-get update
-      apt_retry apt-get install -y google-cloud-cli
+      curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --yes --dearmor -o /usr/share/keyrings/cloud.google.gpg
+      apt_retry apt-get update -qq
+      apt_retry apt-get install -y -qq google-cloud-cli
+    else
+      echo "Google Cloud CLI already installed, skipping."
     fi
 
-    # 4. Install Docker Engine and Compose Plugin
+    # 5. Install Docker Engine and Compose Plugin
     if ! command -v docker &> /dev/null; then
-      apt_retry apt-get update
-      apt_retry apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+      echo "Installing Docker Engine..."
+      apt_retry apt-get update -qq
+      apt_retry apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    else
+      echo "Docker already installed, skipping."
     fi
     
-    # 5. Disable host Nginx service if installed to prevent port 80/443 conflicts
+    # --- Post-install configuration ---
+
+    # 6. Disable host Nginx service if installed to prevent port 80/443 conflicts
     if systemctl is-active --quiet nginx; then
       systemctl stop nginx
     fi
@@ -291,12 +333,13 @@ resource "google_compute_instance" "app_server" {
       systemctl disable nginx
     fi
 
-    # 6. Set up directory permissions and deployer user groups
+    # 7. Set up directory permissions and deployer user groups
+    echo "Setting up directories and permissions..."
     mkdir -p /app/cverify
     chown -R ubuntu:ubuntu /app/cverify
     usermod -aG docker ubuntu
 
-    # 7. Set up logging directory and logrotate
+    # 8. Set up logging directory and logrotate
     mkdir -p /var/log/cverify
     chown -R ubuntu:ubuntu /var/log/cverify
 
@@ -312,7 +355,10 @@ resource "google_compute_instance" "app_server" {
     }
     EOF
 
-    # 8. Create bootstrap completed marker
+    # Re-enable apt-daily timers for ongoing security updates
+    systemctl start apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+
+    # 9. Create bootstrap completed marker
     echo "=== Bootstrap completed at $(date -u) ==="
     echo "done" > /var/log/cverify-bootstrap-done
   EOT
