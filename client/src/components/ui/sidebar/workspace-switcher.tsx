@@ -18,7 +18,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
-  
+
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -90,21 +90,19 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
     return gradients[index];
   };
 
-  // Filter sub-workspaces list based on search query
-  const filteredWorkspaces = useMemo(() => {
-    if (!subWorkspaces) return [];
-    if (!searchQuery.trim()) return subWorkspaces;
-    return subWorkspaces.filter((w) =>
-      w.displayName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [subWorkspaces, searchQuery]);
+  // Switch active enterprise organization context
+  const handleSwitchOrganization = (orgSlug: string) => {
+    setIsOpen(false);
+    setSearchQuery("");
+    fetchWorkspace(orgSlug);
+    router.push(`/business/${orgSlug}/dashboard`);
+  };
 
+  // Switch sub-workspace within current organization context
   const handleSwitchWorkspace = (id: string) => {
     setIsOpen(false);
     setSearchQuery("");
     setActiveWorkspaceId(id);
-    
-    // Redirect to recruitment dashboard for the selected workspace context
     router.push(`/business/${currentOrgSlug}/recruitment/dashboard`);
   };
 
@@ -114,11 +112,35 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
     setIsCreateModalOpen(true);
   };
 
-  // 1. Loading state
-  const hasOrgs = myOrganizations && myOrganizations.length > 0;
-  const isWorkspaceLoaded = currentOrgSlug ? workspacesStore[currentOrgSlug] !== undefined : false;
+  // Resolve active organization and workspace details
+  const activeOrg = useMemo(() => {
+    if (!myOrganizations || myOrganizations.length === 0) return null;
+    return myOrganizations.find((o) => o.slug.toLowerCase() === currentOrgSlug.toLowerCase()) || myOrganizations[0];
+  }, [myOrganizations, currentOrgSlug]);
 
-  if (myOrganizations === null || (hasOrgs && !isWorkspaceLoaded)) {
+  const activeName = activeOrg?.name || activeWorkspaceObj?.displayName || "Select Organization";
+  const activeSubName = activeWorkspaceObj?.displayName
+    ? activeWorkspaceObj.displayName
+    : activeOrg
+      ? `@${activeOrg.slug}`
+      : "Enterprise Workspace";
+
+  const activeMonogram = getMonogram(activeName);
+  const activeGradient = getDeterministicGradient(activeOrg?.slug || currentOrgSlug || "default");
+
+  // Filter organizations list based on search query
+  const filteredOrganizations = useMemo(() => {
+    if (!myOrganizations) return [];
+    if (!searchQuery.trim()) return myOrganizations;
+    return myOrganizations.filter(
+      (o) =>
+        o.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        o.slug.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [myOrganizations, searchQuery]);
+
+  // Loading skeleton state
+  if (myOrganizations === null) {
     return (
       <div className="w-full flex items-center gap-3 select-none px-3 py-2">
         <div className={[
@@ -135,11 +157,6 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
     );
   }
 
-  // Active workspace details
-  const activeName = activeWorkspaceObj?.displayName || "Select Workspace";
-  const activeMonogram = getMonogram(activeName);
-  const activeGradient = getDeterministicGradient(activeWorkspaceId || "default");
-
   return (
     <div className="w-full min-w-0 select-none">
       <Popover isOpen={isOpen} onOpenChange={setIsOpen}>
@@ -155,7 +172,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
                   : "h-10 px-3 gap-2 rounded-xl bg-surface-secondary/20 hover:bg-surface-secondary/50 text-foreground"
             ].join(" ")}
           >
-            {/* Active Workspace Avatar */}
+            {/* Active Avatar */}
             <div className="relative shrink-0">
               <Avatar className={[
                 "font-bold font-outfit border border-border shrink-0",
@@ -172,14 +189,14 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
               </Avatar>
             </div>
 
-            {/* Active Workspace Label Info */}
+            {/* Active Workspace / Organization Info */}
             {!collapsed && (
-              <div className="flex-1 min-w-0 max-w-[160px] md:max-w-[140px] flex flex-col text-left">
+              <div className="flex-1 min-w-0 max-w-40 md:max-w-35 flex flex-col text-left">
                 <Typography type="body-xs" className="font-bold text-foreground font-outfit leading-none truncate block w-full pr-1">
                   {activeName}
                 </Typography>
                 <span className="text-[9px] text-muted font-medium font-outfit truncate block w-full mt-0.5">
-                  Hiring Workspace
+                  {activeSubName}
                 </span>
               </div>
             )}
@@ -191,16 +208,16 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
           </button>
         </Popover.Trigger>
 
-        <Popover.Content placement={collapsed ? "right" : "top start"} className="min-w-[272px] w-max max-w-[480px] p-1.5 bg-background border-2 border-border rounded-2xl shadow-overlay z-9999">
+        <Popover.Content placement={collapsed ? "right" : "top start"} className="min-w-70 w-max max-w-120 p-1.5 bg-background border-2 border-border rounded-2xl shadow-overlay z-9999">
           <div className="flex flex-col w-full font-outfit text-foreground outline-hidden">
-            {/* 1. Switcher Search filter */}
-            {subWorkspaces.length > 5 && (
+            {/* 1. Search Filter */}
+            {((myOrganizations && myOrganizations.length > 3) || subWorkspaces.length > 3) && (
               <div className="p-1 pb-2 flex items-center border-b border-separator/40 mb-1">
                 <div className="relative w-full flex items-center bg-surface-secondary rounded-lg px-2 h-8 border border-border/50">
                   <Search size={13} className="text-muted shrink-0 mr-1.5" />
                   <input
                     type="text"
-                    placeholder="Search workspaces..."
+                    placeholder="Search organizations & workspaces..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full text-xs font-semibold bg-transparent border-none text-foreground outline-hidden placeholder:text-muted/60"
@@ -209,55 +226,89 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({ collapsed,
               </div>
             )}
 
-            {/* 2. Scrollable workspaces list */}
-            <div className="max-h-60 overflow-y-auto flex flex-col gap-0.5 custom-scrollbar pr-0.5">
-              {filteredWorkspaces.length === 0 ? (
-                <div className="py-6 px-3 text-center text-xs font-semibold text-muted select-none">
-                  No matching workspaces
+            <div className="max-h-72 overflow-y-auto flex flex-col gap-2 custom-scrollbar pr-0.5">
+              {/* 2. Joined Organizations Section */}
+              {myOrganizations && myOrganizations.length > 0 && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="px-2.5 pt-1 pb-0.5 text-[10px] font-bold text-muted/60 uppercase tracking-wider select-none">
+                    Joined Organizations
+                  </span>
+                  {filteredOrganizations.map((org) => {
+                    const isActive = org.slug.toLowerCase() === currentOrgSlug.toLowerCase();
+                    const orgMonogram = getMonogram(org.name);
+                    const orgGradient = getDeterministicGradient(org.slug);
+
+                    return (
+                      <button
+                        key={org.slug}
+                        onClick={() => handleSwitchOrganization(org.slug)}
+                        className={[
+                          "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-200 text-left border-none bg-transparent hover:bg-surface-secondary focus:bg-surface-secondary cursor-pointer select-none",
+                          isActive ? "bg-accent/10 font-bold text-accent" : "font-semibold text-foreground"
+                        ].join(" ")}
+                      >
+                        <Avatar className={["w-8 h-8 rounded-lg font-bold font-outfit text-[10px] border border-border shrink-0", orgGradient].join(" ")}>
+                          <Avatar.Fallback>{orgMonogram}</Avatar.Fallback>
+                        </Avatar>
+
+                        <div className="flex-1 min-w-0 text-left">
+                          <Typography type="body-xs" className={["truncate pr-1", isActive ? "font-bold text-accent" : "font-semibold text-foreground"].join(" ")}>
+                            {org.name}
+                          </Typography>
+                          <span className="text-[9px] text-muted block -mt-0.5">
+                            @{org.slug}
+                          </span>
+                        </div>
+
+                        {isActive && <Check size={14} className="text-accent shrink-0 ml-1 mr-0.5" />}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : (
-                filteredWorkspaces.map((w) => {
-                  const isActive = w.id === activeWorkspaceId;
-                  const wMonogram = getMonogram(w.displayName);
-                  const wGradient = getDeterministicGradient(w.id);
+              )}
 
-                  return (
-                    <button
-                      key={w.id}
-                      onClick={() => handleSwitchWorkspace(w.id)}
-                      className={[
-                        "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-200 text-left border-none bg-transparent hover:bg-surface-secondary focus:bg-surface-secondary cursor-pointer select-none",
-                        isActive ? "bg-accent/5 font-bold" : "font-semibold"
-                      ].join(" ")}
-                    >
-                      {/* Workspace Avatar */}
-                      <Avatar className={["w-8 h-8 rounded-lg font-bold font-outfit text-[10px] border border-border shrink-0", wGradient].join(" ")}>
-                        <Avatar.Fallback>
-                          {wMonogram}
-                        </Avatar.Fallback>
-                      </Avatar>
+              {/* 3. Active Sub-Workspaces Section */}
+              {subWorkspaces.length > 0 && (
+                <div className="flex flex-col gap-0.5 border-t border-separator/40 pt-1.5">
+                  <span className="px-2.5 pb-0.5 text-[10px] font-bold text-muted/60 uppercase tracking-wider select-none">
+                    Workspaces ({activeOrg?.name || currentOrgSlug})
+                  </span>
+                  {subWorkspaces.map((w) => {
+                    const isActive = w.id === activeWorkspaceId;
+                    const wMonogram = getMonogram(w.displayName);
+                    const wGradient = getDeterministicGradient(w.id);
 
-                      {/* Workspace Name */}
-                      <div className="flex-1 min-w-0 text-left">
-                        <Typography type="body-xs" className={["truncate pr-1 text-foreground", isActive ? "font-bold" : "font-semibold"].join(" ")}>
-                          {w.displayName}
-                        </Typography>
-                        <span className="text-[9px] text-muted block -mt-0.5">
-                          @{w.slug}
-                        </span>
-                      </div>
+                    return (
+                      <button
+                        key={w.id}
+                        onClick={() => handleSwitchWorkspace(w.id)}
+                        className={[
+                          "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-all duration-200 text-left border-none bg-transparent hover:bg-surface-secondary focus:bg-surface-secondary cursor-pointer select-none",
+                          isActive ? "bg-accent/5 font-bold" : "font-semibold"
+                        ].join(" ")}
+                      >
+                        <Avatar className={["w-7 h-7 rounded-lg font-bold font-outfit text-[9px] border border-border shrink-0", wGradient].join(" ")}>
+                          <Avatar.Fallback>{wMonogram}</Avatar.Fallback>
+                        </Avatar>
 
-                      {/* Checkmark indicator */}
-                      {isActive && (
-                        <Check size={14} className="text-accent shrink-0 ml-1 mr-0.5" />
-                      )}
-                    </button>
-                  );
-                })
+                        <div className="flex-1 min-w-0 text-left">
+                          <Typography type="body-xs" className={["truncate pr-1 text-foreground", isActive ? "font-bold" : "font-semibold"].join(" ")}>
+                            {w.displayName}
+                          </Typography>
+                          <span className="text-[9px] text-muted block -mt-0.5">
+                            @{w.slug}
+                          </span>
+                        </div>
+
+                        {isActive && <Check size={14} className="text-accent shrink-0 ml-1 mr-0.5" />}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
-            {/* 3. Action panel: create new */}
+            {/* 4. Action panel: create new workspace */}
             <div className="border-t border-separator/50 mt-1.5 pt-1.5 flex flex-col gap-0.5">
               <button
                 onClick={handleCreateWorkspace}

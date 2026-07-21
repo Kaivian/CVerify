@@ -16,6 +16,8 @@ import { Card } from "@/components/ui/card";
 import { Typography, Button } from "@heroui/react";
 import { AlertTriangle } from "lucide-react";
 
+import { useEffectivePermissions } from "@/features/auth/hooks/use-effective-permissions";
+
 function WorkspaceAccessGuard({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const router = useRouter();
@@ -25,6 +27,8 @@ function WorkspaceAccessGuard({ children }: { children: React.ReactNode }) {
   const workspaceDetails = useWorkspaceStore((s) => s.workspaces[organizationSlug]);
   const isDetailsLoading = useWorkspaceStore((s) => s.loading[organizationSlug]);
   const detailsError = useWorkspaceStore((s) => s.errors[organizationSlug]);
+
+  const { hasEffectivePermission, isMember } = useEffectivePermissions(organizationSlug);
 
   useEffect(() => {
     if (organizationSlug) {
@@ -43,10 +47,9 @@ function WorkspaceAccessGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const hasViewPermission = workspaceDetails?.permissions?.includes("organization:workspaces:view");
   const isAccessDenied =
     (detailsError && (detailsError.toLowerCase().includes("forbidden") || detailsError.includes("403"))) ||
-    (workspaceDetails && !hasViewPermission);
+    (workspaceDetails && !isMember && !hasEffectivePermission("organization:workspaces:view"));
 
   if (isAccessDenied || detailsError || !workspaceDetails) {
     return (
