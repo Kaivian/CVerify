@@ -383,14 +383,20 @@ http {
 }
 HTTPCONF
 
+    # Remove any existing nginx-proxy container to avoid name conflicts
+    docker rm -f nginx-proxy 2>/dev/null || true
+
     # Start Nginx with the HTTP-only config override
     docker run -d --name nginx-proxy --restart always --network host \
       -v "$NGINX_HTTP_CONF:/etc/nginx/nginx.conf:ro" \
       -v "/app/cverify/docker/nginx/conf.d:/etc/nginx/conf.d:rw" \
       -v "/var/log/nginx:/var/log/nginx" \
       -v "/var/www/certbot:/var/www/certbot:ro" \
-      nginx:1.25.3-alpine 2>/dev/null || docker compose -f docker/compose.nginx.yml up -d
+      nginx:1.25.3-alpine
   fi
+
+  # Wait for Nginx container to be fully running before reload
+  sleep 3
 
   # Reload Nginx Router configuration
   write_info "Reloading Nginx Proxy..."
