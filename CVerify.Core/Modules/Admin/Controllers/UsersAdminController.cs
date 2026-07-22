@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using CVerify.API.Modules.Admin.DTOs;
 using CVerify.API.Modules.Admin.Services;
 using CVerify.API.Modules.Shared.Persistence;
@@ -23,11 +21,16 @@ public class UsersAdminController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IAdminMemberService _adminMemberService;
+    private readonly IUserAdministrationService _userAdminService;
 
-    public UsersAdminController(ApplicationDbContext context, IAdminMemberService adminMemberService)
+    public UsersAdminController(
+        ApplicationDbContext context,
+        IAdminMemberService adminMemberService,
+        IUserAdministrationService userAdminService)
     {
         _context = context;
         _adminMemberService = adminMemberService;
+        _userAdminService = userAdminService;
     }
 
     [HttpGet]
@@ -36,24 +39,13 @@ public class UsersAdminController : ControllerBase
     public async Task<IActionResult> GetUsers(
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
+        [FromQuery] string? roleName = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await _adminMemberService.GetMembersAsync(search, status, page, pageSize, cancellationToken);
-
-        var items = result.Items.Select(m => new UserListItemDto(
-            m.Id,
-            m.Email,
-            m.FullName,
-            m.Status,
-            m.LastLoginAt,
-            m.Roles.Select(r => r.Name).ToList(),
-            m.SessionVersion,
-            m.JoinedAt
-        )).ToList();
-
-        return Ok(new PaginatedResultDto<UserListItemDto>(items, result.TotalCount, result.Page, result.PageSize));
+        var result = await _userAdminService.GetPlatformUsersAsync(search, status, roleName, page, pageSize, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
@@ -62,28 +54,15 @@ public class UsersAdminController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetUser(Guid id, CancellationToken cancellationToken)
     {
-        var member = await _context.AdminMembers
-            .Include(am => am.User)
-                .ThenInclude(u => u.RoleAssignments)
-                    .ThenInclude(ra => ra.Role)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(am => am.Id == id, cancellationToken);
-
-        if (member == null)
+        try
         {
-            return NotFound(new { message = "Admin member not found" });
+            var user = await _userAdminService.GetPlatformUserByIdAsync(id, cancellationToken);
+            return Ok(user);
         }
-
-        return Ok(new UserListItemDto(
-            member.Id,
-            member.User.Email,
-            member.User.FullName,
-            member.Status,
-            member.User.LastLoginAt,
-            member.User.RoleAssignments.Where(ra => ra.ScopeType == "SYSTEM").Select(ra => ra.Role.Name).ToList(),
-            member.SessionVersion,
-            member.JoinedAt
-        ));
+        catch (ValidationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id:guid}")]
@@ -99,45 +78,15 @@ public class UsersAdminController : ControllerBase
             return Unauthorized();
         }
 
-        var roles = await _context.Roles
-            .Where(r => dto.Roles.Contains(r.Name) && r.Domain == "SYSTEM")
-            .ToListAsync(cancellationToken);
-
-        var updateDto = new UpdateAdminMemberDto(
-            dto.Status,
-            roles.Select(r => r.Id).ToList()
-        );
-
         try
         {
-            await _adminMemberService.UpdateMemberAsync(actorUserId, id, updateDto, cancellationToken);
+            var updatedUser = await _userAdminService.UpdatePlatformUserStatusAndRolesAsync(actorUserId, id, dto, cancellationToken);
+            return Ok(updatedUser);
         }
         catch (ValidationException ex)
         {
             return BadRequest(new { message = ex.Message });
         }
-
-        var member = await _context.AdminMembers
-            .Include(am => am.User)
-                .ThenInclude(u => u.RoleAssignments)
-                    .ThenInclude(ra => ra.Role)
-            .FirstOrDefaultAsync(am => am.Id == id, cancellationToken);
-
-        if (member == null)
-        {
-            return NotFound(new { message = "Admin member not found" });
-        }
-
-        return Ok(new UserListItemDto(
-            member.Id,
-            member.User.Email,
-            member.User.FullName,
-            member.Status,
-            member.User.LastLoginAt,
-            member.User.RoleAssignments.Where(ra => ra.ScopeType == "SYSTEM").Select(ra => ra.Role.Name).ToList(),
-            member.SessionVersion,
-            member.JoinedAt
-        ));
     }
 
     [HttpDelete("{id:guid}")]
@@ -155,7 +104,7 @@ public class UsersAdminController : ControllerBase
 
         try
         {
-            await _adminMemberService.RemoveMemberAsync(actorUserId, id, cancellationToken);
+            await _userAdminService.DeletePlatformUserAsync(actorUserId, id, cancellationToken);
             return NoContent();
         }
         catch (ValidationException ex)
