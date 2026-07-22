@@ -195,7 +195,7 @@ jobs:
 
               # Install required packages
               echo 'Installing base packages...'
-              sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release jq git 2>&1
+              sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release jq git certbot 2>&1
 
               # Docker
               if ! command -v docker &>/dev/null; then

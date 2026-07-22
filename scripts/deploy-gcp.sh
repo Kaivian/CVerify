@@ -290,8 +290,108 @@ EOF
 
   # Ensure Nginx dynamic routing proxy is running on host
   write_info "Ensuring Nginx routing proxy is active..."
-  docker compose -f docker/compose.nginx.yml up -d
-  
+
+  # Detect SSL certificate availability for graceful HTTP/HTTPS mode selection
+  SSL_DOMAIN="cverify.io.vn"
+  SSL_CERT_PATH="/etc/letsencrypt/live/${SSL_DOMAIN}/fullchain.pem"
+
+  if [ -f "$SSL_CERT_PATH" ]; then
+    write_info "SSL certificate detected for $SSL_DOMAIN — starting Nginx with HTTPS."
+    docker compose -f docker/compose.nginx.yml up -d
+  else
+    write_warning "SSL certificate not found at $SSL_CERT_PATH — starting Nginx in HTTP-only mode."
+    write_warning "Run 'sudo /app/cverify/scripts/setup-ssl.sh $SSL_DOMAIN' to enable HTTPS."
+
+    # Generate a temporary HTTP-only nginx config (no SSL references)
+    NGINX_HTTP_CONF="/app/cverify/docker/nginx/nginx-http-only.conf"
+    cat <<'HTTPCONF' > "$NGINX_HTTP_CONF"
+user  nginx;
+worker_processes  auto;
+error_log  /var/log/nginx/error.log notice;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    tcp_nopush     on;
+    tcp_nodelay    on;
+    keepalive_timeout  65;
+    types_hash_max_size 2048;
+
+    gzip on;
+    gzip_disable "msie6";
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_buffers 16 8k;
+    gzip_http_version 1.1;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    include /etc/nginx/conf.d/upstreams.conf;
+
+    server {
+        listen       80;
+        listen       [::]:80;
+        server_name  _;
+
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        location / {
+            proxy_pass         http://cverify_client;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade $http_upgrade;
+            proxy_set_header   Connection 'upgrade';
+            proxy_set_header   Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+        }
+
+        location /api/ {
+            proxy_pass         http://cverify_api/;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade $http_upgrade;
+            proxy_set_header   Connection 'upgrade';
+            proxy_set_header   Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $scheme;
+        }
+
+        location /nginx-health {
+            access_log off;
+            add_header Content-Type text/plain;
+            return 200 'OK';
+        }
+    }
+}
+HTTPCONF
+
+    # Start Nginx with the HTTP-only config override
+    docker run -d --name nginx-proxy --restart always --network host \
+      -v "$NGINX_HTTP_CONF:/etc/nginx/nginx.conf:ro" \
+      -v "/app/cverify/docker/nginx/conf.d:/etc/nginx/conf.d:rw" \
+      -v "/var/log/nginx:/var/log/nginx" \
+      -v "/var/www/certbot:/var/www/certbot:ro" \
+      nginx:1.25.3-alpine 2>/dev/null || docker compose -f docker/compose.nginx.yml up -d
+  fi
+
   # Reload Nginx Router configuration
   write_info "Reloading Nginx Proxy..."
   docker exec nginx-proxy nginx -s reload
