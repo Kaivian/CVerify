@@ -35,6 +35,7 @@ export function UsersManagementView() {
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearch(search);
+      setPage(1);
     }, 300);
 
     return () => {
@@ -185,6 +186,8 @@ export function UsersManagementView() {
                 { value: "ACTIVE", label: "Active" },
                 { value: "SUSPENDED", label: "Suspended" },
                 { value: "BANNED", label: "Banned" },
+                { value: "EMAIL_VERIFY_PENDING", label: "Pending Verification" },
+                { value: "DELETION_PENDING", label: "Deletion Pending" },
               ]}
               placeholder="All Statuses"
             />
