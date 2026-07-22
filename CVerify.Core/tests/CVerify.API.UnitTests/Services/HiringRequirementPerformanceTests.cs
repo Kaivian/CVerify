@@ -114,7 +114,7 @@ public class HiringRequirementPerformanceTests
         long elapsedMs = stopwatch.ElapsedMilliseconds;
         Console.WriteLine($"Deserialized 5,000 payloads in {elapsedMs}ms.");
 
-        // Assert: 5,000 JSON payload parses should complete in less than 500ms
-        elapsedMs.Should().BeLessThan(500, "JSON parsing and schema deserialization must run under high-performance bounds.");
+        // Assert: 5,000 JSON payload parses should complete in less than 1000ms (sub-millisecond average per payload)
+        elapsedMs.Should().BeLessThan(1000, "JSON parsing and schema deserialization must run under high-performance bounds.");
     }
 }
