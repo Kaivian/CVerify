@@ -1,7 +1,7 @@
 "use client";
 
 import React, { type ReactNode } from "react";
-import { motion, useReducedMotion, type Variants } from "framer-motion";
+import { motion, useReducedMotion, useIsPresent, type Variants } from "framer-motion";
 import { useDemoStore } from "../stores/use-demo-store";
 import { type DemoTransitionType } from "../config";
 
@@ -14,6 +14,7 @@ export function DemoTransition({ children, transitionType }: DemoTransitionProps
   const direction = useDemoStore((state) => state.navigationDirection);
   const setTransitionState = useDemoStore((state) => state.setTransitionState);
   const prefersReducedMotion = useReducedMotion();
+  const isPresent = useIsPresent();
 
   // If user requests reduced motion, fall back to simple opacity fade
   const activeTransition = prefersReducedMotion ? "fade" : transitionType;
@@ -71,10 +72,14 @@ export function DemoTransition({ children, transitionType }: DemoTransitionProps
         ease: [0.16, 1, 0.3, 1] as const, // easeOutExpo
       }}
       onAnimationStart={() => {
-        setTransitionState("entering");
+        if (isPresent) {
+          setTransitionState("entering");
+        }
       }}
       onAnimationComplete={() => {
-        setTransitionState("active");
+        if (isPresent) {
+          setTransitionState("active");
+        }
       }}
       className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden"
     >

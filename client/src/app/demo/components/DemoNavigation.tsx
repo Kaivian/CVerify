@@ -11,13 +11,12 @@ export function DemoNavigation() {
   const transitionState = useDemoStore((state) => state.transitionState);
   const nextSection = useDemoStore((state) => state.nextSection);
   const prevSection = useDemoStore((state) => state.prevSection);
-  const getCurrentMetadata = useDemoStore((state) => state.getCurrentMetadata);
   const subStage = useDemoStore((state) => state.subStage);
-  const totalSubStages = useDemoStore((state) => state.totalSubStages);
 
-  const metadata = getCurrentMetadata();
-  const hasPrev = totalSubStages > 1 ? subStage > 0 : currentSectionIndex > 0;
-  const hasNext = totalSubStages > 1 ? subStage < totalSubStages - 1 : currentSectionIndex < DEMO_SECTIONS.length - 1;
+  const metadata = DEMO_SECTIONS[currentSectionIndex]?.metadata || DEMO_SECTIONS[0].metadata;
+  const phases = metadata.phases || [];
+  const hasPrev = subStage > 0 || currentSectionIndex > 0;
+  const hasNext = subStage < phases.length - 1 || currentSectionIndex < DEMO_SECTIONS.length - 1;
   const isTransitioning = transitionState === "entering" || transitionState === "exiting";
 
   // Hide entirely if configured
@@ -25,21 +24,19 @@ export function DemoNavigation() {
     return null;
   }
 
-  const isBackDisabled = !hasPrev || metadata.allowBack === false || isTransitioning;
+  const isBackDisabled = !hasPrev || (subStage === 0 && metadata.allowBack === false) || isTransitioning;
   const isNextDisabled = !hasNext || isTransitioning;
 
-  const isLast = totalSubStages > 1
-    ? subStage === totalSubStages - 1
-    : currentSectionIndex === DEMO_SECTIONS.length - 1;
+  const isLast = currentSectionIndex === DEMO_SECTIONS.length - 1 && subStage === phases.length - 1;
 
   return (
     <div className="flex items-center justify-between gap-6 pointer-events-auto select-none">
       <Button
         size="md"
-        variant="light"
+        variant="secondary"
         onPress={prevSection}
         isDisabled={isBackDisabled}
-        className="text-xs font-medium text-muted hover:text-foreground hover:bg-surface-secondary/50 cursor-pointer transition-all min-w-[100px]"
+        className="text-xs font-medium cursor-pointer transition-all min-w-[100px]"
       >
         <ChevronLeft className="h-4 w-4 mr-1.5 inline" />
         Previous
@@ -47,10 +44,10 @@ export function DemoNavigation() {
 
       <Button
         size="md"
-        variant="solid"
+        variant="primary"
         onPress={nextSection}
         isDisabled={isNextDisabled}
-        className="text-xs font-semibold bg-foreground text-background hover:opacity-90 cursor-pointer transition-all min-w-[100px]"
+        className="text-xs font-semibold cursor-pointer transition-all min-w-[100px]"
       >
         {isLast ? "Finish" : "Next"}
         {isLast ? (

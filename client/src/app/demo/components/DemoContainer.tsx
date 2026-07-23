@@ -21,10 +21,12 @@ export function DemoContainer() {
   const nextSection = useDemoStore((state) => state.nextSection);
   const prevSection = useDemoStore((state) => state.prevSection);
   const syncFromUrl = useDemoStore((state) => state.syncFromUrl);
-  const getCurrentMetadata = useDemoStore((state) => state.getCurrentMetadata);
+  const subStage = useDemoStore((state) => state.subStage);
+  const isPlaying = useDemoStore((state) => state.isPlaying);
+  const completePhase = useDemoStore((state) => state.completePhase);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const metadata = getCurrentMetadata();
+  const metadata = DEMO_SECTIONS[currentSectionIndex]?.metadata || DEMO_SECTIONS[0].metadata;
   const hasNext = currentSectionIndex < DEMO_SECTIONS.length - 1;
 
   // Initialize store state from URL on mount
@@ -75,6 +77,9 @@ export function DemoContainer() {
   }, [nextSection, prevSection, router]);
 
   const ActiveSceneComponent = DEMO_SECTIONS[currentSectionIndex]?.component;
+  const phases = metadata.phases || [];
+  const currentPhaseId = phases[subStage]?.id || "";
+  const isPhaseCompleted = !isPlaying;
 
   return (
     <div
@@ -122,7 +127,12 @@ export function DemoContainer() {
 
       {/* Dynamic Animated Scene Region */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-6 flex items-center justify-center relative z-10 pt-20 pb-28">
-        <AnimatePresence mode="wait">
+        <AnimatePresence
+          mode="wait"
+          onExitComplete={() => {
+            useDemoStore.getState().setTransitionState("beforeEnter");
+          }}
+        >
           {ActiveSceneComponent && (
             <DemoTransition key={metadata.id} transitionType={metadata.transition || "fade"}>
               <SceneErrorBoundary sceneId={metadata.id} onSkip={hasNext ? nextSection : undefined}>
@@ -131,6 +141,9 @@ export function DemoContainer() {
                   onStateComplete={(state: string) => {
                     console.log(`[Demo Engine] Scene "${metadata.id}" confirmed state: ${state}`);
                   }}
+                  currentPhaseId={currentPhaseId}
+                  isPhaseCompleted={isPhaseCompleted}
+                  onPhaseComplete={completePhase}
                 />
               </SceneErrorBoundary>
             </DemoTransition>

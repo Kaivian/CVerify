@@ -15,7 +15,7 @@ import {
   Check,
 } from "lucide-react";
 import { Github, Gitlab } from "@thesvg/react";
-import { Card, Chip, toast } from "@heroui/react";
+import { Card, Chip } from "@heroui/react";
 import { Button } from "@/components/ui/button";
 import { useDemoStore, type SceneLifecycleState } from "../stores/use-demo-store";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,9 @@ import { cn } from "@/lib/utils";
 interface Section04Props {
   lifecycleState: SceneLifecycleState;
   onStateComplete: (state: SceneLifecycleState) => void;
+  currentPhaseId: string;
+  isPhaseCompleted: boolean;
+  onPhaseComplete: () => void;
 }
 
 const EASE_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
@@ -72,11 +75,30 @@ const FIELDS = [
   },
 ];
 
-export function Section04({ lifecycleState, onStateComplete }: Section04Props) {
+export function Section04({
+  lifecycleState,
+  onStateComplete,
+  currentPhaseId,
+  isPhaseCompleted,
+  onPhaseComplete,
+}: Section04Props) {
   const prefersReducedMotion = useReducedMotion();
-  const subStage = useDemoStore((state) => state.subStage);
-  const setSubStage = useDemoStore((state) => state.setSubStage);
-  const nextSection = useDemoStore((state) => state.nextSection);
+  const setStatusMessage = useDemoStore((state) => state.setStatusMessage);
+
+  const activeTimers = useRef<NodeJS.Timeout[]>([]);
+  const registerTimer = (timer: NodeJS.Timeout) => {
+    activeTimers.current.push(timer);
+    return timer;
+  };
+
+  const clearAllTimers = () => {
+    activeTimers.current.forEach(clearTimeout);
+    activeTimers.current = [];
+  };
+
+  useEffect(() => {
+    return () => clearAllTimers();
+  }, []);
 
   // Layout states
   const [shellVisible, setShellVisible] = useState(false);
@@ -164,38 +186,27 @@ export function Section04({ lifecycleState, onStateComplete }: Section04Props) {
 
   // Triggered when clicking "Add Analyzed Repo"
   const handleAddRepos = useCallback(() => {
-    if (phase === "clickingAddRepo" || reposAdded) return;
+    if (reposAdded) return;
     setReposAdded(true);
-    toast.success("Demo Mode: Linked 2 verified repositories to your CV!");
-    setPhase("navigatingToAnalyze");
-  }, [phase, reposAdded]);
+    setStatusMessage("Demo Mode: Linked 2 verified repositories to your CV!");
+    onPhaseComplete();
+  }, [reposAdded, setStatusMessage, onPhaseComplete]);
 
   // Final submission and transition
   const handleAnalyzeCV = useCallback(() => {
     if (phase === "submitting" || phase === "transitioning") return;
 
     setPhase("submitting");
-    setSubStage(1, 2);
+    setCursorClicking(true);
+    setCursorRipple(true);
+    setStatusMessage("AI is preparing your CV analysis...");
 
-    // Populate all fields fully in sync (in case fast forwarded)
-    setTypedData({
-      fullName: "Kaivian Dev",
-      title: "Principal Systems Architect",
-      summary:
-        "Security-focused systems architect with 8+ years of engineering robust TypeScript applications and cryptographically secure APIs.",
-      skills: "TypeScript, Go, React, ASP.NET, Cryptography, ZK-Proofs",
-      experience: "Lead Security Engineer @ CVerify (2024 - Present)",
-      education: "M.S. in Computer Science @ Stanford University",
-    });
-    setReposAdded(true);
-
-    toast.success("AI is preparing your CV analysis...");
-
+    // Transition to Section 05 after exactly 1000ms using a standard timeout
+    // that won't be cleared by clearAllTimers on store play state changes.
     setTimeout(() => {
-      setPhase("transitioning");
-      nextSection();
+      useDemoStore.getState().nextSection();
     }, 1000);
-  }, [phase, setSubStage, nextSection]);
+  }, [phase, setStatusMessage]);
 
   // Main button router logic
   const handleBtnPress = useCallback(() => {
@@ -206,156 +217,228 @@ export function Section04({ lifecycleState, onStateComplete }: Section04Props) {
     }
   }, [reposAdded, handleAnalyzeCV, handleAddRepos]);
 
-  // Reset states and sync subStages on mount
+  // Reset states on beforeEnter or when returning to Phase 1
   useEffect(() => {
-    setSubStage(0, 2);
-    setPhase("reveal");
-    setTypedData({
-      fullName: "",
-      title: "",
-      summary: "",
-      skills: "",
-      experience: "",
-      education: "",
-    });
-    setReposAdded(false);
-    setCursorCoords(null);
-    setCursorClicking(false);
-    setCursorRipple(false);
-    setShellVisible(false);
-    setFocusedField(null);
-    setCurrentFieldIndex(0);
-  }, [setSubStage]);
+    if (lifecycleState === "beforeEnter" || currentPhaseId === "fill-cv") {
+      clearAllTimers();
+      setCursorCoords(null);
+      setCursorClicking(false);
+      setCursorRipple(false);
+      setShellVisible(false);
+      setFocusedField(null);
+      setCurrentFieldIndex(0);
 
-  // Monitor store subStage changes (triggered by the next button in footer)
-  useEffect(() => {
-    if (
-      lifecycleState === "active" &&
-      subStage === 1 &&
-      phase !== "submitting" &&
-      phase !== "transitioning"
-    ) {
-      handleAnalyzeCV();
+      if (currentPhaseId === "fill-cv") {
+        setPhase("reveal");
+        setTypedData({
+          fullName: "",
+          title: "",
+          summary: "",
+          skills: "",
+          experience: "",
+          education: "",
+        });
+        setReposAdded(false);
+        useDemoStore.setState({ isPlaying: true });
+      } else if (currentPhaseId === "add-repo") {
+        setPhase("navigatingToAddRepo");
+        setTypedData({
+          fullName: "Kaivian Dev",
+          title: "Principal Systems Architect",
+          summary: "Security-focused systems architect with 8+ years of engineering robust TypeScript applications and cryptographically secure APIs.",
+          skills: "TypeScript, Go, React, ASP.NET, Cryptography, ZK-Proofs",
+          experience: "Lead Security Engineer @ CVerify (2024 - Present)",
+          education: "M.S. in Computer Science @ Stanford University",
+        });
+        setReposAdded(false);
+        setShellVisible(true);
+      } else { // analyze-cv
+        setPhase("readyForAnalysis");
+        setTypedData({
+          fullName: "Kaivian Dev",
+          title: "Principal Systems Architect",
+          summary: "Security-focused systems architect with 8+ years of engineering robust TypeScript applications and cryptographically secure APIs.",
+          skills: "TypeScript, Go, React, ASP.NET, Cryptography, ZK-Proofs",
+          experience: "Lead Security Engineer @ CVerify (2024 - Present)",
+          education: "M.S. in Computer Science @ Stanford University",
+        });
+        setReposAdded(true);
+        setShellVisible(true);
+      }
     }
-  }, [subStage, lifecycleState, phase, handleAnalyzeCV]);
+  }, [lifecycleState, currentPhaseId]);
 
   // Animation timeline phase controller
   useEffect(() => {
+    clearAllTimers();
+
     if (lifecycleState !== "active") return;
     if (phase === "submitting" || phase === "transitioning") return;
 
-    let timer: NodeJS.Timeout;
-
-    if (phase === "reveal") {
+    // Snapping / Paused mode
+    if (isPhaseCompleted && currentPhaseId !== "fill-cv") {
       setShellVisible(true);
-      onStateComplete("active");
-      timer = setTimeout(() => {
-        setPhase("navigatingToField");
-        setCurrentFieldIndex(0);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-
-    if (phase === "navigatingToField") {
-      const field = FIELDS[currentFieldIndex];
-      const ref = getRefForField(field.id);
-      if (ref) {
-        setTimeout(() => {
-          updateCursorToRef(ref, 20); // Position slightly right from left edge of input
-        }, 50);
-      }
-
-      timer = setTimeout(() => {
-        setPhase("clickingField");
-      }, 600);
-      return () => clearTimeout(timer);
-    }
-
-    if (phase === "clickingField") {
-      setCursorClicking(true);
-      setCursorRipple(true);
-
-      timer = setTimeout(() => {
-        const field = FIELDS[currentFieldIndex];
-        setFocusedField(field.id);
-        setCursorClicking(false);
-        setCursorRipple(false);
-        setPhase("typingField");
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-
-    if (phase === "typingField") {
-      const field = FIELDS[currentFieldIndex];
-      const targetText = field.text;
-      let charIdx = 0;
-
-      // Speed up typing for summary
-      const speed = field.id === "summary" ? 8 : 12;
-
-      const typeInterval = setInterval(() => {
-        setTypedData((prev) => ({
-          ...prev,
-          [field.id]: targetText.slice(0, charIdx + 1),
-        }));
-        charIdx++;
-
-        if (charIdx >= targetText.length) {
-          clearInterval(typeInterval);
-          setFocusedField(null);
-
-          if (currentFieldIndex < FIELDS.length - 1) {
-            setCurrentFieldIndex((prev) => prev + 1);
-            setPhase("navigatingToField");
-          } else {
-            setPhase("navigatingToAddRepo");
-          }
-        }
-      }, speed);
-
-      return () => clearInterval(typeInterval);
-    }
-
-    if (phase === "navigatingToAddRepo") {
-      const ref = analyzeBtnRef;
-      setTimeout(() => {
-        updateCursorToRef(ref);
-      }, 50);
-
-      timer = setTimeout(() => {
-        setPhase("clickingAddRepo");
-      }, 600);
-      return () => clearTimeout(timer);
-    }
-
-    if (phase === "clickingAddRepo") {
-      setCursorClicking(true);
-      setCursorRipple(true);
-
-      timer = setTimeout(() => {
-        setReposAdded(true);
-        toast.success("Demo Mode: Linked 2 verified repositories to your CV!");
-        setCursorClicking(false);
-        setCursorRipple(false);
-        setPhase("navigatingToAnalyze");
-      }, 250);
-      return () => clearTimeout(timer);
-    }
-
-    if (phase === "navigatingToAnalyze") {
-      // Small pause to let user see color change & repositories link in preview
-      timer = setTimeout(() => {
+      if (currentPhaseId === "add-repo") {
+        setPhase("navigatingToAddRepo");
+        setTypedData({
+          fullName: "Kaivian Dev",
+          title: "Principal Systems Architect",
+          summary: "Security-focused systems architect with 8+ years of engineering robust TypeScript applications and cryptographically secure APIs.",
+          skills: "TypeScript, Go, React, ASP.NET, Cryptography, ZK-Proofs",
+          experience: "Lead Security Engineer @ CVerify (2024 - Present)",
+          education: "M.S. in Computer Science @ Stanford University",
+        });
+        setReposAdded(false);
+        setCursorCoords(null);
+      } else if (currentPhaseId === "analyze-cv") {
         setPhase("readyForAnalysis");
-      }, 700);
-      return () => clearTimeout(timer);
+        setTypedData({
+          fullName: "Kaivian Dev",
+          title: "Principal Systems Architect",
+          summary: "Security-focused systems architect with 8+ years of engineering robust TypeScript applications and cryptographically secure APIs.",
+          skills: "TypeScript, Go, React, ASP.NET, Cryptography, ZK-Proofs",
+          experience: "Lead Security Engineer @ CVerify (2024 - Present)",
+          education: "M.S. in Computer Science @ Stanford University",
+        });
+        setReposAdded(true);
+        setCursorCoords(null);
+      }
+      onStateComplete("active");
+      return;
     }
 
-    if (phase === "readyForAnalysis") {
-      setCursorRipple(true);
+    // Play/Animation mode: run original state machine steps
+    if (currentPhaseId === "fill-cv") {
+
+      let timer: NodeJS.Timeout;
+
+      if (phase === "reveal") {
+        setShellVisible(true);
+        onStateComplete("active");
+        timer = setTimeout(() => {
+          setPhase("navigatingToField");
+          setCurrentFieldIndex(0);
+        }, 800);
+        registerTimer(timer);
+      } else if (phase === "navigatingToField") {
+        const field = FIELDS[currentFieldIndex];
+        const ref = getRefForField(field.id);
+        if (ref) {
+          registerTimer(
+            setTimeout(() => {
+              updateCursorToRef(ref, 20); // Position slightly right from left edge of input
+            }, 50)
+          );
+        }
+
+        timer = setTimeout(() => {
+          setPhase("clickingField");
+        }, 600);
+        registerTimer(timer);
+      } else if (phase === "clickingField") {
+        setCursorClicking(true);
+        setCursorRipple(true);
+
+        timer = setTimeout(() => {
+          const field = FIELDS[currentFieldIndex];
+          setFocusedField(field.id);
+          setCursorClicking(false);
+          setCursorRipple(false);
+          setPhase("typingField");
+        }, 200);
+        registerTimer(timer);
+      } else if (phase === "typingField") {
+        const field = FIELDS[currentFieldIndex];
+        const targetText = field.text;
+        let charIdx = 0;
+
+        // Speed up typing for summary
+        const speed = field.id === "summary" ? 8 : 12;
+
+        const typeInterval = setInterval(() => {
+          setTypedData((prev) => ({
+            ...prev,
+            [field.id]: targetText.slice(0, charIdx + 1),
+          }));
+          charIdx++;
+
+          if (charIdx >= targetText.length) {
+            clearInterval(typeInterval);
+            setFocusedField(null);
+
+            if (currentFieldIndex < FIELDS.length - 1) {
+              setCurrentFieldIndex((prev) => prev + 1);
+              setPhase("navigatingToField");
+            } else {
+              setCursorCoords(null);
+              setPhase("navigatingToAddRepo");
+              onPhaseComplete();
+            }
+          }
+        }, speed);
+
+        registerTimer(typeInterval);
+      }
+    } else if (currentPhaseId === "add-repo") {
+      setShellVisible(true);
+      setTypedData({
+        fullName: "Kaivian Dev",
+        title: "Principal Systems Architect",
+        summary: "Security-focused systems architect with 8+ years of engineering robust TypeScript applications and cryptographically secure APIs.",
+        skills: "TypeScript, Go, React, ASP.NET, Cryptography, ZK-Proofs",
+        experience: "Lead Security Engineer @ CVerify (2024 - Present)",
+        education: "M.S. in Computer Science @ Stanford University",
+      });
+      setReposAdded(false);
+      setPhase("navigatingToAddRepo");
+
+      setInitialCoords({ x: 800, y: 400 });
+      registerTimer(setTimeout(() => updateCursorToRef(analyzeBtnRef), 500));
+
+      registerTimer(setTimeout(() => setCursorClicking(true), 1700));
+      registerTimer(setTimeout(() => {
+        setReposAdded(true);
+        setStatusMessage("Demo Mode: Linked 2 verified repositories to your CV!");
+        setCursorClicking(false);
+        setCursorRipple(true);
+      }, 1900));
+
+      registerTimer(setTimeout(() => {
+        setCursorRipple(false);
+        setCursorCoords(null);
+        onPhaseComplete();
+      }, 2400));
+
+      onStateComplete("active");
+    } else if (currentPhaseId === "analyze-cv") {
+      setShellVisible(true);
+      setTypedData({
+        fullName: "Kaivian Dev",
+        title: "Principal Systems Architect",
+        summary: "Security-focused systems architect with 8+ years of engineering robust TypeScript applications and cryptographically secure APIs.",
+        skills: "TypeScript, Go, React, ASP.NET, Cryptography, ZK-Proofs",
+        experience: "Lead Security Engineer @ CVerify (2024 - Present)",
+        education: "M.S. in Computer Science @ Stanford University",
+      });
+      setReposAdded(true);
+      setPhase("readyForAnalysis");
+
+      setInitialCoords({ x: 400, y: 300 });
+      registerTimer(setTimeout(() => updateCursorToRef(analyzeBtnRef), 500));
+
+      registerTimer(
+        setTimeout(() => {
+          setCursorRipple(true);
+        }, 1500)
+      );
+
+      onStateComplete("active");
     }
   }, [
     phase,
     currentFieldIndex,
+    currentPhaseId,
+    isPhaseCompleted,
     lifecycleState,
     onStateComplete,
     getRefForField,
@@ -399,17 +482,15 @@ export function Section04({ lifecycleState, onStateComplete }: Section04Props) {
     buttonText = phase === "submitting" || phase === "transitioning" ? "Analyzing Profile..." : "Analyze CV";
     isBtnDisabled = phase === "submitting" || phase === "transitioning";
 
-    if (phase === "readyForAnalysis") {
+    if (phase === "readyForAnalysis" || phase === "submitting" || phase === "transitioning") {
       buttonClass = "bg-accent text-accent-foreground shadow-[0_0_12px_rgba(133,78,40,0.45)] ring-2 ring-accent hover:opacity-90 cursor-pointer";
-    } else if (phase === "submitting" || phase === "transitioning") {
-      buttonClass = "bg-accent/80 text-accent-foreground cursor-not-allowed";
     } else {
-      buttonClass = "bg-accent text-accent-foreground";
+      buttonClass = "bg-accent text-accent-foreground shadow-[0_0_12px_rgba(133,78,40,0.45)] ring-2 ring-accent hover:opacity-90 cursor-pointer";
     }
   } else {
-    const isAddRepoActive = phase === "navigatingToAddRepo" || phase === "clickingAddRepo";
+    const isAddRepoActive = currentPhaseId === "add-repo" || phase === "navigatingToAddRepo" || phase === "clickingAddRepo";
     if (isAddRepoActive) {
-      buttonClass = "bg-secondary text-secondary-foreground font-bold shadow-md cursor-pointer hover:opacity-90";
+      buttonClass = "bg-secondary text-secondary-foreground font-bold shadow-md hover:opacity-90 pointer-events-none";
       isBtnDisabled = false;
     } else {
       buttonClass = "bg-surface-secondary text-muted cursor-not-allowed";

@@ -21,7 +21,7 @@ import {
   BrainCircuit,
   Search,
 } from "lucide-react";
-import { Card, Chip, toast } from "@heroui/react";
+import { Card, Chip } from "@heroui/react";
 import { Button } from "@/components/ui/button";
 import { useDemoStore, type SceneLifecycleState } from "../stores/use-demo-store";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,9 @@ import { cn } from "@/lib/utils";
 interface Section05Props {
   lifecycleState: SceneLifecycleState;
   onStateComplete: (state: SceneLifecycleState) => void;
+  currentPhaseId: string;
+  isPhaseCompleted: boolean;
+  onPhaseComplete: () => void;
 }
 
 const EASE_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
@@ -121,11 +124,39 @@ const MOCK_JOBS = [
   }
 ];
 
-export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
+export function Section05({
+  lifecycleState,
+  onStateComplete,
+  currentPhaseId,
+  isPhaseCompleted,
+  onPhaseComplete,
+}: Section05Props) {
   const prefersReducedMotion = useReducedMotion();
-  const subStage = useDemoStore((state) => state.subStage);
-  const setSubStage = useDemoStore((state) => state.setSubStage);
-  const nextSection = useDemoStore((state) => state.nextSection);
+  const setStatusMessage = useDemoStore((state) => state.setStatusMessage);
+
+  const activeTimers = useRef<NodeJS.Timeout[]>([]);
+  const activeIntervals = useRef<NodeJS.Timeout[]>([]);
+
+  const registerTimer = (timer: NodeJS.Timeout) => {
+    activeTimers.current.push(timer);
+    return timer;
+  };
+
+  const registerInterval = (interval: NodeJS.Timeout) => {
+    activeIntervals.current.push(interval);
+    return interval;
+  };
+
+  const clearAllTimers = () => {
+    activeTimers.current.forEach(clearTimeout);
+    activeTimers.current = [];
+    activeIntervals.current.forEach(clearInterval);
+    activeIntervals.current = [];
+  };
+
+  useEffect(() => {
+    return () => clearAllTimers();
+  }, []);
 
   // Layout states
   const [shellVisible, setShellVisible] = useState(false);
@@ -206,53 +237,69 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
     if (phase === "submitting" || phase === "transitioning") return;
 
     setPhase("submitting");
-    setSubStage(1, 2);
+    useDemoStore.setState({ isPlaying: true, subStage: 1 });
 
-    toast.success("Preparing your verified application...");
+    setStatusMessage("Preparing your verified application...");
 
-    setTimeout(() => {
-      setPhase("transitioning");
-      nextSection();
-    }, 1000);
-  }, [phase, setSubStage, nextSection]);
+    if (isPhaseCompleted) return;
 
-  // Reset states and sync subStages on mount
+    registerTimer(
+      setTimeout(() => {
+        setPhase("transitioning");
+        onPhaseComplete();
+      }, 1000)
+    );
+  }, [phase, isPhaseCompleted, onPhaseComplete, setStatusMessage]);
+
+  // Reset states on beforeEnter
   useEffect(() => {
-    setSubStage(0, 2);
-    setPhase("reveal");
-    setAnalyzedSkills([]);
-    setSeniorityAssessment("");
-    setTrustScore(0);
-    setOverallScore(0);
-    setAiSummary("");
-    setStrengths([]);
-    setCursorCoords(null);
-    setCursorClicking(false);
-    setCursorRipple(false);
-    setShellVisible(false);
+    if (lifecycleState === "beforeEnter") {
+      clearAllTimers();
+      if (currentPhaseId === "ai-match") {
+        setPhase("reveal");
+        setAnalyzedSkills([]);
+        setSeniorityAssessment("");
+        setTrustScore(0);
+        setOverallScore(0);
+        setAiSummary("");
+        setStrengths([]);
+        setCursorCoords(null);
+        setCursorClicking(false);
+        setCursorRipple(false);
+        setShellVisible(false);
 
-    // Initialize job scores to base state
-    const initialScores: Record<string, number> = {};
-    const initialStates: Record<string, "calculating" | "done"> = {};
-    MOCK_JOBS.forEach((j) => {
-      initialScores[j.id] = j.baseScore;
-      initialStates[j.id] = "calculating";
-    });
-    setJobScores(initialScores);
-    setJobStates(initialStates);
-  }, [setSubStage]);
+        const initialScores: Record<string, number> = {};
+        const initialStates: Record<string, "calculating" | "done"> = {};
+        MOCK_JOBS.forEach((j) => {
+          initialScores[j.id] = j.baseScore;
+          initialStates[j.id] = "calculating";
+        });
+        setJobScores(initialScores);
+        setJobStates(initialStates);
+      } else {
+        setPhase("readyToApply");
+        setAnalyzedSkills(["TypeScript", "Go", "React", "Cryptography", "ZK-Proofs"]);
+        setSeniorityAssessment("Principal Level");
+        setTrustScore(99);
+        setOverallScore(96);
+        setAiSummary(targetSummaryText);
+        setStrengths(["Cryptographic Engineering", "Distributed Architecture", "Zero-Knowledge Proofs"]);
+        setCursorCoords(null);
+        setCursorClicking(false);
+        setCursorRipple(false);
+        setShellVisible(true);
 
-  // Handle external footer Navigation Next click
-  useEffect(() => {
-    if (
-      lifecycleState === "active" &&
-      subStage === 1 &&
-      phase !== "submitting" &&
-      phase !== "transitioning"
-    ) {
-      handleApply();
+        const finalScores: Record<string, number> = {};
+        const finalStates: Record<string, "calculating" | "done"> = {};
+        MOCK_JOBS.forEach((j) => {
+          finalScores[j.id] = j.finalScore;
+          finalStates[j.id] = "done";
+        });
+        setJobScores(finalScores);
+        setJobStates(finalStates);
+      }
     }
-  }, [subStage, lifecycleState, phase, handleApply]);
+  }, [lifecycleState, currentPhaseId]);
 
   // Phase runner state machine
   // Stable refs for tracking latest job lists without restarting phase transitions
@@ -268,45 +315,107 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
 
   // 1. Timing & Phase transition manager (Only runs when phase or lifecycleState changes)
   useEffect(() => {
+    clearAllTimers();
+
     if (lifecycleState !== "active") return;
     if (phase === "submitting" || phase === "transitioning") return;
 
-    let timer: NodeJS.Timeout;
-
-    if (phase === "reveal") {
+    if (isPhaseCompleted) {
       setShellVisible(true);
-      onStateComplete("active");
-      timer = setTimeout(() => {
-        setPhase("analyzingCv");
-      }, 800);
-    } else if (phase === "analyzingCv") {
-      timer = setTimeout(() => {
-        setPhase("jobMatching");
-      }, 1400);
-    } else if (phase === "jobMatching") {
-      timer = setTimeout(() => {
-        setPhase("rankingCompleted");
-      }, 1600);
-    } else if (phase === "rankingCompleted") {
-      timer = setTimeout(() => {
-        setPhase("cursorNavigation");
-      }, 2200);
-    } else if (phase === "cursorNavigation") {
-      timer = setTimeout(() => {
-        setPhase("highestMatchSelected");
-      }, 2500);
-    } else if (phase === "highestMatchSelected") {
-      timer = setTimeout(() => {
+      setAnalyzedSkills(["TypeScript", "Go", "React", "Cryptography", "ZK-Proofs"]);
+      setSeniorityAssessment("Principal Level");
+      setTrustScore(99);
+      setOverallScore(96);
+      setAiSummary(targetSummaryText);
+      setStrengths(["Cryptographic Engineering", "Distributed Architecture", "Zero-Knowledge Proofs"]);
+      setCursorCoords(null);
+      setCursorClicking(false);
+      setCursorRipple(false);
+
+      const finalScores: Record<string, number> = {};
+      const finalStates: Record<string, "calculating" | "done"> = {};
+      MOCK_JOBS.forEach((j) => {
+        finalScores[j.id] = j.finalScore;
+        finalStates[j.id] = "done";
+      });
+      setJobScores(finalScores);
+      setJobStates(finalStates);
+
+      if (currentPhaseId === "ai-match") {
         setPhase("readyToApply");
-      }, 1200);
+      } else {
+        setPhase("submitting");
+      }
+      onStateComplete("active");
+      return;
     }
 
-    return () => clearTimeout(timer);
-  }, [phase, lifecycleState, onStateComplete]);
+    // Play/Animation mode
+    if (currentPhaseId === "ai-match") {
+      let timer: NodeJS.Timeout;
+
+      if (phase === "reveal") {
+        setShellVisible(true);
+        onStateComplete("active");
+        timer = setTimeout(() => {
+          setPhase("analyzingCv");
+        }, 800);
+        registerTimer(timer);
+      } else if (phase === "analyzingCv") {
+        timer = setTimeout(() => {
+          setPhase("jobMatching");
+        }, 1400);
+        registerTimer(timer);
+      } else if (phase === "jobMatching") {
+        timer = setTimeout(() => {
+          setPhase("rankingCompleted");
+        }, 1600);
+        registerTimer(timer);
+      } else if (phase === "rankingCompleted") {
+        timer = setTimeout(() => {
+          setPhase("cursorNavigation");
+        }, 2200);
+        registerTimer(timer);
+      } else if (phase === "cursorNavigation") {
+        timer = setTimeout(() => {
+          setPhase("highestMatchSelected");
+        }, 2500);
+        registerTimer(timer);
+      } else if (phase === "highestMatchSelected") {
+        timer = setTimeout(() => {
+          setPhase("readyToApply");
+        }, 2000);
+        registerTimer(timer);
+      }
+    } else if (currentPhaseId === "apply") {
+      setShellVisible(true);
+      setAnalyzedSkills(["TypeScript", "Go", "React", "Cryptography", "ZK-Proofs"]);
+      setSeniorityAssessment("Principal Level");
+      setTrustScore(99);
+      setOverallScore(96);
+      setAiSummary(targetSummaryText);
+      setStrengths(["Cryptographic Engineering", "Distributed Architecture", "Zero-Knowledge Proofs"]);
+      setCursorCoords(null);
+      setCursorClicking(false);
+      setCursorRipple(false);
+
+      const finalScores: Record<string, number> = {};
+      const finalStates: Record<string, "calculating" | "done"> = {};
+      MOCK_JOBS.forEach((j) => {
+        finalScores[j.id] = j.finalScore;
+        finalStates[j.id] = "done";
+      });
+      setJobScores(finalScores);
+      setJobStates(finalStates);
+
+      handleApply();
+    }
+  }, [phase, currentPhaseId, isPhaseCompleted, lifecycleState, onStateComplete, handleApply]);
 
   // 2. Phase 1 effect: Analyzing CV
   useEffect(() => {
     if (phase !== "analyzingCv") return;
+    if (isPhaseCompleted) return;
 
     const skillTimer = setTimeout(() => {
       setAnalyzedSkills(["TypeScript", "Go", "React", "Cryptography", "ZK-Proofs"]);
@@ -323,15 +432,14 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
       setStrengths(["Cryptographic Engineering", "Distributed Architecture", "Zero-Knowledge Proofs"]);
     }, 900);
 
-    return () => {
-      clearTimeout(skillTimer);
-      clearTimeout(strengthTimer);
-    };
-  }, [phase]);
+    registerTimer(skillTimer);
+    registerTimer(strengthTimer);
+  }, [phase, isPhaseCompleted]);
 
   // 3. Phase 2 effect: Job Matching & Score Calculations
   useEffect(() => {
     if (phase !== "jobMatching") return;
+    if (isPhaseCompleted) return;
 
     setSeniorityAssessment("Principal Level");
 
@@ -365,15 +473,14 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
       });
     }, 600);
 
-    return () => {
-      clearInterval(scoreInterval);
-      clearTimeout(calculateJobsTimer);
-    };
-  }, [phase]);
+    registerInterval(scoreInterval);
+    registerTimer(calculateJobsTimer);
+  }, [phase, isPhaseCompleted]);
 
   // 4. Phase 3 effect: AI Summary Typewriter
   useEffect(() => {
     if (phase !== "rankingCompleted") return;
+    if (isPhaseCompleted) return;
 
     let charIdx = 0;
     const typeInterval = setInterval(() => {
@@ -384,12 +491,13 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
       }
     }, 12);
 
-    return () => clearInterval(typeInterval);
-  }, [phase]);
+    registerInterval(typeInterval);
+  }, [phase, isPhaseCompleted]);
 
   // 5. Phase 4 effect: Guided Job Discovery Scrolling
   useEffect(() => {
     if (phase !== "cursorNavigation") return;
+    if (isPhaseCompleted) return;
 
     setInitialCoords({ x: 800, y: 350 });
 
@@ -431,16 +539,16 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
       }
     }, 1800);
 
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-    };
-  }, [phase, updateCursorToRef]);
+    registerTimer(t1);
+    registerTimer(t2);
+    registerTimer(t3);
+    registerTimer(t4);
+  }, [phase, updateCursorToRef, isPhaseCompleted]);
 
   // 6. Phase 5 & 6 effect: Highest Match Selection & Apply Button Hover
   useEffect(() => {
+    if (isPhaseCompleted) return;
+
     if (phase === "highestMatchSelected") {
       const topJob = highestMatchJobRef.current;
       if (topJob) {
@@ -461,10 +569,12 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
       }
       setCursorRipple(true);
     }
-  }, [phase, updateCursorToRef]);
+  }, [phase, updateCursorToRef, isPhaseCompleted]);
 
   // 7. Scroll sync effect: Recalculates cursor coordinate dynamically while user scrolls
   useEffect(() => {
+    if (isPhaseCompleted) return;
+
     const container = jobListRef.current;
     if (!container) return;
 
@@ -483,7 +593,7 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
 
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [phase, updateCursorToRef]);
+  }, [phase, updateCursorToRef, isPhaseCompleted]);
 
   // Motion variants
   const sidebarVariants = {
@@ -900,12 +1010,12 @@ export function Section05({ lifecycleState, onStateComplete }: Section05Props) {
                               ref={(el) => { applyBtnRefs.current[job.id] = el; }}
                               variant="primary"
                               onPress={handleApply}
-                              disabled={phase === "submitting" || phase === "transitioning"}
+                              disabled={phase !== "readyToApply"}
                               className={cn(
-                                "h-6.5 text-[8.5px] font-extrabold uppercase px-3 tracking-wider rounded-md cursor-pointer transition-all duration-300",
-                                phase === "submitting" || phase === "transitioning"
-                                  ? "bg-accent/70 text-accent-foreground cursor-not-allowed"
-                                  : "bg-accent text-accent-foreground hover:shadow-[0_0_12px_rgba(133,78,40,0.5)]"
+                                "h-6.5 text-[8.5px] font-extrabold uppercase px-3 tracking-wider rounded-md transition-all duration-300",
+                                phase !== "readyToApply"
+                                  ? "cursor-not-allowed opacity-80"
+                                  : "hover:shadow-[0_0_12px_rgba(133,78,40,0.5)] cursor-pointer"
                               )}
                             >
                               {phase === "submitting" || phase === "transitioning" ? (

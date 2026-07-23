@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Tooltip } from "@heroui/react";
+import { Loader2 } from "lucide-react";
 import { useDemoStore } from "../stores/use-demo-store";
 import { DEMO_SECTIONS } from "../config";
 import { cn } from "@/lib/utils";
@@ -10,79 +11,101 @@ export function DemoProgress() {
   const currentSectionIndex = useDemoStore((state) => state.currentSectionIndex);
   const transitionState = useDemoStore((state) => state.transitionState);
   const setSectionIndex = useDemoStore((state) => state.setSectionIndex);
-  const getCurrentMetadata = useDemoStore((state) => state.getCurrentMetadata);
   const subStage = useDemoStore((state) => state.subStage);
-  const totalSubStages = useDemoStore((state) => state.totalSubStages);
-  const setSubStage = useDemoStore((state) => state.setSubStage);
+  const statusMessage = useDemoStore((state) => state.statusMessage);
 
-  const metadata = getCurrentMetadata();
+  const metadata = DEMO_SECTIONS[currentSectionIndex]?.metadata || DEMO_SECTIONS[0].metadata;
+  const phases = metadata.phases || [];
+  const totalSubStages = phases.length || 1;
   const isTransitioning = transitionState === "entering" || transitionState === "exiting";
 
   if (metadata.showProgress === false) {
     return null;
   }
 
-  const total = totalSubStages > 1 ? totalSubStages : DEMO_SECTIONS.length;
-  const currentIndex = totalSubStages > 1 ? subStage : currentSectionIndex;
-  const progressPercent = ((currentIndex + 1) / total) * 100;
-
   return (
-    <div className="flex flex-col gap-4 w-full max-w-xl mx-auto pointer-events-auto select-none">
-      {/* Visual Progress bar line */}
-      <div className="w-full h-1 bg-border rounded-full overflow-hidden relative">
-        <div
-          className="h-full bg-accent transition-all duration-500 ease-out"
-          style={{ width: `${progressPercent}%` }}
-        />
+    <div className="flex flex-col gap-3.5 w-full max-w-xl mx-auto pointer-events-auto select-none">
+      {/* Visual Header displaying current step info & status */}
+      <div className="flex items-center justify-between gap-4 w-full text-xs">
+        <div className="flex items-center gap-2 text-foreground min-w-0">
+          <span className="font-semibold text-[10px] tracking-wider uppercase text-accent bg-accent/10 px-2 py-0.5 rounded-full whitespace-nowrap">
+            Step {currentSectionIndex + 1} of {DEMO_SECTIONS.length}
+          </span>
+          <span className="font-bold truncate">
+            {metadata.title}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-muted min-w-0">
+          {(isTransitioning || statusMessage) && (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent shrink-0" />
+          )}
+          <span className="truncate italic">
+            {statusMessage || metadata.description || "Initializing..."}
+          </span>
+        </div>
       </div>
 
-      {/* Pagination indicators with tooltips */}
-      <div className="flex items-center justify-center gap-3">
-        {Array.from({ length: total }).map((_, idx) => {
-          const isActive = idx === currentIndex;
-          const isPast = idx < currentIndex;
+      {/* Segmented Progress Bar */}
+      <div className="flex items-center gap-2.5 w-full">
+        {DEMO_SECTIONS.map((section, idx) => {
+          const sectionPhases = section.metadata.phases || [];
+          const sectionTotalSubStages = sectionPhases.length || 1;
+          const isCompleted = idx < currentSectionIndex;
+          const isActive = idx === currentSectionIndex;
 
-          const handleDotClick = () => {
+          let fillPercent = 0;
+          if (isCompleted) {
+            fillPercent = 100;
+          } else if (isActive) {
+            fillPercent = (subStage / sectionTotalSubStages) * 100;
+          }
+
+          const handleSegmentClick = () => {
             if (isTransitioning) return;
-            if (totalSubStages > 1) {
-              setSubStage(idx);
-            } else {
-              if (isPast && metadata.allowBack === false) return;
-              setSectionIndex(idx);
-            }
+            if (idx < currentSectionIndex && metadata.allowBack === false) return;
+            useDemoStore.setState({ isPlaying: true });
+            setSectionIndex(idx);
           };
 
-          const sectionId = totalSubStages > 1 ? `substage-${idx}` : DEMO_SECTIONS[idx].metadata.id;
-          const title = totalSubStages > 1
-            ? idx === 0
-              ? "Opening Brand Reveal"
-              : idx === 1
-              ? "GitHub Commit Verification"
-              : "Simulated Google SSO"
-            : DEMO_SECTIONS[idx].metadata.title;
-
           return (
-            <Tooltip key={sectionId}>
-              <Tooltip.Trigger>
+            <Tooltip key={section.metadata.id}>
+              <Tooltip.Trigger className="w-full">
                 <button
                   type="button"
-                  onClick={handleDotClick}
-                  disabled={isTransitioning || (totalSubStages <= 1 && isPast && metadata.allowBack === false)}
-                  className={cn(
-                    "h-2 rounded-full cursor-pointer transition-all duration-300",
-                    isActive
-                      ? "w-6 bg-accent"
-                      : "w-2 bg-muted/40 hover:bg-accent/40",
-                    isTransitioning && "cursor-not-allowed opacity-50"
-                  )}
-                  aria-label={totalSubStages > 1 ? `Go to step ${idx + 1}: ${title}` : `Go to slide ${idx + 1}: ${title}`}
-                />
+                  onClick={handleSegmentClick}
+                  disabled={isTransitioning || (idx < currentSectionIndex && metadata.allowBack === false)}
+                  className="w-full text-left focus:outline-hidden group"
+                  aria-label={`Go to section ${idx + 1}: ${section.metadata.title}`}
+                >
+                  <div
+                    className={cn(
+                      "h-1.5 w-full rounded-full overflow-hidden transition-all duration-300 relative",
+                      isActive ? "bg-muted/20" : isCompleted ? "bg-accent/20" : "bg-muted/10",
+                      isTransitioning ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "h-full bg-accent transition-all duration-500 ease-out",
+                        isActive && isTransitioning && "animate-pulse"
+                      )}
+                      style={{ width: `${fillPercent}%` }}
+                    />
+                  </div>
+                </button>
               </Tooltip.Trigger>
               <Tooltip.Content
                 placement="top"
-                className="text-xs py-1 px-2.5 rounded-md border border-border bg-surface text-foreground shadow-lg font-sans"
+                className="text-xs py-1.5 px-3 rounded-md border border-border bg-surface text-foreground shadow-lg font-sans flex flex-col gap-0.5"
               >
-                {title}
+                <div className="font-bold text-foreground">{section.metadata.title}</div>
+                <div className="text-[10px] text-muted">
+                  {isActive
+                    ? `Step ${subStage + 1} of ${sectionTotalSubStages}`
+                    : isCompleted
+                      ? "Completed"
+                      : "Pending"}
+                </div>
               </Tooltip.Content>
             </Tooltip>
           );

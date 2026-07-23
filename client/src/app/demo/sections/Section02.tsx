@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Github, Gitlab } from "@thesvg/react";
-import { Card, Chip, toast } from "@heroui/react";
+import { Card, Chip } from "@heroui/react";
 import { Button } from "@/components/ui/button";
 import { useDemoStore } from "../stores/use-demo-store";
 import { cn } from "@/lib/utils";
@@ -21,16 +21,23 @@ import { cn } from "@/lib/utils";
 interface Section02Props {
   lifecycleState: string;
   onStateComplete: (state: string) => void;
+  currentPhaseId: string;
+  isPhaseCompleted: boolean;
+  onPhaseComplete: () => void;
 }
 
 // Shared cubic-bezier easing used across Section01 for consistency
 const EASE_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
-export function Section02({ lifecycleState, onStateComplete }: Section02Props) {
+export function Section02({
+  lifecycleState,
+  onStateComplete,
+  currentPhaseId,
+  isPhaseCompleted,
+  onPhaseComplete,
+}: Section02Props) {
   const prefersReducedMotion = useReducedMotion();
-  const subStage = useDemoStore((state) => state.subStage);
-  const setSubStage = useDemoStore((state) => state.setSubStage);
-  const nextSection = useDemoStore((state) => state.nextSection);
+  const setStatusMessage = useDemoStore((state) => state.setStatusMessage);
 
   // Animation Phase states
   const [shellVisible, setShellVisible] = useState(false);
@@ -41,77 +48,118 @@ export function Section02({ lifecycleState, onStateComplete }: Section02Props) {
   const [cursorReached, setCursorReached] = useState(false);
   const [connectionStep, setConnectionStep] = useState<"idle" | "connecting" | "done">("idle");
 
-  // Sync internal subStages with store
+  const activeTimers = useRef<NodeJS.Timeout[]>([]);
+
+  const registerTimer = (timer: NodeJS.Timeout) => {
+    activeTimers.current.push(timer);
+    return timer;
+  };
+
+  const clearAllTimers = () => {
+    activeTimers.current.forEach(clearTimeout);
+    activeTimers.current = [];
+  };
+
   useEffect(() => {
-    if (lifecycleState === "active") {
-      Promise.resolve().then(() => {
-        setSubStage(0, 2);
-      });
+    return () => clearAllTimers();
+  }, []);
+
+  // Deterministic reset on beforeEnter
+  useEffect(() => {
+    if (lifecycleState === "beforeEnter") {
+      clearAllTimers();
+      if (currentPhaseId === "dashboard") {
+        setShellVisible(false);
+        setCard1Visible(false);
+        setCard2Visible(false);
+        setCard3Visible(false);
+        setShowCursor(false);
+        setCursorReached(false);
+        setConnectionStep("idle");
+      } else {
+        setShellVisible(true);
+        setCard1Visible(true);
+        setCard2Visible(true);
+        setCard3Visible(true);
+        setShowCursor(false);
+        setCursorReached(true);
+        setConnectionStep("done");
+      }
     }
-  }, [lifecycleState, setSubStage]);
+  }, [lifecycleState, currentPhaseId]);
 
-  // Handle animation timeline sequence
+  // Central phase transition effect
   useEffect(() => {
-    if (lifecycleState === "active") {
-      // Phase 1: Reveal the shell (sidebar + header)
-      const tShell = setTimeout(() => setShellVisible(true), 200);
+    clearAllTimers();
 
-      // Phase 2: Cascade content cards with stagger
-      const tCard1 = setTimeout(() => setCard1Visible(true), 700);
-      const tCard3 = setTimeout(() => setCard3Visible(true), 900);
-      const tCard2 = setTimeout(() => setCard2Visible(true), 1100);
+    if (lifecycleState !== "active") return;
 
-      // Phase 3: Virtual pointer sweeps toward the "Link Account" button
-      const tCursor = setTimeout(() => setShowCursor(true), 2400);
-      const tRipple = setTimeout(() => setCursorReached(true), 3500);
+    if (isPhaseCompleted) {
+      setShellVisible(true);
+      setCard1Visible(true);
+      setCard2Visible(true);
+      setCard3Visible(true);
+      setCursorReached(true);
 
-      // Confirm scene is active
+      if (currentPhaseId === "dashboard") {
+        setShowCursor(true);
+        setConnectionStep("idle");
+      } else {
+        setShowCursor(false);
+        setConnectionStep("done");
+      }
       onStateComplete("active");
-
-      return () => {
-        clearTimeout(tShell);
-        clearTimeout(tCard1);
-        clearTimeout(tCard2);
-        clearTimeout(tCard3);
-        clearTimeout(tCursor);
-        clearTimeout(tRipple);
-      };
+      return;
     }
-  }, [lifecycleState, onStateComplete]);
 
-  // Phase 4a: Start connecting when user clicks "Link Account"
-  useEffect(() => {
-    if (subStage === 1 && connectionStep === "idle") {
+    // Play/Animation mode
+    if (currentPhaseId === "dashboard") {
+      setShellVisible(false);
+      setCard1Visible(false);
+      setCard2Visible(false);
+      setCard3Visible(false);
+      setShowCursor(false);
+      setCursorReached(false);
+      setConnectionStep("idle");
+
+      registerTimer(setTimeout(() => setShellVisible(true), 200));
+      registerTimer(setTimeout(() => setCard1Visible(true), 700));
+      registerTimer(setTimeout(() => setCard3Visible(true), 900));
+      registerTimer(setTimeout(() => setCard2Visible(true), 1100));
+      registerTimer(setTimeout(() => setShowCursor(true), 2400));
+      registerTimer(setTimeout(() => setCursorReached(true), 3500));
+
+      onStateComplete("active");
+    } else if (currentPhaseId === "oauth") {
+      setShellVisible(true);
+      setCard1Visible(true);
+      setCard2Visible(true);
+      setCard3Visible(true);
+      setShowCursor(false);
+      setCursorReached(true);
       setConnectionStep("connecting");
-      toast.success("Demo Mode: Initiating GitHub OAuth flow...");
+      setStatusMessage("Demo Mode: Initiating GitHub OAuth flow...");
+
+      registerTimer(
+        setTimeout(() => {
+          setConnectionStep("done");
+          setStatusMessage("Demo Mode: GitHub account linked successfully!");
+        }, 1000)
+      );
+
+      registerTimer(
+        setTimeout(() => {
+          onPhaseComplete();
+        }, 1500)
+      );
+
+      onStateComplete("active");
     }
-  }, [subStage, connectionStep]);
-
-  // Phase 4b: Connecting (1s) → Done (0.5s) → Section 3
-  useEffect(() => {
-    if (connectionStep !== "connecting") return;
-
-    const tDone = setTimeout(() => {
-      setConnectionStep("done");
-      toast.success("Demo Mode: GitHub account linked successfully!");
-    }, 1000);
-
-    return () => clearTimeout(tDone);
-  }, [connectionStep]);
-
-  useEffect(() => {
-    if (connectionStep !== "done") return;
-
-    const tTransition = setTimeout(() => {
-      nextSection();
-    }, 500);
-
-    return () => clearTimeout(tTransition);
-  }, [connectionStep, nextSection]);
+  }, [currentPhaseId, isPhaseCompleted, lifecycleState, onStateComplete, onPhaseComplete, setStatusMessage]);
 
   const handleLinkGithub = () => {
     if (connectionStep !== "idle") return;
-    setSubStage(1);
+    useDemoStore.setState({ isPlaying: true, subStage: 1 });
   };
 
   // --- Motion Variants ---
