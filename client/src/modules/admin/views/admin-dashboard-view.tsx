@@ -144,13 +144,13 @@ function AdminDashboardContent() {
       {/* 2. Global Unified Filter Bar */}
       <AdminDashboardFilterBar />
 
-      {/* 3. Category Tabs */}
-      <div className="border-b border-separator pb-4">
-        <Tabs
-          selectedKey={activeTab}
-          onSelectionChange={(key) => setActiveTab(key as string)}
-          variant="secondary"
-        >
+      {/* 3. Category Tabs & Panels */}
+      <Tabs
+        selectedKey={activeTab}
+        onSelectionChange={(key) => setActiveTab(key as string)}
+        variant="secondary"
+      >
+        <div className="border-b border-separator pb-4 mb-6">
           <Tabs.ListContainer>
             <Tabs.List aria-label="Dashboard Section Tabs" className="gap-6 border-none">
               <Tabs.Tab id="overview" className="pb-1.5 text-xs font-bold select-none cursor-pointer flex items-center gap-2">
@@ -175,12 +175,10 @@ function AdminDashboardContent() {
               </Tabs.Tab>
             </Tabs.List>
           </Tabs.ListContainer>
-        </Tabs>
-      </div>
+        </div>
 
-      {/* Tab 1: Overview Tab */}
-      {activeTab === 'overview' && (
-        <div className="space-y-6">
+        {/* Tab 1: Overview Tab */}
+        <Tabs.Panel id="overview" className="space-y-6">
           <DashboardWidgetWrapper
             title="Platform Operations Overview"
             subtitle="High-level key performance indicators across the entire CVerify platform"
@@ -242,12 +240,10 @@ function AdminDashboardContent() {
           >
             <ActivityTimelineWidget items={activityQuery.data} isLoading={activityQuery.isLoading} onRefresh={activityQuery.refetch} />
           </DashboardWidgetWrapper>
-        </div>
-      )}
+        </Tabs.Panel>
 
-      {/* Tab 2: Infrastructure & AI Operations */}
-      {activeTab === 'infrastructure' && (
-        <div className="space-y-6">
+        {/* Tab 2: Infrastructure & AI Operations */}
+        <Tabs.Panel id="infrastructure" className="space-y-6">
           <DashboardWidgetWrapper
             title="Platform Infrastructure & Resources"
             subtitle="Host CPU, RAM, Disk, Network, PostgreSQL, Redis, and FastAPI status"
@@ -283,12 +279,10 @@ function AdminDashboardContent() {
           >
             <AiCostDashboardWidget data={aiCostQuery.data} isLoading={aiCostQuery.isLoading} />
           </DashboardWidgetWrapper>
-        </div>
-      )}
+        </Tabs.Panel>
 
-      {/* Tab 3: Domain Analytics */}
-      {activeTab === 'analytics' && (
-        <div className="space-y-6">
+        {/* Tab 3: Domain Analytics */}
+        <Tabs.Panel id="analytics" className="space-y-6">
           <DashboardWidgetWrapper
             title="User Accounts & Identity Analytics"
             subtitle="Registration growth trends, daily active users, and OAuth account linking"
@@ -336,12 +330,10 @@ function AdminDashboardContent() {
           >
             <OrganizationAnalyticsWidget data={orgAnalyticsQuery.data} isLoading={orgAnalyticsQuery.isLoading} />
           </DashboardWidgetWrapper>
-        </div>
-      )}
+        </Tabs.Panel>
 
-      {/* Tab 4: Security & Audit */}
-      {activeTab === 'security' && (
-        <div className="space-y-6">
+        {/* Tab 4: Security & Audit */}
+        <Tabs.Panel id="security" className="space-y-6">
           <DashboardWidgetWrapper
             title="System Audit Trail Summary"
             subtitle="Recent administrative actions, role modifications, and operational events"
@@ -365,8 +357,8 @@ function AdminDashboardContent() {
           >
             <RecentDeploymentsWidget data={deploymentsQuery.data} isLoading={deploymentsQuery.isLoading} />
           </DashboardWidgetWrapper>
-        </div>
-      )}
+        </Tabs.Panel>
+      </Tabs>
 
       {/* Section 16: Footer */}
       <PlatformFooterWidget
