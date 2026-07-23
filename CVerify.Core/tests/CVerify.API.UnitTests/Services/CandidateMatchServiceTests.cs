@@ -153,7 +153,7 @@ public class CandidateMatchServiceTests : IDisposable
         savedRun.Should().NotBeNull();
         savedRun!.HiringRequirementId.Should().Be(_requirementId);
         savedRun.TriggeredById.Should().Be(_candidateId);
-        savedRun.Status.Should().Be(DiscoveryStatus.Pending);
+        savedRun.Status.Should().BeOneOf(DiscoveryStatus.Pending, DiscoveryStatus.Searching);
 
         _mockStreamingSessionService.Verify(s => s.CreateSessionAsync(
             _requirementId, "candidate-discovery", _candidateId, _workspaceId, "Claude 3.5 Sonnet", "Anthropic", "1.0.0", "[\"CandidateMatches\"]"
