@@ -208,7 +208,7 @@ public class UserAdministrationService : IUserAdministrationService
             var adminMember = await _context.AdminMembers.FirstOrDefaultAsync(am => am.UserId == targetUserId, cancellationToken);
             if (adminMember != null)
             {
-                adminMember.Status = targetStatus.ToString();
+                adminMember.Status = targetStatus.ToString().ToUpperInvariant();
                 adminMember.SessionVersion += 1;
                 adminMember.UpdatedAt = _timeProvider.GetUtcNow();
             }
