@@ -132,9 +132,10 @@ export function DashboardWidgetWrapper({
     );
   }
 
+  const fallbackId = useId();
   const errorMessage = error?.response?.data?.message || error?.message || (typeof error === 'string' ? error : null);
   const statusCode = error?.response?.status || 500;
-  const correlationId = error?.response?.headers?.['x-correlation-id'] || 'corr-' + Math.random().toString(36).substring(2, 9);
+  const correlationId = error?.response?.headers?.['x-correlation-id'] || 'corr-' + fallbackId.replace(/:/g, '');
 
   return (
     <WidgetErrorBoundary fallbackTitle={title} onRetry={onRefresh}>
