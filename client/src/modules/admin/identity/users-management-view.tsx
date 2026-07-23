@@ -23,6 +23,7 @@ export function UsersManagementView() {
   const [roleFilter, setRoleFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Edit State
   const [selectedUser, setSelectedUser] = useState<UserListItem | null>(null);
@@ -45,6 +46,7 @@ export function UsersManagementView() {
 
   const fetchUsers = useCallback(async (currentPage: number, searchVal = debouncedSearch, silent = false) => {
     if (!silent) setIsLoading(true);
+    setFetchError(null);
     try {
       const response = await adminService.getUsers({
         search: searchVal || undefined,
@@ -55,8 +57,16 @@ export function UsersManagementView() {
       });
       setUsers(response.items);
       setTotalCount(response.totalCount);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to fetch users', err);
+      const errorObj = err as { response?: { status?: number; data?: { message?: string } }; message?: string };
+      const status = errorObj.response?.status;
+      const apiMsg = errorObj.response?.data?.message;
+      if (status === 401 || status === 403) {
+        setFetchError('Access Denied: You do not have permission to view the platform user directory.');
+      } else {
+        setFetchError(apiMsg || errorObj.message || 'Failed to retrieve user directory. Please try again.');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -213,6 +223,22 @@ export function UsersManagementView() {
       <Card className="p-0 overflow-hidden border border-border bg-surface/80 rounded-2xl shadow-surface">
         {isLoading ? (
           <SkeletonLoader rows={6} columns={6} />
+        ) : fetchError ? (
+          <div className="p-8 text-center space-y-4">
+            <div className="mx-auto size-12 rounded-full bg-danger/10 text-danger flex items-center justify-center">
+              <AlertCircle size={24} />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-foreground mb-1">User Synchronization Error</h3>
+              <p className="text-xs text-muted max-w-md mx-auto">{fetchError}</p>
+            </div>
+            <button
+              onClick={() => fetchUsers(page)}
+              className="px-4 py-2 bg-foreground text-background rounded-xl text-xs font-bold hover:bg-foreground/90 transition-all select-none cursor-pointer"
+            >
+              Retry Connection
+            </button>
+          </div>
         ) : users.length === 0 ? (
           <EmptyState
             title="No Users Found"

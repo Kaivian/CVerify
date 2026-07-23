@@ -58,7 +58,7 @@ public class JobEligibilityService : IJobEligibilityService
 
             // Check if user is platform admin
             var isAdmin = await _context.AdminMembers
-                .AnyAsync(am => am.UserId == userId.Value && am.Status == "Active", cancellationToken);
+                .AnyAsync(am => am.UserId == userId.Value && am.Status.ToUpper() == "ACTIVE", cancellationToken);
             if (isAdmin) return true;
 
             // Check if user is owner/member of the owning organization

@@ -63,7 +63,7 @@ public class AdminAuthorizationService : IAdminAuthorizationService
 
         // Cache miss: Load from DB
         var dbVersion = await _context.AdminMembers
-            .Where(am => am.UserId == userId && am.Status == "Active")
+            .Where(am => am.UserId == userId && am.Status.ToUpper() == "ACTIVE")
             .Select(am => am.SessionVersion)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -87,7 +87,7 @@ public class AdminAuthorizationService : IAdminAuthorizationService
     {
         // Validate active admin membership
         var isActiveAdmin = await _context.AdminMembers
-            .AnyAsync(am => am.UserId == userId && am.Status == "Active", cancellationToken);
+            .AnyAsync(am => am.UserId == userId && am.Status.ToUpper() == "ACTIVE", cancellationToken);
 
         if (!isActiveAdmin)
         {

@@ -6,20 +6,20 @@ namespace CVerify.API.Modules.Admin.Services;
 
 public interface IAdminDashboardFacade
 {
-    Task<PlatformHealthWidgetDto> GetPlatformHealthWidgetAsync();
-    Task<InfrastructureWidgetDto> GetInfrastructureWidgetAsync();
-    Task<AiOpsWidgetDto> GetAiOpsWidgetAsync();
-    Task<List<ActivityItemDto>> GetActivityTimelineWidgetAsync(int count = 20, string? category = null);
-    Task<List<AlertItemDto>> GetSystemAlertsWidgetAsync();
-    Task<UserAnalyticsWidgetDto> GetUserAnalyticsWidgetAsync();
-    Task<RepositoryAnalyticsWidgetDto> GetRepositoryAnalyticsWidgetAsync();
-    Task<CvAnalyticsWidgetDto> GetCvAnalyticsWidgetAsync();
-    Task<OrganizationAnalyticsWidgetDto> GetOrganizationAnalyticsWidgetAsync();
-    Task<AiCostDashboardWidgetDto> GetAiCostWidgetAsync();
-    Task<PendingTasksWidgetDto> GetPendingTasksWidgetAsync();
-    Task<RecentDeploymentsWidgetDto> GetRecentDeploymentsWidgetAsync();
-    Task<AuditSummaryWidgetDto> GetAuditSummaryWidgetAsync();
-    Task<AdminDashboardOverviewDto> GetOverviewAsync();
+    Task<PlatformHealthWidgetDto> GetPlatformHealthWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<InfrastructureWidgetDto> GetInfrastructureWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<AiOpsWidgetDto> GetAiOpsWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<List<ActivityItemDto>> GetActivityTimelineWidgetAsync(int count = 20, string? category = null, DashboardFilterQueryDto? filter = null);
+    Task<List<AlertItemDto>> GetSystemAlertsWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<UserAnalyticsWidgetDto> GetUserAnalyticsWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<RepositoryAnalyticsWidgetDto> GetRepositoryAnalyticsWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<CvAnalyticsWidgetDto> GetCvAnalyticsWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<OrganizationAnalyticsWidgetDto> GetOrganizationAnalyticsWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<AiCostDashboardWidgetDto> GetAiCostWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<PendingTasksWidgetDto> GetPendingTasksWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<RecentDeploymentsWidgetDto> GetRecentDeploymentsWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<AuditSummaryWidgetDto> GetAuditSummaryWidgetAsync(DashboardFilterQueryDto? filter = null);
+    Task<AdminDashboardOverviewDto> GetOverviewAsync(DashboardFilterQueryDto? filter = null);
     Task<bool> ToggleApiEmergencyLockAsync();
     Task<bool> DismissAlertAsync(string alertId);
 }
