@@ -384,25 +384,31 @@ export function UsersManagementView() {
             {roles.map((role) => {
               const isChecked = editRoles.includes(role.name);
               return (
-                <div key={role.id} className="p-1 rounded-xl hover:bg-surface-secondary transition-colors">
+                <div
+                  key={role.id}
+                  onClick={() => handleRoleToggle(role.name)}
+                  className="p-2 rounded-xl hover:bg-surface-secondary transition-colors flex items-start gap-3 cursor-pointer select-none"
+                >
                   <Checkbox
                     id={`role-${role.id}`}
                     isSelected={isChecked}
                     onChange={() => handleRoleToggle(role.name)}
-                    className="flex items-start gap-3 w-full cursor-pointer select-none"
+                    className="mt-0.5"
                   >
-                    <Checkbox.Control className="mt-1 border-2 border-border data-[selected=true]:bg-accent data-[selected=true]:border-accent rounded size-4 before:rounded">
+                    <Checkbox.Control className="border-2 border-border data-[selected=true]:bg-accent data-[selected=true]:border-accent rounded size-4 before:rounded">
                       <Checkbox.Indicator className="text-accent-foreground size-3" />
                     </Checkbox.Control>
-                    <Checkbox.Content className="flex flex-col text-left">
-                      <Label htmlFor={`role-${role.id}`} className="text-xs font-bold text-foreground cursor-pointer">
-                        {role.displayName}
-                      </Label>
-                      <Typography type="body-xs" className="text-muted leading-normal">
-                        {role.description}
-                      </Typography>
-                    </Checkbox.Content>
                   </Checkbox>
+                  <div className="flex flex-col text-left min-w-0 flex-1">
+                    <span className="text-xs font-bold text-foreground">
+                      {role.displayName}
+                    </span>
+                    {role.description && (
+                      <span className="text-[11px] text-muted leading-tight mt-0.5">
+                        {role.description}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })}
