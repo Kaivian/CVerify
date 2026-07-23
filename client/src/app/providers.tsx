@@ -11,6 +11,7 @@ import { AuthOrchestrator } from "../features/auth/components/auth-orchestrator"
 import { NotificationHub } from "../infrastructure/notifications/orchestrator";
 import { HeroUIToastRenderer } from "../infrastructure/notifications/renderers/heroui-toast-renderer";
 import { SignalRProvider } from "../providers/signalr-provider";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { useAuthStore } from "../features/auth/store/use-auth-store";
 import { type User } from "../types/auth.types";
@@ -25,6 +26,20 @@ export function Providers({
   locale: string;
   initialUser: User | null;
 }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 10 * 1000,
+            gcTime: 5 * 60 * 1000,
+            retry: 1,
+            refetchOnWindowFocus: false,
+          },
+        },
+      })
+  );
+
   const [_storeInitialized] = useState(() => {
     if (initialUser) {
       useAuthStore.setState({
@@ -152,13 +167,13 @@ export function Providers({
   }, []);
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <Toast.Provider />
       <AuthOrchestrator />
       <SignalRProvider>
         {children}
       </SignalRProvider>
-    </>
+    </QueryClientProvider>
   );
 }
 export default Providers;
