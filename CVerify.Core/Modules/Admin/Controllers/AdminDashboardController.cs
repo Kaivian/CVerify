@@ -19,100 +19,100 @@ public class AdminDashboardController : ControllerBase
     }
 
     [HttpGet("overview")]
-    public async Task<IActionResult> GetOverview()
+    public async Task<IActionResult> GetOverview([FromQuery] DashboardFilterQueryDto query)
     {
-        var overview = await _dashboardFacade.GetOverviewAsync();
+        var overview = await _dashboardFacade.GetOverviewAsync(query);
         return Ok(overview);
     }
 
     [HttpGet("widgets/health")]
-    public async Task<IActionResult> GetHealthWidget()
+    public async Task<IActionResult> GetHealthWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetPlatformHealthWidgetAsync();
+        var widget = await _dashboardFacade.GetPlatformHealthWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/infrastructure")]
-    public async Task<IActionResult> GetInfrastructureWidget()
+    public async Task<IActionResult> GetInfrastructureWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetInfrastructureWidgetAsync();
+        var widget = await _dashboardFacade.GetInfrastructureWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/ai-ops")]
-    public async Task<IActionResult> GetAiOpsWidget()
+    public async Task<IActionResult> GetAiOpsWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetAiOpsWidgetAsync();
+        var widget = await _dashboardFacade.GetAiOpsWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/activity")]
-    public async Task<IActionResult> GetActivityWidget([FromQuery] int count = 20, [FromQuery] string? category = null)
+    public async Task<IActionResult> GetActivityWidget([FromQuery] int count = 20, [FromQuery] string? category = null, [FromQuery] DashboardFilterQueryDto query = null!)
     {
-        var widget = await _dashboardFacade.GetActivityTimelineWidgetAsync(count, category);
+        var widget = await _dashboardFacade.GetActivityTimelineWidgetAsync(count, category, query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/alerts")]
-    public async Task<IActionResult> GetAlertsWidget()
+    public async Task<IActionResult> GetAlertsWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetSystemAlertsWidgetAsync();
+        var widget = await _dashboardFacade.GetSystemAlertsWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/user-analytics")]
-    public async Task<IActionResult> GetUserAnalyticsWidget()
+    public async Task<IActionResult> GetUserAnalyticsWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetUserAnalyticsWidgetAsync();
+        var widget = await _dashboardFacade.GetUserAnalyticsWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/repo-analytics")]
-    public async Task<IActionResult> GetRepositoryAnalyticsWidget()
+    public async Task<IActionResult> GetRepositoryAnalyticsWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetRepositoryAnalyticsWidgetAsync();
+        var widget = await _dashboardFacade.GetRepositoryAnalyticsWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/cv-analytics")]
-    public async Task<IActionResult> GetCvAnalyticsWidget()
+    public async Task<IActionResult> GetCvAnalyticsWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetCvAnalyticsWidgetAsync();
+        var widget = await _dashboardFacade.GetCvAnalyticsWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/org-analytics")]
-    public async Task<IActionResult> GetOrganizationAnalyticsWidget()
+    public async Task<IActionResult> GetOrganizationAnalyticsWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetOrganizationAnalyticsWidgetAsync();
+        var widget = await _dashboardFacade.GetOrganizationAnalyticsWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/ai-cost")]
-    public async Task<IActionResult> GetAiCostWidget()
+    public async Task<IActionResult> GetAiCostWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetAiCostWidgetAsync();
+        var widget = await _dashboardFacade.GetAiCostWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/pending-tasks")]
-    public async Task<IActionResult> GetPendingTasksWidget()
+    public async Task<IActionResult> GetPendingTasksWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetPendingTasksWidgetAsync();
+        var widget = await _dashboardFacade.GetPendingTasksWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/deployments")]
-    public async Task<IActionResult> GetDeploymentsWidget()
+    public async Task<IActionResult> GetDeploymentsWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetRecentDeploymentsWidgetAsync();
+        var widget = await _dashboardFacade.GetRecentDeploymentsWidgetAsync(query);
         return Ok(widget);
     }
 
     [HttpGet("widgets/audit-summary")]
-    public async Task<IActionResult> GetAuditSummaryWidget()
+    public async Task<IActionResult> GetAuditSummaryWidget([FromQuery] DashboardFilterQueryDto query)
     {
-        var widget = await _dashboardFacade.GetAuditSummaryWidgetAsync();
+        var widget = await _dashboardFacade.GetAuditSummaryWidgetAsync(query);
         return Ok(widget);
     }
 
