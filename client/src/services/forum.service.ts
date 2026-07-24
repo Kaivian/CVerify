@@ -22,6 +22,7 @@ export interface CategoryResponse {
   isPrivate: boolean;
   isArchived: boolean;
   requiredRole?: string;
+  topicCount?: number;
   createdAt: string;
 }
 
@@ -54,6 +55,7 @@ export interface TopicListItemResponse {
   categorySlug: string;
   organizationId?: string;
   author: UserMiniDto;
+  lastReplyAuthor?: UserMiniDto;
   title: string;
   slug: string;
   excerpt: string;

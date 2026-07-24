@@ -6,27 +6,19 @@ import { useAuth } from "@/features/auth/hooks/use-auth";
 import {
   forumApi,
   type CategoryResponse,
-  type TopicListItemResponse
+  type TopicListItemResponse,
 } from "@/services/forum.service";
-import {
-  Chip,
-  Spinner,
-  Avatar,
-  Button,
-  Skeleton
-} from "@heroui/react";
+import { Chip, Button } from "@heroui/react";
 import { PaginationWrapper } from "@/components/ui/pagination-wrapper";
 import { Card } from "@/components/ui/card";
-import {
-  MessageSquare,
-  Eye,
-  CheckCircle,
-  PlusCircle,
-  ArrowUp,
-  ChevronLeft,
-  BookMarked
-} from "lucide-react";
+import { ChevronLeft, PlusCircle } from "lucide-react";
 import { PublicPageShell } from "@/components/ui/public-page-shell";
+
+// Redesigned Feature Components
+import { DiscussionCard } from "@/features/forum/components/discussion-card";
+import { DiscussionStreamSkeleton } from "@/features/forum/components/forum-skeletons";
+import { ForumEmptyState } from "@/features/forum/components/forum-empty-state";
+import { trackForumEvent } from "@/features/forum/services/forum-telemetry";
 
 interface CategoryPageProps {
   params: Promise<{
@@ -58,7 +50,6 @@ export default function CategoryForumPage({ params }: CategoryPageProps) {
     setLoading(true);
     setError(null);
     try {
-      // 1. Load all categories to find the matching slug (backend resolves slugs this way or we find category by slug)
       const allCategories = await forumApi.getCategories();
       const currentCat = allCategories.find((c) => c.slug === categorySlug);
 
@@ -69,11 +60,10 @@ export default function CategoryForumPage({ params }: CategoryPageProps) {
       }
       setCategory(currentCat);
 
-      // 2. Load topics for this category
       const result = await forumApi.getTopics({
         categoryId: currentCat.id,
         page,
-        pageSize
+        pageSize,
       });
       setTopics(result.items || []);
       setTotalPages(result.totalPages || 1);
@@ -89,17 +79,12 @@ export default function CategoryForumPage({ params }: CategoryPageProps) {
     loadCategoryData();
   }, [loadCategoryData]);
 
-  const formatTimeAgo = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+  const handleTagSelect = (tagSlug: string) => {
+    router.push(`/forum?tag=${tagSlug}`);
+  };
 
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+  const handleCategorySelect = (catId: string) => {
+    router.push(`/forum?category=${catId}`);
   };
 
   return (
@@ -119,20 +104,27 @@ export default function CategoryForumPage({ params }: CategoryPageProps) {
           </Button>
         </div>
 
-        {/* Header Info */}
+        {/* Header Info Banner */}
         {category && (
           <div className="border-b border-border/40 pb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-extrabold tracking-tight">{category.name}</h1>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+                  {category.name}
+                </h1>
                 {category.requiredRole && (
-                  <Chip color="warning" size="sm" variant="soft">
+                  <Chip color="warning" size="sm" variant="soft" className="text-xs">
                     {category.requiredRole} Write Restriction
                   </Chip>
                 )}
+                {category.topicCount !== undefined && (
+                  <Chip size="sm" variant="soft" className="text-xs">
+                    {category.topicCount} discussions
+                  </Chip>
+                )}
               </div>
-              <p className="text-muted-foreground text-sm mt-1">
-                {category.description || `Discussion thread for ${category.name}.`}
+              <p className="text-muted-foreground text-sm max-w-2xl">
+                {category.description || `Discussion threads and community answers inside ${category.name}.`}
               </p>
             </div>
 
@@ -140,7 +132,11 @@ export default function CategoryForumPage({ params }: CategoryPageProps) {
               {isAuthenticated ? (
                 <Button
                   variant="primary"
-                  onPress={() => router.push(`/forum/new?category=${category.id}`)}
+                  onPress={() => {
+                    trackForumEvent("forum_create_discussion_clicked", { source: "category_header" });
+                    router.push(`/forum/new?category=${category.id}`);
+                  }}
+                  className="font-semibold"
                 >
                   <PlusCircle className="w-4 h-4 mr-1.5 inline-block align-middle" />
                   <span>Create Discussion</span>
@@ -159,122 +155,32 @@ export default function CategoryForumPage({ params }: CategoryPageProps) {
 
         {/* Main Feed stream */}
         {loading ? (
-          <div className="flex flex-col gap-4">
-             {[1, 2, 3].map((n) => (
-              <Card key={n} className="p-6 flex flex-col gap-4">
-                <Skeleton className="h-4 rounded-md w-1/3" />
-                <Skeleton className="h-6 rounded-md w-2/3" />
-                <Skeleton className="h-4 rounded-md w-full" />
-                <div className="flex justify-between items-center pt-2">
-                  <Skeleton className="h-4 rounded-md w-16" />
-                  <Skeleton className="h-8 rounded-full w-8" />
-                </div>
-              </Card>
-            ))}
-          </div>
+          <DiscussionStreamSkeleton count={4} />
         ) : error ? (
-          <Card className="p-8 text-center flex flex-col items-center justify-center gap-4">
-            <h3 className="text-lg font-bold">Failed to load Category</h3>
+          <Card className="p-8 text-center flex flex-col items-center justify-center gap-4 border border-border">
+            <h3 className="text-lg font-bold text-foreground">Failed to load Category</h3>
             <p className="text-muted-foreground text-sm max-w-sm">{error}</p>
             <Button variant="primary" onPress={loadCategoryData}>
               Try Again
             </Button>
           </Card>
         ) : topics.length === 0 ? (
-          <Card className="p-12 text-center flex flex-col items-center justify-center gap-4 border-dashed">
-            <MessageSquare className="w-12 h-12 text-muted-foreground/60" />
-            <h3 className="text-lg font-bold">No discussions yet</h3>
-            <p className="text-muted-foreground text-sm max-w-sm">
-              Be the first to start a thread inside {category?.name || "this category"}!
-            </p>
-            {isAuthenticated && (
-              <Button
-                onPress={() => router.push(`/forum/new?category=${category?.id}`)}
-              >
-                <PlusCircle className="w-4 h-4 mr-1.5" />
-                Create Discussion
-              </Button>
-            )}
-          </Card>
+          <ForumEmptyState
+            type="category"
+            categoryName={category?.name}
+            isAuthenticated={isAuthenticated}
+            onClearFilters={() => router.push("/forum")}
+          />
         ) : (
           <div className="flex flex-col gap-4">
             {topics.map((topic) => (
-              <Card
+              <DiscussionCard
                 key={topic.id}
-                as="div"
-                glow={topic.isPinned}
-                className={`p-6 flex flex-col gap-4 border cursor-pointer hover:border-primary/50 transition-all ${topic.isPinned ? "border-primary/30 bg-primary-950/5" : "border-border/60"
-                  }`}
-                onClick={() => router.push(`/forum/topic/${topic.slug}`)}
-              >
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex flex-col gap-1 text-left">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{formatTimeAgo(topic.createdAt)}</span>
-                      {topic.isPinned && <Chip size="sm" variant="soft" className="h-5 text-[10px]">Pinned</Chip>}
-                      {topic.isLocked && <Chip size="sm" color="default" variant="soft" className="h-5 text-[10px]">Locked</Chip>}
-                      {topic.isSolved && (
-                        <Chip size="sm" color="success" variant="soft" className="h-5 text-[10px]">
-                          <CheckCircle className="w-3 h-3 mr-1 inline-block align-middle" />
-                          <span>Solved</span>
-                        </Chip>
-                      )}
-                    </div>
-
-                    <h2 className="text-lg font-bold hover:text-primary transition-colors mt-2 text-left line-clamp-2">
-                      {topic.title}
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2 text-left">
-                      {topic.excerpt}
-                    </p>
-                  </div>
-                </div>
-
-                {topic.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {topic.tags.map((t) => (
-                      <Chip key={t} size="sm" variant="soft" className="text-[11px] h-5 bg-muted/60">
-                        #{t}
-                      </Chip>
-                    ))}
-                  </div>
-                )}
-
-                <div className="w-full h-px bg-border/40" />
-
-                <div className="flex items-center justify-between gap-4">
-                  <div onClick={(e) => { e.stopPropagation(); router.push(`/${topic.author.username}`); }} className="flex items-center gap-2 cursor-pointer">
-                    <Avatar className="w-8 h-8 rounded-full">
-                      {topic.author.avatarUrl && <Avatar.Image src={topic.author.avatarUrl} alt={topic.author.fullName} />}
-                      <Avatar.Fallback>{topic.author.fullName.substring(0, 2).toUpperCase()}</Avatar.Fallback>
-                    </Avatar>
-                    <div className="flex flex-col text-left">
-                      <span className="text-xs font-semibold hover:text-primary transition-colors">
-                        {topic.author.fullName}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        @{topic.author.username || "user"} • Rep: {topic.author.reputation}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-3.5 h-3.5" />
-                      {topic.viewCount}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      {topic.replyCount}
-                    </span>
-                    <span className="flex items-center gap-1 font-medium">
-                      <ArrowUp className="w-3.5 h-3.5" />
-                      {topic.score}
-                    </span>
-                    {topic.isBookmarked && <BookMarked className="w-3.5 h-3.5 text-primary" />}
-                  </div>
-                </div>
-              </Card>
+                topic={topic}
+                isAuthenticated={isAuthenticated}
+                onTagSelect={handleTagSelect}
+                onCategorySelect={handleCategorySelect}
+              />
             ))}
           </div>
         )}
@@ -287,7 +193,10 @@ export default function CategoryForumPage({ params }: CategoryPageProps) {
               totalPages={totalPages}
               totalItems={totalItems}
               itemsPerPage={pageSize}
-              onPageChange={(p) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              onPageChange={(p) => {
+                setPage(p);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
             />
           </div>
         )}
