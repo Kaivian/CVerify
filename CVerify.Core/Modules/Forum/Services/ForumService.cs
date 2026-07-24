@@ -146,6 +146,7 @@ public class ForumService : IForumService
     public async Task<IEnumerable<CategoryResponse>> GetCategoriesAsync(Guid? organizationId, string? userRole, CancellationToken cancellationToken)
     {
         var query = _context.ForumCategories
+            .Include(c => c.Topics)
             .Where(c => c.DeletedAt == null && c.OrganizationId == organizationId);
 
         var list = await query
@@ -164,13 +165,16 @@ public class ForumService : IForumService
             IsPrivate = c.IsPrivate,
             IsArchived = c.IsArchived,
             RequiredRole = c.RequiredRole,
+            TopicCount = c.Topics.Count(t => t.DeletedAt == null),
             CreatedAt = c.CreatedAt
         });
     }
 
     public async Task<CategoryResponse> GetCategoryByIdAsync(Guid id, CancellationToken cancellationToken)
     {
-        var c = await _context.ForumCategories.FirstOrDefaultAsync(cat => cat.Id == id && cat.DeletedAt == null, cancellationToken);
+        var c = await _context.ForumCategories
+            .Include(cat => cat.Topics)
+            .FirstOrDefaultAsync(cat => cat.Id == id && cat.DeletedAt == null, cancellationToken);
         if (c == null) throw new ResourceNotFoundException("CATEGORY_NOT_FOUND");
 
         return new CategoryResponse
@@ -185,6 +189,7 @@ public class ForumService : IForumService
             IsPrivate = c.IsPrivate,
             IsArchived = c.IsArchived,
             RequiredRole = c.RequiredRole,
+            TopicCount = c.Topics.Count(t => t.DeletedAt == null),
             CreatedAt = c.CreatedAt
         };
     }
@@ -423,6 +428,16 @@ public class ForumService : IForumService
         foreach (var t in items)
         {
             var authorDto = await MapUserToMiniDtoAsync(t.AuthorId, cancellationToken);
+            UserMiniDto? lastReplyAuthorDto = null;
+            var lastReply = await _context.ForumReplies
+                .Where(r => r.TopicId == t.Id && r.DeletedAt == null)
+                .OrderByDescending(r => r.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (lastReply != null)
+            {
+                lastReplyAuthorDto = await MapUserToMiniDtoAsync(lastReply.AuthorId, cancellationToken);
+            }
+
             bool isBookmarked = currentUserId.HasValue && await _context.ForumBookmarks.AnyAsync(b => b.TopicId == t.Id && b.UserId == currentUserId.Value, cancellationToken);
             bool isFollowing = currentUserId.HasValue && await _context.ForumFollows.AnyAsync(f => f.TopicId == t.Id && f.UserId == currentUserId.Value, cancellationToken);
 
@@ -446,6 +461,7 @@ public class ForumService : IForumService
                 CategorySlug = t.Category.Slug,
                 OrganizationId = t.OrganizationId,
                 Author = authorDto,
+                LastReplyAuthor = lastReplyAuthorDto,
                 Title = t.Title,
                 Slug = t.Slug,
                 Excerpt = excerpt,
