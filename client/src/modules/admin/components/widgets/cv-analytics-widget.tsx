@@ -56,17 +56,21 @@ export function CvAnalyticsWidget({ data, isLoading }: CvAnalyticsWidgetProps) {
           <Chip size="sm" variant="soft" color="success" className="text-[10px] h-4">Extracted Domains</Chip>
         </h5>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {data.skillDistribution.map((skill, idx) => (
-            <div key={skill.name} className="p-3 rounded-lg bg-surface-secondary space-y-1.5">
-              <div className="flex justify-between text-xs font-mono">
-                <span className="font-semibold text-foreground">{skill.name}</span>
-                <span className="text-muted">{skill.count} profiles ({skill.percentage}%)</span>
+        {data.skillDistribution.length === 0 ? (
+          <p className="text-xs text-muted py-3 italic text-center">No skill distribution data recorded yet</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {data.skillDistribution.map((skill, idx) => (
+              <div key={skill.name} className="p-3 rounded-lg bg-surface-secondary space-y-1.5">
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="font-semibold text-foreground">{skill.name}</span>
+                  <span className="text-muted">{skill.count} profiles ({skill.percentage}%)</span>
+                </div>
+                <ProgressBar value={skill.percentage} size="sm" color={idx === 0 ? 'accent' : 'success'} className="h-1.5" />
               </div>
-              <ProgressBar value={skill.percentage} size="sm" color={idx === 0 ? 'accent' : 'success'} className="h-1.5" />
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
