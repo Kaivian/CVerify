@@ -36,3 +36,4 @@ export const AuthFooter: React.FC = () => {
 };
 
 export default AuthFooter;
+

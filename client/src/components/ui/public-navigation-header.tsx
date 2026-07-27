@@ -42,6 +42,13 @@ export function PublicNavigationHeader({
             Browse Jobs
           </Link>
           
+          <Link 
+            href="/demo" 
+            className="text-xs font-semibold text-muted hover:text-foreground transition-colors rounded-sm"
+          >
+            Demo
+          </Link>
+          
           {isAuthenticated ? (
             <div className="flex items-center gap-4">
               <Link 
