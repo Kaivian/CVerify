@@ -366,7 +366,7 @@ http {
         }
 
         location /api/ {
-            proxy_pass         http://cverify_api/;
+            proxy_pass         http://cverify_api;
             proxy_http_version 1.1;
             proxy_set_header   Upgrade $http_upgrade;
             proxy_set_header   Connection 'upgrade';
