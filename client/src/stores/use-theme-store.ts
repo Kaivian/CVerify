@@ -12,12 +12,6 @@ interface ThemeState {
   initializeTheme: () => void;
 }
 
-// Helper to sanitize theme string
-const cleanTheme = (theme: string | undefined): ThemeType => {
-  if (!theme) return 'light';
-  return theme;
-};
-
 // Extensible list of theme class names to remove when switching themes
 const KNOWN_THEMES = ['light', 'dark', 'ocean', 'emerald'];
 
@@ -60,14 +54,24 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   initializeTheme: () => {
     if (typeof window === 'undefined') return;
 
-    // 1. Read theme from cookie first (highest SSR sync parity), then localStorage, fallback to dark
+    // 1. Read stored preferences and current OS preferences
     const cookieTheme = getCookie('theme');
     const localTheme = localStorage.getItem('theme');
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     
-    const activeTheme = cleanTheme(cookieTheme || localTheme || systemTheme);
+    let activeTheme: ThemeType = 'light'; // Default first-time fallback is light
 
-    // 2. Apply theme without triggers to state if already active
+    if (cookieTheme && KNOWN_THEMES.includes(cookieTheme)) {
+      activeTheme = cookieTheme;
+    } else if (localTheme) {
+      if (localTheme === 'system') {
+        activeTheme = systemTheme;
+      } else if (KNOWN_THEMES.includes(localTheme)) {
+        activeTheme = localTheme;
+      }
+    }
+
+    // 2. Apply theme to state and document element
     set({ theme: activeTheme });
 
     const root = document.documentElement;
@@ -75,7 +79,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     root.classList.add(activeTheme);
     root.setAttribute('data-theme', activeTheme);
     
-    // 3. Ensure persistent cookies match
+    // 3. Keep cookie synchronized to prevent subsequent SSR hydration flickers
     setCookie('theme', activeTheme, 31536000);
   }
 }));

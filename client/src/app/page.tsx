@@ -671,7 +671,7 @@ export default function Home() {
             <Link href="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
             <Link href="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
             <Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link>
-            <Link href="/system-status" className="hover:text-foreground transition-colors">System Status</Link>
+            <Link href="/status" className="hover:text-foreground transition-colors">System Status</Link>
           </div>
         </footer>
       </div>

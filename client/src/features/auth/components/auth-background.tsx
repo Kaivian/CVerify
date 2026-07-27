@@ -7,7 +7,7 @@ import { useThemeStore } from '@/stores/use-theme-store';
 // Dynamically import ShapeGrid with SSR disabled to prevent hydration/SSR mismatches
 const ShapeGrid = dynamic(() => import('../../../components/reactbits/ShapeGrid'), {
   ssr: false,
-  loading: () => <div className="absolute inset-0 bg-[#f5f5f5]" />
+  loading: () => <div className="absolute inset-0 bg-background" />
 });
 
 export const AuthBackground: React.FC = () => {
@@ -30,8 +30,8 @@ export const AuthBackground: React.FC = () => {
 
     Promise.resolve().then(() => {
       setColors({
-        borderColor: border || (theme === 'dark' ? '#2d2d2dff' : '#e6e6e6ff'),
-        hoverFillColor: hover || (theme === 'dark' ? '#3d3d3dff' : '#f0f0f0ff'),
+        borderColor: border || 'var(--border)',
+        hoverFillColor: hover || 'var(--default)',
       });
     });
   }, [theme]);

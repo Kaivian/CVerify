@@ -38,7 +38,7 @@ export default function BusinessAdminLayout({
     <AuthGuard>
       <WorkspaceProvider>
         <SidebarModeProvider>
-          <div className="grid min-h-screen w-full grid-cols-1 md:grid-cols-[auto_1fr] bg-[#ffffff] dark:bg-[#000000] text-foreground transition-colors duration-300">
+          <div className="grid min-h-screen w-full grid-cols-1 md:grid-cols-[auto_1fr] bg-background text-foreground transition-colors duration-300">
             {/* Sidebar */}
             <Sidebar />
 

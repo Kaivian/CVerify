@@ -891,7 +891,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
                     onPress={handleAddLocation}
                     className={
                       !newLocation.trim()
-                        ? "bg-white dark:bg-surface border border-border text-muted font-bold shrink-0 opacity-60 cursor-not-allowed disabled:bg-white dark:disabled:bg-surface data-[disabled=true]:bg-white dark:data-[disabled=true]:bg-surface data-[disabled=true]:text-muted data-[disabled=true]:border-border data-[disabled=true]:opacity-60"
+                        ? "bg-field-background border border-field-border text-muted font-bold shrink-0 opacity-60 cursor-not-allowed disabled:bg-field-background data-[disabled=true]:bg-field-background data-[disabled=true]:text-muted data-[disabled=true]:border-field-border data-[disabled=true]:opacity-60"
                         : "bg-accent text-accent-foreground font-bold shrink-0 hover:bg-accent/90 cursor-pointer"
                     }
                     isDisabled={!newLocation.trim()}
@@ -1191,7 +1191,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
                     onPress={handleAddSkill}
                     className={
                       !newSkill.trim()
-                        ? "bg-white dark:bg-surface border border-border text-muted font-bold shrink-0 opacity-60 cursor-not-allowed disabled:bg-white dark:disabled:bg-surface data-[disabled=true]:bg-white dark:data-[disabled=true]:bg-surface data-[disabled=true]:text-muted data-[disabled=true]:border-border data-[disabled=true]:opacity-60"
+                        ? "bg-field-background border border-field-border text-muted font-bold shrink-0 opacity-60 cursor-not-allowed disabled:bg-field-background data-[disabled=true]:bg-field-background data-[disabled=true]:text-muted data-[disabled=true]:border-field-border data-[disabled=true]:opacity-60"
                         : "bg-accent text-accent-foreground font-bold shrink-0 hover:bg-accent/90 cursor-pointer"
                     }
                     isDisabled={!newSkill.trim()}

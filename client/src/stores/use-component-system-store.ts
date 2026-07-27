@@ -39,7 +39,7 @@ export const useComponentSystemStore = create<ComponentSystemState>((set) => ({
   activeView: "overview",
   searchQuery: "",
   selectedComponentId: null,
-  previewTheme: "dark",
+  previewTheme: "light",
   previewDevice: "desktop",
   cmdKOpen: false,
 
@@ -55,7 +55,7 @@ export const useComponentSystemStore = create<ComponentSystemState>((set) => ({
       activeView: "overview",
       searchQuery: "",
       selectedComponentId: null,
-      previewTheme: "dark",
+      previewTheme: "light",
       previewDevice: "desktop",
       cmdKOpen: false,
     }),

@@ -8,6 +8,8 @@ import {
 } from '@/types/profile.types';
 import { ProfileContainer } from './components/ProfileContainer';
 import { isReservedUsername } from '@/config/routes';
+import { PublicPageShell } from '@/components/ui/public-page-shell';
+import { AlertCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -148,10 +150,52 @@ export default async function PublicProfilePage({ params }: PageProps) {
   }
 
   // 3. Fetch public profile and assessment data
-  const [profile, assessment] = await Promise.all([
-    getPublicProfile(username),
-    getPublicAssessment(username)
-  ]);
+  let profile: PublicProfileResponse | null = null;
+  let assessment: CandidateAssessmentDetailResponse | null = null;
+  let connectionError: string | null = null;
+
+  try {
+    const [profileRes, assessmentRes] = await Promise.all([
+      getPublicProfile(username),
+      getPublicAssessment(username)
+    ]);
+    profile = profileRes;
+    assessment = assessmentRes;
+  } catch (error: any) {
+    console.error('Gracefully caught profile service connection error:', error);
+    connectionError = error.message || 'Failed to connect to the profile service. Please try again later.';
+  }
+
+  if (connectionError) {
+    return (
+      <PublicPageShell
+        authenticatedClassName="flex items-center justify-center min-h-[75vh] w-full p-4"
+        guestContainerClassName="relative min-h-screen w-full bg-background text-foreground flex flex-col justify-between overflow-x-hidden antialiased"
+        guestBackdrop={<div className="absolute inset-0 bg-[radial-gradient(var(--separator)_1px,transparent_1px)] bg-size-[24px_24px] pointer-events-none opacity-40" />}
+        guestMainClassName="relative z-10 flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-20 flex flex-col items-center justify-center gap-6"
+      >
+        <div className="w-full max-w-xl bg-surface border border-border rounded-2xl shadow-lg p-8 sm:p-10 flex flex-col items-center text-center gap-6">
+          <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-danger/10 border border-danger/20 text-danger">
+            <AlertCircle size={32} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              Profile Temporarily Unavailable
+            </h1>
+            <p className="text-sm text-muted max-w-md leading-relaxed">
+              The profile at <code className="px-1.5 py-0.5 rounded bg-surface-secondary text-xs border border-border font-mono">/{username}</code> cannot be loaded due to a temporary service error. Please try again later.
+            </p>
+            {process.env.NODE_ENV === 'development' && (
+              <p className="text-xs text-danger/80 mt-2 font-mono break-all max-w-md">
+                Development connection error detail: {connectionError}
+              </p>
+            )}
+          </div>
+        </div>
+      </PublicPageShell>
+    );
+  }
 
   if (!profile) {
     notFound();
