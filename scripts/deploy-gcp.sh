@@ -295,7 +295,10 @@ EOF
   SSL_DOMAIN="cverify.io.vn"
   SSL_CERT_PATH="/etc/letsencrypt/live/${SSL_DOMAIN}/fullchain.pem"
 
-  if [ -f "$SSL_CERT_PATH" ]; then
+  # Remove any existing nginx-proxy container to avoid name conflicts (e.g., when switching modes)
+  docker rm -f nginx-proxy 2>/dev/null || true
+
+  if sudo test -f "$SSL_CERT_PATH"; then
     write_info "SSL certificate detected for $SSL_DOMAIN — starting Nginx with HTTPS."
     docker compose -f docker/compose.nginx.yml up -d
   else
