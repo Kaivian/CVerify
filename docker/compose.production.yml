@@ -40,7 +40,7 @@ services:
       REDIS_PORT: 6379
       AI_SERVICE_URL: http://cverify-ai:8000
       PORT: 5000
-      EmailSettings__Provider: SendGrid
+      EmailSettings__Provider: ${EMAIL_PROVIDER:-Smtp}
     ports:
       - "127.0.0.1:${CORE_PORT:-5250}:5000"
 
