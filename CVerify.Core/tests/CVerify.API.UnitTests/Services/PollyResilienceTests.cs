@@ -45,7 +45,6 @@ public class PollyResilienceTests
                 { "EmailSettings:RetryCount", "3" },
                 { "EmailSettings:RetryDelaySeconds", "1" }, // Short delay for quick test runs
                 { "EmailSettings:TimeoutSeconds", "5" }, // Meets minimum 5-second validation threshold!
-                { "EmailSettings:Provider", "Smtp" },
                 { "EmailSettings:SenderEmail", "resilience-test@cverify.ai" },
                 { "EmailSettings:SenderName", "Resilience Tester" }
             })

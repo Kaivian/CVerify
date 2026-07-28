@@ -41,7 +41,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
         var varsToBackup = new[] { "DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD", "REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD",
                                    "GOOGLE_CLIENT_ID", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "AI_SERVICE_URL", "AI_SERVICE_SHARED_SECRET",
                                    "AI_SERVICE_CLIENT_ID", "CLAUDE_MODEL", "EMAIL_SENDER_EMAIL", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME",
-                                   "SMTP_PASSWORD", "SENDGRID_API_KEY", "Auth__DisableCsrf", "DISABLE_RATE_LIMITS", "SUPER_ADMIN_PASSWORD",
+                                   "SMTP_PASSWORD", "Auth__DisableCsrf", "DISABLE_RATE_LIMITS", "SUPER_ADMIN_PASSWORD",
                                    "SUPER_ADMIN_USERNAME", "SUPER_ADMIN_FULL_NAME", "SEED_TEST_ACCOUNTS", "ASPNETCORE_ENVIRONMENT",
                                    "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "R2_ENDPOINT", "R2_BUCKET", "TOKEN_ENCRYPTION_KEY" };
 
@@ -83,7 +83,6 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("SMTP_PORT", "25");
         Environment.SetEnvironmentVariable("SMTP_USERNAME", "test_user");
         Environment.SetEnvironmentVariable("SMTP_PASSWORD", "test_pass");
-        Environment.SetEnvironmentVariable("SENDGRID_API_KEY", "mock-sendgrid-api-key");
         Environment.SetEnvironmentVariable("Auth__DisableCsrf", "true");
         Environment.SetEnvironmentVariable("DISABLE_RATE_LIMITS", "false");
         Environment.SetEnvironmentVariable("SUPER_ADMIN_PASSWORD", "mock-super-admin-password");
@@ -149,7 +148,7 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
             for (int i = services.Count - 1; i >= 0; i--)
             {
                 var descriptor = services[i];
-                if (descriptor.ServiceType == typeof(IEmailSender))
+                if (descriptor.ServiceType == typeof(IEmailSender) || descriptor.ServiceType == typeof(CVerify.API.Modules.Shared.Email.Services.SmtpEmailSender))
                 {
                     services.RemoveAt(i);
                 }
@@ -167,7 +166,6 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
 
             // Register our Single in-memory fake sender in DI
             services.AddSingleton<IEmailSender>(InMemoryEmailSender);
-            services.AddKeyedSingleton<IEmailSender>("raw", InMemoryEmailSender);
 
             // Register in-memory fake IAmazonS3 client in DI to prevent external R2 API timeouts
             var inMemoryS3Files = new System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] Data, Amazon.S3.Model.MetadataCollection Metadata)>();

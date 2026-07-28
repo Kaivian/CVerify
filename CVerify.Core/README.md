@@ -11,8 +11,8 @@ The backend uses a high-performance stack designed for low-latency RESTful trans
 * ORM Layer: Entity Framework Core (EF Core) v10, using snake_case conventions, custom converters, and native PostgreSQL enum mappings.
 * Caching and Rate Limiting: Redis v6.x / v7.x for distributed caching, rate limit partitioning, and session states.
 * AI Microservice Gateway: Named HttpClient client (AiServiceClient) connecting to the FastAPI microservice with HMAC SHA-256 signatures.
-* Email Delivery: MailKit (SMTP) and SendGrid API clients orchestrated through a background Outbox processor.
-* Metrics and Telemetry: Custom health checks (EmailProviderHealthCheck, AuthMetrics) and standard ASP.NET Core health diagnostics.
+* Email Delivery: SMTP MailKit client orchestrated through a background Outbox processor.
+* Metrics and Telemetry: Custom health checks and standard ASP.NET Core health diagnostics.
 
 ## Clean Architecture Structure
 
@@ -36,7 +36,7 @@ CVerify.Core/
 │   ├── Diagnostics/        # AuthMetrics counters and third-party API HealthChecks
 │   ├── EmailTemplates/     # Pre-compiled HTML layout resources for verification & resets
 │   ├── Persistence/        # EF Core DbContext, DB seeds, and Identity repositories
-│   └── Services/           # Adapters (BackgroundQueue, Cache, Token, MailKit, SendGrid)
+│   └── Services/           # Adapters (BackgroundQueue, Cache, Token, MailKit)
 ├── tests/                  # Robust automated testing suites
 │   ├── CVerify.API.Benchmarks/       # High-performance code path bench markers
 │   ├── CVerify.API.IntegrationTests/ # End-to-End API test executions
@@ -70,7 +70,6 @@ The table below lists the required configuration keys:
 | SMTP_PORT | No | 587 | SMTP port for MailKit fallback. |
 | SMTP_USERNAME | No | None | SMTP username credential. |
 | SMTP_PASSWORD | No | None | SMTP password credential. |
-| SENDGRID_API_KEY | No | None | API key for SendGrid HTTP email transport. |
 | GOOGLE_CLIENT_ID | Yes | None | Client ID for Google SSO validation. |
 | AI_SERVICE_URL | Yes | http://localhost:8000 | URL pointing to the CVerify.AI FastAPI microservice. |
 | AI_SERVICE_SHARED_SECRET | Yes | None | Shared HMAC secret key matching the CVerify.AI secret. |
@@ -125,8 +124,7 @@ The application separates database operations from network email transactions us
 
 1. Stage Outbox: Email tasks are stored as records inside the `outbox_messages` table within the same transaction as the parent action.
 2. Background Processing: The `EmailOutboxBackgroundProcessor` hosted service scans the database at regular intervals.
-3. Primary SendGrid API: The background worker attempts to dispatch emails using SendGrid's HTTP endpoint.
-4. MailKit SMTP Failover: If the primary SendGrid client fails due to network errors or rate limit errors, the dispatcher automatically switches to the secondary MailKit SMTP client to ensure delivery.
+3. SMTP Dispatch: The background worker attempts to dispatch emails using the SMTP MailKit client.
 
 ## OpenAPI Swagger Sandbox
 
@@ -167,4 +165,4 @@ If the application crashes on startup throwing symmetric key length errors, veri
 If database queries fail with casting exceptions (e.g. mapping column status values to integer parameters), check that the enum type is registered in the DbContext options during initialization, and verify that the corresponding migration registering the custom enum inside PostgreSQL has been applied.
 
 ### Delayed Email Dispatch
-If verification emails are not being sent, check the background logs for `EmailOutboxBackgroundProcessor`. Ensure your SendGrid key or SMTP credentials are set correctly. You can trigger test emails using the `/api/email-test` endpoint in Swagger for validation.
+If verification emails are not being sent, check the background logs for `EmailOutboxBackgroundProcessor`. Ensure your SMTP credentials are set correctly. You can trigger test emails using the `/api/email-test` endpoint in Swagger for validation.

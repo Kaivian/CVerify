@@ -129,8 +129,8 @@ public class BackgroundEmailQueueProcessor : BackgroundService
                     // Execute delivery inside an isolated service scope to prevent DbContext or client lifecycle issues
                     using var scope = _serviceProvider.CreateScope();
 
-                    // We resolve the active transport using a Keyed Service named "raw" to bypass the public decorator wrapper!
-                    var rawSender = scope.ServiceProvider.GetRequiredKeyedService<IEmailSender>("raw");
+                    // We resolve SmtpEmailSender directly to bypass the public decorator wrapper
+                    var rawSender = scope.ServiceProvider.GetRequiredService<SmtpEmailSender>();
 
                     try
                     {

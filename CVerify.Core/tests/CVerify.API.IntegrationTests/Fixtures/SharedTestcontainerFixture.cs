@@ -32,7 +32,6 @@ public class SharedTestcontainerFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("SMTP_PORT", "25");
         Environment.SetEnvironmentVariable("SMTP_USERNAME", "test_user");
         Environment.SetEnvironmentVariable("SMTP_PASSWORD", "test_password");
-        Environment.SetEnvironmentVariable("SENDGRID_API_KEY", "SG.test_key");
     }
 
     private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder()

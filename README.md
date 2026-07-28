@@ -47,7 +47,7 @@ graph TD
         Pip -->|Prompt Synthesis| Claude["Claude API (Anthropic Client)"]
     end
     
-    BgProcessor -->|SMTP / HTTP| EmailService["Email Delivery (MailKit / SendGrid)"]
+    BgProcessor -->|SMTP| EmailService["Email Delivery (MailKit)"]
 ```
 
 ---
