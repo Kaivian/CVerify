@@ -340,7 +340,7 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
                 ""candidateTrustScore"": 95.0
             },
             ""skills"": [
-                { ""skillName"": ""C#"", ""score"": 90.0, ""confidence"": 0.95, ""level"": ""Expert"", ""evidenceSources"": ""repos"" }
+                { ""skillName"": ""C#"", ""skillId"": ""skill:csharp"", ""taxonomyVersion"": ""2026.07"", ""score"": 90.0, ""confidence"": 0.95, ""level"": ""Expert"", ""evidenceSources"": ""repos"" }
             ],
             ""domainProfiles"": [
                 { ""domainName"": ""Backend Engineering"", ""score"": 85.0, ""confidence"": 0.9, ""seniority"": ""Senior"", ""supportingEvidence"": ""all"" }
@@ -396,14 +396,14 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
         await SetupDefaultTestDataAsync();
 
         // Seed old relational records for this assessment
-        _context.CandidateSkills.Add(new CandidateSkill { Id = Guid.NewGuid(), CandidateAssessmentId = _assessmentId, SkillName = "OldSkill", Level = "Working" });
+        _context.CandidateSkills.Add(new CandidateSkill { Id = Guid.NewGuid(), CandidateAssessmentId = _assessmentId, SkillName = "OldSkill", SkillId = "skill:oldskill", TaxonomyVersion = "2026.07", Level = "Working" });
         _context.CandidateDomainProfiles.Add(new CandidateDomainProfile { Id = Guid.NewGuid(), CandidateAssessmentId = _assessmentId, DomainName = "OldDomain", Seniority = "Middle" });
         await _context.SaveChangesAsync();
 
         var rootJson = @"{
             ""schemaVersion"": ""candidate-profile-v2"",
             ""skills"": [
-                { ""skillName"": ""NewSkill"", ""score"": 90.0, ""confidence"": 0.95, ""level"": ""Expert"" }
+                { ""skillName"": ""NewSkill"", ""skillId"": ""skill:newskill"", ""taxonomyVersion"": ""2026.07"", ""score"": 90.0, ""confidence"": 0.95, ""level"": ""Expert"" }
             ],
             ""trustScoreMetrics"": {
                 ""verifiedSkillRatio"": 0.9,

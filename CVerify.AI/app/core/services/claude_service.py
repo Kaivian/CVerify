@@ -37,9 +37,9 @@ async def retry_with_exponential_backoff(
         except Exception as e:
             status_code = getattr(e, "status_code", None)
             is_transient = False
-            if status_code in (429, 500, 502, 503, 504):
+            if status_code in (429, 500, 502, 503, 504, 529):
                 is_transient = True
-            elif "rate limit" in str(e).lower() or "timeout" in str(e).lower() or "connection" in str(e).lower():
+            elif any(x in str(e).lower() for x in ("rate limit", "timeout", "connection", "overloaded", "overloaded_error")):
                 is_transient = True
 
             if not is_transient and attempt == 1:

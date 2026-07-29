@@ -9,6 +9,11 @@ class TrustScoreMetricsV2(BaseModel):
 
 class SkillProficiencyV2(BaseModel):
     skillName: str
+    skillId: str
+    taxonomyVersion: str
+    originalName: Optional[str] = None
+    normalizationSource: Optional[str] = None
+    pipelineTraceId: Optional[str] = None
     score: float
     confidence: float
     level: str

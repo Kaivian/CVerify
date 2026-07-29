@@ -237,23 +237,46 @@ class CandidateProfileComposer(BaseTask):
 
         # 6. Candidate Skill Profiles
         from app.pipelines.candidate.helpers import _get_normalized_name
+        from app.pipelines.candidate.skill_taxonomy import normalize_batch
         skill_proficiencies_out = []
         skills_to_process = cv_skills if cv_skills else [p.get("skill") for p in skill_proficiencies if p.get("skill")]
         seen_skills = set()
         skills_to_process = [x for x in skills_to_process if not (x.lower() in seen_skills or seen_skills.add(x.lower()))]
 
+        normalized_skills_info = {res["rawName"].lower(): res for res in normalize_batch(skills_to_process)}
+
         for skill_name in skills_to_process:
+            map_info = normalized_skills_info.get(skill_name.lower())
+            skill_id = map_info["skillId"] if map_info else f"skill:{skill_name.lower().replace(' ', '-')}"
+            normalized_display_name = map_info["normalizedName"] if map_info else skill_name
+            norm_source = "static_map" if (map_info and map_info.get("found")) else "emerging_draft"
+
             prof = next((p for p in skill_proficiencies if p.get("skill", "").lower() == skill_name.lower()), None)
             supporting_repos = []
             norm_skill_name = _get_normalized_name(skill_name)
             for ra in repository_assessments:
                 for attr in ra.get("skillAttributions", []):
                     if _get_normalized_name(attr.get("skillName", "")) == norm_skill_name:
+                        json_data = ra.get("jsonData") or {}
+                        total_commits = 10.0
+                        user_commit_ratio = 1.0
+                        if isinstance(json_data, dict):
+                            ownership = json_data.get("ownership") or {}
+                            if isinstance(ownership, dict):
+                                tc = ownership.get("total_commits")
+                                if tc is not None:
+                                    total_commits = float(tc)
+                                ucr = ownership.get("user_commit_ratio")
+                                if ucr is not None:
+                                    user_commit_ratio = float(ucr)
+                        
                         supporting_repos.append({
                             "repositoryId": ra.get("repositoryId"),
                             "repositoryName": ra.get("repositoryName"),
                             "confidence": attr.get("confidence", 0.0),
-                            "contributionWeight": attr.get("contributionWeight", 0.0)
+                            "contributionWeight": attr.get("contributionWeight", 0.0),
+                            "trustScore": float(ra.get("overallScore", 70.0)),
+                            "userCommits": total_commits * user_commit_ratio
                         })
             
             supporting_projects = []
@@ -282,14 +305,47 @@ class CandidateProfileComposer(BaseTask):
                     supporting_projects.append(proj_name)
 
             if supporting_repos:
-                score = float(prof.get("proficiencyLevel", 1.0)) * 25.0 if prof else 25.0
-                confidence = float(prof.get("confidenceScore", 0.85)) if prof else 0.85
-                level = prof.get("proficiencyLabel", "Working") if prof else "Working"
+                import math
+                sum_wtc = 0.0
+                sum_t = 0.0
+                prod_1_ct = 1.0
+                total_user_commits = 0.0
+                
+                for r in supporting_repos:
+                    c_i = float(r["confidence"])
+                    w_i = float(r["contributionWeight"])
+                    t_i = float(r["trustScore"]) / 100.0
+                    u_c = float(r["userCommits"])
+                    
+                    sum_wtc += w_i * t_i * c_i
+                    sum_t += t_i
+                    prod_1_ct *= (1.0 - c_i * t_i)
+                    total_user_commits += u_c
+                
+                confidence = max(0.0, min(1.0, 1.0 - prod_1_ct))
+                if sum_t > 0.0:
+                    score = (sum_wtc / sum_t) * math.log10(10.0 + total_user_commits) * 100.0
+                else:
+                    score = 0.0
+                score = max(0.0, min(100.0, score))
+                
+                if score >= 75.0:
+                    level = "Expert"
+                elif score >= 50.0:
+                    level = "Advanced"
+                elif score >= 25.0:
+                    level = "Working"
+                else:
+                    level = "Basic"
+                
                 evidence_sources = {
                     "verification_level": "AiAnalyzed",
-                    "confidence": 0.85,
+                    "confidence": round(confidence, 4),
                     "source": "repository_analysis",
-                    "rationale": f"Verified via {', '.join(r['repositoryName'] for r in supporting_repos)}: {prof.get('evidenceRationale', '') if prof else ''}".strip(),
+                    "rationale": f"Merged from {len(supporting_repos)} repositories. "
+                                 f"Verification logic: Merged Confidence = {round(confidence * 100, 1)}%, "
+                                 f"Merged Score = {round(score, 1)}/100, "
+                                 f"Total User Commits = {int(total_user_commits)}.",
                     "metadata": {
                         "repositories": supporting_repos
                     }
@@ -335,7 +391,12 @@ class CandidateProfileComposer(BaseTask):
                 }
                 
             skill_proficiencies_out.append({
-                "skillName": skill_name,
+                "skillName": normalized_display_name,
+                "skillId": skill_id,
+                "taxonomyVersion": "2026.07",
+                "originalName": skill_name,
+                "normalizationSource": norm_source,
+                "pipelineTraceId": correlation_id,
                 "score": score,
                 "confidence": confidence,
                 "level": level,

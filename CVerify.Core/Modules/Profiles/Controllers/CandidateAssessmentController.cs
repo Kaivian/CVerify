@@ -190,7 +190,16 @@ public class CandidateAssessmentController : ControllerBase
             return NoContent();
         }
         var skillTree = await _assessmentService.GetSkillTreeAsync(CurrentUserId, latest.Id, cancellationToken);
-        if (skillTree == null)
+        if ((skillTree == null || !skillTree.Any()) && latest.Status != "Completed")
+        {
+            var history = await _assessmentService.GetAssessmentHistoryAsync(CurrentUserId, cancellationToken);
+            var lastCompleted = history.FirstOrDefault(a => a.Status == "Completed");
+            if (lastCompleted != null)
+            {
+                skillTree = await _assessmentService.GetSkillTreeAsync(CurrentUserId, lastCompleted.Id, cancellationToken);
+            }
+        }
+        if (skillTree == null || !skillTree.Any())
         {
             return NoContent();
         }

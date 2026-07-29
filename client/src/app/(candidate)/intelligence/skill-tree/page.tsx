@@ -96,13 +96,13 @@ export default function SkillTreePage() {
 
   // Fetch tree data whenever the active completed assessment ID changes
   useEffect(() => {
-    if (latestAssessment?.id && (latestAssessment.status === "Completed" || latestAssessment.status === "Running")) {
+    if (latestAssessment?.id) {
       loadSkillTree();
     } else {
       setTreeData([]);
       setLoading(false);
     }
-  }, [latestAssessment?.id, latestAssessment?.status]);
+  }, [latestAssessment?.id]);
 
   const toggleExpand = (nodeId: string) => {
     setExpandedNodes(prev => {

@@ -649,7 +649,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             if (!response.IsSuccessStatusCode)
             {
                 var errorMsg = await response.Content.ReadAsStringAsync(cancellationToken);
-                throw new HttpRequestException($"AI service returned status code {response.StatusCode}: {errorMsg}");
+                throw new HttpRequestException($"AI service returned status code {response.StatusCode}: {errorMsg}", null, response.StatusCode);
             }
 
             using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -1040,9 +1040,13 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 var dataElement = skillsRoot.TryGetProperty("data", out var dProp) ? dProp : skillsRoot;
                 if (dataElement.TryGetProperty("skills", out var skillsProp) && skillsProp.ValueKind == JsonValueKind.Array)
                 {
+                    var rawSkillsList = new List<string>();
+                    var rawSkillsInfo = new List<(string Name, string Category, double Confidence, List<string> Evidence)>();
+
                     foreach (var item in skillsProp.EnumerateArray())
                     {
                         var skillName = item.GetProperty("skill").GetString() ?? "";
+                        if (string.IsNullOrEmpty(skillName)) continue;
                         var category = item.GetProperty("category").GetString() ?? "backend";
                         var confidence = item.GetProperty("confidence").GetDouble();
                         var evidenceList = new List<string>();
@@ -1054,13 +1058,112 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                             }
                         }
 
+                        rawSkillsList.Add(skillName);
+                        rawSkillsInfo.Add((skillName, category, confidence, evidenceList));
+                    }
+
+                    // Call taxonomy normalization endpoint
+                    var normalizedMappings = new Dictionary<string, (string SkillId, string NormalizedName, string Category, string OnetCode, bool Found)>(StringComparer.OrdinalIgnoreCase);
+                    if (rawSkillsList.Any())
+                    {
+                        try
+                        {
+                            using var httpClient = _httpClientFactory.CreateClient("AiServiceClient");
+                            var taxPath = "/api/v1/taxonomy/normalize";
+                            var taxPayload = JsonSerializer.Serialize(new { skills = rawSkillsList });
+                            var taxMessage = new HttpRequestMessage(HttpMethod.Post, taxPath)
+                            {
+                                Content = new StringContent(taxPayload, Encoding.UTF8, "application/json")
+                            };
+
+                            var (sig, ts, nonce) = _hmacService.CreateSignatureHeaders("POST", taxPath, taxPayload);
+                            taxMessage.Headers.Add("X-Client-Id", "cverify-core");
+                            taxMessage.Headers.Add("X-Timestamp", ts);
+                            taxMessage.Headers.Add("X-Nonce", nonce);
+                            taxMessage.Headers.Add("X-Correlation-Id", jobId.ToString());
+                            taxMessage.Headers.Add("X-Signature", sig);
+
+                            using var taxResponse = await httpClient.SendAsync(taxMessage, cancellationToken);
+                            if (taxResponse.IsSuccessStatusCode)
+                            {
+                                var taxJson = await taxResponse.Content.ReadAsStringAsync(cancellationToken);
+                                using var taxDoc = JsonDocument.Parse(taxJson);
+                                if (taxDoc.RootElement.TryGetProperty("results", out var resProp) && resProp.ValueKind == JsonValueKind.Array)
+                                {
+                                    foreach (var res in resProp.EnumerateArray())
+                                    {
+                                        var rName = res.GetProperty("rawName").GetString() ?? "";
+                                        var sId = res.GetProperty("skillId").GetString() ?? "";
+                                        var nName = res.GetProperty("normalizedName").GetString() ?? "";
+                                        var sCat = res.GetProperty("sfiaCategory").GetString() ?? "Unknown";
+                                        var oCode = res.GetProperty("onetCode").GetString() ?? "";
+                                        var fnd = res.GetProperty("found").GetBoolean();
+
+                                        if (!string.IsNullOrEmpty(rName))
+                                        {
+                                            normalizedMappings[rName] = (sId, nName, sCat, oCode, fnd);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to call taxonomy normalize endpoint for job {JobId}", jobId);
+                        }
+                    }
+
+                    // Project to DB using normalized data
+                    foreach (var rawInfo in rawSkillsInfo)
+                    {
+                        var hasMapping = normalizedMappings.TryGetValue(rawInfo.Name, out var mapping);
+
+                        var finalSkillName = hasMapping ? mapping.NormalizedName : rawInfo.Name;
+                        var finalSkillId = hasMapping ? mapping.SkillId : $"skill:emerging-{rawInfo.Name.ToLowerInvariant().Replace(" ", "-")}";
+                        var normSource = hasMapping && mapping.Found ? "static_map" : "emerging_draft";
+
+                        // Dynamically register canonical / emerging skill
+                        var skillExists = await _context.CanonicalSkills.AnyAsync(x => x.SkillId == finalSkillId && x.TaxonomyVersion == "2026.07", cancellationToken);
+                        if (!skillExists)
+                        {
+                            try
+                            {
+                                var canonicalSkill = new CanonicalSkill
+                                {
+                                    SkillId = finalSkillId,
+                                    TaxonomyVersion = "2026.07",
+                                    DisplayName = finalSkillName,
+                                    SfiaCategory = hasMapping ? mapping.Category : "Emerging Technology",
+                                    OnetCode = hasMapping ? mapping.OnetCode : "15-1252.00",
+                                    Status = hasMapping && mapping.Found ? "Active" : "PendingReview",
+                                    CreatedAt = DateTimeOffset.UtcNow
+                                };
+                                _context.CanonicalSkills.Add(canonicalSkill);
+                                await _context.SaveChangesAsync(cancellationToken);
+                            }
+                            catch (DbUpdateException)
+                            {
+                                // Handle concurrent insert collisions gracefully
+                                var localEntry = _context.CanonicalSkills.Local.FirstOrDefault(x => x.SkillId == finalSkillId);
+                                if (localEntry != null)
+                                {
+                                    _context.Entry(localEntry).State = EntityState.Detached;
+                                }
+                            }
+                        }
+
                         var skillAttribution = new RepositorySkillAttribution
                         {
                             Id = Guid.CreateVersion7(),
                             RepositoryAssessmentId = assessmentId,
-                            SkillName = skillName,
-                            ContributionWeight = (overallScore / 100.0) * (confidence / 100.0),
-                            Confidence = confidence / 100.0,
+                            SkillName = finalSkillName,
+                            SkillId = finalSkillId,
+                            TaxonomyVersion = "2026.07",
+                            OriginalName = rawInfo.Name,
+                            NormalizationSource = normSource,
+                            PipelineTraceId = jobId.ToString(),
+                            ContributionWeight = (overallScore / 100.0) * (rawInfo.Confidence / 100.0),
+                            Confidence = rawInfo.Confidence / 100.0,
                             VerificationLevel = "AiAnalyzed",
                             AssessmentVersion = "2.2.0",
                             AnalysisVersion = "1.0.0",
@@ -1069,13 +1172,14 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                         };
                         _context.RepositorySkillAttributions.Add(skillAttribution);
 
-                        var normCategory = category.ToLowerInvariant() switch
+                        var catToUse = hasMapping && mapping.Found ? mapping.Category : rawInfo.Category;
+                        var normCategory = catToUse.ToLowerInvariant() switch
                         {
-                            "backend" => "Backend Engineering",
-                            "frontend" => "Frontend Engineering",
-                            "devops" or "infra" => "DevOps & Platform Engineering",
-                            "database" or "data" => "Database & Data Engineering",
-                            "ml" or "ai" => "Machine Learning & AI Engineering",
+                            "backend" or "backend engineering" or "programming/scripting" => "Backend Engineering",
+                            "frontend" or "frontend engineering" or "software development" => "Frontend Engineering",
+                            "devops" or "infra" or "infrastructure management" or "software configuration management" => "DevOps & Platform Engineering",
+                            "database" or "data" or "database administration" or "data engineering" => "Database & Data Engineering",
+                            "ml" or "ai" or "data science" => "Machine Learning & AI Engineering",
                             _ => "Other Engineering"
                         };
 
@@ -1085,9 +1189,9 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                             domainsConfidenceSum[normCategory] = 0.0;
                             domainsEvidenceCount[normCategory] = 0;
                         }
-                        domainsDict[normCategory].Add(skillName);
-                        domainsConfidenceSum[normCategory] += confidence;
-                        domainsEvidenceCount[normCategory] += evidenceList.Count;
+                        domainsDict[normCategory].Add(finalSkillName);
+                        domainsConfidenceSum[normCategory] += rawInfo.Confidence;
+                        domainsEvidenceCount[normCategory] += rawInfo.Evidence.Count;
                     }
                 }
             }
@@ -1376,6 +1480,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             .Select(s => new
             {
                 skillName = s.SkillName,
+                skillId = s.SkillId,
+                taxonomyVersion = s.TaxonomyVersion,
                 contributionWeight = s.ContributionWeight,
                 confidence = s.Confidence,
                 verificationLevel = s.VerificationLevel
@@ -1461,11 +1567,56 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         {
             foreach (var s in skillsProp.EnumerateArray())
             {
+                var skillName = s.GetProperty("skillName").GetString() ?? "unknown";
+                var skillId = s.GetProperty("skillId").GetString() ?? "unknown";
+                var taxonomyVersion = s.GetProperty("taxonomyVersion").GetString() ?? "2026.07";
+                var originalName = s.TryGetProperty("originalName", out var origProp) ? origProp.GetString() : null;
+                var normalizationSource = s.TryGetProperty("normalizationSource", out var nsProp) ? nsProp.GetString() : null;
+                var pipelineTraceId = s.TryGetProperty("pipelineTraceId", out var ptProp) ? ptProp.GetString() : null;
+
+                // Dynamically register canonical / emerging skill
+                if (skillId != "unknown")
+                {
+                    var skillExists = await _context.CanonicalSkills.AnyAsync(x => x.SkillId == skillId && x.TaxonomyVersion == "2026.07", cancellationToken);
+                    if (!skillExists)
+                    {
+                        try
+                        {
+                            var canonicalSkill = new CanonicalSkill
+                            {
+                                SkillId = skillId,
+                                TaxonomyVersion = "2026.07",
+                                DisplayName = skillName,
+                                SfiaCategory = "Emerging Technology",
+                                OnetCode = "15-1252.00",
+                                Status = (normalizationSource == "static_map") ? "Active" : "PendingReview",
+                                CreatedAt = DateTimeOffset.UtcNow
+                            };
+                            _context.CanonicalSkills.Add(canonicalSkill);
+                            await _context.SaveChangesAsync(cancellationToken);
+                        }
+                        catch (DbUpdateException)
+                        {
+                            // Handle concurrent insert collisions gracefully
+                            var localEntry = _context.CanonicalSkills.Local.FirstOrDefault(x => x.SkillId == skillId);
+                            if (localEntry != null)
+                            {
+                                _context.Entry(localEntry).State = EntityState.Detached;
+                            }
+                        }
+                    }
+                }
+
                 var skill = new CandidateSkill
                 {
                     Id = Guid.CreateVersion7(),
                     CandidateAssessmentId = assessmentId,
-                    SkillName = s.GetProperty("skillName").GetString() ?? "unknown",
+                    SkillName = skillName,
+                    SkillId = skillId,
+                    TaxonomyVersion = taxonomyVersion,
+                    OriginalName = originalName,
+                    NormalizationSource = normalizationSource,
+                    PipelineTraceId = pipelineTraceId,
                     Score = s.GetProperty("score").GetDouble(),
                     Confidence = s.GetProperty("confidence").GetDouble(),
                     Level = s.GetProperty("level").GetString() ?? "Working",
@@ -1935,7 +2086,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         if (!response.IsSuccessStatusCode)
         {
             var errorMsg = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException($"AI service returned status code {response.StatusCode} for scoring: {errorMsg}");
+            throw new HttpRequestException($"AI service returned status code {response.StatusCode} for scoring: {errorMsg}", null, response.StatusCode);
         }
 
         var resultJson = await response.Content.ReadAsStringAsync(cancellationToken);

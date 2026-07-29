@@ -343,6 +343,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<RepositoryAssessment> RepositoryAssessments => Set<RepositoryAssessment>();
     public DbSet<RepositoryCapability> RepositoryCapabilities => Set<RepositoryCapability>();
     public DbSet<RepositorySkillAttribution> RepositorySkillAttributions => Set<RepositorySkillAttribution>();
+    public DbSet<CanonicalSkill> CanonicalSkills => Set<CanonicalSkill>();
     public DbSet<RepositoryDomain> RepositoryDomains => Set<RepositoryDomain>();
     public DbSet<RepositoryIntelligenceSignal> RepositoryIntelligenceSignals => Set<RepositoryIntelligenceSignal>();
     public DbSet<CandidateSkill> CandidateSkills => Set<CandidateSkill>();
@@ -1642,7 +1643,20 @@ public class ApplicationDbContext : DbContext
         {
             entity.ToTable("repository_skill_attributions");
             entity.HasIndex(x => x.RepositoryAssessmentId).HasDatabaseName("idx_repository_skill_attributions_assessment_id");
-            entity.HasIndex(x => new { x.RepositoryAssessmentId, x.SkillName }).IsUnique().HasDatabaseName("ux_repository_skill_attributions_assessment_id_skill");
+            entity.HasIndex(x => new { x.RepositoryAssessmentId, x.SkillId, x.TaxonomyVersion }).IsUnique().HasDatabaseName("ux_repository_skill_attributions_assessment_id_skill");
+        });
+
+        modelBuilder.Entity<CanonicalSkill>(entity =>
+        {
+            entity.ToTable("canonical_skills");
+            entity.HasKey(x => new { x.SkillId, x.TaxonomyVersion });
+        });
+
+        modelBuilder.Entity<CandidateSkill>(entity =>
+        {
+            entity.ToTable("candidate_skills");
+            entity.HasIndex(x => x.CandidateAssessmentId).HasDatabaseName("idx_candidate_skills_assessment_id");
+            entity.HasIndex(x => new { x.CandidateAssessmentId, x.SkillId, x.TaxonomyVersion }).IsUnique().HasDatabaseName("ux_candidate_skills_assessment_id_skill");
         });
 
         modelBuilder.Entity<RepositoryDomain>(entity =>

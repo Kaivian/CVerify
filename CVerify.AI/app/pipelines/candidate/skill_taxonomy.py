@@ -204,28 +204,44 @@ def get_taxonomy_hints() -> dict[str, str]:
     return seen
 
 
+def make_skill_id(name: str) -> str:
+    """Generate a clean, standardized alphanumeric slug for skill IDs."""
+    import re
+    cleaned = name.strip().lower()
+    cleaned = cleaned.replace("#", "sharp").replace("+", "plus").replace(".", "-").replace(" ", "-")
+    cleaned = re.sub(r'[^a-z0-9\-]', '', cleaned)
+    cleaned = re.sub(r'\-+', '-', cleaned)
+    return cleaned.strip("-")
+
+
 def normalize_batch(raw_names: list[str]) -> list[dict]:
     """
     Normalize a list of raw skill names.
-    Returns list of dicts with rawName, normalizedName, sfiaCategory, onetCode, found.
+    Returns list of dicts with rawName, skillId, normalizedName, sfiaCategory, onetCode, found.
     """
     results = []
     for raw in raw_names:
+        if not raw:
+            continue
         entry = normalize_skill(raw)
         if entry:
+            slug = make_skill_id(entry.normalized_name)
             results.append({
                 "rawName": raw,
+                "skillId": f"skill:{slug}",
                 "normalizedName": entry.normalized_name,
                 "sfiaCategory": entry.sfia_category,
                 "onetCode": entry.onet_code,
                 "found": True,
             })
         else:
+            slug = make_skill_id(raw)
             results.append({
                 "rawName": raw,
-                "normalizedName": raw,
-                "sfiaCategory": "Unknown",
-                "onetCode": "",
+                "skillId": f"skill:emerging-{slug}",
+                "normalizedName": raw.strip(),
+                "sfiaCategory": "Emerging Technology",
+                "onetCode": "15-1252.00",
                 "found": False,
             })
     return results
