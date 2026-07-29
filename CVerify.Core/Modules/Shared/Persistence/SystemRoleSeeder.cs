@@ -12,7 +12,7 @@ namespace CVerify.API.Modules.Shared.Persistence;
 public class SystemRoleSeeder : IValidatableSeeder
 {
     public string ModuleId => "SystemRoleSeeder";
-    public string Version => "1.0.1";
+    public string Version => "1.0.2";
     public IReadOnlyCollection<string> Dependencies => new[] { "PermissionSeeder" };
 
     public async Task<SeederResult> SeedAsync(ApplicationDbContext context, SeedingConfig config)
@@ -85,6 +85,35 @@ public class SystemRoleSeeder : IValidatableSeeder
                     (SELECT id FROM users WHERE email = @adminEmail),
                     (SELECT id FROM roles WHERE name = 'SUPER_ADMIN')
                 ON CONFLICT DO NOTHING;
+
+                -- Seed active admin portal membership
+                INSERT INTO admin_members (id, user_id, status, session_version, joined_at, updated_at)
+                SELECT 
+                    '018fc35b-1c60-7b8a-9a2d-3e4f5a6b7c8d'::uuid,
+                    (SELECT id FROM users WHERE email = @adminEmail),
+                    'Active',
+                    1,
+                    NOW(),
+                    NOW()
+                WHERE EXISTS (SELECT 1 FROM users WHERE email = @adminEmail)
+                  AND NOT EXISTS (SELECT 1 FROM admin_members WHERE user_id = (SELECT id FROM users WHERE email = @adminEmail));
+
+                -- Seed modern global scoped role assignment
+                INSERT INTO role_assignments (id, user_id, role_id, scope_type, scope_id, assigned_at)
+                SELECT 
+                    '018fc35b-1c61-7b8a-9a2d-3e4f5a6b7c8d'::uuid,
+                    (SELECT id FROM users WHERE email = @adminEmail),
+                    (SELECT id FROM roles WHERE name = 'SUPER_ADMIN'),
+                    'SYSTEM',
+                    '00000000-0000-0000-0000-000000000000'::uuid,
+                    NOW()
+                WHERE EXISTS (SELECT 1 FROM users WHERE email = @adminEmail)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM role_assignments 
+                      WHERE user_id = (SELECT id FROM users WHERE email = @adminEmail)
+                        AND role_id = (SELECT id FROM roles WHERE name = 'SUPER_ADMIN')
+                        AND scope_type = 'SYSTEM'
+                  );
             ";
             await context.Database.ExecuteSqlRawAsync(userSql,
                 new NpgsqlParameter("@adminEmail", email.Trim().ToLowerInvariant()),
@@ -186,15 +215,28 @@ public class SystemRoleSeeder : IValidatableSeeder
                             .Select(p => p.Id)
                             .ToListAsync();
 
-                        var sqlClear = "DELETE FROM role_permissions WHERE role_id = @roleId;";
-                        await context.Database.ExecuteSqlRawAsync(sqlClear, new Npgsql.NpgsqlParameter("@roleId", roleId));
-
-                        foreach (var permId in dbPermissionIds)
+                        if (dbPermissionIds.Any())
                         {
-                            var sqlLink = "INSERT INTO role_permissions (role_id, permission_id) VALUES (@roleId, @permId) ON CONFLICT DO NOTHING;";
-                            await context.Database.ExecuteSqlRawAsync(sqlLink,
-                                new Npgsql.NpgsqlParameter("@roleId", roleId),
-                                new Npgsql.NpgsqlParameter("@permId", permId));
+                            var sqlSync = @"
+                                -- 1. Delete mapping associations that are no longer active
+                                DELETE FROM role_permissions 
+                                WHERE role_id = @roleId 
+                                  AND permission_id NOT IN (SELECT unnest(@permIds::uuid[]));
+
+                                -- 2. Insert any missing mappings
+                                INSERT INTO role_permissions (role_id, permission_id)
+                                SELECT @roleId, pId 
+                                FROM unnest(@permIds::uuid[]) pId
+                                ON CONFLICT DO NOTHING;
+                            ";
+                            await context.Database.ExecuteSqlRawAsync(sqlSync,
+                                new NpgsqlParameter("@roleId", roleId),
+                                new NpgsqlParameter("@permIds", dbPermissionIds.ToArray()));
+                        }
+                        else
+                        {
+                            var sqlClear = "DELETE FROM role_permissions WHERE role_id = @roleId;";
+                            await context.Database.ExecuteSqlRawAsync(sqlClear, new Npgsql.NpgsqlParameter("@roleId", roleId));
                         }
                     }
                 }

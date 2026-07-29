@@ -48,7 +48,22 @@ public static class DbInitializer
             throw new InvalidOperationException("Database connectivity check failed. Please ensure PostgreSQL is running and the connection string is correct.");
         }
 
-        // Temporary fix to mark AddNotificationSystem and other existing tables migrations as applied
+        var advisoryLockDbConnection = context.Database.GetDbConnection();
+        if (advisoryLockDbConnection.State != global::System.Data.ConnectionState.Open)
+        {
+            await advisoryLockDbConnection.OpenAsync();
+        }
+
+        // Acquire session-level advisory lock (using deterministic key 47829103)
+        using (var lockCmd = advisoryLockDbConnection.CreateCommand())
+        {
+            lockCmd.CommandText = "SELECT pg_advisory_lock(47829103);";
+            await lockCmd.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            // Temporary fix to mark AddNotificationSystem and other existing tables migrations as applied
         try
         {
             await context.Database.ExecuteSqlRawAsync(@"
@@ -3221,6 +3236,7 @@ public static class DbInitializer
                 new CapabilityCatalogSeeder(),
                 new ForumMetadataSeeder(),
                 new TenantRoleSeeder(),
+                new MembershipMigrationSeeder(),
                 new DemoOrganizationSeeder(),
                 new DemoUserSeeder(),
                 new DemoRepositorySeeder(),
@@ -3261,6 +3277,20 @@ public static class DbInitializer
 
         // One-time compatibility migration to migrate historical security audit logs to security_events
         await MigrateLegacySecurityEventsAsync(context);
+        }
+        finally
+        {
+            // Release session-level advisory lock
+            var advisoryLockDbConn = context.Database.GetDbConnection();
+            if (advisoryLockDbConn.State == global::System.Data.ConnectionState.Open)
+            {
+                using (var unlockCmd = advisoryLockDbConn.CreateCommand())
+                {
+                    unlockCmd.CommandText = "SELECT pg_advisory_unlock(47829103);";
+                    await unlockCmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
     }
 
     private static async Task MigrateLegacyGoogleEmailsAsync(ApplicationDbContext context)

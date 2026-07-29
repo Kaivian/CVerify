@@ -119,6 +119,10 @@ services:
         max-size: "10m"
         max-file: "5"
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       cverify-ai:
         condition: service_healthy
 

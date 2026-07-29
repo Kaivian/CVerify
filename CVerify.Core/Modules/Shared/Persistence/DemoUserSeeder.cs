@@ -92,6 +92,35 @@ public class DemoUserSeeder : ISeederModule
                     new NpgsqlParameter("@userId", user.Id),
                     new NpgsqlParameter("@role", user.OrgRole)
                 );
+
+                // Seed modern organizational role assignment
+                var roleName = user.OrgRole.ToLower() switch
+                {
+                    "owner" => "owner",
+                    "representative" => "administrator",
+                    "hr" => "hr_manager",
+                    _ => "viewer"
+                };
+
+                var sqlOrgRoleAssignment = @"
+                    INSERT INTO role_assignments (id, user_id, role_id, scope_type, scope_id, assigned_at)
+                    SELECT 
+                        gen_random_uuid(),
+                        @userId,
+                        (SELECT id FROM roles WHERE tenant_id = @orgId AND name = @roleName AND domain = 'TENANT'),
+                        'ORGANIZATION',
+                        @orgId,
+                        NOW()
+                    WHERE EXISTS (
+                        SELECT 1 FROM roles WHERE tenant_id = @orgId AND name = @roleName AND domain = 'TENANT'
+                    )
+                    ON CONFLICT (user_id, role_id, scope_type, scope_id) DO NOTHING;
+                ";
+                await context.Database.ExecuteSqlRawAsync(sqlOrgRoleAssignment,
+                    new NpgsqlParameter("@userId", user.Id),
+                    new NpgsqlParameter("@orgId", org.Id),
+                    new NpgsqlParameter("@roleName", roleName)
+                );
             }
 
             // Seed Workspaces & Memberships
@@ -128,6 +157,35 @@ public class DemoUserSeeder : ISeederModule
                         new NpgsqlParameter("@role", member.Role)
                     );
                     if (wmResult > 0) affected++;
+
+                    var wsRoleName = member.Role.ToLower() switch
+                    {
+                        "workspace_admin" => "administrator",
+                        "manager" => "hiring_manager",
+                        "editor" => "recruiter",
+                        _ => "viewer"
+                    };
+
+                    var sqlWsRoleAssignment = @"
+                        INSERT INTO role_assignments (id, user_id, role_id, scope_type, scope_id, assigned_at)
+                        SELECT 
+                            gen_random_uuid(),
+                            @userId,
+                            (SELECT id FROM roles WHERE tenant_id = @orgId AND name = @roleName AND domain = 'TENANT'),
+                            'WORKSPACE',
+                            @wsId,
+                            NOW()
+                        WHERE EXISTS (
+                            SELECT 1 FROM roles WHERE tenant_id = @orgId AND name = @roleName AND domain = 'TENANT'
+                        )
+                        ON CONFLICT (user_id, role_id, scope_type, scope_id) DO NOTHING;
+                    ";
+                    await context.Database.ExecuteSqlRawAsync(sqlWsRoleAssignment,
+                        new NpgsqlParameter("@userId", member.UserId),
+                        new NpgsqlParameter("@orgId", org.Id),
+                        new NpgsqlParameter("@roleName", wsRoleName),
+                        new NpgsqlParameter("@wsId", ws.Id)
+                    );
                 }
             }
         }
@@ -148,6 +206,34 @@ public class DemoUserSeeder : ISeederModule
                 new NpgsqlParameter("@status", cm.Status)
             );
             if (cmResult > 0) affected++;
+
+            var cmRoleName = cm.Role.ToLower() switch
+            {
+                "owner" => "owner",
+                "representative" => "administrator",
+                "hr" => "hr_manager",
+                _ => "viewer"
+            };
+
+            var sqlCmRoleAssignment = @"
+                INSERT INTO role_assignments (id, user_id, role_id, scope_type, scope_id, assigned_at)
+                SELECT 
+                    gen_random_uuid(),
+                    @userId,
+                    (SELECT id FROM roles WHERE tenant_id = @orgId AND name = @roleName AND domain = 'TENANT'),
+                    'ORGANIZATION',
+                    @orgId,
+                    NOW()
+                WHERE EXISTS (
+                    SELECT 1 FROM roles WHERE tenant_id = @orgId AND name = @roleName AND domain = 'TENANT'
+                )
+                ON CONFLICT (user_id, role_id, scope_type, scope_id) DO NOTHING;
+            ";
+            await context.Database.ExecuteSqlRawAsync(sqlCmRoleAssignment,
+                new NpgsqlParameter("@userId", cm.UserId),
+                new NpgsqlParameter("@orgId", cm.OrganizationId),
+                new NpgsqlParameter("@roleName", cmRoleName)
+            );
         }
 
         return new SeederResult(ModuleId, SeedingStatus.Success, "Users, workspace memberships, and cross-memberships seeded successfully.", affected);

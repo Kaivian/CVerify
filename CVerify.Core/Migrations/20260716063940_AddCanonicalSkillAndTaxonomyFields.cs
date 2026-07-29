@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -111,21 +111,22 @@ namespace CVerify.API.Migrations
                     table.PrimaryKey("pk_canonical_skills", x => new { x.skill_id, x.taxonomy_version });
                 });
 
-            migrationBuilder.CreateTable(
-                name: "seeding_history",
-                columns: table => new
-                {
-                    module_id = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    version = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    environment_name = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    applied_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    duration_ms = table.Column<int>(type: "integer", nullable: false),
-                    records_affected = table.Column<int>(type: "integer", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("pk_seeding_history", x => x.module_id);
-                });
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'seeding_history') THEN
+                        CREATE TABLE seeding_history (
+                            module_id character varying(100) NOT NULL,
+                            version character varying(20) NOT NULL,
+                            environment_name character varying(50) NOT NULL,
+                            applied_at_utc timestamp with time zone NOT NULL,
+                            duration_ms integer NOT NULL,
+                            records_affected integer NOT NULL,
+                            CONSTRAINT pk_seeding_history PRIMARY KEY (module_id)
+                        );
+                    END IF;
+                END $$;
+            ");
 
             migrationBuilder.CreateIndex(
                 name: "ux_repository_skill_attributions_assessment_id_skill",
