@@ -64,9 +64,9 @@ public static class DbInitializer
         try
         {
             // Temporary fix to mark AddNotificationSystem and other existing tables migrations as applied
-        try
-        {
-            await context.Database.ExecuteSqlRawAsync(@"
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
                 CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
                     migration_id character varying(150) NOT NULL,
                     product_version character varying(32) NOT NULL,
@@ -86,19 +86,19 @@ public static class DbInitializer
                 ('20260623181310_AddWorkspaceDescriptionAndOwner', '10.0.0')
                 ON CONFLICT (migration_id) DO NOTHING;
             ");
-        }
-        catch (Exception)
-        {
-            // Ignore if anything fails
-        }
+            }
+            catch (Exception)
+            {
+                // Ignore if anything fails
+            }
 
 
-        // 1b. Environment-guarded destructive reset (Development or specific environments only)
-        var resetDbEnv = Environment.GetEnvironmentVariable("RESET_DATABASE");
-        bool shouldReset = string.Equals(resetDbEnv, "true", StringComparison.OrdinalIgnoreCase);
-        if (shouldReset)
-        {
-            const string dropSql = @"
+            // 1b. Environment-guarded destructive reset (Development or specific environments only)
+            var resetDbEnv = Environment.GetEnvironmentVariable("RESET_DATABASE");
+            bool shouldReset = string.Equals(resetDbEnv, "true", StringComparison.OrdinalIgnoreCase);
+            if (shouldReset)
+            {
+                const string dropSql = @"
                 DROP TABLE IF EXISTS forum_reply_histories CASCADE;
                 DROP TABLE IF EXISTS forum_topic_histories CASCADE;
                 DROP TABLE IF EXISTS forum_moderation_logs CASCADE;
@@ -218,11 +218,11 @@ public static class DbInitializer
                 DROP TABLE IF EXISTS roles CASCADE;
                 DROP TYPE IF EXISTS user_status CASCADE;
             ";
-            await context.Database.ExecuteSqlRawAsync(dropSql);
-        }
+                await context.Database.ExecuteSqlRawAsync(dropSql);
+            }
 
-        // 2. Execute idempotent PostgreSQL schema updates
-        const string sql = @"
+            // 2. Execute idempotent PostgreSQL schema updates
+            const string sql = @"
             -- Enable cryptographic functions for UUID generation and password hashing
             CREATE EXTENSION IF NOT EXISTS ""pgcrypto"";
             -- Enable case-insensitive text data type, ideal for unique email addresses
@@ -3079,33 +3079,33 @@ public static class DbInitializer
             -- DDL schema script completed
         ";
 
-        await context.Database.ExecuteSqlRawAsync(sql);
+            await context.Database.ExecuteSqlRawAsync(sql);
 
-        // Safely alter user_status enum to add DELETION_PENDING for backward compatibility
-        try
-        {
-            var typeExists = await context.Database.SqlQueryRaw<int>(@"
+            // Safely alter user_status enum to add DELETION_PENDING for backward compatibility
+            try
+            {
+                var typeExists = await context.Database.SqlQueryRaw<int>(@"
                 SELECT COUNT(*)::int AS ""Value""
                 FROM pg_type 
                 WHERE typname = 'user_status'
             ").SingleOrDefaultAsync();
 
-            if (typeExists > 0)
-            {
-                await context.Database.ExecuteSqlRawAsync("ALTER TYPE user_status ADD VALUE IF NOT EXISTS 'DELETION_PENDING';");
+                if (typeExists > 0)
+                {
+                    await context.Database.ExecuteSqlRawAsync("ALTER TYPE user_status ADD VALUE IF NOT EXISTS 'DELETION_PENDING';");
+                }
             }
-        }
-        catch (Exception)
-        {
-            // Ignore if type doesn't exist yet (first-time boot runs the script to create it with DELETION_PENDING)
-        }
+            catch (Exception)
+            {
+                // Ignore if type doesn't exist yet (first-time boot runs the script to create it with DELETION_PENDING)
+            }
 
 
 
-        // Migrate analysis_executions to include user_id if missing
-        try
-        {
-            await context.Database.ExecuteSqlRawAsync(@"
+            // Migrate analysis_executions to include user_id if missing
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
                 DO $$
                 BEGIN
                     IF NOT EXISTS (
@@ -3127,110 +3127,110 @@ public static class DbInitializer
                         CREATE INDEX IF NOT EXISTS idx_analysis_executions_user_id ON analysis_executions(user_id);
                     END IF;
                 END $$;");
-        }
-        catch (Exception)
-        {
-            // Ignore migration conflicts
-        }
-
-        // Apply updated idx_users_email_active unique index constraint to existing databases
-        try
-        {
-            await context.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS idx_users_email_active;");
-            await context.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX idx_users_email_active ON users(email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');");
-        }
-        catch (Exception)
-        {
-            // Ignore index creation conflicts
-        }
-
-        // Automatically apply any pending EF Core migrations to keep database schema up to date
-        try
-        {
-            var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
-            if (global::System.Linq.Enumerable.Contains(pendingMigrations, "20260620101455_AddMetadataToJobVacancy"))
-            {
-                await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS cv_repository_mappings CASCADE;");
-                await context.Database.ExecuteSqlRawAsync("ALTER TABLE job_vacancies DROP COLUMN IF EXISTS metadata;");
             }
-            await context.Database.MigrateAsync();
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException("Fatal: Database migrations failed to apply. Please ensure PostgreSQL is running and accessible.", ex);
-        }
-
-        // Clear Npgsql connection pools to force reload of system types (like citext and user_status enum) 
-        // created during database initialization, preventing System.NotSupportedException.
-        Npgsql.NpgsqlConnection.ClearAllPools();
-
-        // Force Npgsql to reload database types globally for the current connection string.
-        var dbConnection = context.Database.GetDbConnection();
-        if (dbConnection is Npgsql.NpgsqlConnection npgsqlConnection)
-        {
-            if (npgsqlConnection.State != global::System.Data.ConnectionState.Open)
+            catch (Exception)
             {
-                await npgsqlConnection.OpenAsync();
+                // Ignore migration conflicts
             }
-            npgsqlConnection.ReloadTypes();
-        }
 
-        // Resolve seeding policy
-        var resolvedEnv = hostEnvironment ?? serviceProvider?.GetService<Microsoft.Extensions.Hosting.IHostEnvironment>();
-        var seedingPolicy = SeedingPolicyResolver.Resolve(resolvedEnv);
+            // Apply updated idx_users_email_active unique index constraint to existing databases
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS idx_users_email_active;");
+                await context.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX idx_users_email_active ON users(email) WHERE (deleted_at IS NULL OR status = 'DELETION_PENDING');");
+            }
+            catch (Exception)
+            {
+                // Ignore index creation conflicts
+            }
 
-        // Check system_metadata environment marker
-        try
-        {
-            var storedEnv = await context.Database.SqlQueryRaw<string>(@"
+            // Automatically apply any pending EF Core migrations to keep database schema up to date
+            try
+            {
+                var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+                if (global::System.Linq.Enumerable.Contains(pendingMigrations, "20260620101455_AddMetadataToJobVacancy"))
+                {
+                    await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS cv_repository_mappings CASCADE;");
+                    await context.Database.ExecuteSqlRawAsync("ALTER TABLE job_vacancies DROP COLUMN IF EXISTS metadata;");
+                }
+                await context.Database.MigrateAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Fatal: Database migrations failed to apply. Please ensure PostgreSQL is running and accessible.", ex);
+            }
+
+            // Clear Npgsql connection pools to force reload of system types (like citext and user_status enum) 
+            // created during database initialization, preventing System.NotSupportedException.
+            Npgsql.NpgsqlConnection.ClearAllPools();
+
+            // Force Npgsql to reload database types globally for the current connection string.
+            var dbConnection = context.Database.GetDbConnection();
+            if (dbConnection is Npgsql.NpgsqlConnection npgsqlConnection)
+            {
+                if (npgsqlConnection.State != global::System.Data.ConnectionState.Open)
+                {
+                    await npgsqlConnection.OpenAsync();
+                }
+                npgsqlConnection.ReloadTypes();
+            }
+
+            // Resolve seeding policy
+            var resolvedEnv = hostEnvironment ?? serviceProvider?.GetService<Microsoft.Extensions.Hosting.IHostEnvironment>();
+            var seedingPolicy = SeedingPolicyResolver.Resolve(resolvedEnv);
+
+            // Check system_metadata environment marker
+            try
+            {
+                var storedEnv = await context.Database.SqlQueryRaw<string>(@"
                 SELECT value AS ""Value"" FROM system_metadata WHERE key = 'database_environment'
             ").SingleOrDefaultAsync();
 
-            var currentEnv = resolvedEnv?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+                var currentEnv = resolvedEnv?.EnvironmentName ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
-            if (!string.IsNullOrEmpty(storedEnv) &&
-                string.Equals(currentEnv, "Production", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(storedEnv, "Production", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(storedEnv) &&
+                    string.Equals(currentEnv, "Production", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(storedEnv, "Production", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException($"Fatal Safeguard Check: Accidental database promotion detected! The current hosting environment is Production, but this database is classified as '{storedEnv}' in system_metadata.");
+                }
+
+                if (string.IsNullOrEmpty(storedEnv) && !string.IsNullOrEmpty(currentEnv))
+                {
+                    await context.Database.ExecuteSqlRawAsync(
+                        "INSERT INTO system_metadata (key, value) VALUES ('database_environment', @env)",
+                        new NpgsqlParameter("@env", currentEnv));
+                }
+            }
+            catch (Exception ex) when (ex is not InvalidOperationException)
             {
-                throw new InvalidOperationException($"Fatal Safeguard Check: Accidental database promotion detected! The current hosting environment is Production, but this database is classified as '{storedEnv}' in system_metadata.");
+                // Ignore other DB errors at this stage (e.g. if database is completely fresh, table might not exist yet)
             }
 
-            if (string.IsNullOrEmpty(storedEnv) && !string.IsNullOrEmpty(currentEnv))
+            // Apply all pending migrations (e.g., Talent Intelligence migrations)
+            await context.Database.MigrateAsync();
+
+            // Resolve or construct SeedRunner and modules
+            var loggerFactory = serviceProvider?.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
+                ?? context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
+            var runnerLogger = loggerFactory.CreateLogger<SeedRunner>();
+
+            var modulesList = new List<ISeederModule>();
+            if (serviceProvider != null)
             {
-                await context.Database.ExecuteSqlRawAsync(
-                    "INSERT INTO system_metadata (key, value) VALUES ('database_environment', @env)",
-                    new NpgsqlParameter("@env", currentEnv));
+                modulesList.AddRange(serviceProvider.GetServices<ISeederModule>());
             }
-        }
-        catch (Exception ex) when (ex is not InvalidOperationException)
-        {
-            // Ignore other DB errors at this stage (e.g. if database is completely fresh, table might not exist yet)
-        }
 
-        // Apply all pending migrations (e.g., Talent Intelligence migrations)
-        await context.Database.MigrateAsync();
-
-        // Resolve or construct SeedRunner and modules
-        var loggerFactory = serviceProvider?.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
-            ?? context.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()
-            ?? Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
-        var runnerLogger = loggerFactory.CreateLogger<SeedRunner>();
-
-        var modulesList = new List<ISeederModule>();
-        if (serviceProvider != null)
-        {
-            modulesList.AddRange(serviceProvider.GetServices<ISeederModule>());
-        }
-
-        if (!modulesList.Any())
-        {
-            var forumSeeders = serviceProvider?.GetServices<IPublicWorkspaceModuleSeeder>()
-                ?? context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
-                ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
-            var forumPostLogger = loggerFactory.CreateLogger<DemoForumPostSeeder>();
-
-            modulesList.AddRange(new ISeederModule[]
+            if (!modulesList.Any())
             {
+                var forumSeeders = serviceProvider?.GetServices<IPublicWorkspaceModuleSeeder>()
+                    ?? context.GetService<global::System.Collections.Generic.IEnumerable<IPublicWorkspaceModuleSeeder>>()
+                    ?? global::System.Linq.Enumerable.Empty<IPublicWorkspaceModuleSeeder>();
+                var forumPostLogger = loggerFactory.CreateLogger<DemoForumPostSeeder>();
+
+                modulesList.AddRange(new ISeederModule[]
+                {
                 new PermissionSeeder(),
                 new SystemRoleSeeder(),
                 new CapabilityCatalogSeeder(),
@@ -3243,40 +3243,40 @@ public static class DbInitializer
                 new DemoCvSeeder(),
                 new DemoAiPipelineSeeder(),
                 new DemoForumPostSeeder(forumSeeders, forumPostLogger)
-            });
-        }
+                });
+            }
 
-        var seedingConfig = new SeedingConfig
-        {
-            Enabled = true,
-            Environment = resolvedEnv?.EnvironmentName ?? "Development",
-            GenerateDemoData = seedingPolicy.SeedDemoContent,
-            ResetDatabase = shouldReset,
-            VerboseLogging = true,
-            SuperAdminEmail = config.SuperAdmin?.Email,
-            SuperAdminUsername = config.SuperAdmin?.Username,
-            SuperAdminFullName = config.SuperAdmin?.FullName,
-            SuperAdminPassword = config.SuperAdmin?.Password,
-            BusinessPassword = config.Seeding?.BusinessPassword,
-            SeedDataPath = config.Seeding?.SeedDataPath ?? "resources/seed-business-data.json",
-            PublicDemoDataPath = config.Seeding?.PublicDemoDataPath ?? "resources/public-workspace-demo-content.json"
-        };
+            var seedingConfig = new SeedingConfig
+            {
+                Enabled = true,
+                Environment = resolvedEnv?.EnvironmentName ?? "Development",
+                GenerateDemoData = seedingPolicy.SeedDemoContent,
+                ResetDatabase = shouldReset,
+                VerboseLogging = true,
+                SuperAdminEmail = config.SuperAdmin?.Email,
+                SuperAdminUsername = config.SuperAdmin?.Username,
+                SuperAdminFullName = config.SuperAdmin?.FullName,
+                SuperAdminPassword = config.SuperAdmin?.Password,
+                BusinessPassword = config.Seeding?.BusinessPassword,
+                SeedDataPath = config.Seeding?.SeedDataPath ?? "resources/seed-business-data.json",
+                PublicDemoDataPath = config.Seeding?.PublicDemoDataPath ?? "resources/public-workspace-demo-content.json"
+            };
 
-        var seedRunner = new SeedRunner(modulesList, runnerLogger);
-        await seedRunner.RunAsync(context, seedingConfig);
+            var seedRunner = new SeedRunner(modulesList, runnerLogger);
+            await seedRunner.RunAsync(context, seedingConfig);
 
-        // One-time compatibility migration for Google OAuth users created under the old normalization rules
-        await MigrateLegacyGoogleEmailsAsync(context);
+            // One-time compatibility migration for Google OAuth users created under the old normalization rules
+            await MigrateLegacyGoogleEmailsAsync(context);
 
-        // One-time compatibility migration to generate unique usernames for legacy users
-        var serviceToUse = usernameService ?? new UsernameService(context, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<UsernameService>.Instance, new DbInitializerRateLimitPolicyService());
-        await MigrateLegacyUsernamesAsync(context, serviceToUse);
+            // One-time compatibility migration to generate unique usernames for legacy users
+            var serviceToUse = usernameService ?? new UsernameService(context, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<UsernameService>.Instance, new DbInitializerRateLimitPolicyService());
+            await MigrateLegacyUsernamesAsync(context, serviceToUse);
 
-        // One-time compatibility migration to backfill repository classification & authenticity columns
-        await MigrateLegacyRepositoryMetadataAsync(context);
+            // One-time compatibility migration to backfill repository classification & authenticity columns
+            await MigrateLegacyRepositoryMetadataAsync(context);
 
-        // One-time compatibility migration to migrate historical security audit logs to security_events
-        await MigrateLegacySecurityEventsAsync(context);
+            // One-time compatibility migration to migrate historical security audit logs to security_events
+            await MigrateLegacySecurityEventsAsync(context);
         }
         finally
         {
