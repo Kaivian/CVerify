@@ -8,7 +8,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - cverify-infra-net
+      cverify-infra-net:
+        aliases:
+          - postgres
     deploy:
       resources:
         limits:
@@ -41,7 +43,9 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - cverify-infra-net
+      cverify-infra-net:
+        aliases:
+          - redis
     deploy:
       resources:
         limits:
