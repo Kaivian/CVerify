@@ -128,6 +128,19 @@ namespace CVerify.API.Migrations
                 END $$;
             ");
 
+            // Migrate existing data for repository_skill_attributions and candidate_skills to prevent unique key conflicts on empty strings
+            migrationBuilder.Sql(@"
+                UPDATE repository_skill_attributions
+                SET skill_id = 'skill:emerging-' || lower(replace(trim(skill_name), ' ', '-')),
+                    taxonomy_version = '2026.07'
+                WHERE skill_id = '' OR skill_id IS NULL;
+
+                UPDATE candidate_skills
+                SET skill_id = 'skill:emerging-' || lower(replace(trim(skill_name), ' ', '-')),
+                    taxonomy_version = '2026.07'
+                WHERE skill_id = '' OR skill_id IS NULL;
+            ");
+
             migrationBuilder.CreateIndex(
                 name: "ux_repository_skill_attributions_assessment_id_skill",
                 table: "repository_skill_attributions",
