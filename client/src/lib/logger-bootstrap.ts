@@ -4,8 +4,6 @@
  * prevent repetitive logs, and only emit structured lifecycle and telemetry messages.
  */
 if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-  const originalLog = console.log;
-  const originalDebug = console.debug;
   const originalInfo = console.info;
 
   // Suppress verbose dev logs

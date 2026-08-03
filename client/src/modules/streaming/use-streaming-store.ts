@@ -106,7 +106,7 @@ const mergeDbStages = (
     merged.push({
       id: dbStage.id || stageId,
       sessionId,
-      stageId: stageId,
+      stageId,
       stageName: dbStage.stageName || stageId,
       parentStageId: dbStage.parentStageId,
       status: stageStatus,
