@@ -34,6 +34,7 @@ namespace CVerify.API.UnitTests.Services
         private readonly Mock<IAiStreamingSessionService> _streamingSessionServiceMock;
         private readonly Mock<IAiCancellationManager> _cancellationManagerMock;
         private readonly Mock<ICandidateRankingProjectionService> _rankingProjectionServiceMock;
+        private readonly Mock<ITechnologyNormalizationService> _normalizationServiceMock;
 
         public CandidateAssessmentServiceReprocessTests()
         {
@@ -53,10 +54,15 @@ namespace CVerify.API.UnitTests.Services
             _streamingSessionServiceMock = new Mock<IAiStreamingSessionService>();
             _cancellationManagerMock = new Mock<IAiCancellationManager>();
             _rankingProjectionServiceMock = new Mock<ICandidateRankingProjectionService>();
+            _normalizationServiceMock = new Mock<ITechnologyNormalizationService>();
 
             // Mock HMAC sign to return empty header values for test
             _hmacServiceMock.Setup(h => h.CreateSignatureHeaders(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
                 .Returns(("mock-sig", "1234567890", "nonce-val"));
+
+            _normalizationServiceMock.Setup(n => n.NormalizeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string rawName, CancellationToken ct) => new NormalizedSkillResult(
+                    $"skill:{rawName.ToLowerInvariant()}", rawName, "Emerging Technology", "15-1252.00", false));
         }
 
         private CandidateAssessmentService CreateService()
@@ -73,7 +79,8 @@ namespace CVerify.API.UnitTests.Services
                 _validationServiceMock.Object,
                 _streamingSessionServiceMock.Object,
                 _cancellationManagerMock.Object,
-                _rankingProjectionServiceMock.Object
+                _rankingProjectionServiceMock.Object,
+                _normalizationServiceMock.Object
             );
         }
 

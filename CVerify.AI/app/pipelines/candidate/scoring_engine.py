@@ -6,12 +6,20 @@ from typing import Any, Dict, List, Tuple, Optional
 
 logger = logging.getLogger("scoring_engine")
 
-def _get_normalized_name(name: str) -> str:
-    if not name:
+def _get_skill_id(item: Any) -> str:
+    if not item:
         return ""
-    from app.pipelines.candidate.skill_taxonomy import normalize_skill
-    entry = normalize_skill(name)
-    return entry.normalized_name.lower() if entry else name.strip().lower()
+    if isinstance(item, str):
+        from app.pipelines.candidate.skill_taxonomy import make_skill_id
+        return f"skill:{make_skill_id(item)}"
+    
+    skill_id = item.get("skillId") or item.get("skill_id")
+    if skill_id:
+        return skill_id.strip().lower()
+        
+    name = item.get("skillName") or item.get("skill") or item.get("normalizedName") or item.get("rawName") or ""
+    from app.pipelines.candidate.skill_taxonomy import make_skill_id
+    return f"skill:{make_skill_id(name)}"
 
 def get_duration_months(entry: dict) -> float:
     from datetime import datetime
@@ -66,20 +74,26 @@ def calculate_verified_score(
     unique_repo_skills = set()
     for ra in repository_assessments:
         for attr in ra.get("skillAttributions", []):
-            sname = attr.get("skillName")
-            if sname:
-                unique_repo_skills.add(sname)
+            s_id = _get_skill_id(attr)
+            if s_id:
+                unique_repo_skills.add(s_id)
 
-    all_skills = list(set(cv_skills) | unique_repo_skills)
+    cv_skill_ids = set()
+    for s in cv_skills:
+        s_id = _get_skill_id(s)
+        if s_id:
+            cv_skill_ids.add(s_id)
+
+    all_skill_ids = list(cv_skill_ids | unique_repo_skills)
     
-    for skill_name in all_skills:
-        prof = next((p for p in skill_proficiencies if p.get("skill", "").lower() == skill_name.lower()), None)
+    for skill_id in all_skill_ids:
+        prof = next((p for p in skill_proficiencies if _get_skill_id(p) == skill_id), None)
         supporting_repos = []
-        norm_skill_name = _get_normalized_name(skill_name)
         for ra in repository_assessments:
             for attr in ra.get("skillAttributions", []):
-                if _get_normalized_name(attr.get("skillName", "")) == norm_skill_name:
+                if _get_skill_id(attr) == skill_id:
                     supporting_repos.append(ra)
+                    break
         if prof and supporting_repos:
             raw_skills_verified += float(prof.get("proficiencyLevel", 1.0)) * 25.0
             
@@ -231,14 +245,22 @@ def calculate_self_declared_score(
 
     # 1. Self-Declared Skill Depth
     raw_skills_self = 0.0
-    unique_skills = list(set(cv_skills) | {p.get("skill", "") for p in skill_proficiencies if p.get("skill")})
-    for skill_name in unique_skills:
-        prof = next((p for p in skill_proficiencies if p.get("skill", "").lower() == skill_name.lower()), None)
+    unique_skill_ids = set()
+    for s in cv_skills:
+        s_id = _get_skill_id(s)
+        if s_id:
+            unique_skill_ids.add(s_id)
+    for p in skill_proficiencies:
+        p_id = _get_skill_id(p)
+        if p_id:
+            unique_skill_ids.add(p_id)
+
+    for skill_id in unique_skill_ids:
+        prof = next((p for p in skill_proficiencies if _get_skill_id(p) == skill_id), None)
         supporting_self_declared = []
-        norm_skill_name = _get_normalized_name(skill_name)
         for proj in self_declared_projects:
-            techs = [_get_normalized_name(t) for t in proj.get("technologies", [])]
-            if norm_skill_name in techs:
+            techs = [_get_skill_id(t) for t in proj.get("technologies", [])]
+            if skill_id in techs:
                 supporting_self_declared.append(proj)
         if prof and supporting_self_declared:
             raw_skills_self += float(prof.get("proficiencyLevel", 1.0)) * 25.0
@@ -609,21 +631,28 @@ def score_candidate_deterministic(
             "rawImpact": round(combined.get("rawImpact", 0.0), 2)
         }
     }
-
     # 1. Candidate Skill Profiles
-    from app.pipelines.candidate.helpers import _get_normalized_name
     skill_proficiencies_out = []
-    skills_to_process = cv_skills if cv_skills else [p.get("skill") for p in skill_proficiencies if p.get("skill")]
-    seen_skills = set()
-    skills_to_process = [x for x in skills_to_process if not (x.lower() in seen_skills or seen_skills.add(x.lower()))]
+    
+    skills_to_process = []
+    seen_skill_ids = set()
+    
+    source_skills = cv_skills if cv_skills else [p.get("skill") for p in skill_proficiencies if p.get("skill")]
+    for s in source_skills:
+        s_id = _get_skill_id(s)
+        if s_id and s_id not in seen_skill_ids:
+            seen_skill_ids.add(s_id)
+            skills_to_process.append(s)
 
-    for skill_name in skills_to_process:
-        prof = next((p for p in skill_proficiencies if p.get("skill", "").lower() == skill_name.lower()), None)
+    for skill_item in skills_to_process:
+        skill_id = _get_skill_id(skill_item)
+        skill_name = skill_item.get("normalizedName") if isinstance(skill_item, dict) else skill_item
+        
+        prof = next((p for p in skill_proficiencies if _get_skill_id(p) == skill_id), None)
         supporting_repos = []
-        norm_skill_name = _get_normalized_name(skill_name)
         for ra in repository_assessments:
             for attr in ra.get("skillAttributions", []):
-                if _get_normalized_name(attr.get("skillName", "")) == norm_skill_name:
+                if _get_skill_id(attr) == skill_id:
                     supporting_repos.append({
                         "repositoryId": ra.get("repositoryId"),
                         "repositoryName": ra.get("repositoryName"),
@@ -635,8 +664,8 @@ def score_candidate_deterministic(
         verified_proj_names = []
         unverified_proj_names = []
         for proj in cv.get("projects", []):
-            techs = [_get_normalized_name(t) for t in proj.get("technologies", [])]
-            if norm_skill_name in techs:
+            techs = [_get_skill_id(t) for t in proj.get("technologies", [])]
+            if skill_id in techs:
                 proj_id = proj.get("cvProjectId")
                 proj_name = proj.get("name", "Unnamed Project")
                 

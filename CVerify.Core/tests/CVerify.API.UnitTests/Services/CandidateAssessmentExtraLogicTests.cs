@@ -41,6 +41,7 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
     private readonly Mock<IAiStreamingSessionService> _streamingSessionServiceMock;
     private readonly Mock<IAiCancellationManager> _cancellationManagerMock;
     private readonly Mock<ICandidateRankingProjectionService> _rankingProjectionServiceMock;
+    private readonly Mock<ITechnologyNormalizationService> _normalizationServiceMock;
 
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _assessmentId = Guid.NewGuid();
@@ -67,6 +68,7 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
         _streamingSessionServiceMock = new Mock<IAiStreamingSessionService>();
         _cancellationManagerMock = new Mock<IAiCancellationManager>();
         _rankingProjectionServiceMock = new Mock<ICandidateRankingProjectionService>();
+        _normalizationServiceMock = new Mock<ITechnologyNormalizationService>();
 
         _hmacServiceMock.Setup(h => h.CreateSignatureHeaders(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .Returns(("mock-sig", "1234567890", "nonce-val"));
@@ -74,6 +76,10 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
         var mockSubscriber = new Mock<ISubscriber>();
         _redisMock.Setup(r => r.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(_redisDbMock.Object);
         _redisMock.Setup(r => r.GetSubscriber(It.IsAny<object>())).Returns(mockSubscriber.Object);
+
+        _normalizationServiceMock.Setup(n => n.NormalizeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string rawName, CancellationToken ct) => new NormalizedSkillResult(
+                $"skill:{rawName.ToLowerInvariant()}", rawName, "Emerging Technology", "15-1252.00", false));
     }
 
     private CandidateAssessmentService CreateService()
@@ -90,7 +96,8 @@ public class CandidateAssessmentExtraLogicTests : IDisposable
             _validationServiceMock.Object,
             _streamingSessionServiceMock.Object,
             _cancellationManagerMock.Object,
-            _rankingProjectionServiceMock.Object
+            _rankingProjectionServiceMock.Object,
+            _normalizationServiceMock.Object
         );
     }
 

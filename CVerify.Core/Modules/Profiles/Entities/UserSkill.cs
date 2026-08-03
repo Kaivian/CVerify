@@ -21,5 +21,11 @@ public class UserSkill
     [MaxLength(100)]
     public string Skill { get; set; } = null!;
 
+    [MaxLength(100)]
+    public string? SkillId { get; set; }
+
+    [MaxLength(100)]
+    public string? NormalizedName { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

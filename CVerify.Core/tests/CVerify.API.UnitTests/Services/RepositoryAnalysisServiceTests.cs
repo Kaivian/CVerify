@@ -41,6 +41,7 @@ public class RepositoryAnalysisServiceTests : IDisposable
     private readonly Mock<IAiStreamingSessionService> _mockStreamingSessionService;
     private readonly Mock<IAiCancellationManager> _mockCancellationManager;
     private readonly Mock<IOutboxPublisher> _mockOutboxPublisher;
+    private readonly Mock<ITechnologyNormalizationService> _mockNormalizationService;
     private readonly FakeTimeProvider _timeProvider;
     private readonly EnvConfiguration _envConfig;
     private readonly RepositoryAnalysisService _service;
@@ -76,6 +77,7 @@ public class RepositoryAnalysisServiceTests : IDisposable
         _mockStreamingSessionService = new Mock<IAiStreamingSessionService>();
         _mockCancellationManager = new Mock<IAiCancellationManager>();
         _mockOutboxPublisher = new Mock<IOutboxPublisher>();
+        _mockNormalizationService = new Mock<ITechnologyNormalizationService>();
 
         _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
 
@@ -94,6 +96,10 @@ public class RepositoryAnalysisServiceTests : IDisposable
         var mockLogger = new Mock<ILogger<RepositoryAnalysisService>>();
         var mockScopeFactory = new Mock<IServiceScopeFactory>();
 
+        _mockNormalizationService.Setup(n => n.NormalizeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string rawName, CancellationToken ct) => new NormalizedSkillResult(
+                $"skill:{rawName.ToLowerInvariant()}", rawName, "Software Development", "15-1252.00", true));
+
         _service = new RepositoryAnalysisService(
             _context,
             _mockQueue.Object,
@@ -108,7 +114,8 @@ public class RepositoryAnalysisServiceTests : IDisposable
             mockScopeFactory.Object,
             _mockStreamingSessionService.Object,
             _mockCancellationManager.Object,
-            _mockOutboxPublisher.Object
+            _mockOutboxPublisher.Object,
+            _mockNormalizationService.Object
         );
 
         SeedDatabase();

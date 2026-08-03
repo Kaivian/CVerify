@@ -36,6 +36,7 @@ public class CandidateAssessmentServiceTests : IDisposable
     private readonly Mock<IAiStreamingSessionService> _mockStreamingSessionService;
     private readonly Mock<IAiCancellationManager> _mockCancellationManager;
     private readonly Mock<ICandidateRankingProjectionService> _mockRankingProjectionService;
+    private readonly Mock<ITechnologyNormalizationService> _mockNormalizationService;
 
     private readonly Guid _userId = Guid.NewGuid();
     private readonly CandidateAssessmentService _service;
@@ -60,12 +61,17 @@ public class CandidateAssessmentServiceTests : IDisposable
         _mockStreamingSessionService = new Mock<IAiStreamingSessionService>();
         _mockCancellationManager = new Mock<IAiCancellationManager>();
         _mockRankingProjectionService = new Mock<ICandidateRankingProjectionService>();
+        _mockNormalizationService = new Mock<ITechnologyNormalizationService>();
 
         var mockSubscriber = new Mock<ISubscriber>();
         _mockRedis.Setup(r => r.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(_mockRedisDb.Object);
         _mockRedis.Setup(r => r.GetSubscriber(It.IsAny<object>())).Returns(mockSubscriber.Object);
         _mockHmacService.Setup(h => h.CreateSignatureHeaders(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .Returns(("sig", "timestamp", "nonce"));
+
+        _mockNormalizationService.Setup(n => n.NormalizeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string rawName, CancellationToken ct) => new NormalizedSkillResult(
+                $"skill:{rawName.ToLowerInvariant()}", rawName, "Emerging Technology", "15-1252.00", false));
 
         _service = new CandidateAssessmentService(
             _context,
@@ -79,7 +85,8 @@ public class CandidateAssessmentServiceTests : IDisposable
             _mockValidationService.Object,
             _mockStreamingSessionService.Object,
             _mockCancellationManager.Object,
-            _mockRankingProjectionService.Object
+            _mockRankingProjectionService.Object,
+            _mockNormalizationService.Object
         );
     }
 

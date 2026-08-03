@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace CVerify.API.Modules.Profiles.Entities;
+namespace CVerify.API.Modules.Shared.Domain.Entities;
 
 [Table("canonical_skills")]
 public class CanonicalSkill
