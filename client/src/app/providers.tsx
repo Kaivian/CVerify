@@ -1,5 +1,6 @@
 "use client";
 
+import "@/lib/logger-bootstrap";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../features/auth/hooks/use-auth";
 import { usePathname } from "next/navigation";

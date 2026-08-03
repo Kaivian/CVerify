@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -141,6 +142,109 @@ public class AiStreamingSessionService : IAiStreamingSessionService
                 LastUpdatedAtUtc = DateTimeOffset.UtcNow
             };
             _dbContext.PipelineExecutions.Add(execution);
+        }
+
+        // Remove existing stages for this session to reset the timeline (authoritative state handling)
+        var oldStages = await _dbContext.AiStreamingStages.Where(s => s.SessionId == sessionId).ToListAsync();
+        if (oldStages.Any())
+        {
+            _dbContext.AiStreamingStages.RemoveRange(oldStages);
+        }
+
+        var oldDurableStages = await _dbContext.PipelineStages.Where(s => s.ExecutionId == sessionId).ToListAsync();
+        if (oldDurableStages.Any())
+        {
+            _dbContext.PipelineStages.RemoveRange(oldDurableStages);
+        }
+
+        // Define default stages to pre-populate in the database
+        var stagesToCreate = new List<(string Id, string Name, string Description)>();
+
+        if (pipelineId == "candidate-assessment")
+        {
+            stagesToCreate.Add(("Initialize", "Initialization", "Spinning up secure assessment environment and fetching workspace context."));
+            stagesToCreate.Add(("FetchLine1", "Retrieve Repository Artifacts", "Fetches verified static analysis, provenance, and git telemetry artifacts for the candidate's active repositories."));
+            stagesToCreate.Add(("ConsolidateLine1", "Consolidate Repository Signals", "Merges multidimensional capability signals, code quality scores, and commit telemetry across all repositories."));
+            stagesToCreate.Add(("L2-001", "Skill Taxonomy Mapping", "Normalizes raw project-level skills against the global CVerify technical skill taxonomy."));
+            stagesToCreate.Add(("L2-002", "Skill Proficiency Estimation", "Estimates the depth, scope, and capability bands for each extracted skill using commit frequency and syntax patterns."));
+            stagesToCreate.Add(("L2-003", "Capabilities & Gaps Diagnostics", "Pinpoints key architectural strengths and potential engineering development areas from the codebase history."));
+            stagesToCreate.Add(("L2-004", "Career Level Assessment", "Maps codebase scope, ownership ratio, and engineering complexity to career-level thresholds."));
+            stagesToCreate.Add(("L2-005", "Career Level Calibration", "Calibrates career level alignment across multiple repositories using weighted developer experience metrics."));
+            stagesToCreate.Add(("L2-006", "Career Level Evaluation Gate", "Applies validation constraints and overrides to finalize candidate level classifications."));
+            stagesToCreate.Add(("L2-007", "Engineering Maturity Evaluation", "Evaluates project hygiene, logging practices, test coverage, and structural organization."));
+            stagesToCreate.Add(("L2-008", "Problem Solving Complexity Analyzer", "Analyzes diagnostic intent, recovery patterns, and bug-fix cycles in git commit messages."));
+            stagesToCreate.Add(("L2-009", "Technical Tendency Classification", "Classifies developer affinity towards backend, frontend, devops, or fullstack development."));
+            stagesToCreate.Add(("L2-010", "Working Style Classification", "Infers collaboration density, velocity consistency, and code review compliance from git metadata."));
+            stagesToCreate.Add(("L2-011", "Experience Confidence Calibration", "Adjusts assessment confidence scores based on codebase age, volume, and contributor density."));
+            stagesToCreate.Add(("L2-012", "Role Recommendation Engine", "Computes alignment percentages for classic industry roles (e.g. Backend, Tech Lead, DevOps, Architect)."));
+            stagesToCreate.Add(("L2-013", "Executive Summary Generation", "Generates a comprehensive recruiter-friendly assessment narrative and executive summary."));
+            stagesToCreate.Add(("L2-016", "Skill Tree Generation", "Constructs a validated, hierarchical taxonomy of skills and capabilities based on code and profile evidence."));
+            stagesToCreate.Add(("L2-014", "AI Profile Composition", "Assembles and serializes the final verified candidate profile and calibrated score index."));
+            stagesToCreate.Add(("L2-015", "Candidate Improvement Engine", "Generates personalized capability improvement plans and score optimization pathways."));
+        }
+        else if (pipelineId == "repository-analysis")
+        {
+            stagesToCreate.Add(("RepoStructure", "Structure Parsing", "Scanning directory tree to map project structure and configuration files."));
+            stagesToCreate.Add(("CommitIntelligence", "Authorship & Git History", "Analyzing Git commits to verify identity and code volume contributions."));
+            stagesToCreate.Add(("SkillExtraction", "Code Capability Extraction", "Running semantic parser to extract technical skills and patterns."));
+            stagesToCreate.Add(("ArchitectureAnalysis", "Architecture & Modularity", "Mapping package relationships and architectural patterns."));
+            stagesToCreate.Add(("CodeQuality", "Code Quality & Complexity", "Calculating cyclomatic complexity, code smells, and quality score."));
+            stagesToCreate.Add(("SecurityAnalysis", "Security & Vulnerability", "Auditing dependency files and secrets leakages."));
+            stagesToCreate.Add(("RepositoryClassification", "Classification", "Determining project type, framework, and utility class."));
+            stagesToCreate.Add(("RepositorySummary", "Summarization", "Generating codebase overview, stats, and highlights."));
+            stagesToCreate.Add(("CvSynthesis", "Relational Mapping", "Aligning repository findings with candidate career orientation."));
+        }
+        else if (pipelineId == "jd-generation")
+        {
+            stagesToCreate.Add(("AnalyzeRequirements", "Requirement Profiling", "Ingesting core hiring constraints and target profile criteria."));
+            stagesToCreate.Add(("VerifyMarketRates", "Market Calibration", "Retrieving industry salary bounds and active role descriptions."));
+            stagesToCreate.Add(("ComposeDraft", "Draft Composition", "Composing structured job description segments (responsibilities, skills)."));
+            stagesToCreate.Add(("CalibrateScoring", "Score Rubric Calibration", "Configuring the evaluation rubric that candidates will be graded against."));
+            stagesToCreate.Add(("FinalizeJd", "Verification & Release", "Validating description completeness and preparing final draft."));
+        }
+        else if (pipelineId == "candidate-discovery")
+        {
+            stagesToCreate.Add(("IndexRequirements", "Requirement Vector Indexing", "Transforming hiring description into capability vectors."));
+            stagesToCreate.Add(("QueryTalentGraph", "Talent Graph Querying", "Filtering candidate pool by baseline skill requirements."));
+            stagesToCreate.Add(("ComputeAlignment", "Authorship Fit Matching", "Calculating alignment scores based on validated repository evidence."));
+            stagesToCreate.Add(("RankCandidates", "Scored Ranking Compilation", "Generating ranked candidate cohort and calibration diagnostics."));
+        }
+
+        foreach (var s in stagesToCreate)
+        {
+            _dbContext.AiStreamingStages.Add(new AiStreamingStage
+            {
+                Id = Guid.CreateVersion7(),
+                SessionId = sessionId,
+                StageId = s.Id,
+                StageName = s.Name,
+                ParentStageId = null,
+                Status = "Pending",
+                Progress = 0.0,
+                Description = s.Description,
+                Details = null,
+                RetryCount = 0,
+                DurationMs = null,
+                StartedAt = null,
+                CompletedAt = null
+            });
+
+            _dbContext.PipelineStages.Add(new PipelineStage
+            {
+                Id = Guid.CreateVersion7(),
+                ExecutionId = sessionId,
+                StageId = s.Id,
+                StageName = s.Name,
+                ParentStageId = null,
+                Status = "Pending",
+                Progress = 0.00m,
+                Description = s.Description,
+                DetailsJson = null,
+                RetryCount = 0,
+                DurationMs = null,
+                StartedAt = null,
+                CompletedAt = null
+            });
         }
 
         await _dbContext.SaveChangesAsync();
