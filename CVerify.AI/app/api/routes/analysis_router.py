@@ -222,6 +222,12 @@ async def aggregate_results(
             correlation_id=correlation_id
         )
         return {"status": "Success", "reportData": json.dumps(report)}
+    except FileNotFoundError as fnf:
+        logger.info(f"Workspace metadata not found for job {request_data.jobId} (likely already cleaned up or not initialized): {fnf}", extra=extra_log)
+        return JSONResponse(
+            status_code=404,
+            content={"status": "Failed", "errorMessage": str(fnf)}
+        )
     except Exception as e:
         logger.warning(f"Failed to aggregate results: {e}", extra=extra_log)
         return JSONResponse(

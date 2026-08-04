@@ -59,7 +59,7 @@ Please generate the CV object. You must strictly match the following JSON Schema
 
 Remember:
 1. The 'summary' field MUST describe only the repository's core purpose in a single, short sentence (30 to 150 characters).
-2. The 'highlights' array must contain 2 to 4 key contribution bullet points (1 sentence each), describing actual developer contributions/achievements. Set the 'impact' field of each highlight to an empty string ('').
+2. The 'highlights' array must contain 2 to 3 key contribution bullet points (1 sentence each), describing actual developer contributions/achievements. Set the 'impact' field of each highlight to an empty string ('').
 3. EVERY bullet point in the 'highlights' array MUST start with a strong action verb (e.g., 'Built', 'Developed', 'Implemented', 'Optimized', 'Designed', 'Refactored').
 4. Do NOT include repository evaluations, strengths/weaknesses analysis, maintainability commentary, warning labels, quality assessments, score-oriented language, or technical auditing/grading terminology.
 5. Return ONLY the raw JSON string. Do not include markdown code block syntax.

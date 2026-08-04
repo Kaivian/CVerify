@@ -1238,8 +1238,15 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
             if (!aggregateResponse.IsSuccessStatusCode)
             {
                 var errorResponse = await aggregateResponse.Content.ReadAsStringAsync();
-                _logger.LogWarning("AI aggregation service returned status code {StatusCode} during snapshot for job {JobId}: {ErrorResponse}. Falling back to default progress report.",
-                    aggregateResponse.StatusCode, jobId, errorResponse);
+                if (aggregateResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _logger.LogInformation("AI aggregation service returned 404 (NotFound) during snapshot for job {JobId} (likely already cleaned up or not yet initialized). Falling back to default progress report.", jobId);
+                }
+                else
+                {
+                    _logger.LogWarning("AI aggregation service returned status code {StatusCode} during snapshot for job {JobId}: {ErrorResponse}. Falling back to default progress report.",
+                        aggregateResponse.StatusCode, jobId, errorResponse);
+                }
                 return GetDefaultProgressReport(job, repo);
             }
 

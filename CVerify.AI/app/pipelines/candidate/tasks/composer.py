@@ -32,7 +32,8 @@ class CandidateProfileComposer(BaseTask):
             "keyStrengths", "watchPoints", "suggestedRoles", "topMatch", "suggestedCvTitles",
             "cvImprovementSuggestions", "confidenceMultiplier", "totalExperienceMonths",
             "confidenceInLevel", "backgroundRepositories", "skillDepthScore", "ownershipScore",
-            "architectureScore", "problemSolvingScore", "impactScore", "cvSkills"
+            "architectureScore", "problemSolvingScore", "impactScore", "cvSkills",
+            "rawSkillDepth", "rawOwnership", "rawArchitecture", "rawProblemSolving", "rawImpact"
         ]
 
     @property
