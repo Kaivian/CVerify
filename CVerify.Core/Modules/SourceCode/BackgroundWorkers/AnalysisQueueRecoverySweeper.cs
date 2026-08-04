@@ -47,14 +47,14 @@ public class AnalysisQueueRecoverySweeper : BackgroundService
             if (stuckCandidateAssessments.Any())
             {
                 _logger.LogInformation("Found {Count} stuck candidate assessments. Marking them as Failed due to server restart.", stuckCandidateAssessments.Count);
-                
+
                 foreach (var ca in stuckCandidateAssessments)
                 {
                     ca.Status = "Failed";
                     ca.FailedStage = ca.FailedStage ?? "Initialize";
                     ca.FailureReason = "Job interrupted by server reboot or restart.";
                     ca.CompletedAtUtc = _timeProvider.GetUtcNow();
-                    
+
                     // Fail the transient streaming session and durable pipeline execution if they exist
                     var streamingSessionService = scope.ServiceProvider.GetRequiredService<IAiStreamingSessionService>();
                     try

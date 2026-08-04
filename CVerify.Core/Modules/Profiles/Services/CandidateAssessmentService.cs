@@ -358,16 +358,16 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         if (!acquired)
         {
             _logger.LogError("Could not acquire Redis execution lock for candidate assessment {AssessmentId} after {Retries} attempts. UserId: {UserId}", assessmentId, maxLockRetries, assessment.UserId);
-            
+
             assessment.Status = "Failed";
             assessment.FailedStage = "Initialize";
             assessment.FailureReason = "Could not acquire execution lock. Another assessment may be in progress.";
             assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
-            
+
             await _context.SaveChangesAsync(CancellationToken.None);
-            
+
             await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Failed", "Could not acquire execution lock. Another assessment may be in progress.");
-            
+
             return;
         }
 
