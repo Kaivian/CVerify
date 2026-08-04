@@ -331,18 +331,50 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         var lockKey = $"candidate:assessment:lock:{assessment.UserId}";
         var token = Guid.NewGuid().ToString();
 
-        // 10 minutes lock duration to protect long assessment execution
-        bool acquired = await db.LockTakeAsync(lockKey, token, TimeSpan.FromMinutes(10));
+        bool acquired = false;
+        const int maxLockRetries = 3;
+        const int lockRetryDelayMs = 2000;
+
+        for (int i = 0; i < maxLockRetries; i++)
+        {
+            acquired = await db.LockTakeAsync(lockKey, token, TimeSpan.FromMinutes(10));
+            if (acquired)
+            {
+                break;
+            }
+
+            _logger.LogWarning("Lock acquisition attempt {Attempt} failed for candidate assessment {AssessmentId}, UserId: {UserId}. Retrying in {Delay}ms...", i + 1, assessmentId, assessment.UserId, lockRetryDelayMs);
+            try
+            {
+                await Task.Delay(lockRetryDelayMs, linkedCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // If cancellation is triggered while waiting, break out and fail/cancel the job
+                break;
+            }
+        }
+
         if (!acquired)
         {
-            _logger.LogWarning("Could not acquire lock for candidate assessment. UserId: {UserId}", assessment.UserId);
+            _logger.LogError("Could not acquire Redis execution lock for candidate assessment {AssessmentId} after {Retries} attempts. UserId: {UserId}", assessmentId, maxLockRetries, assessment.UserId);
+            
+            assessment.Status = "Failed";
+            assessment.FailedStage = "Initialize";
+            assessment.FailureReason = "Could not acquire execution lock. Another assessment may be in progress.";
+            assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
+            
+            await _context.SaveChangesAsync(CancellationToken.None);
+            
+            await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Failed", "Could not acquire execution lock. Another assessment may be in progress.");
+            
             return;
         }
 
         try
         {
             assessment.Status = "Running";
-            await _context.SaveChangesAsync(cancellationToken);
+            await _context.SaveChangesAsync(linkedCts.Token);
 
             await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Running");
             await _streamingSessionService.AddLogAsync(assessment.Id, "Initialize", "Info", "Orchestrator", "Initiated candidate assessment execution pipeline.");
@@ -359,12 +391,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 .Include(l => l.ProjectEntry)
                 .Include(l => l.SourceCodeRepository)
                 .Where(l => l.ProjectEntry.UserId == assessment.UserId && l.ProjectEntry.DeletedAt == null && l.SourceCodeRepository.IsEnabled)
-                .ToListAsync(cancellationToken);
+                .ToListAsync(linkedCts.Token);
 
             var attachedRepoIds = attachedLinks.Select(l => l.SourceCodeRepositoryId).ToHashSet();
 
             // Fetch completed repositories job IDs
-            var jobIds = await _repositoryProvider.GetCompletedAnalysisJobIdsAsync(assessment.UserId, cancellationToken);
+            var jobIds = await _repositoryProvider.GetCompletedAnalysisJobIdsAsync(assessment.UserId, linkedCts.Token);
 
             var cvJobs = new List<CVerify.API.Modules.SourceCode.Entities.AnalysisJob>();
 
@@ -372,7 +404,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             {
                 var aJob = await _context.AnalysisJobs
                     .Include(j => j.Repository)
-                    .FirstOrDefaultAsync(j => j.Id == Guid.Parse(jid), cancellationToken);
+                    .FirstOrDefaultAsync(j => j.Id == Guid.Parse(jid), linkedCts.Token);
 
                 if (aJob == null) continue;
 
@@ -384,8 +416,8 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
             var selectedCvJobs = cvJobs.Take(5).ToList();
 
-            var projectCount = await _context.ProjectEntries.CountAsync(p => p.UserId == assessment.UserId && p.DeletedAt == null, cancellationToken);
-            var experienceCount = await _context.WorkExperiences.CountAsync(we => we.UserId == assessment.UserId && we.DeletedAt == null, cancellationToken);
+            var projectCount = await _context.ProjectEntries.CountAsync(p => p.UserId == assessment.UserId && p.DeletedAt == null, linkedCts.Token);
+            var experienceCount = await _context.WorkExperiences.CountAsync(we => we.UserId == assessment.UserId && we.DeletedAt == null, linkedCts.Token);
 
             if (selectedCvJobs.Count == 0 && projectCount == 0 && experienceCount == 0)
             {
@@ -408,12 +440,12 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                         && ra.PipelineVersion == targetPipelineVersion
                         && ra.ModelVersion == targetModelVersion
                         && ra.PromptVersion == targetPromptVersion
-                        && ra.AssessmentSchemaVersion == targetSchemaVersion, cancellationToken);
+                        && ra.AssessmentSchemaVersion == targetSchemaVersion, linkedCts.Token);
 
                 if (existingAssess != null)
                 {
-                    await ProjectRelationalDataAsync(existingAssess.Id, aJob.Id, existingAssess.OverallScore, cancellationToken);
-                    var payloadItem = await GetRelationalAssessPayloadAsync(existingAssess, aJob.Repository.Name, entryId, entryName, verificationLevel, trustLevel, cancellationToken);
+                    await ProjectRelationalDataAsync(existingAssess.Id, aJob.Id, existingAssess.OverallScore, linkedCts.Token);
+                    var payloadItem = await GetRelationalAssessPayloadAsync(existingAssess, aJob.Repository.Name, entryId, entryName, verificationLevel, trustLevel, linkedCts.Token);
                     activeRepoAssessments.Add(payloadItem);
                     continue;
                 }
@@ -433,7 +465,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 };
 
                 _context.RepositoryAssessments.Add(newAssess);
-                await _context.SaveChangesAsync(cancellationToken);
+                await _context.SaveChangesAsync(linkedCts.Token);
 
                 try
                 {
@@ -459,14 +491,14 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     repoRequestMessage.Headers.Add("X-Correlation-Id", assessment.Id.ToString());
                     repoRequestMessage.Headers.Add("X-Signature", sig);
 
-                    var repoResponse = await repoHttpClient.SendAsync(repoRequestMessage, cancellationToken);
+                    var repoResponse = await repoHttpClient.SendAsync(repoRequestMessage, linkedCts.Token);
                     if (!repoResponse.IsSuccessStatusCode)
                     {
-                        var errStr = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
+                        var errStr = await repoResponse.Content.ReadAsStringAsync(linkedCts.Token);
                         throw new Exception($"AI repo assess returned {repoResponse.StatusCode}: {errStr}");
                     }
 
-                    var responseJson = await repoResponse.Content.ReadAsStringAsync(cancellationToken);
+                    var responseJson = await repoResponse.Content.ReadAsStringAsync(linkedCts.Token);
                     using var repoDoc = JsonDocument.Parse(responseJson);
                     var repoRoot = repoDoc.RootElement;
 
@@ -482,17 +514,17 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                         newAssess.QualityMetrics = JsonSerializer.Serialize(new { qualityScore = qualProp.GetDouble(), cloneRiskClassification = repoRoot.TryGetProperty("cloneRiskClassification", out var crProp) ? crProp.GetString() : "clean" });
 
                     newAssess.JsonData = responseJson;
-                    await _context.SaveChangesAsync(cancellationToken);
+                    await _context.SaveChangesAsync(linkedCts.Token);
 
-                    await ProjectRelationalDataAsync(newAssess.Id, aJob.Id, newAssess.OverallScore, cancellationToken);
-                    var payloadItem = await GetRelationalAssessPayloadAsync(newAssess, aJob.Repository.Name, entryId, entryName, verificationLevel, trustLevel, cancellationToken);
+                    await ProjectRelationalDataAsync(newAssess.Id, aJob.Id, newAssess.OverallScore, linkedCts.Token);
+                    var payloadItem = await GetRelationalAssessPayloadAsync(newAssess, aJob.Repository.Name, entryId, entryName, verificationLevel, trustLevel, linkedCts.Token);
                     activeRepoAssessments.Add(payloadItem);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error assessing repository {RepoName} for job {JobId}", aJob.Repository.Name, aJob.Id);
                     newAssess.Status = "Failed";
-                    await _context.SaveChangesAsync(cancellationToken);
+                    await _context.SaveChangesAsync(CancellationToken.None);
                 }
             }
 
@@ -502,7 +534,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             // Load UserProfile detail
             var userProfile = await _context.UserProfiles
                 .Include(up => up.User)
-                .FirstOrDefaultAsync(up => up.UserId == assessment.UserId, cancellationToken);
+                .FirstOrDefaultAsync(up => up.UserId == assessment.UserId, linkedCts.Token);
 
             if (userProfile == null)
             {
@@ -512,7 +544,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             // Resolve CV skills (normalized)
             var userSkills = await _context.UserSkills
                 .Where(us => us.UserId == assessment.UserId)
-                .ToListAsync(cancellationToken);
+                .ToListAsync(linkedCts.Token);
 
             var normalizedCvSkills = new List<object>();
             var processedSkillNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -527,7 +559,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
                 if (string.IsNullOrEmpty(skillId) || string.IsNullOrEmpty(normalizedName))
                 {
-                    var norm = await _normalizationService.NormalizeAsync(us.Skill, cancellationToken);
+                    var norm = await _normalizationService.NormalizeAsync(us.Skill, linkedCts.Token);
                     skillId = norm.SkillId;
                     normalizedName = norm.NormalizedName;
                 }
@@ -541,7 +573,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             }
 
             var careerPref = await _context.CareerPreferences
-                .FirstOrDefaultAsync(cp => cp.UserId == assessment.UserId, cancellationToken);
+                .FirstOrDefaultAsync(cp => cp.UserId == assessment.UserId, linkedCts.Token);
             if (careerPref?.TargetSkills != null)
             {
                 foreach (var ts in careerPref.TargetSkills)
@@ -549,7 +581,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                     if (processedSkillNames.Contains(ts)) continue;
                     processedSkillNames.Add(ts);
 
-                    var norm = await _normalizationService.NormalizeAsync(ts, cancellationToken);
+                    var norm = await _normalizationService.NormalizeAsync(ts, linkedCts.Token);
                     normalizedCvSkills.Add(new
                     {
                         originalName = ts,
@@ -566,7 +598,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 .Include(we => we.Links)
                 .Where(we => we.UserId == assessment.UserId && we.DeletedAt == null)
                 .OrderByDescending(we => we.StartDate)
-                .ToListAsync(cancellationToken);
+                .ToListAsync(linkedCts.Token);
 
             var experienceList = new List<object>();
             foreach (var exp in experiences)
@@ -593,7 +625,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             var educations = await _context.EducationEntries
                 .Where(e => e.UserId == assessment.UserId && e.DeletedAt == null)
                 .OrderBy(e => e.DisplayOrder)
-                .ToListAsync(cancellationToken);
+                .ToListAsync(linkedCts.Token);
 
             var educationList = educations.Select(e => new
             {
@@ -612,7 +644,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             var achievements = await _context.AcademicAchievements
                 .Where(a => a.UserId == assessment.UserId && a.DeletedAt == null)
                 .OrderBy(a => a.DisplayOrder)
-                .ToListAsync(cancellationToken);
+                .ToListAsync(linkedCts.Token);
 
             var achievementsList = achievements.Select(a => new
             {
@@ -630,7 +662,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 .Include(p => p.RepositoryLinks).ThenInclude(l => l.SourceCodeRepository)
                 .Where(p => p.UserId == assessment.UserId && p.DeletedAt == null)
                 .OrderBy(p => p.DisplayOrder)
-                .ToListAsync(cancellationToken);
+                .ToListAsync(linkedCts.Token);
 
             var projectList = projects.Select(proj => new
             {
@@ -686,18 +718,18 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             requestMessage.Headers.Add("X-Correlation-Id", assessment.Id.ToString());
             requestMessage.Headers.Add("X-Signature", signature);
 
-            using var response = await httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            using var response = await httpClient.SendAsync(requestMessage, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token);
             if (!response.IsSuccessStatusCode)
             {
-                var errorMsg = await response.Content.ReadAsStringAsync(cancellationToken);
+                var errorMsg = await response.Content.ReadAsStringAsync(linkedCts.Token);
                 throw new HttpRequestException($"AI service returned status code {response.StatusCode}: {errorMsg}", null, response.StatusCode);
             }
 
-            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var stream = await response.Content.ReadAsStreamAsync(linkedCts.Token);
             using var reader = new System.IO.StreamReader(stream);
 
             string? line;
-            while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
+            while ((line = await reader.ReadLineAsync(linkedCts.Token)) != null)
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 if (line.StartsWith("data: "))
@@ -727,11 +759,11 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
                         if (!string.IsNullOrEmpty(progressEvent.ModelName))
                         {
-                            var session = await _context.AiStreamingSessions.FirstOrDefaultAsync(s => s.Id == assessment.Id, cancellationToken);
+                            var session = await _context.AiStreamingSessions.FirstOrDefaultAsync(s => s.Id == assessment.Id, linkedCts.Token);
                             if (session != null && session.ModelName != progressEvent.ModelName)
                             {
                                 session.ModelName = progressEvent.ModelName;
-                                await _context.SaveChangesAsync(cancellationToken);
+                                await _context.SaveChangesAsync(linkedCts.Token);
                             }
                         }
 
@@ -749,7 +781,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                         // If stage completed with artifact, save it to DB
                         if (!string.IsNullOrEmpty(progressEvent.ArtifactType) && !string.IsNullOrEmpty(progressEvent.JsonData))
                         {
-                            await SaveOrUpdateArtifactAsync(assessment.Id, progressEvent.ArtifactType, progressEvent.JsonData, cancellationToken);
+                            await SaveOrUpdateArtifactAsync(assessment.Id, progressEvent.ArtifactType, progressEvent.JsonData, linkedCts.Token);
                         }
                     }
                 }
@@ -757,7 +789,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
 
             // Save final values from Composer's CandidateProfile artifact
             var profileArtifact = await _context.CandidateAssessmentArtifacts
-                .FirstOrDefaultAsync(a => a.AssessmentId == assessment.Id && a.ArtifactType == "CandidateProfile", cancellationToken);
+                .FirstOrDefaultAsync(a => a.AssessmentId == assessment.Id && a.ArtifactType == "CandidateProfile", linkedCts.Token);
 
             if (profileArtifact == null)
             {
@@ -806,114 +838,125 @@ public class CandidateAssessmentService : ICandidateAssessmentService
                 assessment.ProfessionalBio = bioProp.GetString();
             }
 
-            // Populate Indexing ranking columns
-            assessment.TechnicalDepth = root.TryGetProperty("technicalDepth", out var depthProp) ? depthProp.GetDouble() : 0.0;
-            assessment.TechnicalBreadth = root.TryGetProperty("technicalBreadth", out var breadthProp) ? breadthProp.GetDouble() : 0.0;
-            assessment.LeadershipPotential = root.TryGetProperty("leadershipPotential", out var leadPProp) ? leadPProp.GetDouble() : 0.0;
-            assessment.ExecutionStrength = root.TryGetProperty("executionStrength", out var execPProp) ? execPProp.GetDouble() : 0.0;
-            assessment.TrustLevel = root.TryGetProperty("trustLevel", out var trustProp) ? trustProp.GetDouble() : 0.0;
-
-            assessment.CalculationMode = "LLM_Stream";
-            assessment.EvidenceCompleteness = root.TryGetProperty("evidenceCompleteness", out var ecProp) ? ecProp.GetString() : "NONE";
-            assessment.CloneRiskClassification = root.TryGetProperty("cloneRiskClassification", out var crcProp) ? crcProp.GetString() : "clean";
-
-            using (var sha = System.Security.Cryptography.SHA256.Create())
+            // Touch UserProfile.LastAssessmentAt / Update inside a transaction boundary
+            using var transaction = await _context.Database.BeginTransactionAsync(linkedCts.Token);
+            try
             {
-                var hashBytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(payloadJson));
-                assessment.InputFeatureSetHash = Convert.ToHexString(hashBytes);
-            }
+                assessment.Status = "Completed";
+                assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
+                assessment.LastAssessmentAt = DateTimeOffset.UtcNow;
 
-            assessment.Status = "Completed";
-            assessment.CompletedAtUtc = DateTimeOffset.UtcNow;
-            assessment.LastAssessmentAt = DateTimeOffset.UtcNow;
+                // Populate Indexing ranking columns
+                assessment.TechnicalDepth = root.TryGetProperty("technicalDepth", out var depthProp) ? depthProp.GetDouble() : 0.0;
+                assessment.TechnicalBreadth = root.TryGetProperty("technicalBreadth", out var breadthProp) ? breadthProp.GetDouble() : 0.0;
+                assessment.LeadershipPotential = root.TryGetProperty("leadershipPotential", out var leadPProp) ? leadPProp.GetDouble() : 0.0;
+                assessment.ExecutionStrength = root.TryGetProperty("executionStrength", out var execPProp) ? execPProp.GetDouble() : 0.0;
+                assessment.TrustLevel = root.TryGetProperty("trustLevel", out var trustProp) ? trustProp.GetDouble() : 0.0;
 
-            // Save structured relational profile collections
-            await SaveCandidateRelationalProfileAsync(assessment.Id, root, cancellationToken);
+                assessment.CalculationMode = "LLM_Stream";
+                assessment.EvidenceCompleteness = root.TryGetProperty("evidenceCompleteness", out var ecProp) ? ecProp.GetString() : "NONE";
+                assessment.CloneRiskClassification = root.TryGetProperty("cloneRiskClassification", out var crcProp) ? crcProp.GetString() : "clean";
 
-            var skillTreeArtifact = await _context.CandidateAssessmentArtifacts
-                .FirstOrDefaultAsync(a => a.AssessmentId == assessment.Id && a.ArtifactType == "SkillTree", cancellationToken);
-            if (skillTreeArtifact != null)
-            {
-                using var treeDoc = JsonDocument.Parse(skillTreeArtifact.JsonData);
-                await SaveCandidateSkillTreeAsync(assessment.UserId, assessment.Id, treeDoc.RootElement, cancellationToken);
-            }
-
-            // Touch UserProfile.LastAssessmentAt / Update
-            userProfile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == assessment.UserId, cancellationToken);
-            if (userProfile != null)
-            {
-                userProfile.UpdatedAt = DateTimeOffset.UtcNow;
-
-                // Update AI Suggestions JSON
-                Dictionary<string, AiSuggestionItem>? suggestions = null;
-                if (!string.IsNullOrEmpty(userProfile.AiSuggestionsJson))
+                using (var sha = System.Security.Cryptography.SHA256.Create())
                 {
-                    try
-                    {
-                        suggestions = JsonSerializer.Deserialize<Dictionary<string, AiSuggestionItem>>(
-                            userProfile.AiSuggestionsJson,
-                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-                        );
-                    }
-                    catch { /* Ignore parsing errors and recreate */ }
+                    var hashBytes = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(payloadJson));
+                    assessment.InputFeatureSetHash = Convert.ToHexString(hashBytes);
                 }
 
-                suggestions ??= new Dictionary<string, AiSuggestionItem>();
+                // Save structured relational profile collections
+                await SaveCandidateRelationalProfileAsync(assessment.Id, root, linkedCts.Token);
 
-                // 1. Headline suggestion
-                if (!string.IsNullOrEmpty(assessment.SummaryHeadline))
+                var skillTreeArtifact = await _context.CandidateAssessmentArtifacts
+                    .FirstOrDefaultAsync(a => a.AssessmentId == assessment.Id && a.ArtifactType == "SkillTree", linkedCts.Token);
+                if (skillTreeArtifact != null)
                 {
-                    if (!suggestions.TryGetValue("headline", out var headlineItem))
-                    {
-                        headlineItem = new AiSuggestionItem { Source = "user" };
-                        suggestions["headline"] = headlineItem;
-                    }
-                    headlineItem.AiValue = assessment.SummaryHeadline;
-                    headlineItem.GeneratedAt = DateTimeOffset.UtcNow;
+                    using var treeDoc = JsonDocument.Parse(skillTreeArtifact.JsonData);
+                    await SaveCandidateSkillTreeAsync(assessment.UserId, assessment.Id, treeDoc.RootElement, linkedCts.Token);
                 }
 
-                // 2. Bio suggestion
-                if (!string.IsNullOrEmpty(assessment.ProfessionalBio))
+                // Touch UserProfile
+                userProfile = await _context.UserProfiles.FirstOrDefaultAsync(up => up.UserId == assessment.UserId, linkedCts.Token);
+                if (userProfile != null)
                 {
-                    if (!suggestions.TryGetValue("bio", out var bioItem))
+                    userProfile.UpdatedAt = DateTimeOffset.UtcNow;
+
+                    Dictionary<string, AiSuggestionItem>? suggestions = null;
+                    if (!string.IsNullOrEmpty(userProfile.AiSuggestionsJson))
                     {
-                        bioItem = new AiSuggestionItem { Source = "user" };
-                        suggestions["bio"] = bioItem;
+                        try
+                        {
+                            suggestions = JsonSerializer.Deserialize<Dictionary<string, AiSuggestionItem>>(
+                                userProfile.AiSuggestionsJson,
+                                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                            );
+                        }
+                        catch { }
                     }
-                    bioItem.AiValue = assessment.ProfessionalBio;
-                    bioItem.GeneratedAt = DateTimeOffset.UtcNow;
+
+                    suggestions ??= new Dictionary<string, AiSuggestionItem>();
+
+                    if (!string.IsNullOrEmpty(assessment.SummaryHeadline))
+                    {
+                        if (!suggestions.TryGetValue("headline", out var headlineItem))
+                        {
+                            headlineItem = new AiSuggestionItem { Source = "user" };
+                            suggestions["headline"] = headlineItem;
+                        }
+                        headlineItem.AiValue = assessment.SummaryHeadline;
+                        headlineItem.GeneratedAt = DateTimeOffset.UtcNow;
+                    }
+
+                    if (!string.IsNullOrEmpty(assessment.ProfessionalBio))
+                    {
+                        if (!suggestions.TryGetValue("bio", out var bioItem))
+                        {
+                            bioItem = new AiSuggestionItem { Source = "user" };
+                            suggestions["bio"] = bioItem;
+                        }
+                        bioItem.AiValue = assessment.ProfessionalBio;
+                        bioItem.GeneratedAt = DateTimeOffset.UtcNow;
+                    }
+
+                    userProfile.AiSuggestionsJson = JsonSerializer.Serialize(
+                        suggestions,
+                        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
+                    );
                 }
 
-                userProfile.AiSuggestionsJson = JsonSerializer.Serialize(
-                    suggestions,
-                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
-                );
+                var dbStatus = await _context.CandidateAssessments
+                    .AsNoTracking()
+                    .Where(ca => ca.Id == assessment.Id)
+                    .Select(ca => ca.Status)
+                    .FirstOrDefaultAsync(linkedCts.Token);
+
+                if (dbStatus == "Cancelled")
+                {
+                    throw new OperationCanceledException("Assessment was cancelled by the user.");
+                }
+
+                await _context.SaveChangesAsync(linkedCts.Token);
+
+                // Recalculate candidate evaluation snapshot and capability projection
+                await _evaluationService.EvaluateAndSnapshotCandidateAsync(assessment.UserId, linkedCts.Token);
+
+                // Sync search profile projection immediately
+                await _evaluationService.UpdateSearchProfileAsync(assessment.UserId, linkedCts.Token);
+
+                // Rebuild global ranking projections immediately
+                _logger.LogInformation("Rebuilding candidate ranking projections for completed assessment. CandidateId: {CandidateId}, Action: Rebuild", assessment.UserId);
+                await _rankingProjectionService.RebuildRankingProjectionsAsync(linkedCts.Token).ConfigureAwait(false);
+
+                await transaction.CommitAsync(linkedCts.Token);
             }
-
-            var dbStatus = await _context.CandidateAssessments
-                .AsNoTracking()
-                .Where(ca => ca.Id == assessment.Id)
-                .Select(ca => ca.Status)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (dbStatus == "Cancelled")
+            catch (Exception)
             {
-                assessment.Status = "Cancelled";
-                await _context.SaveChangesAsync(cancellationToken);
-                throw new OperationCanceledException("Assessment was cancelled by the user.");
+                try
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                }
+                catch { }
+                throw;
             }
-
-            await _context.SaveChangesAsync(cancellationToken);
-
-            // Recalculate candidate evaluation snapshot and capability projection
-            await _evaluationService.EvaluateAndSnapshotCandidateAsync(assessment.UserId, cancellationToken);
-
-            // Sync search profile projection immediately
-            await _evaluationService.UpdateSearchProfileAsync(assessment.UserId, cancellationToken);
-
-            // Rebuild global ranking projections immediately
-            _logger.LogInformation("Rebuilding candidate ranking projections for completed assessment. CandidateId: {CandidateId}, Action: Rebuild", assessment.UserId);
-            await _rankingProjectionService.RebuildRankingProjectionsAsync(cancellationToken).ConfigureAwait(false);
 
             var profileArtifactJson = profileArtifact?.JsonData;
             await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Completed", summaryData: profileArtifactJson);
@@ -922,11 +965,17 @@ public class CandidateAssessmentService : ICandidateAssessmentService
             // Publish final completion
             await PublishProgressAsync(assessment.UserId, "Completed", "CandidateProfileComposer", "Candidate Assessment completed successfully.", 100.0);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
-            _logger.LogWarning("Candidate assessment job {AssessmentId} was cancelled.", assessment.Id);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("Candidate assessment job {AssessmentId} was aborted due to host shutdown.", assessment.Id);
+                throw;
+            }
 
-            var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id);
+            _logger.LogWarning("Candidate assessment job {AssessmentId} was cancelled by user.", assessment.Id);
+
+            var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id, CancellationToken.None);
             if (freshAssess != null && freshAssess.Status != "Cancelled")
             {
                 freshAssess.Status = "Cancelled";
@@ -939,7 +988,7 @@ public class CandidateAssessmentService : ICandidateAssessmentService
         }
         catch (Exception ex)
         {
-            var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id);
+            var freshAssess = await _context.CandidateAssessments.FirstOrDefaultAsync(ca => ca.Id == assessment.Id, CancellationToken.None);
             if (freshAssess != null && freshAssess.Status == "Cancelled")
             {
                 await _streamingSessionService.UpdateSessionStatusAsync(assessment.Id, "Cancelled");
