@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "candidate-profile-v3",
+  "candidateScore": 45,
+  "candidateScoreLabel": "Middle",
+  "careerLevel": "L2",
+  "careerLevelLabel": "Middle",
+  "careerLevelConfidence": 0.85,
+  "cohortPercentile": 45.05549999999999,
+  "cohortVersion": "v0.0.0-fallback",
+  "cohortPercentileRange": {
+    "min": 27.07,
+    "max": 63.04,
+    "margin": 17.98
+  },
+  "capabilityVector": {
+    "version": "2.0.0",
+    "skillDepth": 60,
+    "ownership": 38,
+    "architecture": 49,
+    "problemSolving": 32,
+    "impact": 11,
+    "dimensions": {
+      "skillDepth": 60,
+      "ownership": 38,
+      "architecture": 49,
+      "problemSolving": 32,
+      "impact": 11
+    },
+    "rawSignals": {
+      "rawSkillDepth": 285.0,
+      "rawOwnership": 23.11,
+      "rawArchitecture": 216.75,
+      "rawProblemSolving": 34.27,
+      "rawImpact": 5.4
+    }
+  },
+  "evidenceCompleteness": "FULL",
+  "cloneRiskClassification": "clean",
+  "technicalDepth": 90.0,
+  "technicalBreadth": 40.0,
+  "leadershipPotential": 40.0,
+  "executionStrength": 60.0,
+  "trustLevel": 81.91,
+  "trustScoreMetrics": {
+    "verifiedSkillRatio": 0.6,
+    "verifiedRepositoryRatio": 1.0,
+    "verifiedEvidenceRatio": 0.85,
+    "candidateTrustScore": 81.91
+  },
+  "skills": [
+    {
+      "skillName": "Python",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via nlp-models:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-ai-1\", \"repositoryName\": \"nlp-models\", \"confidence\": 0.0, \"contributionWeight\": 0.95}]}}"
+    },
+    {
+      "skillName": "PyTorch",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via nlp-models:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-ai-1\", \"repositoryName\": \"nlp-models\", \"confidence\": 0.0, \"contributionWeight\": 0.9}]}}"
+    },
+    {
+      "skillName": "TensorFlow",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    },
+    {
+      "skillName": "Scikit-Learn",
+      "score": 0.0,
+      "confidence": 0.2,
+      "level": "Unverified",
+      "evidenceSources": "{\"verification_level\": \"Unverified\", \"confidence\": 0.2, \"source\": \"cv_skills_list\", \"rationale\": \"Declared in CV skills list, but no matching code evidence or project details found.\", \"metadata\": {}}"
+    },
+    {
+      "skillName": "Machine Learning",
+      "score": 100.0,
+      "confidence": 0.85,
+      "level": "Expert",
+      "evidenceSources": "{\"verification_level\": \"AiAnalyzed\", \"confidence\": 0.85, \"source\": \"repository_analysis\", \"rationale\": \"Verified via nlp-models:\", \"metadata\": {\"repositories\": [{\"repositoryId\": \"repo-ai-1\", \"repositoryName\": \"nlp-models\", \"confidence\": 0.0, \"contributionWeight\": 0.85}]}}"
+    }
+  ],
+  "domainProfiles": [],
+  "bestFitRoles": [
+    {
+      "roleTitle": "Software Engineer",
+      "matchScore": 45.05549999999999,
+      "confidence": 0.85,
+      "rank": 1,
+      "matchingEngineVersion": "VectorArchetypeV2",
+      "evidence": "{\"rationale\": \"Calculated based on primary capability score and profile alignment.\", \"levelFit\": \"exact\"}",
+      "engineMetadata": "{\"matchingEngine\": \"VectorArchetypeMatchingV2\", \"capabilityVector\": {\"version\": \"2.0.0\", \"skillDepth\": 60, \"ownership\": 38, \"architecture\": 49, \"problemSolving\": 32, \"impact\": 11, \"dimensions\": {\"skillDepth\": 60, \"ownership\": 38, \"architecture\": 49, \"problemSolving\": 32, \"impact\": 11}, \"rawSignals\": {\"rawSkillDepth\": 285.0, \"rawOwnership\": 23.11, \"rawArchitecture\": 216.75, \"rawProblemSolving\": 34.27, \"rawImpact\": 5.4}}}"
+    }
+  ],
+  "strengthsWeaknesses": [
+    {
+      "findingType": "Strength",
+      "topic": "Engineering Capability",
+      "description": "Solid engineering execution verified by repository assessments.",
+      "evidence": null
+    }
+  ],
+  "keyStrengths": [
+    "Solid engineering execution verified by repository assessments."
+  ],
+  "watchPoints": [],
+  "evidenceGovernance": [
+    {
+      "repositoryId": "repo-ai-1",
+      "repositoryName": "nlp-models",
+      "cvProjectEntryId": null,
+      "cvProjectName": null,
+      "cvVerificationLevel": "AiAnalyzed",
+      "trustLevel": 3,
+      "authorshipPercent": 90.0,
+      "scoreContributionPercent": 100.0
+    }
+  ],
+  "scoreBreakdown": {
+    "skillDepth": {
+      "score": 59.8,
+      "weight": 0.35
+    },
+    "ownership": {
+      "score": 38.15,
+      "weight": 0.25
+    },
+    "architecture": {
+      "score": 49.3,
+      "weight": 0.2
+    },
+    "problemSolving": {
+      "score": 32.2,
+      "weight": 0.12
+    },
+    "impact": {
+      "score": 10.8,
+      "weight": 0.08
+    }
+  }
+}

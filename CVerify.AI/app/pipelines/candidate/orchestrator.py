@@ -90,11 +90,21 @@ class CandidateEvaluationOrchestrator:
         self._dag.validate() # Fail-fast compilation and schema verification
 
     def _ok(self, data: dict, telemetry: Any, task_type: str) -> dict:
+        def _serialize_value(val: Any) -> Any:
+            if hasattr(val, "model_dump"):
+                return val.model_dump()
+            if isinstance(val, list):
+                return [_serialize_value(x) for x in val]
+            if isinstance(val, dict):
+                return {k: _serialize_value(v) for k, v in val.items()}
+            return val
+
+        serialized_data = {k: _serialize_value(v) for k, v in data.items()}
         return {
             "status": "Completed",
             "errorMessage": None,
             "schemaVersion": "2.0.0",
-            "resultData": json.dumps(data),
+            "resultData": json.dumps(serialized_data),
             "telemetry": telemetry,
             "events": [{
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -149,37 +159,37 @@ class CandidateEvaluationOrchestrator:
         if not task:
             return self._err(task_type, job_id, ValueError(f"Unknown Line 2 task type: {task_type}"))
 
-        # Fetch all Line 1 artifacts from the CVerify.Core database if not explicitly skipped
-        if inputs.get("_skipDbFetch") or inputs.get("skipDbFetch"):
-            logger.info("Skipping database artifact fetch as Line 1 data is provided in inputs.")
-            line1_artifacts = {}
-        else:
-            line1_artifacts = await self._repo_client.fetch_line1_artifacts(job_id)
-
-        repo_report = line1_artifacts.get("repoIntelligenceReport") or inputs.get("repoIntelligenceReport") or {}
-        skill_graph = line1_artifacts.get("skillEvidenceGraph") or inputs.get("skillEvidenceGraph") or {}
-        timeline_data = line1_artifacts.get("commitTimelineData") or inputs.get("commitTimelineData") or {}
-        intent_data = line1_artifacts.get("commitIntentData") or inputs.get("commitIntentData") or {}
-
-        # Construct a validated PipelineContext using the accumulative inputs and pre-computed values
-        context_kwargs = {}
-        for field in PipelineContext.model_fields:
-            if field in inputs:
-                context_kwargs[field] = inputs[field]
-
-        cv = inputs.get("cv") or {}
-        context_kwargs["cv"] = cv
-        context_kwargs["repositoryAssessments"] = inputs.get("repositoryAssessments") or []
-        context_kwargs["backgroundRepositories"] = inputs.get("backgroundRepositories") or []
-        context_kwargs["repoIntelligenceReport"] = repo_report
-        context_kwargs["skillEvidenceGraph"] = skill_graph
-        context_kwargs["maturityInputs"] = timeline_data
-        context_kwargs["problemsInputs"] = intent_data
-        context_kwargs["cvSkills"] = context_kwargs.get("cvSkills") or cv.get("skills", [])
-        context_kwargs["workingExperience"] = context_kwargs.get("workingExperience") or cv.get("experiences", [])
-        context_kwargs["correlationId"] = correlation_id
-
         try:
+            # Fetch all Line 1 artifacts from the CVerify.Core database if not explicitly skipped
+            if inputs.get("_skipDbFetch") or inputs.get("skipDbFetch"):
+                logger.info("Skipping database artifact fetch as Line 1 data is provided in inputs.")
+                line1_artifacts = {}
+            else:
+                line1_artifacts = await self._repo_client.fetch_line1_artifacts(job_id)
+
+            repo_report = line1_artifacts.get("repoIntelligenceReport") or inputs.get("repoIntelligenceReport") or {}
+            skill_graph = line1_artifacts.get("skillEvidenceGraph") or inputs.get("skillEvidenceGraph") or {}
+            timeline_data = line1_artifacts.get("commitTimelineData") or inputs.get("commitTimelineData") or {}
+            intent_data = line1_artifacts.get("commitIntentData") or inputs.get("commitIntentData") or {}
+
+            # Construct a validated PipelineContext using the accumulative inputs and pre-computed values
+            context_kwargs = {}
+            for field in PipelineContext.model_fields:
+                if field in inputs:
+                    context_kwargs[field] = inputs[field]
+
+            cv = inputs.get("cv") or {}
+            context_kwargs["cv"] = cv
+            context_kwargs["repositoryAssessments"] = inputs.get("repositoryAssessments") or []
+            context_kwargs["backgroundRepositories"] = inputs.get("backgroundRepositories") or []
+            context_kwargs["repoIntelligenceReport"] = repo_report
+            context_kwargs["skillEvidenceGraph"] = skill_graph
+            context_kwargs["maturityInputs"] = timeline_data
+            context_kwargs["problemsInputs"] = intent_data
+            context_kwargs["cvSkills"] = context_kwargs.get("cvSkills") or cv.get("skills", [])
+            context_kwargs["workingExperience"] = context_kwargs.get("workingExperience") or cv.get("experiences", [])
+            context_kwargs["correlationId"] = correlation_id
+
             context = PipelineContext(**context_kwargs)
             
             # Execute task

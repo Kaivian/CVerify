@@ -41,8 +41,8 @@ class SkillTreeGenerator(BaseTask):
         legacy_inputs = context.to_legacy_dict()
         enriched_inputs = {
             **legacy_inputs,
-            "mappedSkills": mapped_skills,
-            "skillProficiencies": skill_proficiencies,
+            "mappedSkills": [s.model_dump() if hasattr(s, "model_dump") else s for s in mapped_skills],
+            "skillProficiencies": [s.model_dump() if hasattr(s, "model_dump") else s for s in skill_proficiencies],
             "totalExperienceMonths": total_exp,
         }
 

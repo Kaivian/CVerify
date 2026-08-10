@@ -35,28 +35,23 @@ class SkillTaxonomyMapper(BaseTask):
         cv_skill_mappings = {}
         cv_skills_strings = []
 
-        # Parse cvSkills (can be string or dict with originalName, normalizedName, skillId)
+        # Parse cvSkills (strictly CvSkill models)
         for s in cv_skills:
-            if isinstance(s, str):
-                raw_skill_names.append(s)
-                cv_skills_strings.append(s)
-            elif isinstance(s, dict):
-                original = s.get("originalName") or s.get("normalizedName") or ""
-                normalized = s.get("normalizedName") or original
-                skill_id = s.get("skillId") or f"skill:emerging-{make_skill_id(original)}"
-                if original:
-                    raw_skill_names.append(original)
-                    cv_skills_strings.append(normalized)
-                    cv_skill_mappings[original.lower()] = {
-                        "rawName": original,
-                        "skillId": skill_id,
-                        "normalizedName": normalized,
-                        "sfiaCategory": "Software Development",
-                        "onetCode": "15-1252.00",
-                        "found": True
-                    }
-                    # Also map lowercase version of normalized name just in case
-                    cv_skill_mappings[normalized.lower()] = cv_skill_mappings[original.lower()]
+            original = s.originalName
+            normalized = s.normalizedName
+            skill_id = s.skillId
+            raw_skill_names.append(original)
+            cv_skills_strings.append(normalized)
+            cv_skill_mappings[original.lower()] = {
+                "rawName": original,
+                "skillId": skill_id,
+                "normalizedName": normalized,
+                "sfiaCategory": "Software Development",
+                "onetCode": "15-1252.00",
+                "found": True
+            }
+            # Also map lowercase version of normalized name just in case
+            cv_skill_mappings[normalized.lower()] = cv_skill_mappings[original.lower()]
 
         # Parse skill evidence graph nodes
         nodes = skill_graph.get("nodes", []) if isinstance(skill_graph, dict) else []

@@ -1,0 +1,46 @@
+{
+  "cv": {
+    "cvId": "cv-qa-002",
+    "skills": ["JavaScript", "Playwright", "Jest", "CI/CD", "Testing"],
+    "experiences": [
+      {
+        "durationMonths": 24.0,
+        "company": "Quality First Labs",
+        "jobTitle": "QA Automation Engineer",
+        "description": "Authored comprehensive end-to-end playbooks, integrated testing suites in Git workflows, and managed defect metrics."
+      }
+    ],
+    "projects": [
+      {
+        "cvProjectId": "proj-qa-1",
+        "name": "E2E Test Suite",
+        "description": "Robust testing framework with Playwright and GitHub Actions.",
+        "technologies": ["Playwright", "JavaScript"]
+      }
+    ]
+  },
+  "repositoryAssessments": [
+    {
+      "repositoryId": "repo-qa-1",
+      "repositoryName": "e2e-playwright-tests",
+      "overallScore": 75.0,
+      "cvVerificationLevel": "RepositoryLinked",
+      "trustLevel": 2,
+      "intelligenceSignal": {
+        "ownershipSignal": 85.0
+      },
+      "qualityMetrics": {
+        "complexityScore": 50.0,
+        "cloneRiskClassification": "clean"
+      },
+      "capabilities": [
+        {"name": "E2E Testing Automation", "category": "testing", "difficultyScore": 7.0, "maturity": "Intermediate"},
+        {"name": "Mock Data Pipeline", "category": "testing", "difficultyScore": 6.5, "maturity": "Intermediate"}
+      ],
+      "skillAttributions": [
+        {"skillName": "Playwright", "contributionWeight": 0.8},
+        {"skillName": "JavaScript", "contributionWeight": 0.75}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "cv": {
+    "cvId": "cv-junior-123",
+    "skills": ["JavaScript", "HTML", "CSS"],
+    "experiences": [
+      {
+        "durationMonths": 12.0,
+        "company": "Startup Inc",
+        "jobTitle": "Junior Developer",
+        "description": "Fixed minor styling issues, implemented basic HTML/CSS layouts, and wrote simple JavaScript utilities."
+      }
+    ],
+    "projects": [
+      {
+        "cvProjectId": "proj-jun-1",
+        "name": "Personal Blog",
+        "description": "A static blog built using HTML and CSS.",
+        "technologies": ["HTML", "CSS"]
+      }
+    ]
+  },
+  "repositoryAssessments": [
+    {
+      "repositoryId": "repo-jun-1",
+      "repositoryName": "blog-static",
+      "overallScore": 45.0,
+      "cvVerificationLevel": "RepositoryLinked",
+      "trustLevel": 2,
+      "intelligenceSignal": {
+        "ownershipSignal": 85.0
+      },
+      "qualityMetrics": {
+        "complexityScore": 20.0,
+        "cloneRiskClassification": "clean"
+      },
+      "capabilities": [
+        {"name": "HTML Layout", "category": "frontend", "difficultyScore": 2.0, "maturity": "Basic"}
+      ],
+      "skillAttributions": [
+        {"skillName": "HTML", "contributionWeight": 0.8},
+        {"skillName": "CSS", "contributionWeight": 0.7}
+      ]
+    }
+  ]
+}

@@ -91,16 +91,16 @@ class CandidateAssessmentV3Contract(BaseModel):
     cohortVersion: str
     cohortPercentileRange: Dict[str, float]
     
-    primaryTendency: str
-    primaryWorkingStyle: str
+    primaryTendency: Optional[str] = None
+    primaryWorkingStyle: Optional[str] = None
     
-    recruiterHeadline: str
-    fullSummary: str
-    professionalBio: str
+    recruiterHeadline: Optional[str] = None
+    fullSummary: Optional[str] = None
+    professionalBio: Optional[str] = None
     keyStrengths: List[str]
     watchPoints: List[str]
     
-    displayConfidence: float
+    displayConfidence: Optional[float] = None
     
     capabilityVector: CapabilityVectorV2
     

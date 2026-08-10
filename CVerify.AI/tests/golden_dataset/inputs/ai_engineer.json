@@ -1,0 +1,49 @@
+{
+  "cv": {
+    "cvId": "cv-ai-789",
+    "skills": ["Python", "PyTorch", "TensorFlow", "Scikit-Learn", "Machine Learning"],
+    "experiences": [
+      {
+        "durationMonths": 36.0,
+        "company": "DeepMind",
+        "jobTitle": "AI Engineer",
+        "description": "Designed neural network architectures, trained large-scale transformer models, and optimized inference pipelines."
+      }
+    ],
+    "projects": [
+      {
+        "cvProjectId": "proj-ai-1",
+        "name": "Text Summarizer",
+        "description": "Fine-tuned models and built APIs to extract key points from text.",
+        "technologies": ["Python", "PyTorch"]
+      }
+    ]
+  },
+  "repositoryAssessments": [
+    {
+      "repositoryId": "repo-ai-1",
+      "repositoryName": "nlp-models",
+      "overallScore": 92.0,
+      "cvVerificationLevel": "AiAnalyzed",
+      "trustLevel": 3,
+      "intelligenceSignal": {
+        "ownershipSignal": 90.0,
+        "leadershipSignal": 40.0,
+        "consistencySignal": 70.0
+      },
+      "qualityMetrics": {
+        "complexityScore": 85.0,
+        "cloneRiskClassification": "clean"
+      },
+      "capabilities": [
+        {"name": "Neural Network Training", "category": "ai_ml", "difficultyScore": 9.0, "maturity": "Advanced"},
+        {"name": "Data Processing Pipelines", "category": "data_engineering", "difficultyScore": 8.0, "maturity": "Advanced"}
+      ],
+      "skillAttributions": [
+        {"skillName": "Python", "contributionWeight": 0.95},
+        {"skillName": "PyTorch", "contributionWeight": 0.9},
+        {"skillName": "Machine Learning", "contributionWeight": 0.85}
+      ]
+    }
+  ]
+}

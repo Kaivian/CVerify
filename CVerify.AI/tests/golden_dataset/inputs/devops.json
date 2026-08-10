@@ -1,0 +1,49 @@
+{
+  "cv": {
+    "cvId": "cv-devops-001",
+    "skills": ["Kubernetes", "Docker", "Terraform", "GitHub Actions", "Shell"],
+    "experiences": [
+      {
+        "durationMonths": 48.0,
+        "company": "Cloud Native Inc",
+        "jobTitle": "DevOps Engineer",
+        "description": "Built automated CI/CD pipelines, managed containerized infrastructure, and designed Terraform modules for GCP/AWS."
+      }
+    ],
+    "projects": [
+      {
+        "cvProjectId": "proj-dop-1",
+        "name": "Infra Provisioner",
+        "description": "Multi-region cloud infrastructure management using Terraform.",
+        "technologies": ["Terraform", "Kubernetes"]
+      }
+    ]
+  },
+  "repositoryAssessments": [
+    {
+      "repositoryId": "repo-dop-1",
+      "repositoryName": "k8s-infra-configs",
+      "overallScore": 88.0,
+      "cvVerificationLevel": "AiAnalyzed",
+      "trustLevel": 3,
+      "intelligenceSignal": {
+        "ownershipSignal": 80.0,
+        "leadershipSignal": 50.0,
+        "consistencySignal": 85.0
+      },
+      "qualityMetrics": {
+        "complexityScore": 80.0,
+        "cloneRiskClassification": "clean"
+      },
+      "capabilities": [
+        {"name": "Infrastructure as Code", "category": "devops", "difficultyScore": 8.5, "maturity": "Advanced"},
+        {"name": "Container Orchestration", "category": "infrastructure", "difficultyScore": 9.0, "maturity": "Advanced"}
+      ],
+      "skillAttributions": [
+        {"skillName": "Kubernetes", "contributionWeight": 0.9},
+        {"skillName": "Terraform", "contributionWeight": 0.85},
+        {"skillName": "Docker", "contributionWeight": 0.8}
+      ]
+    }
+  ]
+}
