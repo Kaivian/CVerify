@@ -233,7 +233,19 @@ public class IntegrationTestApplicationFactory : WebApplicationFactory<Program>
             {
                 BaseAddress = new Uri("https://api.vietqr.io")
             };
-            mockFactory.Setup(_ => _.CreateClient(Moq.It.IsAny<string>())).Returns(mockClient);
+            mockFactory.Setup(_ => _.CreateClient(Moq.It.IsAny<string>())).Returns((string name) =>
+            {
+                if (name == "VietQR")
+                {
+                    return mockClient;
+                }
+                var aiUrl = Environment.GetEnvironmentVariable("AI_SERVICE_URL") ?? "http://localhost:8000";
+                return new HttpClient
+                {
+                    BaseAddress = new Uri(aiUrl),
+                    Timeout = TimeSpan.FromMinutes(5)
+                };
+            });
             services.Replace(ServiceDescriptor.Singleton<IHttpClientFactory>(mockFactory.Object));
         });
     }

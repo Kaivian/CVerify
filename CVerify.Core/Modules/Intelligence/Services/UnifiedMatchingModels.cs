@@ -82,4 +82,5 @@ public class MatchExplanationDto
     public string ExplanationType { get; set; } = null!;
     public string AssertionText { get; set; } = null!;
     public Guid? CapabilityNodeId { get; set; }
+    public string? CapabilitySlug { get; set; }
 }

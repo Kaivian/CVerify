@@ -96,7 +96,8 @@ public class UnifiedMatchingEngine : IUnifiedMatchingEngine
                     explanations.Add(new MatchExplanationDto
                     {
                         ExplanationType = "Strength",
-                        AssertionText = $"Candidate has verified {matched.Maturity}-level experience in {reqCap.Name}."
+                        AssertionText = $"Candidate has verified {matched.Maturity}-level experience in {reqCap.Name}.",
+                        CapabilitySlug = reqCap.CapabilityId
                     });
                 }
                 else
@@ -104,7 +105,8 @@ public class UnifiedMatchingEngine : IUnifiedMatchingEngine
                     explanations.Add(new MatchExplanationDto
                     {
                         ExplanationType = "Gap",
-                        AssertionText = $"Missing verified capability: {reqCap.Name}."
+                        AssertionText = $"Missing verified capability: {reqCap.Name}.",
+                        CapabilitySlug = reqCap.CapabilityId
                     });
                 }
             }

@@ -1,0 +1,67 @@
+{
+  "id": "0190c12e-1e42-70b1-b9a5-7f41cf6b7d15",
+  "title": "Senior QA Automation Engineer",
+  "department": "QA",
+  "seniority": "Senior",
+  "workplaceType": "Remote",
+  "city": "Seattle",
+  "employmentType": "Full-Time",
+  "salaryMin": 105000.0,
+  "salaryMax": 140000.0,
+  "currency": "USD",
+  "timezoneRange": "UTC-8 to UTC-6",
+  "degreeRequirement": "Bachelor's in Computer Science or similar field",
+  "benefits": ["Medical Insurance", "Wellness Reimbursement", "Internet Subsidies"],
+  "languageRequirements": ["English"],
+  "headcount": 1,
+  "hiringReason": "Replacing manual regression testing with automated test pipelines.",
+  "businessProblem": "Slow release cycles due to heavy manual QA verification phases.",
+  "outcomes": [
+    "Increase automated test coverage on critical user journeys to >85%.",
+    "Integrate UI testing suite into the CI/CD pipeline to block broken builds."
+  ],
+  "responsibilities": [
+    {
+      "text": "Develop scalable UI and API end-to-end automation frameworks.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    },
+    {
+      "text": "Design test plans, scripts, and metrics reports.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    }
+  ],
+  "capabilities": [
+    {
+      "capabilityId": "qa.automation",
+      "name": "E2E Test Automation",
+      "category": "QA",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    },
+    {
+      "capabilityId": "qa.playwright",
+      "name": "Playwright Testing",
+      "category": "QA",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    }
+  ],
+  "skills": [
+    {
+      "name": "Playwright",
+      "priority": "MustHave",
+      "sfiaLevel": 5
+    },
+    {
+      "name": "TypeScript",
+      "priority": "MustHave",
+      "sfiaLevel": 4
+    }
+  ]
+}

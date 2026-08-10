@@ -1,0 +1,67 @@
+{
+  "id": "0190c12e-1e42-70b1-b9a5-7f41cf6b7d13",
+  "title": "Senior Frontend Developer",
+  "department": "Engineering",
+  "seniority": "Senior",
+  "workplaceType": "Remote",
+  "city": "New York",
+  "employmentType": "Full-Time",
+  "salaryMin": 110000.0,
+  "salaryMax": 150000.0,
+  "currency": "USD",
+  "timezoneRange": "UTC-5 to UTC-3",
+  "degreeRequirement": "Bachelor's degree or equivalent experience",
+  "benefits": ["Medical Insurance", "Equity Options", "Flexible Hours"],
+  "languageRequirements": ["English"],
+  "headcount": 1,
+  "hiringReason": "Building the next generation design system and analytics dashboard.",
+  "businessProblem": "Inconsistent UI patterns and slow page rendering on mobile browsers.",
+  "outcomes": [
+    "Increase mobile page speed performance score to >90 on Lighthouse.",
+    "Unify component library across 3 major product panels."
+  ],
+  "responsibilities": [
+    {
+      "text": "Develop responsive, modular UI components using React and TypeScript.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    },
+    {
+      "text": "Collaborate with UI/UX designers to translate Figma designs to clean code.",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "isLeadership": false
+    }
+  ],
+  "capabilities": [
+    {
+      "capabilityId": "fe.react",
+      "name": "React Component Design",
+      "category": "Frontend",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    },
+    {
+      "capabilityId": "fe.typescript",
+      "name": "TypeScript Application Architecture",
+      "category": "Frontend",
+      "priority": "MustHave",
+      "ownershipLevel": "Owner",
+      "expectedProficiency": 4
+    }
+  ],
+  "skills": [
+    {
+      "name": "React",
+      "priority": "MustHave",
+      "sfiaLevel": 5
+    },
+    {
+      "name": "TypeScript",
+      "priority": "MustHave",
+      "sfiaLevel": 4
+    }
+  ]
+}
