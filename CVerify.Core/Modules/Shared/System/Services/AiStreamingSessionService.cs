@@ -21,6 +21,18 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         _redis = redis;
     }
 
+    private async Task<long> GetNextSequenceNumberAsync(Guid sessionId)
+    {
+        var db = _redis.GetDatabase();
+        var key = $"ai:streaming:sequence:{sessionId}";
+        var seqVal = await db.StringIncrementAsync(key);
+        if (seqVal == 1)
+        {
+            await db.KeyExpireAsync(key, TimeSpan.FromHours(24));
+        }
+        return seqVal;
+    }
+
     private async Task PublishEventAsync(
         Guid sessionId,
         string eventType,
@@ -41,14 +53,23 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         var session = await _dbContext.AiStreamingSessions.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sessionId);
         if (session == null) return;
 
+        var seqNum = await GetNextSequenceNumberAsync(sessionId);
+
         var ev = new
         {
+            eventId = Guid.CreateVersion7().ToString(),
+            sequenceNumber = seqNum,
+            correlationId = sessionId.ToString(),
+            schemaVersion = "1.0.0",
+            producer = "AiStreamingSessionService",
+            timestamp = DateTimeOffset.UtcNow.ToString("o"),
             sessionId = sessionId.ToString(),
             pipelineId = session.PipelineId,
             eventType = eventType,
-            status = session.Status,
-            timestamp = DateTimeOffset.UtcNow.ToString("o"),
-            progress = session.Progress,
+            status = session.Status, // Overall session status
+            progress = session.Progress, // Overall session progress
+            stageStatus = status, // Stage-specific status
+            stageProgress = progress, // Stage-specific progress
             message = message,
             stageId = stageId,
             parentStageId = parentStageId,
@@ -77,6 +98,10 @@ public class AiStreamingSessionService : IAiStreamingSessionService
 
     public async Task<AiStreamingSession> CreateSessionAsync(Guid sessionId, string pipelineId, Guid userId, Guid? workspaceId, string modelName, string provider, string pipelineVersion, string? expectedOutputsJson = null)
     {
+        // Reset sequence number in Redis
+        var db = _redis.GetDatabase();
+        await db.KeyDeleteAsync($"ai:streaming:sequence:{sessionId}");
+
         // 1. Manage transient streaming session
         var existing = await _dbContext.AiStreamingSessions.FirstOrDefaultAsync(s => s.Id == sessionId);
         if (existing != null)
@@ -707,12 +732,19 @@ public class AiStreamingSessionService : IAiStreamingSessionService
         var latestTimestamp = DateTimeOffset.MinValue;
         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-        // 1. Fetch and format stages
+        // 1. Fetch stages and logs from DB
         var stages = await _dbContext.AiStreamingStages
             .AsNoTracking()
             .Where(s => s.SessionId == sessionId)
-            .OrderBy(s => s.StartedAt ?? DateTimeOffset.MinValue)
             .ToListAsync();
+
+        var logs = await _dbContext.AiStreamingLogs
+            .AsNoTracking()
+            .Where(l => l.SessionId == sessionId)
+            .ToListAsync();
+
+        // 2. Combine and sort chronologically
+        var historicalItems = new global::System.Collections.Generic.List<(DateTimeOffset Timestamp, Func<long, object> EventFactory)>();
 
         foreach (var stage in stages)
         {
@@ -721,19 +753,22 @@ public class AiStreamingSessionService : IAiStreamingSessionService
                             stage.Status == "Running" ? "STAGE_STARTED" : "STAGE_PROGRESS";
 
             var stageTimestamp = stage.CompletedAt ?? stage.StartedAt ?? session.CreatedAtUtc;
-            if (stageTimestamp > latestTimestamp)
+            
+            historicalItems.Add((stageTimestamp, seqNum => new
             {
-                latestTimestamp = stageTimestamp;
-            }
-
-            var ev = new
-            {
+                eventId = Guid.CreateVersion7().ToString(),
+                sequenceNumber = seqNum,
+                correlationId = sessionId.ToString(),
+                schemaVersion = "1.0.0",
+                producer = "AiStreamingSessionService",
+                timestamp = stageTimestamp.ToString("o"),
                 sessionId = sessionId.ToString(),
                 pipelineId = session.PipelineId,
                 eventType = eventType,
-                status = stage.Status,
-                timestamp = stageTimestamp.ToString("o"),
-                progress = stage.Progress,
+                status = session.Status, // Overall session status
+                progress = session.Progress, // Overall session progress
+                stageStatus = stage.Status,
+                stageProgress = stage.Progress,
                 message = stage.Description,
                 stageId = stage.StageId,
                 parentStageId = stage.ParentStageId,
@@ -741,40 +776,49 @@ public class AiStreamingSessionService : IAiStreamingSessionService
                 jsonData = stage.Details,
                 modelName = session.ModelName,
                 provider = session.Provider
-            };
-
-            events.Add(JsonSerializer.Serialize(ev, jsonOptions));
+            }));
         }
-
-        // 2. Fetch and format logs
-        var logs = await _dbContext.AiStreamingLogs
-            .AsNoTracking()
-            .Where(l => l.SessionId == sessionId)
-            .OrderBy(l => l.Timestamp)
-            .ToListAsync();
 
         foreach (var log in logs)
         {
-            if (log.Timestamp > latestTimestamp)
+            var logTimestamp = log.Timestamp;
+            historicalItems.Add((logTimestamp, seqNum => new
             {
-                latestTimestamp = log.Timestamp;
-            }
-
-            var ev = new
-            {
+                eventId = Guid.CreateVersion7().ToString(),
+                sequenceNumber = seqNum,
+                correlationId = sessionId.ToString(),
+                schemaVersion = "1.0.0",
+                producer = "AiStreamingSessionService",
+                timestamp = logTimestamp.ToString("o"),
                 sessionId = sessionId.ToString(),
                 pipelineId = session.PipelineId,
                 eventType = "LOG_EVENT",
-                status = session.Status,
-                timestamp = log.Timestamp.ToString("o"),
+                status = session.Status, // Overall session status
+                progress = session.Progress, // Overall session progress
+                stageStatus = "Running",
+                stageProgress = 0.0,
                 message = log.Message,
                 stageId = log.StageId,
                 logLevel = log.LogLevel,
                 logComponent = log.Component,
                 modelName = session.ModelName,
                 provider = session.Provider
-            };
+            }));
+        }
 
+        // Sort items chronologically
+        var sortedItems = historicalItems.OrderBy(item => item.Timestamp).ToList();
+
+        // 3. Serialize with monotonically increasing sequence numbers
+        long currentSeq = 0;
+        foreach (var item in sortedItems)
+        {
+            currentSeq++;
+            if (item.Timestamp > latestTimestamp)
+            {
+                latestTimestamp = item.Timestamp;
+            }
+            var ev = item.EventFactory(currentSeq);
             events.Add(JsonSerializer.Serialize(ev, jsonOptions));
         }
 

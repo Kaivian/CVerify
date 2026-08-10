@@ -242,11 +242,10 @@ public class StreamingController : ControllerBase
                 await Response.Body.FlushAsync(HttpContext.RequestAborted);
 
                 using var doc = JsonDocument.Parse(message);
-                var statusPropExists = doc.RootElement.TryGetProperty("status", out var statusProp) || doc.RootElement.TryGetProperty("Status", out statusProp);
-                if (statusPropExists)
+                if (doc.RootElement.TryGetProperty("eventType", out var eventTypeProp) || doc.RootElement.TryGetProperty("EventType", out eventTypeProp))
                 {
-                    var status = statusProp.GetString();
-                    if (status != null && terminalStates.Contains(status))
+                    var eventType = eventTypeProp.GetString();
+                    if (eventType == "SESSION_COMPLETED" || eventType == "SESSION_FAILED" || eventType == "SESSION_CANCELLED")
                     {
                         await Response.WriteAsync("data: [DONE]\n\n", HttpContext.RequestAborted);
                         await Response.Body.FlushAsync(HttpContext.RequestAborted);

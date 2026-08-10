@@ -543,11 +543,10 @@ public class HiringRequirementController : ControllerBase
                     await Response.Body.FlushAsync(HttpContext.RequestAborted);
 
                     using var docCheck = JsonDocument.Parse(message);
-                    var statusPropExists = docCheck.RootElement.TryGetProperty("status", out var statusProp) || docCheck.RootElement.TryGetProperty("Status", out statusProp);
-                    if (statusPropExists)
+                    if (docCheck.RootElement.TryGetProperty("eventType", out var eventTypeProp) || docCheck.RootElement.TryGetProperty("EventType", out eventTypeProp))
                     {
-                        var status = statusProp.GetString();
-                        if (status != null && terminalStates.Contains(status))
+                        var eventType = eventTypeProp.GetString();
+                        if (eventType == "SESSION_COMPLETED" || eventType == "SESSION_FAILED" || eventType == "SESSION_CANCELLED")
                         {
                             await Response.WriteAsync("data: [DONE]\n\n", HttpContext.RequestAborted);
                             await Response.Body.FlushAsync(HttpContext.RequestAborted);

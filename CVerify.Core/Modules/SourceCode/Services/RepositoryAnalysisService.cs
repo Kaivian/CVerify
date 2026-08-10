@@ -370,11 +370,11 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
         // 2. Cancel C# token via IAiCancellationManager
         _cancellationManager.Cancel(jobId);
 
-        // 3. Update unified streaming session so client-side and server-side state is synchronized
-        await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Cancelled");
-
         // Broadcast to Redis Pub/Sub to notify listening SSE connections
         await PublishProgressEventAsync(jobId, "Cancelled", "Cancelled", job.Progress, "Analysis cancelled by user.");
+
+        // 3. Update unified streaming session so client-side and server-side state is synchronized
+        await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Cancelled");
 
         return true;
     }
@@ -931,11 +931,10 @@ public class RepositoryAnalysisService : IRepositoryAnalysisService
 
             await _context.SaveChangesAsync(linkedCts.Token);
 
-            await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Completed", summaryData: finalReportJson);
             await _streamingSessionService.UpdateSessionProgressAsync(jobId, 100.0, "Completed");
             await _streamingSessionService.AddLogAsync(jobId, "Completed", "Success", "System", "Analysis completed successfully.");
-
             await PublishProgressEventAsync(jobId, "Completed", "Completed", 100.0, "Analysis completed successfully.");
+            await _streamingSessionService.UpdateSessionStatusAsync(jobId, "Completed", summaryData: finalReportJson);
         }
         catch (OperationCanceledException) when (linkedCts.Token.IsCancellationRequested)
         {

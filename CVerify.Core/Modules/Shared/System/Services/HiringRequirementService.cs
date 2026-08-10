@@ -722,8 +722,8 @@ public class HiringRequirementService : IHiringRequirementService
             // Publish completed event
             req.Status = "Ready";
             await _context.SaveChangesAsync(cancellationToken);
-            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Completed", summaryData: "{}");
             await PublishProgressAsync(req.Id, "Completed", "RequirementArtifactsComposer", "All hiring requirement artifacts generated successfully.", 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Completed", summaryData: "{}");
         }
         catch (Exception ex)
         {
@@ -734,8 +734,8 @@ public class HiringRequirementService : IHiringRequirementService
             }
             catch { }
             _logger.LogError(ex, "Error generating artifacts for hiring requirement {RequirementId}", req.Id);
-            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Failed", errorMessage: ex.Message);
             await PublishProgressAsync(req.Id, "Failed", "Failed", ex.Message, 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Failed", errorMessage: ex.Message);
             throw;
         }
     }
@@ -912,8 +912,8 @@ public class HiringRequirementService : IHiringRequirementService
                 }
             }
 
-            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Completed", summaryData: "{}");
             await PublishProgressAsync(req.Id, "Completed", "RequirementArtifactsComposer", $"Artifact {artifactType} generated successfully.", 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(req.Id, "Completed", summaryData: "{}");
         }
         catch (OperationCanceledException)
         {
@@ -927,8 +927,8 @@ public class HiringRequirementService : IHiringRequirementService
                 await _context.SaveChangesAsync(CancellationToken.None);
             }
 
-            await _streamingSessionService.UpdateSessionStatusAsync(id, "Cancelled");
             await PublishProgressAsync(id, "Cancelled", "Cancelled", "Generation cancelled by user.", 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(id, "Cancelled");
         }
         catch (Exception ex)
         {
@@ -942,8 +942,8 @@ public class HiringRequirementService : IHiringRequirementService
                 await _context.SaveChangesAsync(CancellationToken.None);
             }
 
-            await _streamingSessionService.UpdateSessionStatusAsync(id, "Failed", errorMessage: ex.Message);
             await PublishProgressAsync(id, "Failed", "Failed", ex.Message, 100.0);
+            await _streamingSessionService.UpdateSessionStatusAsync(id, "Failed", errorMessage: ex.Message);
             throw;
         }
         finally
