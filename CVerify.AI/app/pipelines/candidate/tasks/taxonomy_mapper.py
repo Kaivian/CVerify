@@ -96,35 +96,79 @@ class SkillTaxonomyMapper(BaseTask):
         # Extract JSON using helper
         data = self._extract_json(raw)
 
-        # Backfill skillId for all AI mapped skills
+        cv_skills_lower_set = {c.lower() for c in cv_skills_strings}
+
+        # Build graph evidence lookup map for evidenceStrength derivation
+        graph_nodes = skill_graph.get("nodes", []) if isinstance(skill_graph, dict) else []
+        graph_evidence_map = {}
+        for node in graph_nodes:
+            n_data = node.get("data", {}) if isinstance(node, dict) else {}
+            n_name = (n_data.get("name") or node.get("id") or "").lower()
+            if n_name:
+                commits = n_data.get("commitCount", 0) or n_data.get("commits", 0) or 0
+                files = n_data.get("fileCount", 0) or n_data.get("files", 0) or 0
+                if commits >= 5 or files >= 3:
+                    strength = "strong"
+                elif commits >= 2 or files >= 1:
+                    strength = "moderate"
+                else:
+                    strength = "weak"
+                graph_evidence_map[n_name] = strength
+
+        # Backfill and hydrate all AI mapped skills deterministically
         for item in data.get("mappedSkills", []):
             raw_name = item.get("rawName") or item.get("normalizedName") or ""
             raw_lower = raw_name.lower()
             
             pre_match = next((p for p in pre_normalized if p["rawName"].lower() == raw_lower), None)
             if pre_match:
-                item["skillId"] = pre_match["skillId"]
-                item["normalizedName"] = pre_match["normalizedName"]
+                item["skillId"] = item.get("skillId") or pre_match["skillId"]
+                item["normalizedName"] = item.get("normalizedName") or pre_match["normalizedName"]
+                item["sfiaCategory"] = item.get("sfiaCategory") or pre_match.get("sfiaCategory") or "Software Development"
+                item["onetCode"] = item.get("onetCode") or pre_match.get("onetCode") or "15-1252.00"
             else:
                 if raw_lower in cv_skill_mappings:
-                    item["skillId"] = cv_skill_mappings[raw_lower]["skillId"]
-                    item["normalizedName"] = cv_skill_mappings[raw_lower]["normalizedName"]
+                    mapping = cv_skill_mappings[raw_lower]
+                    item["skillId"] = item.get("skillId") or mapping["skillId"]
+                    item["normalizedName"] = item.get("normalizedName") or mapping["normalizedName"]
+                    item["sfiaCategory"] = item.get("sfiaCategory") or mapping.get("sfiaCategory") or "Software Development"
+                    item["onetCode"] = item.get("onetCode") or mapping.get("onetCode") or "15-1252.00"
                 elif not item.get("skillId"):
                     slug = make_skill_id(item.get("normalizedName") or raw_name)
                     item["skillId"] = f"skill:emerging-{slug}"
+
+            if not item.get("sfiaCategory"):
+                item["sfiaCategory"] = "Software Development"
+            if not item.get("onetCode"):
+                item["onetCode"] = "15-1252.00"
+
+            # Compute declaredInCv deterministically from CV skill list & mappings
+            if "declaredInCv" not in item or item["declaredInCv"] is None:
+                item["declaredInCv"] = (raw_lower in cv_skills_lower_set) or (raw_lower in cv_skill_mappings)
+
+            # Compute evidenceStrength deterministically from graph evidence map or CV declaration
+            if not item.get("evidenceStrength"):
+                if raw_lower in graph_evidence_map:
+                    item["evidenceStrength"] = graph_evidence_map[raw_lower]
+                elif item.get("declaredInCv"):
+                    item["evidenceStrength"] = "weak"
+                else:
+                    item["evidenceStrength"] = "none"
 
         # Merge pre-normalized entries for skills the AI didn't cover
         ai_mapped_names = {s.get("rawName", "").lower() for s in data.get("mappedSkills", [])}
         for pre in pre_normalized:
             if pre["rawName"].lower() not in ai_mapped_names and pre["found"]:
+                pre_raw_lower = pre["rawName"].lower()
+                evidence_str = graph_evidence_map.get(pre_raw_lower, "weak" if pre_raw_lower in cv_skills_lower_set else "none")
                 data.setdefault("mappedSkills", []).append({
                     "rawName": pre["rawName"],
                     "normalizedName": pre["normalizedName"],
                     "skillId": pre["skillId"],
                     "sfiaCategory": pre["sfiaCategory"],
                     "onetCode": pre["onetCode"],
-                    "evidenceStrength": "weak",
-                    "declaredInCv": pre["rawName"].lower() in [c.lower() for c in cv_skills_strings],
+                    "evidenceStrength": evidence_str,
+                    "declaredInCv": pre_raw_lower in cv_skills_lower_set,
                     "_source": "taxonomy_dictionary",
                 })
 

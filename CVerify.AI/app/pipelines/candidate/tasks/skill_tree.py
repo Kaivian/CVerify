@@ -52,11 +52,60 @@ class SkillTreeGenerator(BaseTask):
         
         data = self._extract_json(raw)
 
-        # Handle wrapper if present
-        skill_tree_payload = data.get("skillTree", data)
+        # Handle wrapper if present and sanitize recursively
+        raw_payload = data.get("skillTree", data)
+        skill_tree_payload = self._sanitize_tree(raw_payload)
 
         return {
             "skillTree": skill_tree_payload
+        }
+
+    def _sanitize_tree(self, payload: Any) -> Any:
+        if isinstance(payload, list):
+            return [self._sanitize_node(item) for item in payload if isinstance(item, dict)]
+        elif isinstance(payload, dict):
+            return self._sanitize_node(payload)
+        return payload
+
+    def _sanitize_node(self, node: Dict[str, Any]) -> Dict[str, Any]:
+        node_id = str(node.get("id") or "skill-node")
+        display_name = node.get("displayName")
+        if not display_name:
+            slug_part = node_id.split("/")[-1]
+            display_name = slug_part.replace("-", " ").replace("_", " ").title()
+
+        category = node.get("category") or "Technology"
+        proficiency = node.get("proficiencyLevel") or "Working"
+        
+        confidence = node.get("confidenceScore")
+        if confidence is None or not isinstance(confidence, (int, float)):
+            confidence = 0.5
+        else:
+            confidence = float(confidence)
+
+        exp = node.get("estimatedExperience")
+        if exp is None or not isinstance(exp, (int, float)):
+            exp = 0.0
+        else:
+            exp = float(exp)
+
+        raw_children = node.get("children") or []
+        sanitized_children = []
+        if isinstance(raw_children, list):
+            for child in raw_children:
+                if isinstance(child, dict):
+                    sanitized_children.append(self._sanitize_node(child))
+
+        return {
+            "id": node_id,
+            "parentId": node.get("parentId"),
+            "displayName": display_name,
+            "category": category,
+            "proficiencyLevel": proficiency,
+            "confidenceScore": confidence,
+            "estimatedExperience": exp,
+            "supportingEvidence": node.get("supportingEvidence"),
+            "children": sanitized_children,
         }
 
     def _extract_json(self, text: str) -> dict:
