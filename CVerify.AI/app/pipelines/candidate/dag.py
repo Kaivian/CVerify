@@ -107,3 +107,33 @@ class PipelineDAG:
 
         logger.info("Pipeline 2 graph compilation and schema validation completed successfully.")
         return topo_order
+
+    def get_downstream_dependents(self, failed_task_id: str) -> Set[str]:
+        """Calculates all direct and indirect downstream tasks that depend on failed_task_id."""
+        dependents: Set[str] = set()
+        queue = [failed_task_id]
+        
+        while queue:
+            curr = queue.pop(0)
+            for neighbor in self.adjacency_list.get(curr, []):
+                if neighbor not in dependents:
+                    dependents.add(neighbor)
+                    queue.append(neighbor)
+                    
+        return dependents
+
+    def compute_pipeline_status(self, task_statuses: Dict[str, str], circuit_breaker_state: str = "CLOSED") -> str:
+        """Determines final pipeline status based on task execution states."""
+        failed_tasks = [t for t, s in task_statuses.items() if s == "FAILED"]
+        skipped_tasks = [t for t, s in task_statuses.items() if s == "SKIPPED"]
+        repaired_tasks = [t for t, s in task_statuses.items() if s == "REPAIRED"]
+
+        # Critical gate task check (e.g. L2-006)
+        if "L2-006" in failed_tasks:
+            return "Failed"
+            
+        if failed_tasks or skipped_tasks or repaired_tasks or circuit_breaker_state in ("DEGRADED", "TRIPPED"):
+            return "CompletedWithWarnings"
+            
+        return "Completed"
+

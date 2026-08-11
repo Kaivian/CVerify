@@ -1,6 +1,6 @@
 import type React from "react";
 
-export type StreamingStatus = "Pending" | "Connecting" | "Running" | "Completed" | "Failed" | "Cancelled" | "Waiting";
+export type StreamingStatus = "Pending" | "Connecting" | "Running" | "Completed" | "CompletedWithWarnings" | "Failed" | "Cancelled" | "Waiting";
 
 export type StreamingLogLevel = "Info" | "Success" | "Warning" | "Error" | "Debug";
 
@@ -10,6 +10,10 @@ export type StreamingEventType =
   | "STAGE_PROGRESS"
   | "STAGE_COMPLETED"
   | "STAGE_FAILED"
+  | "TASK_RECOVERING"
+  | "TASK_REPAIRED"
+  | "TASK_RETRIED"
+  | "TASK_SKIPPED"
   | "METRIC_UPDATED"
   | "TOKEN_UPDATED"
   | "COST_UPDATED"
@@ -44,7 +48,7 @@ export interface StreamingStage {
   stageId: string;
   stageName: string;
   parentStageId?: string;
-  status: "Pending" | "Running" | "Completed" | "Failed" | "Skipped";
+  status: "Pending" | "Running" | "Completed" | "Failed" | "Skipped" | "Recovering" | "Repaired" | "Retrying";
   progress: number;
   description?: string;
   details?: string; // JSON payload
