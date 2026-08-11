@@ -109,7 +109,8 @@ class BaseTask(ITask):
             missing_keys = [k for k in self.output_keys if k not in updates or updates[k] is None]
             
             if missing_keys:
-                logger.warning(f"Task {self.name} output missing keys: {missing_keys}. Attempting self-healing recovery...")
+                for k in missing_keys:
+                    logger.warning(f"Task {self.name} failed to return output key: {k}. Setting to None.")
                 if event_callback:
                     try:
                         await event_callback(PipelineEvent(
