@@ -1237,6 +1237,10 @@ class TestContractSafeguards(unittest.IsolatedAsyncioTestCase):
             @property
             def output_keys(self) -> list:
                 return ["finalLevel"]
+            @property
+            def recovery_policy(self):
+                from app.pipelines.shared.ai.recovery.policies import TaskRecoveryPolicy
+                return TaskRecoveryPolicy.STRICT_FAIL_FAST
 
             async def _execute_internal(self, context: PipelineContext, correlation_id: str) -> dict:
                 # Returns typo key instead of declared output 'finalLevel'
