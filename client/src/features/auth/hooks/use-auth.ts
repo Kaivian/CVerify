@@ -14,7 +14,7 @@ import {
 } from '../services/auth.service';
 import { type User, type UserRole, type ResourceActionPermission } from '../../../types/auth.types';
 import { useState, useCallback, useContext } from 'react';
-import { normalizeError } from '../../../services/axios-client';
+import { normalizeError, getCookie } from '../../../services/axios-client';
 import { normalizeRole } from '../../../lib/utils/auth-utils';
 import { AuthContext } from '../context/auth-context';
 
@@ -237,6 +237,17 @@ export const useAuth = () => {
   // Bootstraps local profile on app boot or token refresh, locking concurrent parallel calls
   const initializeUserSession = useCallback(async (forceRevalidate = false) => {
     const currentStore = useAuthStore.getState();
+
+    // If no session cookie exists and client is unauthenticated, skip network requests for guests
+    const hasSessionCookie = typeof window !== 'undefined' && getCookie('cverify_has_session') === 'true';
+    if (!hasSessionCookie && !currentStore.isAuthenticated) {
+      if (currentStore.bootstrapState !== 'READY') {
+        currentStore.setInitialized(true);
+        currentStore.setBootstrapState('READY');
+        currentStore.setLoading(false);
+      }
+      return { authenticated: false, user: null };
+    }
 
     // Auto-recovery for stuck hydration states (e.g. from BFCache when promise is lost but store says loading)
     if (currentStore.isLoading && !bootstrapPromise && currentStore.bootstrapState !== 'READY') {

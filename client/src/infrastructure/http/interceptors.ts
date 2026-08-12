@@ -3,6 +3,7 @@ import { axiosClient } from './axios-client';
 import { normalizeError } from './error-normalizer';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { type ApiError } from '@/types/api.types';
+import { getCookie } from './cookies';
 
 // Single-flight refresh queue to prevent thundering herd on token expiry
 let isRefreshing = false;
@@ -38,11 +39,14 @@ export function installAuthInterceptor(): void {
       if (error.response?.status === 401 && !originalRequest._retry) {
         const isRefreshRequest = originalRequest.url?.includes('/auth/refresh-token');
         const isLogoutRequest = originalRequest.url?.includes('/auth/logout');
-        const isAuthFlowRequest = originalRequest.url?.includes('/auth/') && !originalRequest.url?.includes('/auth/me');
+        const isMeRequest = originalRequest.url?.includes('/auth/me');
+        const isAuthFlowRequest = originalRequest.url?.includes('/auth/') && !isMeRequest;
+        const hasSessionCookie = typeof window !== 'undefined' && getCookie('cverify_has_session') === 'true';
 
-        if (isAuthFlowRequest) {
-          console.log(`[Auth Interceptor] Auth flow request 401: ${originalRequest.url}. Skipping refresh rotation.`);
-          if (isRefreshRequest || isLogoutRequest) {
+        // Skip token refresh for auth flow endpoints OR if /auth/me 401s without an active session cookie (guest)
+        if (isAuthFlowRequest || (isMeRequest && !hasSessionCookie)) {
+          console.log(`[Auth Interceptor] 401 on ${originalRequest.url} (guest or auth flow). Skipping refresh rotation.`);
+          if (isRefreshRequest || isLogoutRequest || isMeRequest) {
             useAuthStore.getState().logout(true);
 
             if (isRefreshRequest && typeof window !== 'undefined') {

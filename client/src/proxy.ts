@@ -54,10 +54,12 @@ export async function proxy(request: NextRequest) {
     );
   }
 
+  const refreshToken = request.cookies.get('refresh_token')?.value;
+  const hasAuthToken = !!(accessToken || refreshToken);
+
   // 1. Protecting Dashboard Sub-Routes (Coarse Gating)
   if (isDashboardRoute) {
-    const refreshToken = request.cookies.get('refresh_token')?.value;
-    if (!accessToken && !refreshToken) {
+    if (!hasAuthToken) {
       const callbackUrl = encodeURIComponent(pathname + request.nextUrl.search);
       const redirectUrl = new URL(`${ROUTES.LOGIN}?callbackUrl=${callbackUrl}`, request.url);
       
@@ -69,6 +71,7 @@ export async function proxy(request: NextRequest) {
       const response = NextResponse.redirect(redirectUrl);
       response.cookies.delete('access_token');
       response.cookies.delete('refresh_token');
+      response.cookies.delete('cverify_has_session');
       handleLocale(request, response);
       return response;
     }
@@ -76,6 +79,14 @@ export async function proxy(request: NextRequest) {
 
   const response = NextResponse.next();
   handleLocale(request, response);
+
+  // Synchronize client-side JS session indicator with HttpOnly token presence
+  if (hasAuthToken && !request.cookies.get('cverify_has_session')) {
+    response.cookies.set('cverify_has_session', 'true', { path: '/', sameSite: 'lax' });
+  } else if (!hasAuthToken && request.cookies.get('cverify_has_session')) {
+    response.cookies.delete('cverify_has_session');
+  }
+
   return response;
 }
 

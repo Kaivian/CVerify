@@ -149,6 +149,16 @@ public class TokenService : ITokenService
         };
 
         _httpContextAccessor.HttpContext?.Response.Cookies.Append(tokenName, tokenValue, cookieOptions);
+
+        var indicatorOptions = new CookieOptions
+        {
+            HttpOnly = false, // Accessible by client JS
+            Secure = !isDevelopment,
+            SameSite = SameSiteMode.Lax,
+            Path = "/",
+            Expires = expires ?? DateTime.UtcNow.AddDays(7)
+        };
+        _httpContextAccessor.HttpContext?.Response.Cookies.Append("cverify_has_session", "true", indicatorOptions);
     }
 
     public void RemoveTokenFromCookie(string tokenName)
@@ -163,6 +173,15 @@ public class TokenService : ITokenService
         };
 
         _httpContextAccessor.HttpContext?.Response.Cookies.Delete(tokenName, cookieOptions);
+
+        var indicatorOptions = new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = !isDevelopment,
+            SameSite = SameSiteMode.Lax,
+            Path = "/"
+        };
+        _httpContextAccessor.HttpContext?.Response.Cookies.Delete("cverify_has_session", indicatorOptions);
     }
 
     public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
