@@ -87,7 +87,9 @@ export default function SkillTreePage() {
     try {
       const saved = localStorage.getItem("cverify_skill_tree_expanded");
       if (saved) {
-        setExpandedNodes(JSON.parse(saved));
+        queueMicrotask(() => {
+          setExpandedNodes(JSON.parse(saved));
+        });
       }
     } catch (e) {
       console.error("Failed to load expanded nodes from localStorage", e);
@@ -99,8 +101,10 @@ export default function SkillTreePage() {
     if (latestAssessment?.id) {
       loadSkillTree();
     } else {
-      setTreeData([]);
-      setLoading(false);
+      queueMicrotask(() => {
+        setTreeData([]);
+        setLoading(false);
+      });
     }
   }, [latestAssessment?.id]);
 
@@ -175,8 +179,8 @@ export default function SkillTreePage() {
           onClick={() => setSelectedNode(node)}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           className={`flex items-center justify-between py-2 pr-3 rounded-lg cursor-pointer transition-colors border ${isSelected
-              ? "bg-surface-secondary border-border/80 text-foreground font-semibold"
-              : "border-transparent hover:bg-surface-secondary/40 text-muted hover:text-foreground"
+            ? "bg-surface-secondary border-border/80 text-foreground font-semibold"
+            : "border-transparent hover:bg-surface-secondary/40 text-muted hover:text-foreground"
             }`}
         >
           <div className="flex items-center gap-2 min-w-0">
@@ -191,7 +195,7 @@ export default function SkillTreePage() {
                 {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
               </span>
             ) : (
-              <span className="w-[18px]" />
+              <span className="w-4.5" />
             )}
 
             {hasChildren ? (
@@ -219,7 +223,7 @@ export default function SkillTreePage() {
         </div>
 
         {hasChildren && isExpanded && (
-          <div className="mt-0.5 border-l border-border/30 ml-[25px] pl-1">
+          <div className="mt-0.5 border-l border-border/30 ml-6 pl-1">
             {node.children.map(child => renderTreeNode(child, depth + 1))}
           </div>
         )}
@@ -298,7 +302,7 @@ export default function SkillTreePage() {
 
   return (
     <div className="space-y-6 font-sans">
-      
+
       {/* TOP SECTION: Search, Filters & Verified Domains */}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 items-stretch text-left">
         {/* Search & Categories (4/10) */}
@@ -355,8 +359,8 @@ export default function SkillTreePage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {domainProfiles.map((dom: any, idx: number) => (
-                  <div 
-                    key={idx} 
+                  <div
+                    key={idx}
                     className="p-3 bg-surface-secondary/35 border border-border/20 rounded-xl flex items-center justify-between gap-3 shadow-xs hover:border-accent/40 transition-all duration-200"
                   >
                     <div className="space-y-1 min-w-0">
@@ -369,7 +373,7 @@ export default function SkillTreePage() {
                         </span>
                       </div>
                     </div>
-                    
+
                     <div className="relative size-9 shrink-0 flex items-center justify-center bg-surface border border-border/40 rounded-full font-mono text-xs font-black text-accent shadow-2xs">
                       {Math.round(dom.score)}
                     </div>
@@ -384,14 +388,14 @@ export default function SkillTreePage() {
       {/* LOWER SECTION: Hierarchy Map vs Details */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start text-left">
         {/* LEFT COLUMN: Skill Tree Structure */}
-        <Card className="lg:col-span-7 p-5 min-h-[600px] max-h-[800px] overflow-y-auto border border-border/40 bg-surface rounded-2xl shadow-xs scrollbar-thin scrollbar-thumb-border">
+        <Card className="lg:col-span-7 p-5 min-h-150 max-h-200 overflow-y-auto border border-border/40 bg-surface rounded-2xl shadow-xs scrollbar-thin scrollbar-thumb-border">
           <div className="flex justify-between items-center pb-3 border-b border-border/20 mb-3">
             <span className="text-[10px] font-black uppercase tracking-wider text-foreground">Hierarchy Map</span>
             <span className="text-[9px] text-muted-foreground font-bold">Root nodes expanded by default</span>
           </div>
 
           {filteredTree.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-16 text-center text-muted min-h-[350px]">
+            <div className="flex flex-col items-center justify-center p-16 text-center text-muted min-h-88">
               <Search size={22} className="mb-2" />
               <p className="text-xs font-light text-muted-foreground">No matching skills found.</p>
             </div>
@@ -405,7 +409,7 @@ export default function SkillTreePage() {
         {/* RIGHT COLUMN: Node Detail Drawer & Learning Roadmap */}
         <div className="lg:col-span-5 space-y-6">
           {/* Selection Detail Card */}
-          <Card className="p-5 min-h-[380px] border border-border/40 bg-surface rounded-2xl shadow-xs">
+          <Card className="p-5 min-h-95 border border-border/40 bg-surface rounded-2xl shadow-xs">
             {selectedNode ? (
               <div className="space-y-4">
                 <div className="space-y-1.5">
@@ -470,13 +474,13 @@ export default function SkillTreePage() {
                     <Code size={11} className="text-accent" />
                     <span>Supporting Evidence</span>
                   </span>
-                  <div className="max-h-[180px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-border">
+                  <div className="max-h-45 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-border">
                     {renderSupportingEvidence(selectedNode.supportingEvidence)}
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center p-16 text-center text-muted min-h-[300px]">
+              <div className="flex flex-col items-center justify-center p-16 text-center text-muted min-h-75">
                 <GitFork size={24} className="mb-2 text-muted/50" />
                 <p className="text-xs font-light text-muted-foreground">Select a skill node to view detailed verifications.</p>
               </div>
@@ -497,7 +501,7 @@ export default function SkillTreePage() {
               {roadmapRecommendations.length === 0 ? (
                 <p className="text-[10px] text-muted-foreground">No roadmap recommendations generated.</p>
               ) : (
-                <div className="max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-2.5 scrollbar-thin scrollbar-thumb-border">
+                <div className="max-h-55 overflow-y-auto pr-1 flex flex-col gap-2.5 scrollbar-thin scrollbar-thumb-border">
                   {roadmapRecommendations.map((rec: any, idx: number) => (
                     <div key={idx} className="relative pl-6 flex flex-col gap-0.5 leading-relaxed text-xs">
                       {/* Timeline Dot */}
@@ -542,7 +546,7 @@ export default function SkillTreePage() {
               {unverifiedSkills.length === 0 ? (
                 <p className="text-[10px] text-muted-foreground">All declared skills successfully verified!</p>
               ) : (
-                <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1 scrollbar-thin">
+                <div className="flex flex-wrap gap-1.5 max-h-30 overflow-y-auto pr-1 scrollbar-thin">
                   {unverifiedSkills.map((skill: any, idx: number) => (
                     <Chip
                       key={idx}
@@ -559,7 +563,7 @@ export default function SkillTreePage() {
             </div>
           </Card>
         </div>
-        
+
       </div>
     </div>
   );

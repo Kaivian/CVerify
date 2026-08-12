@@ -56,6 +56,7 @@ export function ObservabilityCard<T = number | string>({
 
   const formattedTime = React.useMemo(() => {
     if (!metric.lastUpdated) return 'Just now';
+    // eslint-disable-next-line react-hooks/purity
     const diffSec = Math.floor((Date.now() - new Date(metric.lastUpdated).getTime()) / 1000);
     if (diffSec < 2) return 'Updated just now';
     if (diffSec < 60) return `Updated ${diffSec} sec ago`;

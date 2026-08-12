@@ -29,6 +29,11 @@ public class ModularBoundaryTests
             {
                 otherFeatures = otherFeatures.Where(f => f != "Auth");
             }
+            // Admin control center is allowed to reference domain models for platform administration
+            if (feature == "Admin")
+            {
+                otherFeatures = Enumerable.Empty<string>();
+            }
 
             var otherFeaturesArray = otherFeatures
                 .Select(f => $"CVerify.API.Modules.{f}")

@@ -5,6 +5,7 @@ import { Button as HeroButton, type ButtonProps as HeroButtonProps } from '@hero
 
 interface ButtonProps extends Omit<HeroButtonProps, 'variant' | 'children'> {
   variant?: 'solid' | 'bordered' | 'light' | 'flat' | 'ghost' | 'outline' | 'primary' | 'secondary' | 'danger' | 'danger-soft';
+  color?: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
   isLoading?: boolean;
   disabled?: boolean;
   children?: React.ReactNode;

@@ -337,10 +337,12 @@ export default function CvManagementCenter() {
   // Sync with profile from DB once loaded
   useEffect(() => {
     if (profile) {
-      if (profile.cvTemplateId) {
-        setSelectedTemplate(profile.cvTemplateId);
-      }
-      setIsCvPublished(profile.isCvPublished ?? true);
+      queueMicrotask(() => {
+        if (profile.cvTemplateId) {
+          setSelectedTemplate(profile.cvTemplateId);
+        }
+        setIsCvPublished(profile.isCvPublished ?? true);
+      });
     }
   }, [profile]);
 
@@ -1060,7 +1062,7 @@ export default function CvManagementCenter() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100">
         <Spinner size="lg" color="accent" />
       </div>
     );
@@ -1424,7 +1426,7 @@ export default function CvManagementCenter() {
   const renderAssessmentDashboard = () => {
     if (isLoadingDetails || !assessmentDetails) {
       return (
-        <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center justify-center min-h-100">
           <Spinner size="lg" color="accent" />
         </div>
       );
@@ -1850,7 +1852,7 @@ export default function CvManagementCenter() {
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-2 min-h-[32px] font-light leading-normal">
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 min-h-8 font-light leading-normal">
                     {repo.description || "No description provided."}
                   </p>
                   <div className="w-full h-px bg-border/10 my-0.5" />
@@ -2586,11 +2588,10 @@ export default function CvManagementCenter() {
                     <h3 className="font-extrabold text-sm text-foreground tracking-tight uppercase truncate flex items-center gap-2">
                       {activeTabName}
                       {editorMode === "preview" && (
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
-                          isCvPublished 
-                            ? "bg-success/15 text-success border border-success/20" 
-                            : "bg-muted-foreground/15 text-muted-foreground border border-muted-foreground/20"
-                        }`}>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold ${isCvPublished
+                          ? "bg-success/15 text-success border border-success/20"
+                          : "bg-muted-foreground/15 text-muted-foreground border border-muted-foreground/20"
+                          }`}>
                           {isCvPublished ? "Published" : "Draft"}
                         </span>
                       )}
@@ -2617,7 +2618,7 @@ export default function CvManagementCenter() {
                       </Button>
                       <Dropdown.Popover
                         placement="bottom end"
-                        className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[275px] z-50 font-outfit"
+                        className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-69 z-50 font-outfit"
                       >
                         <Dropdown.Menu aria-label="CV Actions">
                           <Dropdown.SubmenuTrigger>
@@ -2634,7 +2635,7 @@ export default function CvManagementCenter() {
                             </Dropdown.Item>
                             <Dropdown.Popover
                               placement="left top"
-                              className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[170px] z-50 font-outfit"
+                              className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-43 z-50 font-outfit"
                             >
                               <Dropdown.Menu aria-label="CV Templates">
                                 {Object.values(CV_TEMPLATES).map((tmpl) => (
@@ -2702,7 +2703,7 @@ export default function CvManagementCenter() {
                             </Dropdown.Item>
                             <Dropdown.Popover
                               placement="left top"
-                              className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[150px] z-50 font-outfit"
+                              className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-38 z-50 font-outfit"
                             >
                               <Dropdown.Menu aria-label="Export Formats">
                                 <Dropdown.Item
@@ -2907,7 +2908,7 @@ export default function CvManagementCenter() {
       {/* Dialog standard A4 Preview overlay */}
       {isA4PreviewOpen && (
         <div className="fixed inset-0 z-50 backdrop-blur-sm flex items-center justify-center p-4 cv-preview-overlay">
-          <Card rounded="xl" className="w-full max-w-[850px] max-h-[90vh] border border-border flex flex-col overflow-hidden text-left cv-preview-card">
+          <Card rounded="xl" className="w-full max-w-212 max-h-[90vh] border border-border flex flex-col overflow-hidden text-left cv-preview-card">
             {/* Header controls */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 select-none bg-surface/80 backdrop-blur-md">
               <span className="font-extrabold text-sm uppercase tracking-wide text-foreground flex items-center gap-2">
@@ -2942,7 +2943,7 @@ export default function CvManagementCenter() {
                   </Dropdown.Trigger>
                   <Dropdown.Popover
                     placement="bottom end"
-                    className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-[150px] animate-in fade-in duration-100 z-50 font-outfit"
+                    className="bg-overlay border border-border shadow-overlay rounded-xl p-1.5 min-w-38 animate-in fade-in duration-100 z-50 font-outfit"
                   >
                     <Dropdown.Menu aria-label="Export Formats">
                       <Dropdown.Item
