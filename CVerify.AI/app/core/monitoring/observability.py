@@ -682,6 +682,75 @@ def trace_stage(stage_name: str):
         return wrapper
     return decorator
 
+# --- Observability Center Real-Time Forwarder ---
+import urllib.request
+import threading
+
+class ObservabilityStreamHandler(logging.Handler):
+    """
+    Asynchronously forwards structured AI log events to CVerify.Core Observability Center.
+    """
+    def __init__(self, backend_url: str = None):
+        super().__init__()
+        self.candidate_urls = []
+        if os.getenv("CORE_BACKEND_OBSERVABILITY_URL"):
+            self.candidate_urls.append(os.getenv("CORE_BACKEND_OBSERVABILITY_URL"))
+        base_url = os.getenv("BACKEND_API_URL", "").rstrip("/")
+        if base_url:
+            self.candidate_urls.append(f"{base_url}/api/v1/admin/observability/logs/ai")
+        self.candidate_urls.extend([
+            "http://cverify-core:5000/api/v1/admin/observability/logs/ai",
+            "http://localhost:5247/api/v1/admin/observability/logs/ai",
+            "http://localhost:5000/api/v1/admin/observability/logs/ai"
+        ])
+
+    def emit(self, record: logging.LogRecord):
+        try:
+            ctx = TraceContext.get()
+            severity = "INFO"
+            if record.levelno >= logging.CRITICAL: severity = "CRITICAL"
+            elif record.levelno >= logging.ERROR: severity = "ERROR"
+            elif record.levelno >= logging.WARNING: severity = "WARNING"
+            elif record.levelno <= logging.DEBUG: severity = "DEBUG"
+
+            payload = {
+                "id": uuid.uuid4().hex,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "severity": severity,
+                "service": "AI Backend",
+                "source": record.name,
+                "message": record.getMessage(),
+                "traceId": ctx.get("trace_id"),
+                "spanId": ctx.get("span_id"),
+                "correlationId": ctx.get("extra", {}).get("correlationId"),
+                "jobId": ctx.get("extra", {}).get("jobId"),
+                "status": getattr(record, "status", None),
+                "latencyMs": getattr(record, "latencyMs", None),
+                "tokenUsage": getattr(record, "tokenUsage", None),
+                "cost": getattr(record, "cost", None)
+            }
+
+            # Fire and forget async thread
+            threading.Thread(target=self._send, args=(payload,), daemon=True).start()
+        except Exception:
+            pass
+
+    def _send(self, payload: dict):
+        data = json.dumps(payload).encode("utf-8")
+        for target_url in self.candidate_urls:
+            try:
+                req = urllib.request.Request(
+                    target_url,
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=1.5):
+                    return
+            except Exception:
+                continue
+
+
 def setup_logging():
     """
     Configures the root logger and overrides default uvicorn and fastapi loggers
@@ -695,12 +764,15 @@ def setup_logging():
         handler.setFormatter(ConsoleColoredFormatter())
     handler.addFilter(SamplingAndThrottlingFilter())
 
+    obs_handler = ObservabilityStreamHandler()
+
     # Configure root logger
     root_logger = logging.getLogger()
     for h in root_logger.handlers[:]:
         root_logger.removeHandler(h)
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(handler)
+    root_logger.addHandler(obs_handler)
 
     # Standardize uvicorn, fastapi, and application loggers
     loggers_to_configure = [
@@ -720,4 +792,6 @@ def setup_logging():
         for h in log.handlers[:]:
             log.removeHandler(h)
         log.addHandler(handler)
+        log.addHandler(obs_handler)
         log.propagate = False
+

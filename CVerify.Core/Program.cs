@@ -549,6 +549,13 @@ builder.Services.AddHostedService<RedisNotificationSubscriberWorker>();
 builder.Services.AddHostedService<ActivityEventProjectionWorker>();
 builder.Services.AddHostedService<CandidateRankingProjectionWorker>();
 
+// Register Real-Time Observability Services
+builder.Services.AddSingleton<ObservabilityLogSink>();
+builder.Services.AddSingleton<IObservabilityLogSink>(sp => sp.GetRequiredService<ObservabilityLogSink>());
+builder.Services.AddSingleton<ILoggerProvider>(sp => sp.GetRequiredService<ObservabilityLogSink>());
+builder.Services.AddSingleton<IObservabilityMetricsCollector, ObservabilityMetricsCollector>();
+builder.Services.AddHostedService<ObservabilityMetricsBroadcasterWorker>();
+
 
 // Configure JWT Authentication
 builder.Services.AddAuthentication(options =>
