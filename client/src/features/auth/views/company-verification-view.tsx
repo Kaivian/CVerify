@@ -390,12 +390,16 @@ export function CompanyVerificationView() {
     setIsLoading(false);
 
     if (result.success && result.data) {
+      const officialName =
+        result.data.officialOrganizationName ||
+        result.data.officialCompanyName ||
+        companyName;
+
       if (result.data.organizationExists) {
         setRecoveryInfo({
           organizationDisplayName:
             result.data.organizationDisplayName ||
-            result.data.officialCompanyName ||
-            companyName,
+            officialName,
           organizationSlug: result.data.organizationSlug || "",
         });
         toast.warning("This company has already been registered.", {
@@ -405,7 +409,7 @@ export function CompanyVerificationView() {
       }
 
       setVerifiedCompanyInfo({
-        officialCompanyName: result.data.officialCompanyName,
+        officialCompanyName: officialName,
         taxCode: result.data.taxCode,
       });
       setStep1Token(result.data.signedToken || "");
@@ -677,7 +681,7 @@ export function CompanyVerificationView() {
                     >
                       {s.label}
                     </span>
-                    <span className="text-[10px] text-muted font-medium mt-1 max-w-[120px] hidden sm:block leading-snug">
+                    <span className="text-[10px] text-muted font-medium mt-1 max-w-30 hidden sm:block leading-snug">
                       {s.desc}
                     </span>
                   </div>
@@ -685,7 +689,7 @@ export function CompanyVerificationView() {
 
                 {/* Connecting Line between steps */}
                 {idx < steps.length - 1 && (
-                  <div className="flex-1 h-[2px] bg-border mt-[17px] -mx-4 z-0 min-w-[20px] sm:min-w-[40px]">
+                  <div className="flex-1 h-0.5 bg-border mt-4.25 -mx-4 z-0 min-w-5 sm:min-w-10">
                     <div
                       className="h-full bg-accent transition-all duration-500"
                       style={{ width: step > s.id ? "100%" : "0%" }}

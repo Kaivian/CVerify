@@ -192,8 +192,10 @@ export const authApi = {
    */
   registerCompany: async (payload: RegisterCompanyPayload): Promise<{ success: boolean }> => {
     const response = await axiosClient.post<{ success: boolean }>('/auth/register-company', {
+      organizationName: payload.companyName,
       companyName: payload.companyName,
       taxCode: payload.taxCode,
+      organizationEmail: payload.companyEmail,
       companyEmail: payload.companyEmail,
     });
     return response.data;
@@ -205,8 +207,10 @@ export const authApi = {
   registerOrganization: async (payload: RegisterOrganizationPayload): Promise<{ success: boolean }> => {
     const response = await axiosClient.post<{ success: boolean }>('/auth/register-organization', {
       organizationName: payload.organizationName,
+      companyName: payload.organizationName,
       taxCode: payload.taxCode,
       organizationEmail: payload.organizationEmail,
+      companyEmail: payload.organizationEmail,
     });
     return response.data;
   },
@@ -294,7 +298,8 @@ export const authApi = {
    */
   verifyCompanyOnboarding: async (companyName: string, taxCode: string): Promise<{
     signedToken: string | null;
-    officialCompanyName: string;
+    officialOrganizationName?: string;
+    officialCompanyName?: string;
     taxCode: string;
     organizationExists: boolean;
     organizationDisplayName?: string;
@@ -303,13 +308,15 @@ export const authApi = {
   }> => {
     const response = await axiosClient.post<{
       signedToken: string | null;
-      officialCompanyName: string;
+      officialOrganizationName?: string;
+      officialCompanyName?: string;
       taxCode: string;
       organizationExists: boolean;
       organizationDisplayName?: string;
       organizationSlug?: string;
       recoveryRequired: boolean;
     }>('/auth/onboarding/verify-company', {
+      organizationName: companyName,
       companyName,
       taxCode,
     });
@@ -322,6 +329,7 @@ export const authApi = {
   verifyOrganizationOnboarding: async (organizationName: string, taxCode: string): Promise<{
     signedToken: string | null;
     officialOrganizationName: string;
+    officialCompanyName?: string;
     taxCode: string;
     organizationExists: boolean;
     organizationDisplayName?: string;
@@ -331,6 +339,7 @@ export const authApi = {
     const response = await axiosClient.post<{
       signedToken: string | null;
       officialOrganizationName: string;
+      officialCompanyName?: string;
       taxCode: string;
       organizationExists: boolean;
       organizationDisplayName?: string;
@@ -338,6 +347,7 @@ export const authApi = {
       recoveryRequired: boolean;
     }>('/auth/onboarding/verify-organization', {
       organizationName,
+      companyName: organizationName,
       taxCode,
     });
     return response.data;
@@ -378,12 +388,20 @@ export const authApi = {
     payload: {
       step2Token: string;
       organizationUsername: string;
-      companyDisplayName: string;
+      organizationDisplayName?: string;
+      companyDisplayName?: string;
       password?: string;
     },
     idempotencyKey: string
   ): Promise<SetupWorkspaceResponseData> => {
-    const response = await axiosClient.post<SetupWorkspaceResponseData>('/auth/onboarding/complete', payload, {
+    const canonicalPayload = {
+      step2Token: payload.step2Token,
+      organizationUsername: payload.organizationUsername,
+      organizationDisplayName: payload.organizationDisplayName || payload.companyDisplayName || '',
+      companyDisplayName: payload.companyDisplayName || payload.organizationDisplayName,
+      password: payload.password,
+    };
+    const response = await axiosClient.post<SetupWorkspaceResponseData>('/auth/onboarding/complete', canonicalPayload, {
       headers: {
         'X-Idempotency-Key': idempotencyKey
       }

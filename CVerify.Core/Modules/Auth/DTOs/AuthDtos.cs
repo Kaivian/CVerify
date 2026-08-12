@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using CVerify.API.Modules.AiChat.Entities;
 using CVerify.API.Modules.Auth.Entities;
 using CVerify.API.Modules.Auth.Enums;
@@ -155,25 +156,68 @@ public class CreatePasswordRequest
     public CreatePasswordRequest() { }
 }
 
-public record RegisterOrganizationRequest(
-    [Required][MaxLength(255)] string OrganizationName,
-    [Required][MaxLength(50)] string TaxCode,
-    [Required][EmailAddress][MaxLength(255)] string OrganizationEmail
-)
+public class RegisterOrganizationRequest
 {
-    [Obsolete("Use OrganizationName instead")]
-    public string CompanyName => OrganizationName;
+    private string? _organizationName;
+    private string? _organizationEmail;
 
+    [Required]
+    [MaxLength(255)]
+    [JsonPropertyName("organizationName")]
+    public string OrganizationName
+    {
+        get => _organizationName ?? string.Empty;
+        init => _organizationName = value;
+    }
+
+    [JsonPropertyName("companyName")]
+    [Obsolete("Use OrganizationName instead")]
+    public string? CompanyName
+    {
+        get => OrganizationName;
+        init => _organizationName = string.IsNullOrWhiteSpace(_organizationName) ? value : _organizationName;
+    }
+
+    [Required]
+    [MaxLength(50)]
+    [JsonPropertyName("taxCode")]
+    public string TaxCode { get; init; } = null!;
+
+    [Required]
+    [EmailAddress]
+    [MaxLength(255)]
+    [JsonPropertyName("organizationEmail")]
+    public string OrganizationEmail
+    {
+        get => _organizationEmail ?? string.Empty;
+        init => _organizationEmail = value;
+    }
+
+    [JsonPropertyName("companyEmail")]
     [Obsolete("Use OrganizationEmail instead")]
-    public string CompanyEmail => OrganizationEmail;
+    public string? CompanyEmail
+    {
+        get => OrganizationEmail;
+        init => _organizationEmail = string.IsNullOrWhiteSpace(_organizationEmail) ? value : _organizationEmail;
+    }
+
+    public RegisterOrganizationRequest() { }
+
+    public RegisterOrganizationRequest(string organizationName, string taxCode, string organizationEmail)
+    {
+        OrganizationName = organizationName;
+        TaxCode = taxCode;
+        OrganizationEmail = organizationEmail;
+    }
 }
 
 [Obsolete("Use RegisterOrganizationRequest instead")]
-public record RegisterCompanyRequest(
-    [Required][MaxLength(255)] string CompanyName,
-    [Required][MaxLength(50)] string TaxCode,
-    [Required][EmailAddress][MaxLength(255)] string CompanyEmail
-) : RegisterOrganizationRequest(CompanyName, TaxCode, CompanyEmail);
+public class RegisterCompanyRequest : RegisterOrganizationRequest
+{
+    public RegisterCompanyRequest() { }
+    public RegisterCompanyRequest(string companyName, string taxCode, string companyEmail)
+        : base(companyName, taxCode, companyEmail) { }
+}
 
 public record VerifyOrganizationLinkRequest(
     [Required] string Token
@@ -255,31 +299,60 @@ public record ResolveEmailAuthStateResponse(
     CVerify.API.Modules.Shared.Domain.Enums.EmailAuthState AuthState
 );
 
-public record VerifyOrganizationOnboardingRequest(
-    [Required][MaxLength(255)] string OrganizationName,
-    [Required][MaxLength(50)] string TaxCode
-)
+public class VerifyOrganizationOnboardingRequest
 {
+    private string? _organizationName;
+
+    [Required]
+    [MaxLength(255)]
+    [JsonPropertyName("organizationName")]
+    public string OrganizationName
+    {
+        get => _organizationName ?? string.Empty;
+        init => _organizationName = value;
+    }
+
+    [JsonPropertyName("companyName")]
     [Obsolete("Use OrganizationName instead")]
-    public string CompanyName => OrganizationName;
+    public string? CompanyName
+    {
+        get => OrganizationName;
+        init => _organizationName = string.IsNullOrWhiteSpace(_organizationName) ? value : _organizationName;
+    }
+
+    [Required]
+    [MaxLength(50)]
+    [JsonPropertyName("taxCode")]
+    public string TaxCode { get; init; } = null!;
+
+    public VerifyOrganizationOnboardingRequest() { }
+
+    public VerifyOrganizationOnboardingRequest(string organizationName, string taxCode)
+    {
+        OrganizationName = organizationName;
+        TaxCode = taxCode;
+    }
 }
 
 [Obsolete("Use VerifyOrganizationOnboardingRequest instead")]
-public record VerifyCompanyOnboardingRequest(
-    [Required][MaxLength(255)] string CompanyName,
-    [Required][MaxLength(50)] string TaxCode
-) : VerifyOrganizationOnboardingRequest(CompanyName, TaxCode);
+public class VerifyCompanyOnboardingRequest : VerifyOrganizationOnboardingRequest
+{
+    public VerifyCompanyOnboardingRequest() { }
+    public VerifyCompanyOnboardingRequest(string CompanyName = null!, string TaxCode = null!, string organizationName = null!)
+        : base(organizationName ?? CompanyName, TaxCode) { }
+}
 
 public record VerifyOrganizationOnboardingResponse(
-    string? SignedToken,
-    string OfficialOrganizationName,
-    string TaxCode,
-    bool OrganizationExists = false,
-    string? OrganizationDisplayName = null,
-    string? OrganizationSlug = null,
-    bool RecoveryRequired = false
+    [property: JsonPropertyName("signedToken")] string? SignedToken,
+    [property: JsonPropertyName("officialOrganizationName")] string OfficialOrganizationName,
+    [property: JsonPropertyName("taxCode")] string TaxCode,
+    [property: JsonPropertyName("organizationExists")] bool OrganizationExists = false,
+    [property: JsonPropertyName("organizationDisplayName")] string? OrganizationDisplayName = null,
+    [property: JsonPropertyName("organizationSlug")] string? OrganizationSlug = null,
+    [property: JsonPropertyName("recoveryRequired")] bool RecoveryRequired = false
 )
 {
+    [JsonPropertyName("officialCompanyName")]
     [Obsolete("Use OfficialOrganizationName instead")]
     public string OfficialCompanyName => OfficialOrganizationName;
 }
@@ -303,17 +376,67 @@ public record VerifyCompanyOnboardingResponse(
     RecoveryRequired
 );
 
-public record CompleteOnboardingRequest(
-    [Required] string Step2Token,
-    [Required][RegularExpression(@"^[a-z0-9-]{4,32}$", ErrorMessage = "Workspace handle must be 4-32 characters, lowercase alphanumeric or dash")] string OrganizationUsername,
-    [Required][MaxLength(255)] string OrganizationDisplayName,
-    [Required][MinLength(8, ErrorMessage = "Password must be at least 8 characters.")] string Password
-)
+public class CompleteOnboardingRequest
 {
-    private string? _companyDisplayName;
+    private string? _organizationDisplayName;
 
+    [Required]
+    [JsonPropertyName("step2Token")]
+    public string Step2Token { get; init; } = null!;
+
+    [Required]
+    [RegularExpression(@"^[a-z0-9-]{4,32}$", ErrorMessage = "Workspace handle must be 4-32 characters, lowercase alphanumeric or dash")]
+    [JsonPropertyName("organizationUsername")]
+    public string OrganizationUsername { get; init; } = null!;
+
+    [Required]
+    [MaxLength(255)]
+    [JsonPropertyName("organizationDisplayName")]
+    public string OrganizationDisplayName
+    {
+        get => _organizationDisplayName ?? string.Empty;
+        init => _organizationDisplayName = value;
+    }
+
+    [JsonPropertyName("companyDisplayName")]
     [Obsolete("Use OrganizationDisplayName instead")]
-    public string CompanyDisplayName { get => _companyDisplayName ?? OrganizationDisplayName; init => _companyDisplayName = value; }
+    public string? CompanyDisplayName
+    {
+        get => OrganizationDisplayName;
+        init => _organizationDisplayName = string.IsNullOrWhiteSpace(_organizationDisplayName) ? value : _organizationDisplayName;
+    }
+
+    [Required]
+    [MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
+    [JsonPropertyName("password")]
+    public string Password { get; init; } = null!;
+
+    public CompleteOnboardingRequest() { }
+
+    public CompleteOnboardingRequest(
+        string Step2Token,
+        string OrganizationUsername,
+        string OrganizationDisplayName,
+        string Password)
+    {
+        this.Step2Token = Step2Token;
+        this.OrganizationUsername = OrganizationUsername;
+        this.OrganizationDisplayName = OrganizationDisplayName;
+        this.Password = Password;
+    }
+
+    public CompleteOnboardingRequest(
+        string step2Token,
+        string organizationUsername,
+        string organizationDisplayName,
+        string password,
+        string? companyDisplayName = null)
+    {
+        Step2Token = step2Token;
+        OrganizationUsername = organizationUsername;
+        OrganizationDisplayName = string.IsNullOrWhiteSpace(organizationDisplayName) ? companyDisplayName ?? string.Empty : organizationDisplayName;
+        Password = password;
+    }
 }
 
 public record GoogleOnboardingLinkRequest(

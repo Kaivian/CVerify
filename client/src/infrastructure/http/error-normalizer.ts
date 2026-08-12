@@ -49,11 +49,16 @@ export function normalizeError(error: unknown): ApiError {
       // The backend-provided localization key, or fallback to system category matching
       const messageKey = (data.messageKey as string) || `system.toast.error.${code.toLowerCase()}`;
       
-      const mainMessage = (data.detail as string) || 
+      let mainMessage = (data.detail as string) || 
                           (data.message as string) || 
                           (data.title as string) || 
                           axiosErr.message || 
                           'An unexpected error occurred.';
+
+      const firstErrorDetail = Object.values(normalizedErrors).flat()[0];
+      if (firstErrorDetail && (!data.message || (data.message as string).includes('Please check the form fields'))) {
+        mainMessage = firstErrorDetail;
+      }
 
       const retryable = typeof data.retryable === 'boolean' 
         ? data.retryable 

@@ -171,6 +171,7 @@ builder.Services.AddOpenApi(options =>
         return Task.CompletedTask;
     });
 });
+builder.Services.AddMemoryCache();
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -193,6 +194,11 @@ builder.Services.AddControllers()
             var correlationId = AsyncLocalCorrelationScope.CurrentCorrelationId
                                 ?? context.HttpContext.TraceIdentifier;
 
+            var firstErrorMsg = errors.SelectMany(e => e.Value).FirstOrDefault(m => !string.IsNullOrWhiteSpace(m));
+            var summaryMessage = !string.IsNullOrWhiteSpace(firstErrorMsg)
+                ? $"Validation failed: {firstErrorMsg}"
+                : "Please check the form fields for errors.";
+
             var responsePayload = new ApiErrorResponse
             {
                 Status = Microsoft.AspNetCore.Http.StatusCodes.Status400BadRequest,
@@ -200,7 +206,7 @@ builder.Services.AddControllers()
                 Category = ErrorCategory.VALIDATION.ToString(),
                 Severity = "Error",
                 MessageKey = "system.toast.error.validation",
-                Message = "Please check the form fields for errors.",
+                Message = summaryMessage,
                 Retryable = false,
                 Errors = errors,
                 CorrelationId = correlationId,

@@ -19,10 +19,12 @@ using CVerify.API.Modules.Auth.Entities;
 using CVerify.API.Modules.Auth.Services;
 using CVerify.API.Modules.Shared.Configuration;
 using CVerify.API.Modules.Shared.Domain.Entities;
+using CVerify.API.Modules.Shared.Diagnostics;
 using CVerify.API.Modules.Shared.Exceptions;
 using CVerify.API.Modules.Shared.Exceptions.Catalogs;
 using CVerify.API.Modules.Shared.Persistence;
 using CVerify.API.Modules.Shared.Security;
+using CVerify.API.Modules.Shared.System.DTOs;
 using CVerify.API.Modules.Shared.System.Services;
 
 namespace CVerify.API.Modules.Auth.Controllers;
@@ -1209,6 +1211,33 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    private IActionResult CreateApiErrorResult(AuthException ex, int defaultStatusCode = StatusCodes.Status400BadRequest)
+    {
+        var statusCode = ex.Code switch
+        {
+            AuthErrorCodes.ServiceUnavailable => StatusCodes.Status503ServiceUnavailable,
+            AuthErrorCodes.EmailAlreadyExists => StatusCodes.Status409Conflict,
+            _ => defaultStatusCode
+        };
+
+        var correlationId = AsyncLocalCorrelationScope.CurrentCorrelationId ?? HttpContext.TraceIdentifier;
+        var responsePayload = new ApiErrorResponse
+        {
+            Status = statusCode,
+            Code = ex.ErrorCode,
+            Category = ex.Category.ToString(),
+            Severity = ex.Severity,
+            MessageKey = ex.MessageKey,
+            Message = ex.Message,
+            Retryable = ex.Retryable,
+            Errors = ex.ValidationErrors,
+            CorrelationId = correlationId,
+            UxSemantics = new UxSemantics(ex.DisplayMode, ex.ResolutionStrategy, ex.UserAction, ex.TargetPath)
+        };
+
+        return StatusCode(statusCode, responsePayload);
+    }
+
     [HttpPost("onboarding/verify-company")]
     [HttpPost("onboarding/verify-organization")]
     [AllowAnonymous]
@@ -1223,13 +1252,9 @@ public class AuthController : ControllerBase
             var result = await _workspaceProvisioningService.VerifyOrganizationOnboardingAsync(request, cancellationToken);
             return Ok(result);
         }
-        catch (AuthException ex) when (ex.Code == AuthErrorCodes.ServiceUnavailable)
-        {
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { code = ex.Code, message = ex.Message });
-        }
         catch (AuthException ex)
         {
-            return BadRequest(new { code = ex.Code, message = ex.Message });
+            return CreateApiErrorResult(ex);
         }
     }
 
@@ -1249,7 +1274,7 @@ public class AuthController : ControllerBase
         }
         catch (AuthException ex)
         {
-            return BadRequest(new { code = ex.Code, message = ex.Message });
+            return CreateApiErrorResult(ex);
         }
     }
 
@@ -1268,7 +1293,7 @@ public class AuthController : ControllerBase
         }
         catch (AuthException ex)
         {
-            return BadRequest(new { code = ex.Code, message = ex.Message });
+            return CreateApiErrorResult(ex);
         }
     }
 
@@ -1290,7 +1315,7 @@ public class AuthController : ControllerBase
         }
         catch (AuthException ex)
         {
-            return BadRequest(new { code = ex.Code, message = ex.Message });
+            return CreateApiErrorResult(ex);
         }
     }
 
