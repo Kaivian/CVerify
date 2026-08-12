@@ -105,6 +105,15 @@ class BaseTask(ITask):
             else:
                 updates = await self._execute_internal(context, correlation_id)
                 
+            # Detect output keys outside declared output_keys contract
+            extra_keys = set(updates.keys()) - set(self.output_keys)
+            if extra_keys:
+                logger.warning(
+                    f"Task {self.name} ({self.task_name}) produced output keys outside its declared output_keys: {list(extra_keys)}. "
+                    f"These fields will be filtered out to prevent context corruption.",
+                    extra={"task_id": self.name, "task_name": self.task_name, "extra_keys": list(extra_keys)}
+                )
+
             # Validate output keys
             missing_keys = [k for k in self.output_keys if k not in updates or updates[k] is None]
             
@@ -157,14 +166,6 @@ class BaseTask(ITask):
                             ))
                         except Exception as ex:
                             logger.warning(f"Failed to emit TASK_REPAIRED callback: {ex}")
-
-            # Filter out extra keys
-            extra_keys = set(updates.keys()) - set(self.output_keys)
-            if extra_keys:
-                logger.warning(
-                    f"Task {self.name} ({self.task_name}) produced output keys outside its declared output_keys: {list(extra_keys)}. "
-                    f"These fields will be filtered out to prevent context corruption."
-                )
 
             filtered_updates = {}
             for k in self.output_keys:

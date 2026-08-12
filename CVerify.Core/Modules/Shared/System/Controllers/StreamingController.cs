@@ -145,6 +145,7 @@ public class StreamingController : ControllerBase
 
         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
+        long replaySeq = 1;
         foreach (var stage in historicalStages)
         {
             string eventType = stage.Status == "Completed" ? "STAGE_COMPLETED" :
@@ -153,6 +154,8 @@ public class StreamingController : ControllerBase
 
             var ev = new
             {
+                eventId = Guid.CreateVersion7().ToString(),
+                sequenceNumber = replaySeq++,
                 sessionId = id.ToString(),
                 pipelineId = session.PipelineId,
                 eventType = eventType,
@@ -182,6 +185,8 @@ public class StreamingController : ControllerBase
         {
             var ev = new
             {
+                eventId = Guid.CreateVersion7().ToString(),
+                sequenceNumber = replaySeq++,
                 sessionId = id.ToString(),
                 pipelineId = session.PipelineId,
                 eventType = "LOG_EVENT",
