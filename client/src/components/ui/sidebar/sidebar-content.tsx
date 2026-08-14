@@ -67,12 +67,19 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
   const pathname = usePathname();
 
-  // Derive active workspace slug directly from URL path segment
+  // Derive active workspace slug directly from URL path segment (supports /business/ and /organization/)
   const activeWorkspaceSlug = useMemo(() => {
-    if (pathname?.startsWith("/business/")) {
-      const slug = pathname.split("/business/")[1]?.split("/")[0] || "";
-      if (slug === "organizations") return "";
-      return slug;
+    if (pathname) {
+      if (pathname.startsWith("/business/")) {
+        const slug = pathname.split("/business/")[1]?.split("/")[0] || "";
+        if (slug === "organizations") return "";
+        return slug;
+      }
+      if (pathname.startsWith("/organization/")) {
+        const slug = pathname.split("/organization/")[1]?.split("/")[0] || "";
+        if (slug === "organizations") return "";
+        return slug;
+      }
     }
     return "";
   }, [pathname]);
@@ -130,6 +137,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         result = result.replace(/\[username\]/g, username).replace(/:username/g, username);
       } else {
         result = result.replace(/\/\[username\]/g, "/user/profile").replace(/\/:username/g, "/user/profile");
+      }
+      // If pathname starts with /organization/, normalize the link to /organization/ as well
+      if (pathname?.startsWith("/organization/")) {
+        result = result.replace(/^\/business\//, "/organization/");
       }
       return result;
     };
