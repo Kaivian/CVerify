@@ -76,13 +76,25 @@ export interface MatchEvaluationDto {
 }
 
 export const intelligenceApi = {
-  searchCandidates: async (query?: string, location?: string, minTrustScore = 0): Promise<SearchProfileSummary[]> => {
+  searchCandidates: async (
+    query?: string,
+    location?: string,
+    minTrustScore = 0,
+    sortBy = 'highest_trust',
+    page = 1,
+    pageSize = 12
+  ): Promise<{ items: SearchProfileSummary[]; totalCount: number; page: number; pageSize: number }> => {
     const params = new URLSearchParams();
     if (query) params.append('query', query);
     if (location) params.append('location', location);
     if (minTrustScore > 0) params.append('minTrustScore', minTrustScore.toString());
+    if (sortBy) params.append('sortBy', sortBy);
+    params.append('page', page.toString());
+    params.append('pageSize', pageSize.toString());
 
-    const response = await axiosClient.get<SearchProfileSummary[]>(`/v1/intelligence/search?${params.toString()}`);
+    const response = await axiosClient.get<{ items: SearchProfileSummary[]; totalCount: number; page: number; pageSize: number }>(
+      `/v1/intelligence/search?${params.toString()}`
+    );
     return response.data;
   },
 

@@ -83,7 +83,9 @@ public class TalentDiscoveryControllerTests : IDisposable
         var okResult = result as OkObjectResult;
         okResult.Should().NotBeNull();
 
-        var list = (okResult!.Value as System.Collections.IEnumerable).Cast<dynamic>().ToList();
+        var paginated = okResult!.Value as CVerify.API.Modules.Shared.System.DTOs.PaginatedResultDto<object>;
+        paginated.Should().NotBeNull();
+        var list = paginated!.Items.Cast<dynamic>().ToList();
         list.Should().ContainSingle();
         var item = list.First();
         ((string)item.FullName).Should().Be("Jane Smith");
