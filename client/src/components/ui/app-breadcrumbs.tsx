@@ -26,14 +26,14 @@ const isRouteExist = (href: string): boolean => {
 
   // 1. Workspace routes checking
   // Matches exact valid pages.
-  const workspaceRegex = /^\/business\/([^/]+)(?:\/(billing|information|members|roles|settings|jobs|people|posts|intelligence|dashboard|listings|bookings|revenue|customers|analytics))?$/i;
+  const workspaceRegex = /^\/(?:business|organization)\/([^/]+)(?:\/(billing|information|members|roles|settings|jobs|people|posts|intelligence|dashboard|listings|bookings|revenue|customers|analytics|talent-pool))?$/i;
   
   if (workspaceRegex.test(path)) {
     return true;
   }
 
   // Check for candidate detail in intelligence: /business/[org]/intelligence/[id]
-  const intelligenceDetailRegex = /^\/business\/[^/]+\/intelligence\/[^/]+$/i;
+  const intelligenceDetailRegex = /^\/(?:business|organization)\/[^/]+\/intelligence\/[^/]+$/i;
   if (intelligenceDetailRegex.test(path)) {
     return true;
   }
@@ -42,12 +42,12 @@ const isRouteExist = (href: string): boolean => {
   // - /business/[org]/recruitment/dashboard
   // - /business/[org]/recruitment/jd
   // - /business/[org]/recruitment/jd/[id]/review
-  const recruitmentDashboardOrJdRegex = /^\/business\/[^/]+\/recruitment\/(dashboard|jd)$/i;
+  const recruitmentDashboardOrJdRegex = /^\/(?:business|organization)\/[^/]+\/recruitment\/(dashboard|jd)$/i;
   if (recruitmentDashboardOrJdRegex.test(path)) {
     return true;
   }
 
-  const jdReviewRegex = /^\/business\/[^/]+\/recruitment\/jd\/[^/]+\/review$/i;
+  const jdReviewRegex = /^\/(?:business|organization)\/[^/]+\/recruitment\/jd\/[^/]+\/review$/i;
   if (jdReviewRegex.test(path)) {
     return true;
   }
@@ -79,8 +79,8 @@ export const AppBreadcrumbs: React.FC = () => {
   for (let index = 0; index < segments.length; index++) {
     const segment = segments[index];
     
-    // Skip "business" segment
-    if (segment === "business") {
+    // Skip "business" or "organization" segment
+    if (segment === "business" || segment === "organization") {
       if (user?.role === "USER") {
         breadcrumbItems.push({
           href: "/workspace/organizations",
@@ -91,13 +91,13 @@ export const AppBreadcrumbs: React.FC = () => {
       continue;
     }
     
-    // Skip the dynamic organization slug that follows "business"
-    if (index > 0 && segments[index - 1] === "business") {
+    // Skip the dynamic organization slug that follows "business" or "organization"
+    if (index > 0 && (segments[index - 1] === "business" || segments[index - 1] === "organization")) {
       if (user?.role === "USER") {
         const orgDetails = workspacesStore[segment];
         const label = orgDetails?.organizationName || getDynamicSegmentLabel(segment);
         breadcrumbItems.push({
-          href: `/business/${segment}`,
+          href: `/${segments[index - 1]}/${segment}`,
           label,
           isLast: false,
         });
