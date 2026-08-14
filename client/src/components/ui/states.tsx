@@ -2,8 +2,7 @@
 
 import React from 'react';
 import { AlertTriangle, RefreshCcw, FolderOpen } from 'lucide-react';
-import { Skeleton, Typography } from '@heroui/react';
-import { Button } from './button';
+import { Skeleton, Typography, Button } from '@heroui/react';
 
 // SKELETON TABLE ROW LOADER
 interface SkeletonLoaderProps {
@@ -95,7 +94,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       </Typography>
       {onRetry && (
         <Button
-          variant="solid"
+          variant="primary"
           onClick={onRetry}
           className="flex items-center gap-2"
         >

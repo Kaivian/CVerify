@@ -5,8 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useWorkspaceStore } from "@/features/workspace/store/use-workspace-store";
 import { CreateWorkspaceModal } from "@/features/workspace/components/create-workspace-modal";
 import { useActiveWorkspace } from "@/features/workspace/hooks/use-active-workspace";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { 
   Building2, 
   Plus, 
@@ -17,7 +15,7 @@ import {
   CreditCard,
   ArrowRight
 } from "lucide-react";
-import { Typography, Spinner } from "@heroui/react";
+import { Typography, Spinner, Card, Button } from "@heroui/react";
 import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 
 export function OrganizationDashboardView() {
@@ -71,7 +69,7 @@ export function OrganizationDashboardView() {
         </div>
         <div className="flex gap-2.5 items-center">
           <Button 
-            variant="solid" 
+            variant="primary" 
             onClick={() => setIsCreateWorkspaceModalOpen(true)}
             className="bg-accent hover:bg-accent/90 text-white border-none shrink-0 cursor-pointer font-bold text-xs rounded-xl px-4 py-2"
           >
@@ -85,7 +83,7 @@ export function OrganizationDashboardView() {
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 select-none">
         {/* KPI 1: Active Workspaces */}
-        <Card glow={false} className="p-6 bg-surface border border-border rounded-xl">
+        <Card className="p-6 bg-surface border border-border rounded-xl">
           <div className="flex justify-between items-start mb-4">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-bold block mb-1 tracking-wider">
@@ -105,7 +103,7 @@ export function OrganizationDashboardView() {
         </Card>
 
         {/* KPI 2: Saved Talent Pool */}
-        <Card glow={false} className="p-6 bg-surface border border-border rounded-xl">
+        <Card className="p-6 bg-surface border border-border rounded-xl">
           <div className="flex justify-between items-start mb-4">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-bold block mb-1 tracking-wider">
@@ -125,7 +123,7 @@ export function OrganizationDashboardView() {
         </Card>
 
         {/* KPI 3: Company Member Count */}
-        <Card glow={false} className="p-6 bg-surface border border-border rounded-xl">
+        <Card className="p-6 bg-surface border border-border rounded-xl">
           <div className="flex justify-between items-start mb-4">
             <div>
               <Typography type="body-xs" className="text-muted uppercase font-bold block mb-1 tracking-wider">
@@ -149,7 +147,7 @@ export function OrganizationDashboardView() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Workspaces List Section */}
         <div className="lg:col-span-2 space-y-6">
-          <Card glow={false} className="p-6 bg-surface border border-border rounded-2xl">
+          <Card className="p-6 bg-surface border border-border rounded-2xl">
             <div className="flex justify-between items-center mb-6 select-none">
               <div>
                 <Typography type="h3" className="font-bold text-foreground font-outfit">
@@ -201,7 +199,7 @@ export function OrganizationDashboardView() {
 
         {/* Quick Actions Panel */}
         <div className="space-y-6">
-          <Card glow={false} className="p-6 bg-surface border border-border rounded-2xl space-y-4">
+          <Card className="p-6 bg-surface border border-border rounded-2xl space-y-4">
             <Typography type="h4" className="font-bold text-foreground font-outfit select-none">
               Quick Actions
             </Typography>

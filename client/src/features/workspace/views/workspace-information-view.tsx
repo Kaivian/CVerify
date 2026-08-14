@@ -3,9 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspaceStore } from "../store/use-workspace-store";
-import { Card } from "@/components/ui/card";
-import { Typography, Chip, Input, TextArea, toast } from "@heroui/react";
-import { Button } from "@/components/ui/button";
+import { Typography, Chip, Input, TextArea, toast, Card, Button, Skeleton } from "@heroui/react";
 import { getTagLabel } from "../types/workspace.types";
 import { BusinessVerificationBadge } from "@/components/ui/cverify/verification-badges";
 import {
@@ -29,7 +27,6 @@ import {
   Gift,
   Info
 } from "lucide-react";
-import { SkeletonLoader } from "@/components/ui/states";
 
 // Inline brand SVGs to bypass Lucide member mismatch errors
 const LinkedInIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -200,8 +197,11 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
     return (
       <div className="space-y-6 max-w-7xl mx-auto p-4 font-outfit text-foreground">
         <div className="h-10 w-48 bg-separator/50 animate-pulse rounded-lg mb-4" />
-        <Card className="p-0 overflow-hidden">
-          <SkeletonLoader rows={6} columns={4} />
+        <Card className="p-6 space-y-4">
+          <Skeleton className="h-8 w-1/3 rounded-lg" />
+          <Skeleton className="h-4 w-2/3 rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-12 w-1/2 rounded-lg" />
         </Card>
       </div>
     );
@@ -379,22 +379,22 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  variant="bordered"
+                  variant="outline"
                   onClick={() => {
                     setIsEditing(false);
                     // Reload original details to reset fields
                     fetchWorkspace(organizationSlug);
                   }}
-                  disabled={isSaving}
+                  isDisabled={isSaving}
                   className="font-bold text-xs"
                 >
                   Cancel
                 </Button>
                 <Button
                   size="sm"
-                  variant="solid"
+                  variant="primary"
                   onClick={handleSave}
-                  isLoading={isSaving}
+                  isDisabled={isSaving}
                   className="font-bold text-xs bg-accent text-background border-none hover:bg-accent/90 shrink-0 cursor-pointer"
                 >
                   <Save size={14} className="mr-1.5" />
@@ -404,7 +404,7 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
             ) : (
               <Button
                 size="sm"
-                variant="bordered"
+                variant="outline"
                 onClick={() => setIsEditing(true)}
                 className="font-bold text-xs cursor-pointer"
               >
@@ -521,7 +521,7 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
                     <Button
                       type="button"
                       size="sm"
-                      variant="bordered"
+                      variant="outline"
                       onClick={() => addIndustryTag(customIndustryTag)}
                       className="font-bold text-xs"
                     >
@@ -533,7 +533,7 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
                 {/* Selected Tags list */}
                 <div className="space-y-1">
                   <span className="text-xs font-bold text-muted uppercase block">Selected Focus Areas</span>
-                  <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2.5 bg-surface-secondary/20 border border-border/60 rounded-xl">
+                  <div className="flex flex-wrap gap-1.5 min-h-10 p-2.5 bg-surface-secondary/20 border border-border/60 rounded-xl">
                     {industryTags.length === 0 ? (
                       <span className="text-xs text-muted font-light italic">No industry tags configured.</span>
                     ) : (
@@ -625,7 +625,7 @@ export const WorkspaceInformationView: React.FC<WorkspaceInformationViewProps> =
                 {/* Selected Benefits list */}
                 <div className="space-y-1">
                   <span className="text-xs font-bold text-muted uppercase block">Selected Benefits</span>
-                  <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2.5 bg-surface-secondary/20 border border-border/60 rounded-xl">
+                  <div className="flex flex-wrap gap-1.5 min-h-10 p-2.5 bg-surface-secondary/20 border border-border/60 rounded-xl">
                     {benefitTags.length === 0 ? (
                       <span className="text-xs text-muted font-light italic">No benefits selected. Click recommendations above or type custom benefits.</span>
                     ) : (

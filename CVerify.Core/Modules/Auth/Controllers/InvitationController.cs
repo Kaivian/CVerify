@@ -48,7 +48,8 @@ public class InvitationController : ControllerBase
         }
 
         var actorTypeClaim = User.FindFirst("actor_type")?.Value;
-        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase);
+        bool isBusiness = string.Equals(actorTypeClaim, "business", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(actorTypeClaim, "organization", StringComparison.OrdinalIgnoreCase);
 
         if (isBusiness)
         {
