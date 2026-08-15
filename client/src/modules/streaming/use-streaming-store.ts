@@ -511,7 +511,11 @@ export const useStreamingStore = create<StreamingState>((set, get) => {
       const sseBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5247/api";
 
       if (!sseUrl) {
-        sseUrl = `${sseBaseUrl}/v1/streaming/sessions/${sessionId}/progress-stream`;
+        if (pipelineId === "jd-generation" || pipelineId === "candidate-discovery") {
+          sseUrl = `${sseBaseUrl}/v1/hiring-requirements/${sessionId}/progress-stream`;
+        } else {
+          sseUrl = `${sseBaseUrl}/v1/streaming/sessions/${sessionId}/progress-stream`;
+        }
       } else if (sseUrl.startsWith("/")) {
         sseUrl = `${sseBaseUrl}${sseUrl}`;
       }

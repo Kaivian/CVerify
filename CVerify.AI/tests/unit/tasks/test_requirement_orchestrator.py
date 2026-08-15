@@ -57,7 +57,16 @@ def mock_telemetry():
 @patch("app.core.services.claude_service.ClaudeService.analyze_repo_with_telemetry")
 async def test_requirement_orchestrator_success(mock_analyze):
     """Verify happy path of requirement artifacts generator pipeline."""
-    mock_analyze.return_value = (json.dumps(MOCK_CLAUDE_RESPONSE), mock_telemetry())
+    async def side_effect(system, user, correlation_id="system", on_token=None):
+        if on_token:
+            import inspect
+            if inspect.iscoroutinefunction(on_token):
+                await on_token("Chunk 1")
+            else:
+                on_token("Chunk 1")
+        return (json.dumps(MOCK_CLAUDE_RESPONSE), mock_telemetry())
+
+    mock_analyze.side_effect = side_effect
     
     orchestrator = RequirementArtifactsOrchestrator()
     requirement_data = {"id": "req-123", "title": "Senior Developer"}
@@ -92,10 +101,12 @@ async def test_requirement_orchestrator_self_correction(mock_analyze):
     invalid_response = MOCK_CLAUDE_RESPONSE.copy()
     del invalid_response["metadata"]
     
-    mock_analyze.side_effect = [
-        (json.dumps(invalid_response), mock_telemetry()), # Attempt 1: validation fails
-        (json.dumps(MOCK_CLAUDE_RESPONSE), mock_telemetry()) # Attempt 2: validation succeeds
-    ]
+    async def side_effect(system, user, correlation_id="system", on_token=None):
+        if mock_analyze.call_count == 1:
+            return (json.dumps(invalid_response), mock_telemetry())
+        return (json.dumps(MOCK_CLAUDE_RESPONSE), mock_telemetry())
+
+    mock_analyze.side_effect = side_effect
     
     orchestrator = RequirementArtifactsOrchestrator()
     requirement_data = {"id": "req-123", "title": "Senior Developer"}
@@ -115,7 +126,9 @@ async def test_requirement_orchestrator_self_correction(mock_analyze):
 async def test_requirement_orchestrator_exhaust_retries(mock_analyze):
     """Verify orchestrator fails gracefully when LLM continuously returns invalid JSON."""
     invalid_response = {"broken": "data"}
-    mock_analyze.return_value = (json.dumps(invalid_response), mock_telemetry())
+    async def side_effect(system, user, correlation_id="system", on_token=None):
+        return (json.dumps(invalid_response), mock_telemetry())
+    mock_analyze.side_effect = side_effect
     
     orchestrator = RequirementArtifactsOrchestrator()
     requirement_data = {"id": "req-123", "title": "Senior Developer"}

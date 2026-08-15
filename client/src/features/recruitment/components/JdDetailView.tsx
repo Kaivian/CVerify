@@ -250,7 +250,7 @@ export default function JdDetailView({
     try {
       const arts = await hiringRequirementService.getArtifacts(requirementId);
       setArtifacts(arts);
-      
+
       const req = reqOverride || activeRequirement;
       if (req?.status.toLowerCase() === "published") {
         loadMatches();
@@ -296,7 +296,7 @@ export default function JdDetailView({
   };
 
   useEffect(() => {
-     
+
     loadRequirementDetails();
     return () => {
       useStreamingStore.getState().disconnect();
@@ -401,7 +401,7 @@ export default function JdDetailView({
 
     try {
       setIsLoadingMain(true);
-      
+
       const outcomes = snap.businessOutcomesJson ? JSON.parse(snap.businessOutcomesJson).map((o: any) => o.Text || o.text) : [];
       const responsibilities = snap.responsibilitiesJson ? JSON.parse(snap.responsibilitiesJson).map((r: any) => ({
         text: r.Text || r.text,
@@ -592,7 +592,8 @@ export default function JdDetailView({
   return (
     <div className="space-y-6 font-outfit text-foreground select-none">
       {/* Print styles */}
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         @media print {
           .no-print, header, footer, nav, button, .tabs-container {
             display: none !important;
@@ -812,7 +813,7 @@ export default function JdDetailView({
                             <span className="text-[10px] text-muted block mt-0.5 font-medium">Writing recruiter-ready draft artifact</span>
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-1.5">
                           <Button
                             size="sm"
@@ -883,7 +884,7 @@ export default function JdDetailView({
                             <span className="text-[10px] text-muted block mt-0.5 font-medium">Recruiter-ready draft artifact</span>
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-1.5">
                           <Button
                             size="sm"
@@ -986,12 +987,12 @@ export default function JdDetailView({
                           <div className="w-full bg-separator/50 h-2 rounded-full overflow-hidden">
                             <div className="bg-accent h-full rounded-full" style={{ width: `${weight * 100}%` }} />
                           </div>
-                          
+
                           <div className="pt-1.5 border-t border-border/30 flex items-start gap-1 text-[9px] text-muted leading-normal font-semibold">
                             <Info size={10} className="text-accent shrink-0 mt-0.5" />
                             <span>
-                              {weight > 0.3 
-                                ? `High priority because it is central to solving your business goals.` 
+                              {weight > 0.3
+                                ? `High priority because it is central to solving your business goals.`
                                 : `Supporting skill capability representing general seniority requirement.`}
                             </span>
                           </div>
@@ -1123,28 +1124,25 @@ export default function JdDetailView({
                         style={{ width: `${discoveryProgress?.percentage || 0}%` }}
                       />
                     </div>
-                    
+
                     {/* Multi-step progress tracker */}
                     <div className="flex items-center justify-between text-[10px] font-semibold text-muted pt-1">
                       <div className="flex items-center gap-1">
-                        <div className={`size-2 rounded-full ${
-                          discoveryProgress?.step === "Searching" ? "bg-accent animate-pulse" :
-                          (discoveryProgress?.percentage && discoveryProgress.percentage > 20) ? "bg-success" : "bg-border"
-                        }`} />
+                        <div className={`size-2 rounded-full ${discoveryProgress?.step === "Searching" ? "bg-accent animate-pulse" :
+                            (discoveryProgress?.percentage && discoveryProgress.percentage > 20) ? "bg-success" : "bg-border"
+                          }`} />
                         <span>1. Search Candidates</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className={`size-2 rounded-full ${
-                          discoveryProgress?.step === "Matching" ? "bg-accent animate-pulse" :
-                          (discoveryProgress?.percentage && discoveryProgress.percentage > 50) ? "bg-success" : "bg-border"
-                        }`} />
+                        <div className={`size-2 rounded-full ${discoveryProgress?.step === "Matching" ? "bg-accent animate-pulse" :
+                            (discoveryProgress?.percentage && discoveryProgress.percentage > 50) ? "bg-success" : "bg-border"
+                          }`} />
                         <span>2. Match Profiles</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className={`size-2 rounded-full ${
-                          discoveryProgress?.step === "Ranking" ? "bg-accent animate-pulse" :
-                          (discoveryProgress?.percentage && discoveryProgress.percentage > 80) ? "bg-success" : "bg-border"
-                        }`} />
+                        <div className={`size-2 rounded-full ${discoveryProgress?.step === "Ranking" ? "bg-accent animate-pulse" :
+                            (discoveryProgress?.percentage && discoveryProgress.percentage > 80) ? "bg-success" : "bg-border"
+                          }`} />
                         <span>3. Rank Fits</span>
                       </div>
                     </div>
@@ -1161,11 +1159,10 @@ export default function JdDetailView({
                   const startedTime = new Date(latestRun.startedAt).toLocaleString();
 
                   return (
-                    <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 text-[11px] font-medium select-text ${
-                      isCompleted ? "bg-success/5 border-success/20 text-success" :
-                      isFailed ? "bg-danger/5 border-danger/20 text-danger" :
-                      "bg-warning/5 border-warning/20 text-warning"
-                    }`}>
+                    <div className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 text-[11px] font-medium select-text ${isCompleted ? "bg-success/5 border-success/20 text-success" :
+                        isFailed ? "bg-danger/5 border-danger/20 text-danger" :
+                          "bg-warning/5 border-warning/20 text-warning"
+                      }`}>
                       <div className="flex items-center gap-2">
                         <Info size={14} className="shrink-0" />
                         <div>
@@ -1202,7 +1199,7 @@ export default function JdDetailView({
                   <div className="size-12 rounded-xl bg-accent/15 text-accent flex items-center justify-center mx-auto mb-4">
                     <User size={24} />
                   </div>
-                  <Typography type="h4" className="font-bold text-foreground mb-1">No Candidate Matches Found</Typography>
+                  <Typography type="h4" className="text-center font-bold text-foreground mb-1">No Candidate Matches Found</Typography>
                   <Typography type="body-xs" className="text-muted max-w-sm mx-auto font-medium text-center">
                     Ensure there are candidates with completed repository analysis assessments in this workspace, then click "Find Candidates" to discover matches.
                   </Typography>
@@ -1213,7 +1210,7 @@ export default function JdDetailView({
                     const isHighTrust = match.trustLevel >= 70 || (match.trustLevel >= 0.7 && match.trustLevel <= 1.0);
                     const isMedTrust = (match.trustLevel >= 40 && match.trustLevel < 70) || (match.trustLevel >= 0.4 && match.trustLevel < 0.7);
                     const isExpanded = expandedCandidates.includes(match.candidateId);
-                    
+
                     const formatScore = (val: number) => {
                       if (val <= 1.0 && val > 0) return `${(val * 100).toFixed(0)}%`;
                       return `${val.toFixed(0)}%`;
@@ -1262,9 +1259,8 @@ export default function JdDetailView({
                               size="sm"
                               variant="ghost"
                               onClick={() => toggleCandidateExpand(match.candidateId)}
-                              className={`text-xs font-bold px-4 py-2 rounded-xl cursor-pointer min-w-[100px] border-none ${
-                                isExpanded ? "bg-default text-foreground hover:bg-default/80" : "bg-accent/15 text-accent hover:bg-accent/20"
-                              }`}
+                              className={`text-xs font-bold px-4 py-2 rounded-xl cursor-pointer min-w-[100px] border-none ${isExpanded ? "bg-default text-foreground hover:bg-default/80" : "bg-accent/15 text-accent hover:bg-accent/20"
+                                }`}
                             >
                               {isExpanded ? "Hide Details" : "View Details"}
                             </Button>
@@ -1514,7 +1510,7 @@ export default function JdDetailView({
                           Review previous drafts generated by the AI models before the final publishing step.
                         </span>
                       </div>
-                      
+
                       <div className="space-y-3">
                         {jdArtifact.regenerationHistory.map((run: any, rIdx: number) => {
                           const isExpanded = expandedRuns[rIdx] || false;

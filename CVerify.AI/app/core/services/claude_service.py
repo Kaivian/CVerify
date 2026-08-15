@@ -295,7 +295,9 @@ class ClaudeService:
         text, _ = await self.analyze_repo_with_telemetry(system_prompt, user_prompt, correlation_id)
         return text
 
-    async def analyze_repo_with_telemetry(self, system_prompt: str, user_prompt: str, correlation_id: str = "system") -> tuple[str, dict]:
+    async def analyze_repo_with_telemetry(
+        self, system_prompt: str, user_prompt: str, correlation_id: str = "system", on_token = None
+    ) -> tuple[str, dict]:
         from app.core.monitoring.observability import TraceContext, UIStreamingManager, span_context
         
         ctx = TraceContext.get()
@@ -326,6 +328,8 @@ class ClaudeService:
         )
         
         start_time = time.perf_counter()
+        first_token_time = None
+        ttft_ms = 0
         
         try:
             async def get_stream():
@@ -351,8 +355,20 @@ class ClaudeService:
             async for event in stream:
                 await self._check_cancellation(correlation_id)
                 if event.type == "content_block_delta" and event.delta.type == "text_delta":
+                    if first_token_time is None:
+                        first_token_time = time.perf_counter()
+                        ttft_ms = int((first_token_time - start_time) * 1000)
                     token_text = event.delta.text
                     text_chunks.append(token_text)
+                    if on_token:
+                        try:
+                            import inspect
+                            if inspect.iscoroutinefunction(on_token):
+                                await on_token(token_text)
+                            else:
+                                on_token(token_text)
+                        except Exception as token_err:
+                            logger.warning(f"Error in on_token callback: {token_err}", extra=extra_log)
                 elif event.type == "message_start":
                     p, c, t = TokenAccountingService.extract_from_provider_usage(event.message.usage)
                     prompt_tokens = p
@@ -366,6 +382,8 @@ class ClaudeService:
 
             full_text = "".join(text_chunks)
             duration = int((time.perf_counter() - start_time) * 1000)
+            if ttft_ms == 0:
+                ttft_ms = duration
             
             # Normalize token usage
             normalized = TokenAccountingService.normalize_usage(
@@ -401,6 +419,7 @@ class ClaudeService:
                 "modelName": settings.claude_model,
                 "provider": "Anthropic",
                 "durationMs": duration,
+                "ttftMs": ttft_ms,
                 "tokenMismatchFlag": normalized.token_mismatch_detected
             }
 

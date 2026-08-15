@@ -666,13 +666,71 @@ export default function JdIntakeWizard({
     queueStateAutosave({ skills: newSkills });
   };
 
+  const flushAutosave = async () => {
+    if (!draftId) return;
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    setAutosaveState("saving");
+    try {
+      await hiringRequirementService.updateDraft(draftId, {
+        hiringReason,
+        businessProblem,
+        outcomes: businessOutcomes,
+        responsibilities: responsibilities.map((r) => ({
+          text: r.text,
+          priority: mapPriorityToBackend(r.priority),
+          ownershipLevel: r.ownershipLevel,
+          isLeadership: r.isLeadership
+        })),
+        capabilities: selectedCapabilities.map((c) => ({
+          capabilityId: c.capabilityId,
+          name: c.name,
+          category: c.category,
+          priority: mapPriorityToBackend(c.priority),
+          ownershipLevel: c.ownershipLevel,
+          expectedProficiency: c.expectedProficiency
+        })),
+        skills: skills.map((s) => ({
+          name: s.name,
+          priority: mapPriorityToBackend(s.priority),
+          sfiaLevel: s.sfiaLevel
+        })),
+        salaryMin,
+        salaryMax,
+        currency,
+        timezoneRange,
+        degreeRequirement,
+        benefits,
+        languageRequirements,
+        startDate: startDate ? new Date(startDate).toISOString() : undefined,
+        endDate: endDate ? new Date(endDate).toISOString() : undefined,
+        autoCloseRule,
+        candidatesNeededCount,
+        salaryPeriod,
+        isSalaryNegotiable,
+        headcount
+      });
+      setAutosaveState("saved");
+      setLastSavedTime(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error("Flush autosave failed", err);
+      setAutosaveState("error");
+    }
+  };
+
   const handleGenerateClick = async () => {
     if (!draftId) return;
     try {
+      setIsLoading(true);
+      await flushAutosave();
       localStorage.removeItem(`cverify_draft_${workspaceId}`);
       onGenerationStarted(draftId);
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
