@@ -135,7 +135,6 @@ export const companyNavigationConfig: NavigationNode[] = [
     id: 'organization-section',
     type: 'section',
     label: 'Organization',
-    requiredRoles: ['BUSINESS', 'ADMIN'],
     children: [
       {
         id: 'company-members',
@@ -143,6 +142,7 @@ export const companyNavigationConfig: NavigationNode[] = [
         label: 'Members',
         href: '/business/[slug]/members',
         icon: Users,
+        requiredWorkspacePermissions: ['organization:members:view'],
       },
       {
         id: 'company-roles',
@@ -158,7 +158,6 @@ export const companyNavigationConfig: NavigationNode[] = [
     id: 'administration-section',
     type: 'section',
     label: 'Administration',
-    requiredRoles: ['BUSINESS', 'ADMIN'],
     children: [
       {
         id: 'company-billing',
@@ -201,7 +200,6 @@ export const workspaceNavigationConfig: NavigationNode[] = [
     id: 'recruitment-section',
     type: 'section',
     label: 'Recruitment',
-    requiredRoles: ['BUSINESS', 'ADMIN'],
     children: [
       {
         id: 'workspace-jobs',
@@ -244,7 +242,6 @@ export const workspaceNavigationConfig: NavigationNode[] = [
     id: 'workspace-admin-section',
     type: 'section',
     label: 'Workspace Administration',
-    requiredRoles: ['BUSINESS', 'ADMIN'],
     children: [
       {
         id: 'workspace-members',

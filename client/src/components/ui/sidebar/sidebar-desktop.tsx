@@ -80,7 +80,7 @@ export const SidebarDesktop: React.FC = () => {
         </ScrollShadow>
 
         {/* 4. Fixed Organization Switcher at the bottom */}
-        {(userRole === "BUSINESS" || userRole === "ADMIN") && (
+        {(userRole === "BUSINESS" || userRole === "ADMIN" || (myOrganizations && myOrganizations.length > 0)) && (
           <div className="p-3 border-t border-separator/50 w-full shrink-0 min-w-0 bg-background z-10">
             <WorkspaceSwitcher collapsed={isCollapsed} isMobile={false} />
           </div>

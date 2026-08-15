@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Typography, Chip } from "@heroui/react";
+import { Typography, Chip, Button } from "@heroui/react";
 import {
   Bookmark,
   Search,
@@ -270,14 +269,16 @@ export default function TalentPoolPage() {
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <Button
+            variant="outline"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="bg-default hover:bg-default/80 text-foreground border border-border font-bold text-xs rounded-xl px-4 py-2 cursor-pointer flex items-center gap-1.5"
+            className="font-bold text-xs rounded-xl gap-1.5 cursor-pointer border-border text-foreground hover:bg-default/20"
           >
             <SlidersHorizontal size={14} /> Filters
           </Button>
           <Button
+            variant="primary"
             onClick={() => router.push(`/business/${organizationSlug}/intelligence`)}
-            className="bg-accent hover:bg-accent/90 text-white font-bold text-xs rounded-xl px-4 py-2 cursor-pointer border-none flex items-center gap-1.5 shadow-md shadow-accent/25"
+            className="font-bold text-xs rounded-xl gap-1.5 cursor-pointer"
           >
             <Compass size={14} /> Discover Talent
           </Button>
@@ -450,8 +451,9 @@ export default function TalentPoolPage() {
                 No verified engineers match the selected filters. Expand your parameters or search the global candidate directory.
               </p>
               <Button
+                variant="primary"
                 onClick={() => router.push(`/business/${organizationSlug}/intelligence`)}
-                className="bg-accent hover:bg-accent/90 text-white font-bold text-xs rounded-xl px-5 py-2.5 cursor-pointer border-none"
+                className="font-bold text-xs rounded-xl cursor-pointer"
               >
                 Discover Candidates
               </Button>
@@ -561,22 +563,25 @@ export default function TalentPoolPage() {
                     </div>
 
                     <div className="flex justify-between items-center border-t border-separator/40 pt-4 pl-6">
-                      <button
+                      <Button
+                        variant="danger-soft"
+                        size="sm"
                         onClick={() => {
                           if (window.confirm("Remove candidate from talent pool?")) {
                             removeCandidate(organizationSlug, candidate.candidateId);
                           }
                         }}
-                        className="text-xs text-muted hover:text-danger font-bold bg-transparent border-none cursor-pointer flex items-center gap-1"
+                        className="text-xs font-bold min-w-0 h-auto p-0 flex items-center gap-1 text-muted hover:text-danger bg-transparent"
                       >
                         <Trash2 size={12} /> Remove
-                      </button>
+                      </Button>
 
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
+                          variant="outline"
                           onClick={() => setSelectedCandidate(candidate)}
-                          className="bg-default hover:bg-default/80 text-foreground font-bold text-xs px-3.5 py-1.5 rounded-xl border border-border cursor-pointer flex items-center gap-1"
+                          className="font-bold text-xs rounded-xl cursor-pointer border-border text-foreground hover:bg-default/20 gap-1"
                         >
                           <Edit3 size={12} /> Preview & Edit
                         </Button>
@@ -595,17 +600,19 @@ export default function TalentPoolPage() {
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
-                      disabled={page <= 1}
+                      variant="outline"
+                      isDisabled={page <= 1}
                       onClick={() => updateUrlParams({ page: page - 1 })}
-                      className="bg-default disabled:opacity-50 text-foreground border border-border font-bold text-xs px-3 py-1.5 rounded-xl cursor-pointer"
+                      className="font-bold text-xs rounded-xl cursor-pointer border-border text-foreground hover:bg-default/20"
                     >
                       <ChevronLeft size={14} /> Prev
                     </Button>
                     <Button
                       size="sm"
-                      disabled={page >= totalPages}
+                      variant="outline"
+                      isDisabled={page >= totalPages}
                       onClick={() => updateUrlParams({ page: page + 1 })}
-                      className="bg-default disabled:opacity-50 text-foreground border border-border font-bold text-xs px-3 py-1.5 rounded-xl cursor-pointer"
+                      className="font-bold text-xs rounded-xl cursor-pointer border-border text-foreground hover:bg-default/20"
                     >
                       Next <ChevronRight size={14} />
                     </Button>
@@ -636,17 +643,21 @@ export default function TalentPoolPage() {
               ))}
             </select>
             <Button
+              size="sm"
+              variant="danger-soft"
               onClick={handleBulkDelete}
-              className="bg-danger/10 hover:bg-danger/25 text-danger font-bold text-xs px-4 py-1.5 rounded-xl border border-danger/20 cursor-pointer flex items-center gap-1"
+              className="font-bold text-xs rounded-xl cursor-pointer gap-1"
             >
               <Trash2 size={12} /> Delete
             </Button>
-            <button
+            <Button
+              size="sm"
+              variant="secondary"
               onClick={() => setSelectedIds([])}
-              className="text-xs text-muted hover:underline font-bold bg-transparent border-none cursor-pointer"
+              className="text-xs text-muted hover:underline font-bold bg-transparent min-w-0 h-auto p-0"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -667,12 +678,15 @@ export default function TalentPoolPage() {
                   <h3 className="text-lg font-black">{selectedCandidate.fullName}</h3>
                   <p className="text-xs text-muted font-medium mt-0.5">{selectedCandidate.headline}</p>
                 </div>
-                <button
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="secondary"
                   onClick={() => setSelectedCandidate(null)}
-                  className="size-8 rounded-xl bg-default/45 border border-border flex items-center justify-center hover:bg-default/80 cursor-pointer text-muted"
+                  className="rounded-xl border border-border text-muted"
                 >
                   <X size={16} />
-                </button>
+                </Button>
               </div>
 
               {/* Drawer Scrollable Content */}
@@ -779,11 +793,11 @@ export default function TalentPoolPage() {
 
                       <Button
                         size="sm"
+                        variant="primary"
+                        isPending={savingMeta}
                         onClick={handleSaveMetadata}
-                        disabled={savingMeta}
-                        className="bg-accent hover:bg-accent/90 text-white font-bold text-xs px-4 py-2 rounded-xl border-none cursor-pointer flex items-center gap-1.5"
+                        className="font-bold text-xs rounded-xl cursor-pointer gap-1.5"
                       >
-                        {savingMeta && <Loader2 size={12} className="animate-spin" />}
                         Save Settings
                       </Button>
                     </div>

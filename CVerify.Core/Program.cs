@@ -431,6 +431,7 @@ builder.Services.AddScoped<IOrganizationRoleService, OrganizationRoleService>();
 builder.Services.AddScoped<IBusinessRoleService, BusinessRoleService>();
 #pragma warning restore CS0618
 builder.Services.AddScoped<IOrganizationInvitationService, OrganizationInvitationService>();
+builder.Services.AddScoped<IOrganizationMembershipSyncService, OrganizationMembershipSyncService>();
 builder.Services.AddScoped<IPasswordRecoveryService, PasswordRecoveryService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IAdminAuthorizationService, AdminAuthorizationService>();

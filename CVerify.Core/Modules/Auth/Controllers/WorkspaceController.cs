@@ -328,11 +328,13 @@ public class WorkspaceController : ControllerBase
             ));
         }
 
-        // Authorize membership using the centralized authorization service
-        var isAuthorized = await _authorizationService.AuthorizeAsync(userId, org.Id, OrganizationPermissions.ViewWorkspaces);
-        if (!isAuthorized)
+        // Check active organization membership
+        var membership = await _context.OrganizationMemberships
+            .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == userId);
+
+        if (membership == null || membership.Status != "active")
         {
-            // Authenticated but not authorized to view workspace (treat as public viewer)
+            // Authenticated but not an active member of this organization (treat as public viewer)
             var isFollowingPublic = await _context.OrganizationFollowers
                 .AnyAsync(f => f.UserId == userId && f.OrganizationId == org.Id);
             return Ok(MapToWorkspaceDetailsDto(
@@ -346,29 +348,6 @@ public class WorkspaceController : ControllerBase
                 signedGalleryUrls,
                 org.FollowerCount,
                 isFollowingPublic
-            ));
-        }
-
-        // Fetch the user's role in this organization
-        var membership = await _context.OrganizationMemberships
-            .FirstOrDefaultAsync(om => om.OrganizationId == org.Id && om.UserId == userId);
-
-        if (membership == null || membership.Status != "active")
-        {
-            // Fallback for safety (treat as public viewer)
-            var isFollowingFallback = await _context.OrganizationFollowers
-                .AnyAsync(f => f.UserId == userId && f.OrganizationId == org.Id);
-            return Ok(MapToWorkspaceDetailsDto(
-                org,
-                null,
-                new List<LinkedOrganizationDto>(),
-                new List<string>(),
-                workspaces,
-                signedBannerUrl,
-                signedLogoUrl,
-                signedGalleryUrls,
-                org.FollowerCount,
-                isFollowingFallback
             ));
         }
 
