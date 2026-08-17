@@ -36,7 +36,7 @@ public class SharedTestcontainerFixture : IAsyncLifetime
 
     private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder()
         .WithDatabase("cverify_integration_db")
-        .WithUsername("test_user")
+        .WithUsername("postgres")
         .WithPassword("secure_password")
         .Build();
 
