@@ -428,7 +428,7 @@ public class PublicJobController : ControllerBase
         if (job == null) return NotFound();
 
         // Recruiter permission checks
-        var isAdmin = await _context.AdminMembers.AnyAsync(am => am.UserId == userId && am.Status == "Active", cancellationToken);
+        var isAdmin = await _context.AdminMembers.AnyAsync(am => am.UserId == userId && am.Status.ToUpper() == "ACTIVE", cancellationToken);
         var isMember = await _context.OrganizationMemberships.AnyAsync(om => om.OrganizationId == job.OrganizationId && om.UserId == userId && om.Status == "active", cancellationToken);
 
         if (!isAdmin && !isMember)
@@ -467,7 +467,7 @@ public class PublicJobController : ControllerBase
         var job = await _context.JobVacancies.FindAsync(id);
         if (job == null) return NotFound();
 
-        var isAdmin = await _context.AdminMembers.AnyAsync(am => am.UserId == userId && am.Status == "Active", cancellationToken);
+        var isAdmin = await _context.AdminMembers.AnyAsync(am => am.UserId == userId && am.Status.ToUpper() == "ACTIVE", cancellationToken);
         var isMember = await _context.OrganizationMemberships.AnyAsync(om => om.OrganizationId == job.OrganizationId && om.UserId == userId && om.Status == "active", cancellationToken);
 
         if (!isAdmin && !isMember)
@@ -496,7 +496,7 @@ public class PublicJobController : ControllerBase
         var job = await _context.JobVacancies.FindAsync(id);
         if (job == null) return NotFound();
 
-        var isAdmin = await _context.AdminMembers.AnyAsync(am => am.UserId == userId && am.Status == "Active", cancellationToken);
+        var isAdmin = await _context.AdminMembers.AnyAsync(am => am.UserId == userId && am.Status.ToUpper() == "ACTIVE", cancellationToken);
         var isMember = await _context.OrganizationMemberships.AnyAsync(om => om.OrganizationId == job.OrganizationId && om.UserId == userId && om.Status == "active", cancellationToken);
 
         if (!isAdmin && !isMember)

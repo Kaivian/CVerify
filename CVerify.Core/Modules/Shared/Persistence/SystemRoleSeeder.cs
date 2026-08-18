@@ -268,7 +268,7 @@ public class SystemRoleSeeder : IValidatableSeeder
                     {
                         Id = Guid.CreateVersion7(),
                         UserId = la.UserId,
-                        Status = "Active",
+                        Status = "ACTIVE",
                         SessionVersion = 1,
                         JoinedAt = DateTimeOffset.UtcNow,
                         UpdatedAt = DateTimeOffset.UtcNow

@@ -58,7 +58,7 @@ public class AdminMemberService : IAdminMemberService
         return await _context.RoleAssignments
             .Include(ra => ra.Role)
             .CountAsync(ra => ra.ScopeType == "SYSTEM" && ra.Role.Name == "SUPER_ADMIN" &&
-                _context.AdminMembers.Any(am => am.UserId == ra.UserId && am.Status == "Active"), cancellationToken);
+                _context.AdminMembers.Any(am => am.UserId == ra.UserId && am.Status.ToUpper() == "ACTIVE"), cancellationToken);
     }
 
     private async Task LogAuditAsync(

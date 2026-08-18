@@ -251,7 +251,7 @@ public class SecurityEventProcessorJob : BackgroundService
         {
             // Fetch all active Administrators
             var adminUserIds = await dbContext.AdminMembers
-                .Where(am => am.Status == "Active")
+                .Where(am => am.Status.ToUpper() == "ACTIVE")
                 .Select(am => am.UserId)
                 .ToListAsync();
 
