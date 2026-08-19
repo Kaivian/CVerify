@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { Tabs } from '@heroui/react';
 import { useQueryClient } from '@tanstack/react-query';
+import * as signalR from '@microsoft/signalr';
 import {
   LayoutDashboard,
   Server,
@@ -79,9 +80,8 @@ function AdminDashboardContent() {
 
   // SignalR Listener setup for real-time invalidation
   useEffect(() => {
-    let hubConnection: any = null;
+    let hubConnection: signalR.HubConnection | null = null;
     try {
-      const signalR = require('@microsoft/signalr');
       hubConnection = new signalR.HubConnectionBuilder()
         .withUrl('/hubs/admin')
         .withAutomaticReconnect()

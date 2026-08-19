@@ -197,7 +197,7 @@ export interface RepositoryAnalysis {
     };
     conflict_resolution_log: string[];
     trust_graph?: {
-      nodes: Array<{ id: string; type: string; data: Record<string, any> }>;
+      nodes: Array<{ id: string; type: string; data: Record<string, unknown> }>;
       edges: Array<{ id: string; source: string; target: string; label?: string; weight?: number }>;
     };
   };
