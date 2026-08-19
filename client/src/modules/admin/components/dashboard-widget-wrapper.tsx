@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Component, type ReactNode, useState } from 'react';
+import React, { Component, type ReactNode, useState, useId } from 'react';
 import { Card, Skeleton, Chip, Tooltip, Alert, Button } from '@heroui/react';
 import { AlertTriangle, RefreshCw, Lock, Terminal, ShieldAlert } from 'lucide-react';
 import { WidgetLifecycleState } from '../types/widget-lifecycle.types';
@@ -102,6 +102,7 @@ export function DashboardWidgetWrapper({
   lastUpdated
 }: DashboardWidgetWrapperProps) {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const fallbackId = useId();
 
   // Derive Lifecycle State
   let lifecycleState = WidgetLifecycleState.Loaded;
@@ -132,7 +133,6 @@ export function DashboardWidgetWrapper({
     );
   }
 
-  const fallbackId = useId();
   const errorMessage = error?.response?.data?.message || error?.message || (typeof error === 'string' ? error : null);
   const statusCode = error?.response?.status || 500;
   const correlationId = error?.response?.headers?.['x-correlation-id'] || 'corr-' + fallbackId.replace(/:/g, '');
