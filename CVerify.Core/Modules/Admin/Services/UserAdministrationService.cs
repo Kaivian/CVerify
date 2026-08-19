@@ -73,56 +73,72 @@ public class UserAdministrationService : IUserAdministrationService
 
         var totalCount = await query.CountAsync(cancellationToken);
 
-        var items = await query
+        var rawUsers = await query
             .OrderByDescending(u => u.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(u => new UserListItemDto(
+            .Select(u => new
+            {
                 u.Id,
                 u.Email,
                 u.FullName,
-                u.Status.ToString(),
+                u.Status,
                 u.LastLoginAt,
-                u.RoleAssignments
-                    .Select(ra => ra.Role.Name)
-                    .Concat(u.Roles.Select(r => r.Name))
-                    .Distinct()
-                    .ToList(),
+                AssignmentRoles = u.RoleAssignments.Select(ra => ra.Role.Name).ToList(),
+                DirectRoles = u.Roles.Select(r => r.Name).ToList(),
                 u.SessionVersion,
                 u.CreatedAt
-            ))
+            })
             .ToListAsync(cancellationToken);
+
+        var items = rawUsers.Select(u => new UserListItemDto(
+            u.Id,
+            u.Email,
+            u.FullName,
+            u.Status.ToString(),
+            u.LastLoginAt,
+            u.AssignmentRoles.Concat(u.DirectRoles).Distinct().ToList(),
+            u.SessionVersion,
+            u.CreatedAt
+        )).ToList();
 
         return new PaginatedResultDto<UserListItemDto>(items, totalCount, page, pageSize);
     }
 
     public async Task<UserListItemDto> GetPlatformUserByIdAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var userDto = await _context.Users
+        var rawUser = await _context.Users
             .AsNoTracking()
             .Where(u => u.Id == userId && u.DeletedAt == null)
-            .Select(u => new UserListItemDto(
+            .Select(u => new
+            {
                 u.Id,
                 u.Email,
                 u.FullName,
-                u.Status.ToString(),
+                u.Status,
                 u.LastLoginAt,
-                u.RoleAssignments
-                    .Select(ra => ra.Role.Name)
-                    .Concat(u.Roles.Select(r => r.Name))
-                    .Distinct()
-                    .ToList(),
+                AssignmentRoles = u.RoleAssignments.Select(ra => ra.Role.Name).ToList(),
+                DirectRoles = u.Roles.Select(r => r.Name).ToList(),
                 u.SessionVersion,
                 u.CreatedAt
-            ))
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (userDto == null)
+        if (rawUser == null)
         {
             throw new ValidationException($"Platform user with ID {userId} was not found.");
         }
 
-        return userDto;
+        return new UserListItemDto(
+            rawUser.Id,
+            rawUser.Email,
+            rawUser.FullName,
+            rawUser.Status.ToString(),
+            rawUser.LastLoginAt,
+            rawUser.AssignmentRoles.Concat(rawUser.DirectRoles).Distinct().ToList(),
+            rawUser.SessionVersion,
+            rawUser.CreatedAt
+        );
     }
 
     public async Task<UserListItemDto> UpdatePlatformUserStatusAndRolesAsync(
