@@ -1,4 +1,5 @@
 import { axiosClient } from '@/services/axios-client';
+import { DashboardFilterState } from '../types/admin-dashboard-filter.types';
 
 export interface PlatformHealthWidget {
   totalUsers: number;
@@ -203,76 +204,116 @@ export interface AdminDashboardOverview {
   timestamp: string;
 }
 
+function buildQueryParams(filters?: DashboardFilterState) {
+  if (!filters) return {};
+  return {
+    timeRange: filters.timeRange,
+    customStartDate: filters.customStartDate,
+    customEndDate: filters.customEndDate,
+    environment: filters.environment,
+    organizationId: filters.organizationId,
+    aiProvider: filters.aiProvider,
+    region: filters.region,
+    status: filters.status
+  };
+}
+
 export const adminDashboardService = {
-  async getOverview(): Promise<AdminDashboardOverview> {
-    const response = await axiosClient.get<AdminDashboardOverview>('/admin/dashboard/overview');
-    return response.data;
-  },
-
-  async getHealthWidget(): Promise<PlatformHealthWidget> {
-    const response = await axiosClient.get<PlatformHealthWidget>('/admin/dashboard/widgets/health');
-    return response.data;
-  },
-
-  async getInfrastructureWidget(): Promise<InfrastructureWidget> {
-    const response = await axiosClient.get<InfrastructureWidget>('/admin/dashboard/widgets/infrastructure');
-    return response.data;
-  },
-
-  async getAiOpsWidget(): Promise<AiOpsWidget> {
-    const response = await axiosClient.get<AiOpsWidget>('/admin/dashboard/widgets/ai-ops');
-    return response.data;
-  },
-
-  async getActivityWidget(count = 20, category?: string): Promise<ActivityItem[]> {
-    const response = await axiosClient.get<ActivityItem[]>('/admin/dashboard/widgets/activity', {
-      params: { count, category }
+  async getOverview(filters?: DashboardFilterState): Promise<AdminDashboardOverview> {
+    const response = await axiosClient.get<AdminDashboardOverview>('/admin/dashboard/overview', {
+      params: buildQueryParams(filters)
     });
     return response.data;
   },
 
-  async getAlertsWidget(): Promise<AlertItem[]> {
-    const response = await axiosClient.get<AlertItem[]>('/admin/dashboard/widgets/alerts');
+  async getHealthWidget(filters?: DashboardFilterState): Promise<PlatformHealthWidget> {
+    const response = await axiosClient.get<PlatformHealthWidget>('/admin/dashboard/widgets/health', {
+      params: buildQueryParams(filters)
+    });
     return response.data;
   },
 
-  async getUserAnalyticsWidget(): Promise<UserAnalyticsWidget> {
-    const response = await axiosClient.get<UserAnalyticsWidget>('/admin/dashboard/widgets/user-analytics');
+  async getInfrastructureWidget(filters?: DashboardFilterState): Promise<InfrastructureWidget> {
+    const response = await axiosClient.get<InfrastructureWidget>('/admin/dashboard/widgets/infrastructure', {
+      params: buildQueryParams(filters)
+    });
     return response.data;
   },
 
-  async getRepositoryAnalyticsWidget(): Promise<RepositoryAnalyticsWidget> {
-    const response = await axiosClient.get<RepositoryAnalyticsWidget>('/admin/dashboard/widgets/repo-analytics');
+  async getAiOpsWidget(filters?: DashboardFilterState): Promise<AiOpsWidget> {
+    const response = await axiosClient.get<AiOpsWidget>('/admin/dashboard/widgets/ai-ops', {
+      params: buildQueryParams(filters)
+    });
     return response.data;
   },
 
-  async getCvAnalyticsWidget(): Promise<CvAnalyticsWidget> {
-    const response = await axiosClient.get<CvAnalyticsWidget>('/admin/dashboard/widgets/cv-analytics');
+  async getActivityWidget(count = 20, category?: string, filters?: DashboardFilterState): Promise<ActivityItem[]> {
+    const response = await axiosClient.get<ActivityItem[]>('/admin/dashboard/widgets/activity', {
+      params: { count, category, ...buildQueryParams(filters) }
+    });
     return response.data;
   },
 
-  async getOrganizationAnalyticsWidget(): Promise<OrganizationAnalyticsWidget> {
-    const response = await axiosClient.get<OrganizationAnalyticsWidget>('/admin/dashboard/widgets/org-analytics');
+  async getAlertsWidget(filters?: DashboardFilterState): Promise<AlertItem[]> {
+    const response = await axiosClient.get<AlertItem[]>('/admin/dashboard/widgets/alerts', {
+      params: buildQueryParams(filters)
+    });
     return response.data;
   },
 
-  async getAiCostWidget(): Promise<AiCostDashboardWidget> {
-    const response = await axiosClient.get<AiCostDashboardWidget>('/admin/dashboard/widgets/ai-cost');
+  async getUserAnalyticsWidget(filters?: DashboardFilterState): Promise<UserAnalyticsWidget> {
+    const response = await axiosClient.get<UserAnalyticsWidget>('/admin/dashboard/widgets/user-analytics', {
+      params: buildQueryParams(filters)
+    });
     return response.data;
   },
 
-  async getPendingTasksWidget(): Promise<PendingTasksWidget> {
-    const response = await axiosClient.get<PendingTasksWidget>('/admin/dashboard/widgets/pending-tasks');
+  async getRepositoryAnalyticsWidget(filters?: DashboardFilterState): Promise<RepositoryAnalyticsWidget> {
+    const response = await axiosClient.get<RepositoryAnalyticsWidget>('/admin/dashboard/widgets/repo-analytics', {
+      params: buildQueryParams(filters)
+    });
     return response.data;
   },
 
-  async getDeploymentsWidget(): Promise<RecentDeploymentsWidget> {
-    const response = await axiosClient.get<RecentDeploymentsWidget>('/admin/dashboard/widgets/deployments');
+  async getCvAnalyticsWidget(filters?: DashboardFilterState): Promise<CvAnalyticsWidget> {
+    const response = await axiosClient.get<CvAnalyticsWidget>('/admin/dashboard/widgets/cv-analytics', {
+      params: buildQueryParams(filters)
+    });
     return response.data;
   },
 
-  async getAuditSummaryWidget(): Promise<AuditSummaryWidget> {
-    const response = await axiosClient.get<AuditSummaryWidget>('/admin/dashboard/widgets/audit-summary');
+  async getOrganizationAnalyticsWidget(filters?: DashboardFilterState): Promise<OrganizationAnalyticsWidget> {
+    const response = await axiosClient.get<OrganizationAnalyticsWidget>('/admin/dashboard/widgets/org-analytics', {
+      params: buildQueryParams(filters)
+    });
+    return response.data;
+  },
+
+  async getAiCostWidget(filters?: DashboardFilterState): Promise<AiCostDashboardWidget> {
+    const response = await axiosClient.get<AiCostDashboardWidget>('/admin/dashboard/widgets/ai-cost', {
+      params: buildQueryParams(filters)
+    });
+    return response.data;
+  },
+
+  async getPendingTasksWidget(filters?: DashboardFilterState): Promise<PendingTasksWidget> {
+    const response = await axiosClient.get<PendingTasksWidget>('/admin/dashboard/widgets/pending-tasks', {
+      params: buildQueryParams(filters)
+    });
+    return response.data;
+  },
+
+  async getDeploymentsWidget(filters?: DashboardFilterState): Promise<RecentDeploymentsWidget> {
+    const response = await axiosClient.get<RecentDeploymentsWidget>('/admin/dashboard/widgets/deployments', {
+      params: buildQueryParams(filters)
+    });
+    return response.data;
+  },
+
+  async getAuditSummaryWidget(filters?: DashboardFilterState): Promise<AuditSummaryWidget> {
+    const response = await axiosClient.get<AuditSummaryWidget>('/admin/dashboard/widgets/audit-summary', {
+      params: buildQueryParams(filters)
+    });
     return response.data;
   },
 

@@ -1,24 +1,25 @@
 'use client';
 
-import React from 'react';
-import { Tabs, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/react';
-import { Button } from '@/components/ui/button';
+import React, { useEffect } from 'react';
+import { Tabs } from '@heroui/react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Server,
   BarChart3,
   ShieldCheck,
-  RefreshCw,
-  Clock,
-  Sparkles,
   Activity,
   AlertTriangle,
-  FileText,
+  Clock,
+  Sparkles,
   Users,
-  Building2,
-  GitBranch
+  GitBranch,
+  FileText,
+  Building2
 } from 'lucide-react';
 
+import { DashboardFilterProvider, useDashboardFilters } from '../context/admin-dashboard-filter.context';
+import { AdminDashboardFilterBar } from '../components/admin-dashboard-filter-bar';
 import { DashboardWidgetWrapper } from '../components/dashboard-widget-wrapper';
 import { WelcomeHeaderWidget } from '../components/widgets/welcome-header-widget';
 import { PlatformHealthWidget } from '../components/widgets/platform-health-widget';
@@ -37,51 +38,80 @@ import { RecentDeploymentsWidget } from '../components/widgets/recent-deployment
 import { AuditSummaryWidget } from '../components/widgets/audit-summary-widget';
 import { PlatformFooterWidget } from '../components/widgets/platform-footer-widget';
 
-import { adminDashboardService, type AdminDashboardOverview } from '../services/admin-dashboard.service';
+import {
+  usePlatformHealthWidget,
+  useInfrastructureWidget,
+  useAiOpsWidget,
+  useActivityWidget,
+  useAlertsWidget,
+  useUserAnalyticsWidget,
+  useRepositoryAnalyticsWidget,
+  useCvAnalyticsWidget,
+  useOrganizationAnalyticsWidget,
+  useAiCostWidget,
+  usePendingTasksWidget,
+  useRecentDeploymentsWidget,
+  useAuditSummaryWidget
+} from '../hooks/use-admin-dashboard-widgets';
 
-export function AdminDashboardView() {
-  const [data, setData] = React.useState<AdminDashboardOverview | null>(null);
-  const [isLoading, setIsLoading] = React.useState<boolean>(true);
-  const [error, setError] = React.useState<string | null>(null);
+import { adminDashboardService } from '../services/admin-dashboard.service';
 
+function AdminDashboardContent() {
+  const queryClient = useQueryClient();
+  const { triggerRefreshAll } = useDashboardFilters();
   const [activeTab, setActiveTab] = React.useState<string>('overview');
-  const [autoRefreshInterval, setAutoRefreshInterval] = React.useState<number>(30); // 30s default
   const [isApiLocked, setIsApiLocked] = React.useState<boolean>(false);
 
-  const fetchData = React.useCallback(async () => {
+  // Granular React Query Hooks
+  const healthQuery = usePlatformHealthWidget();
+  const infraQuery = useInfrastructureWidget();
+  const aiOpsQuery = useAiOpsWidget();
+  const activityQuery = useActivityWidget();
+  const alertsQuery = useAlertsWidget();
+  const userAnalyticsQuery = useUserAnalyticsWidget();
+  const repoAnalyticsQuery = useRepositoryAnalyticsWidget();
+  const cvAnalyticsQuery = useCvAnalyticsWidget();
+  const orgAnalyticsQuery = useOrganizationAnalyticsWidget();
+  const aiCostQuery = useAiCostWidget();
+  const pendingTasksQuery = usePendingTasksWidget();
+  const deploymentsQuery = useRecentDeploymentsWidget();
+  const auditSummaryQuery = useAuditSummaryWidget();
+
+  // SignalR Listener setup for real-time invalidation
+  useEffect(() => {
+    let hubConnection: any = null;
     try {
-      setIsLoading(true);
-      setError(null);
-      const overview = await adminDashboardService.getOverview();
-      setData(overview);
-    } catch (err: any) {
-      console.error('[AdminDashboardView] Failed to fetch dashboard overview:', err);
-      setError(err?.response?.data?.message || err?.message || 'Failed to load control center overview data.');
-    } finally {
-      setIsLoading(false);
+      const signalR = require('@microsoft/signalr');
+      hubConnection = new signalR.HubConnectionBuilder()
+        .withUrl('/hubs/admin')
+        .withAutomaticReconnect()
+        .build();
+
+      hubConnection.on('MetricsUpdated', () => {
+        queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+      });
+
+      hubConnection.on('AlertTriggered', () => {
+        alertsQuery.refetch();
+      });
+
+      hubConnection.start().catch((err: any) => console.log('[SignalR] SignalR connection fallback to polling:', err));
+    } catch (e) {
+      // SignalR optional fallback
     }
-  }, []);
 
-  React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Auto Refresh Timer
-  React.useEffect(() => {
-    if (autoRefreshInterval <= 0) return;
-
-    const timer = setInterval(() => {
-      fetchData();
-    }, autoRefreshInterval * 1000);
-
-    return () => clearInterval(timer);
-  }, [autoRefreshInterval, fetchData]);
+    return () => {
+      if (hubConnection) {
+        hubConnection.stop();
+      }
+    };
+  }, [queryClient, alertsQuery]);
 
   const handleToggleApiLock = async () => {
     try {
       const res = await adminDashboardService.toggleApiEmergencyLock();
       setIsApiLocked(res.isLocked);
-      fetchData();
+      triggerRefreshAll();
     } catch (err) {
       console.error('Failed to toggle API lock:', err);
     }
@@ -90,7 +120,7 @@ export function AdminDashboardView() {
   const handleDismissAlert = async (alertId: string) => {
     try {
       await adminDashboardService.dismissAlert(alertId);
-      fetchData();
+      alertsQuery.refetch();
     } catch (err) {
       console.error('Failed to dismiss alert:', err);
     }
@@ -103,16 +133,19 @@ export function AdminDashboardView() {
         adminName="System Administrator"
         adminEmail="admin@cverify.ai"
         environment="Production"
-        version={data?.deployments?.currentVersion || 'v2.4.0'}
-        deploymentStatus={data?.deployments?.deploymentStatus || 'Healthy'}
+        version={deploymentsQuery.data?.currentVersion || 'v2.4.0'}
+        deploymentStatus={deploymentsQuery.data?.deploymentStatus || 'Healthy'}
         isApiLocked={isApiLocked}
         onToggleApiLock={handleToggleApiLock}
-        onRefreshAll={fetchData}
-        isRefreshing={isLoading}
+        onRefreshAll={triggerRefreshAll}
+        isRefreshing={healthQuery.isFetching}
       />
 
-      {/* Control Bar: Tabs & Auto-Refresh Policy */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-separator pb-4">
+      {/* 2. Global Unified Filter Bar */}
+      <AdminDashboardFilterBar />
+
+      {/* 3. Category Tabs */}
+      <div className="border-b border-separator pb-4">
         <Tabs
           selectedKey={activeTab}
           onSelectionChange={(key) => setActiveTab(key as string)}
@@ -143,59 +176,36 @@ export function AdminDashboardView() {
             </Tabs.List>
           </Tabs.ListContainer>
         </Tabs>
-
-        {/* Auto Refresh Dropdown */}
-        <div className="flex items-center gap-2 shrink-0 select-none">
-          <span className="text-xs text-muted font-medium flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-accent" /> Auto Refresh:
-          </span>
-          <Dropdown>
-            <DropdownTrigger>
-              <Button size="sm" variant="bordered" className="text-xs font-semibold cursor-pointer border-border">
-                {autoRefreshInterval > 0 ? `Every ${autoRefreshInterval}s` : 'Paused'}
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu
-              aria-label="Auto Refresh Rate"
-              onAction={(key) => setAutoRefreshInterval(Number(key))}
-            >
-              <DropdownItem key="10">Every 10 seconds</DropdownItem>
-              <DropdownItem key="30">Every 30 seconds</DropdownItem>
-              <DropdownItem key="60">Every 60 seconds</DropdownItem>
-              <DropdownItem key="0">Paused (Manual only)</DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
-        </div>
       </div>
 
       {/* Tab 1: Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Section 2: Platform Health Overview */}
           <DashboardWidgetWrapper
             title="Platform Operations Overview"
             subtitle="High-level key performance indicators across the entire CVerify platform"
             icon={<Activity className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={healthQuery.isLoading}
+            isFetching={healthQuery.isFetching}
+            error={healthQuery.error}
+            onRefresh={healthQuery.refetch}
           >
-            <PlatformHealthWidget data={data?.health} isLoading={isLoading} />
+            <PlatformHealthWidget data={healthQuery.data} isLoading={healthQuery.isLoading} />
           </DashboardWidgetWrapper>
 
-          {/* Section 6 & Section 13: System Alerts & Pending Administrative Tasks */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <DashboardWidgetWrapper
               title="System Alerts & Warnings"
               subtitle="Active operational notifications requiring administrator attention"
               icon={<AlertTriangle className="w-4 h-4 text-warning" />}
-              isLoading={isLoading}
-              error={error}
-              onRefresh={fetchData}
+              isLoading={alertsQuery.isLoading}
+              isFetching={alertsQuery.isFetching}
+              error={alertsQuery.error}
+              onRefresh={alertsQuery.refetch}
             >
               <SystemAlertsWidget
-                alerts={data?.systemAlerts}
-                isLoading={isLoading}
+                alerts={alertsQuery.data}
+                isLoading={alertsQuery.isLoading}
                 onDismissAlert={handleDismissAlert}
               />
             </DashboardWidgetWrapper>
@@ -204,15 +214,15 @@ export function AdminDashboardView() {
               title="Pending Administrative Tasks"
               subtitle="Operations queue awaiting review and approval"
               icon={<Clock className="w-4 h-4 text-accent" />}
-              isLoading={isLoading}
-              error={error}
-              onRefresh={fetchData}
+              isLoading={pendingTasksQuery.isLoading}
+              isFetching={pendingTasksQuery.isFetching}
+              error={pendingTasksQuery.error}
+              onRefresh={pendingTasksQuery.refetch}
             >
-              <PendingTasksWidget data={data?.pendingTasks} isLoading={isLoading} />
+              <PendingTasksWidget data={pendingTasksQuery.data} isLoading={pendingTasksQuery.isLoading} />
             </DashboardWidgetWrapper>
           </div>
 
-          {/* Section 12: Administrative Shortcuts */}
           <DashboardWidgetWrapper
             title="Administrative Control Shortcuts"
             subtitle="Quick access entry points for common platform operations"
@@ -221,16 +231,16 @@ export function AdminDashboardView() {
             <AdministrativeShortcutsWidget />
           </DashboardWidgetWrapper>
 
-          {/* Section 5: Recent Platform Activity Timeline */}
           <DashboardWidgetWrapper
             title="Live Platform Activity Stream"
             subtitle="Real-time timeline of user registrations, repository jobs, CV parsing, and security events"
             icon={<Activity className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={activityQuery.isLoading}
+            isFetching={activityQuery.isFetching}
+            error={activityQuery.error}
+            onRefresh={activityQuery.refetch}
           >
-            <ActivityTimelineWidget items={data?.recentActivity} isLoading={isLoading} onRefresh={fetchData} />
+            <ActivityTimelineWidget items={activityQuery.data} isLoading={activityQuery.isLoading} onRefresh={activityQuery.refetch} />
           </DashboardWidgetWrapper>
         </div>
       )}
@@ -238,40 +248,40 @@ export function AdminDashboardView() {
       {/* Tab 2: Infrastructure & AI Operations */}
       {activeTab === 'infrastructure' && (
         <div className="space-y-6">
-          {/* Section 3: Infrastructure Status */}
           <DashboardWidgetWrapper
             title="Platform Infrastructure & Resources"
             subtitle="Host CPU, RAM, Disk, Network, PostgreSQL, Redis, and FastAPI status"
             icon={<Server className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={infraQuery.isLoading}
+            isFetching={infraQuery.isFetching}
+            error={infraQuery.error}
+            onRefresh={infraQuery.refetch}
           >
-            <InfrastructureTelemetryWidget data={data?.infrastructure} isLoading={isLoading} />
+            <InfrastructureTelemetryWidget data={infraQuery.data} isLoading={infraQuery.isLoading} />
           </DashboardWidgetWrapper>
 
-          {/* Section 4: AI Platform Status */}
           <DashboardWidgetWrapper
             title="AI Engine & Pipeline Operations"
             subtitle="FastAPI microservices status, task queue throughput, latency, and LLM distribution"
             icon={<Sparkles className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={aiOpsQuery.isLoading}
+            isFetching={aiOpsQuery.isFetching}
+            error={aiOpsQuery.error}
+            onRefresh={aiOpsQuery.refetch}
           >
-            <AiOperationsWidget data={data?.aiOperations} isLoading={isLoading} />
+            <AiOperationsWidget data={aiOpsQuery.data} isLoading={aiOpsQuery.isLoading} />
           </DashboardWidgetWrapper>
 
-          {/* Section 11: AI Cost Dashboard */}
           <DashboardWidgetWrapper
             title="AI Cost & Token Consumption Dashboard"
             subtitle="Daily, weekly, and monthly LLM expenditure breakdown by model and pipeline"
             icon={<Sparkles className="w-4 h-4 text-success" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={aiCostQuery.isLoading}
+            isFetching={aiCostQuery.isFetching}
+            error={aiCostQuery.error}
+            onRefresh={aiCostQuery.refetch}
           >
-            <AiCostDashboardWidget data={data?.aiCost} isLoading={isLoading} />
+            <AiCostDashboardWidget data={aiCostQuery.data} isLoading={aiCostQuery.isLoading} />
           </DashboardWidgetWrapper>
         </div>
       )}
@@ -279,52 +289,52 @@ export function AdminDashboardView() {
       {/* Tab 3: Domain Analytics */}
       {activeTab === 'analytics' && (
         <div className="space-y-6">
-          {/* Section 7: User Analytics */}
           <DashboardWidgetWrapper
             title="User Accounts & Identity Analytics"
             subtitle="Registration growth trends, daily active users, and OAuth account linking"
             icon={<Users className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={userAnalyticsQuery.isLoading}
+            isFetching={userAnalyticsQuery.isFetching}
+            error={userAnalyticsQuery.error}
+            onRefresh={userAnalyticsQuery.refetch}
           >
-            <UserAnalyticsWidget data={data?.userAnalytics} isLoading={isLoading} />
+            <UserAnalyticsWidget data={userAnalyticsQuery.data} isLoading={userAnalyticsQuery.isLoading} />
           </DashboardWidgetWrapper>
 
-          {/* Section 8: Repository Analytics */}
           <DashboardWidgetWrapper
             title="Repository & Source Code Intelligence Analytics"
             subtitle="Analysis success rates, average duration, top programming languages, and frameworks"
             icon={<GitBranch className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={repoAnalyticsQuery.isLoading}
+            isFetching={repoAnalyticsQuery.isFetching}
+            error={repoAnalyticsQuery.error}
+            onRefresh={repoAnalyticsQuery.refetch}
           >
-            <RepositoryAnalyticsWidget data={data?.repositoryAnalytics} isLoading={isLoading} />
+            <RepositoryAnalyticsWidget data={repoAnalyticsQuery.data} isLoading={repoAnalyticsQuery.isLoading} />
           </DashboardWidgetWrapper>
 
-          {/* Section 9: CV Analytics */}
           <DashboardWidgetWrapper
             title="CV & Talent Processing Analytics"
             subtitle="Total uploaded CVs, parsing latency, and candidate skill distribution"
             icon={<FileText className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={cvAnalyticsQuery.isLoading}
+            isFetching={cvAnalyticsQuery.isFetching}
+            error={cvAnalyticsQuery.error}
+            onRefresh={cvAnalyticsQuery.refetch}
           >
-            <CvAnalyticsWidget data={data?.cvAnalytics} isLoading={isLoading} />
+            <CvAnalyticsWidget data={cvAnalyticsQuery.data} isLoading={cvAnalyticsQuery.isLoading} />
           </DashboardWidgetWrapper>
 
-          {/* Section 10: Organization Analytics */}
           <DashboardWidgetWrapper
             title="Organization & Enterprise Operations"
             subtitle="Verified companies, premium subscriptions, active recruiters, and open job vacancies"
             icon={<Building2 className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={orgAnalyticsQuery.isLoading}
+            isFetching={orgAnalyticsQuery.isFetching}
+            error={orgAnalyticsQuery.error}
+            onRefresh={orgAnalyticsQuery.refetch}
           >
-            <OrganizationAnalyticsWidget data={data?.organizationAnalytics} isLoading={isLoading} />
+            <OrganizationAnalyticsWidget data={orgAnalyticsQuery.data} isLoading={orgAnalyticsQuery.isLoading} />
           </DashboardWidgetWrapper>
         </div>
       )}
@@ -332,38 +342,46 @@ export function AdminDashboardView() {
       {/* Tab 4: Security & Audit */}
       {activeTab === 'security' && (
         <div className="space-y-6">
-          {/* Section 15: Audit Log Summary */}
           <DashboardWidgetWrapper
             title="System Audit Trail Summary"
             subtitle="Recent administrative actions, role modifications, and operational events"
             icon={<FileText className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={auditSummaryQuery.isLoading}
+            isFetching={auditSummaryQuery.isFetching}
+            error={auditSummaryQuery.error}
+            onRefresh={auditSummaryQuery.refetch}
           >
-            <AuditSummaryWidget data={data?.auditSummary} isLoading={isLoading} />
+            <AuditSummaryWidget data={auditSummaryQuery.data} isLoading={auditSummaryQuery.isLoading} />
           </DashboardWidgetWrapper>
 
-          {/* Section 14: Recent Deployments */}
           <DashboardWidgetWrapper
             title="Recent Deployment Metadata"
             subtitle="Environment build details, Git commit hash, and platform release version"
             icon={<Server className="w-4 h-4" />}
-            isLoading={isLoading}
-            error={error}
-            onRefresh={fetchData}
+            isLoading={deploymentsQuery.isLoading}
+            isFetching={deploymentsQuery.isFetching}
+            error={deploymentsQuery.error}
+            onRefresh={deploymentsQuery.refetch}
           >
-            <RecentDeploymentsWidget data={data?.deployments} isLoading={isLoading} />
+            <RecentDeploymentsWidget data={deploymentsQuery.data} isLoading={deploymentsQuery.isLoading} />
           </DashboardWidgetWrapper>
         </div>
       )}
 
       {/* Section 16: Footer */}
       <PlatformFooterWidget
-        platformVersion={data?.deployments?.currentVersion || 'v2.4.0'}
-        environment={data?.deployments?.environment || 'Production'}
-        dbStatus={data?.infrastructure?.dbHealthy ? 'Connected & Healthy' : 'Degraded'}
+        platformVersion={deploymentsQuery.data?.currentVersion || 'v2.4.0'}
+        environment={deploymentsQuery.data?.environment || 'Production'}
+        dbStatus={infraQuery.data?.dbHealthy ? 'Connected & Healthy' : 'Degraded'}
       />
     </div>
+  );
+}
+
+export function AdminDashboardView() {
+  return (
+    <DashboardFilterProvider>
+      <AdminDashboardContent />
+    </DashboardFilterProvider>
   );
 }
