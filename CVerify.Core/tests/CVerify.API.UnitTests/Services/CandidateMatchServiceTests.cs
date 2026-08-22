@@ -40,13 +40,15 @@ public class CandidateMatchServiceTests : IDisposable
     private readonly Guid _candidateId = Guid.NewGuid();
     private readonly Guid _requirementId = Guid.NewGuid();
 
+    private readonly DbContextOptions<ApplicationDbContext> _dbOptions;
+
     public CandidateMatchServiceTests()
     {
-        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+        _dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
-        _context = new ApplicationDbContext(dbOptions);
+        _context = new ApplicationDbContext(_dbOptions);
 
         _mockCatalogService = new Mock<ICapabilityCatalogService>();
         _mockHiringRequirementService = new Mock<IHiringRequirementService>();
@@ -140,7 +142,18 @@ public class CandidateMatchServiceTests : IDisposable
         );
 
         mockServiceProvider.Setup(sp => sp.GetService(typeof(ICandidateMatchService)))
-            .Returns(service);
+            .Returns(() => new CandidateMatchService(
+                new ApplicationDbContext(_dbOptions),
+                _mockCatalogService.Object,
+                _mockHiringRequirementService.Object,
+                _mockRedis.Object,
+                _mockScopeFactory.Object,
+                _mockEvaluationService.Object,
+                _mockMatchingEngine.Object,
+                _mockCancellationManager.Object,
+                _mockStreamingSessionService.Object,
+                _mockLogger.Object
+            ));
 
         // Act
         var result = await service.TriggerDiscoveryAsync(_requirementId, _candidateId, CancellationToken.None);
