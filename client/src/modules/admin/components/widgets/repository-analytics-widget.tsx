@@ -58,15 +58,19 @@ export function RepositoryAnalyticsWidget({ data, isLoading }: RepositoryAnalyti
             <Chip size="sm" variant="soft" color="accent" className="text-[10px] h-4">Language Distribution</Chip>
           </h5>
           <div className="space-y-2.5">
-            {data.topLanguages.map((lang, idx) => (
-              <div key={lang.name} className="space-y-1">
-                <div className="flex justify-between text-xs font-mono">
-                  <span className="font-semibold text-foreground">{lang.name}</span>
-                  <span className="text-muted">{lang.count} repos ({lang.percentage}%)</span>
+            {data.topLanguages.length === 0 ? (
+              <p className="text-xs text-muted py-2 italic text-center">No language distribution data recorded yet</p>
+            ) : (
+              data.topLanguages.map((lang, idx) => (
+                <div key={lang.name} className="space-y-1">
+                  <div className="flex justify-between text-xs font-mono">
+                    <span className="font-semibold text-foreground">{lang.name}</span>
+                    <span className="text-muted">{lang.count} repos ({lang.percentage}%)</span>
+                  </div>
+                  <ProgressBar value={lang.percentage} size="sm" color={idx === 0 ? 'accent' : 'default'} className="h-1.5" />
                 </div>
-                <ProgressBar value={lang.percentage} size="sm" color={idx === 0 ? 'accent' : 'default'} className="h-1.5" />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -77,15 +81,19 @@ export function RepositoryAnalyticsWidget({ data, isLoading }: RepositoryAnalyti
             <Chip size="sm" variant="soft" color="default" className="text-[10px] h-4">Framework Distribution</Chip>
           </h5>
           <div className="space-y-2.5">
-            {data.topFrameworks.map((fw, idx) => (
-              <div key={fw.name} className="space-y-1">
-                <div className="flex justify-between text-xs font-mono">
-                  <span className="font-semibold text-foreground">{fw.name}</span>
-                  <span className="text-muted">{fw.count} repos ({fw.percentage}%)</span>
+            {data.topFrameworks.length === 0 ? (
+              <p className="text-xs text-muted py-2 italic text-center">No framework distribution data recorded yet</p>
+            ) : (
+              data.topFrameworks.map((fw, idx) => (
+                <div key={fw.name} className="space-y-1">
+                  <div className="flex justify-between text-xs font-mono">
+                    <span className="font-semibold text-foreground">{fw.name}</span>
+                    <span className="text-muted">{fw.count} repos ({fw.percentage}%)</span>
+                  </div>
+                  <ProgressBar value={fw.percentage} size="sm" color={idx === 0 ? 'success' : 'warning'} className="h-1.5" />
                 </div>
-                <ProgressBar value={fw.percentage} size="sm" color={idx === 0 ? 'success' : 'warning'} className="h-1.5" />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

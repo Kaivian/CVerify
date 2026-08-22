@@ -56,10 +56,10 @@ const ENVIRONMENT_CONFIG: Record<EnvironmentFilter, { label: string; dotColor: s
 
 const AI_PROVIDER_LABELS: Record<AiProviderFilter, string> = {
   all: 'All Providers',
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  gemini: 'Google Gemini',
-  local: 'Local Models'
+  anthropic: 'Anthropic (Claude Haiku 4.5)',
+  openai: 'Claude Haiku 4.5',
+  gemini: 'Claude Haiku 4.5',
+  local: 'Claude Haiku 4.5'
 };
 
 const HEALTH_STATUS_CONFIG: Record<HealthStatusFilter, { label: string; dotColor: string }> = {

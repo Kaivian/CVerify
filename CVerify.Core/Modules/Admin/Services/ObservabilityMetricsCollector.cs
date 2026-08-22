@@ -57,31 +57,118 @@ public class ObservabilityMetricsCollector : IObservabilityMetricsCollector
         // 1. Server Metrics
         var cpuUsagePercent = CalculateCpuUsage();
         var process = Process.GetCurrentProcess();
-        var ramUsedMb = Math.Round(process.WorkingSet64 / (1024.0 * 1024.0), 1);
 
-        double totalRamMb = 16384; // 16GB default estimation
+        double totalRamMb = 8192; // Default 8GB estimation for host VM
+        double ramUsedMb = 0;
+        bool memInfoParsed = false;
+
         try
         {
-            totalRamMb = Math.Round(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1024.0 * 1024.0), 1);
+            if (File.Exists("/proc/meminfo"))
+            {
+                var lines = File.ReadAllLines("/proc/meminfo");
+                double memTotalKb = 0;
+                double memAvailableKb = 0;
+
+                foreach (var line in lines)
+                {
+                    if (line.StartsWith("MemTotal:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2 && double.TryParse(parts[1], out var val))
+                            memTotalKb = val;
+                    }
+                    else if (line.StartsWith("MemAvailable:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2 && double.TryParse(parts[1], out var val))
+                            memAvailableKb = val;
+                    }
+                }
+
+                if (memTotalKb > 0)
+                {
+                    totalRamMb = Math.Round(memTotalKb / 1024.0, 1);
+                    if (memAvailableKb > 0)
+                    {
+                        ramUsedMb = Math.Round((memTotalKb - memAvailableKb) / 1024.0, 1);
+                    }
+                    else
+                    {
+                        ramUsedMb = Math.Round(process.WorkingSet64 / (1024.0 * 1024.0), 1);
+                    }
+                    memInfoParsed = true;
+                }
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed reading /proc/meminfo for host system memory");
+        }
+
+        if (!memInfoParsed)
+        {
+            if (double.TryParse(Environment.GetEnvironmentVariable("HOST_TOTAL_RAM_GB"), out var envRamGb) && envRamGb > 0)
+            {
+                totalRamMb = Math.Round(envRamGb * 1024.0, 1);
+            }
+            else
+            {
+                try
+                {
+                    var gcInfo = GC.GetGCMemoryInfo();
+                    if (gcInfo.TotalAvailableMemoryBytes > 0)
+                    {
+                        totalRamMb = Math.Round(gcInfo.TotalAvailableMemoryBytes / (1024.0 * 1024.0), 1);
+                    }
+                }
+                catch { }
+            }
+
+            ramUsedMb = Math.Round(process.WorkingSet64 / (1024.0 * 1024.0), 1);
+        }
 
         var ramUsagePercent = Math.Round((ramUsedMb / Math.Max(totalRamMb, 1)) * 100.0, 1);
 
         double diskUsedGb = 0;
         double diskTotalGb = 0;
         double diskUsagePercent = 0;
+
         try
         {
-            var drive = DriveInfo.GetDrives().FirstOrDefault(d => d.IsReady && d.DriveType == DriveType.Fixed);
-            if (drive != null)
+            if (double.TryParse(Environment.GetEnvironmentVariable("HOST_TOTAL_DISK_GB"), out var envDiskGb) && envDiskGb > 0)
             {
-                diskTotalGb = Math.Round(drive.TotalSize / (1024.0 * 1024.0 * 1024.0), 1);
-                diskUsedGb = Math.Round((drive.TotalSize - drive.AvailableFreeSpace) / (1024.0 * 1024.0 * 1024.0), 1);
+                diskTotalGb = envDiskGb;
+                if (double.TryParse(Environment.GetEnvironmentVariable("HOST_USED_DISK_GB"), out var envUsedDiskGb))
+                {
+                    diskUsedGb = envUsedDiskGb;
+                }
+            }
+
+            if (diskTotalGb == 0)
+            {
+                var drives = DriveInfo.GetDrives()
+                    .Where(d => d.IsReady && d.TotalSize > 0)
+                    .OrderByDescending(d => d.TotalSize)
+                    .ToList();
+
+                var mainDrive = drives.FirstOrDefault();
+                if (mainDrive != null)
+                {
+                    diskTotalGb = Math.Round(mainDrive.TotalSize / (1024.0 * 1024.0 * 1024.0), 1);
+                    diskUsedGb = Math.Round((mainDrive.TotalSize - mainDrive.AvailableFreeSpace) / (1024.0 * 1024.0 * 1024.0), 1);
+                }
+            }
+
+            if (diskTotalGb > 0)
+            {
                 diskUsagePercent = Math.Round((diskUsedGb / Math.Max(diskTotalGb, 1)) * 100.0, 1);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed retrieving disk storage metrics");
+        }
 
         // Simulated/Estimated Network & Disk IO based on runtime activity
         var rand = Random.Shared;

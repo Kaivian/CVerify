@@ -68,6 +68,16 @@ public class AdminDashboardFacade : IAdminDashboardFacade
                 ? Math.Round((double)(aiJobsToday - failedJobsToday) / aiJobsToday * 100.0, 1)
                 : 99.2;
 
+            double storageUsageGb = 0;
+            double storageTotalGb = 0;
+            try
+            {
+                var rawMetrics = await _observabilityCollector.CollectMetricsAsync();
+                storageUsageGb = Convert.ToDouble(rawMetrics.Server?.DiskUsedGb?.Value ?? 0);
+                storageTotalGb = Convert.ToDouble(rawMetrics.Server?.DiskTotalGb?.Value ?? 0);
+            }
+            catch { }
+
             var dto = new PlatformHealthWidgetDto
             {
                 TotalUsers = totalUsers,
@@ -84,8 +94,8 @@ public class AdminDashboardFacade : IAdminDashboardFacade
                 FailedJobsToday = failedJobsToday,
                 SuccessRatePercent = successRate,
                 PendingReviewsCount = pendingReviews,
-                StorageUsageGb = 142.8,
-                StorageTotalGb = 1000.0
+                StorageUsageGb = storageUsageGb,
+                StorageTotalGb = storageTotalGb
             };
 
             _cache.Set(cacheKey, dto, TimeSpan.FromSeconds(10));
@@ -208,21 +218,19 @@ public class AdminDashboardFacade : IAdminDashboardFacade
 
             int completed = jobs.Count(j => j.Status == "Completed" || j.Status == "Finished");
             int failed = jobs.Count(j => j.Status == "Failed" || j.Status == "Error");
-            int running = await _db.AnalysisJobs.CountAsync(j => j.Status == "Running" || j.Status == "Processing");
+            int running = await _db.AnalysisJobs.CountAsync(j => j.Status == "Running" || j.Status == "Processing" || j.Status == "InQueue");
+
+            var rawMetrics = await _observabilityCollector.CollectMetricsAsync();
+            bool aiHealthy = rawMetrics.AiService?.Status?.Status == "healthy" || rawMetrics.AiService?.Status?.Value?.ToString() == "Healthy";
 
             var modelDist = new Dictionary<string, int>
             {
-                { "gemini-1.5-pro", Math.Max(completed * 4 / 10, 142) },
-                { "gemini-1.5-flash", Math.Max(completed * 5 / 10, 280) },
-                { "claude-3-5-sonnet", 45 },
-                { "gpt-4o", 18 }
+                { "Claude Haiku 4.5", completed }
             };
 
             var providerDist = new Dictionary<string, int>
             {
-                { "Google Vertex AI / Gemini", 422 },
-                { "Anthropic Claude API", 45 },
-                { "OpenAI Direct API", 18 }
+                { "Anthropic API / Claude Haiku 4.5", completed }
             };
 
             if (!string.IsNullOrEmpty(q.AiProvider) && q.AiProvider != "all")
@@ -235,23 +243,23 @@ public class AdminDashboardFacade : IAdminDashboardFacade
 
             var dto = new AiOpsWidgetDto
             {
-                ServiceStatus = "Healthy",
-                FastApiStatus = "Healthy",
-                QueueLength = Math.Max(running, 2),
-                ActiveWorkers = 8,
+                ServiceStatus = aiHealthy ? "Healthy" : "Offline",
+                FastApiStatus = aiHealthy ? "Healthy" : "Offline",
+                QueueLength = running,
+                ActiveWorkers = running > 0 ? Math.Min(running, 4) : 0,
                 RunningJobs = running,
-                CompletedToday = completed > 0 ? completed : 485,
+                CompletedToday = completed,
                 FailedToday = failed,
-                AvgLatencyMs = 312.4,
-                TotalPromptTokens = 845200,
-                TotalCompletionTokens = 312800,
-                EstimatedCostTodayUsd = 4.85m,
-                EstimatedCostMonthUsd = 142.50m,
+                AvgLatencyMs = Convert.ToDouble(rawMetrics.AiService?.AverageResponseTimeMs?.Value ?? 0.0),
+                TotalPromptTokens = completed * 1250L,
+                TotalCompletionTokens = completed * 450L,
+                EstimatedCostTodayUsd = Math.Round((decimal)(completed * 0.005), 2),
+                EstimatedCostMonthUsd = Math.Round((decimal)(completed * 0.15), 2),
                 ModelDistribution = modelDist,
                 ProviderDistribution = providerDist
             };
 
-            _cache.Set(cacheKey, dto, TimeSpan.FromSeconds(15));
+            _cache.Set(cacheKey, dto, TimeSpan.FromSeconds(5));
             return dto;
         }
         catch (Exception ex)
@@ -259,20 +267,20 @@ public class AdminDashboardFacade : IAdminDashboardFacade
             _logger.LogError(ex, "Failed to compute AI Ops Widget for filter {Filter}", q.GetCacheSuffix());
             return new AiOpsWidgetDto
             {
-                ServiceStatus = "Healthy",
-                FastApiStatus = "Healthy",
+                ServiceStatus = "Offline",
+                FastApiStatus = "Offline",
                 QueueLength = 0,
-                ActiveWorkers = 8,
+                ActiveWorkers = 0,
                 RunningJobs = 0,
-                CompletedToday = 100,
+                CompletedToday = 0,
                 FailedToday = 0,
-                AvgLatencyMs = 300.0,
-                TotalPromptTokens = 500000,
-                TotalCompletionTokens = 200000,
-                EstimatedCostTodayUsd = 3.50m,
-                EstimatedCostMonthUsd = 100.00m,
-                ModelDistribution = new Dictionary<string, int> { { "gemini-1.5-pro", 100 } },
-                ProviderDistribution = new Dictionary<string, int> { { "Google Vertex AI", 100 } }
+                AvgLatencyMs = 0.0,
+                TotalPromptTokens = 0,
+                TotalCompletionTokens = 0,
+                EstimatedCostTodayUsd = 0m,
+                EstimatedCostMonthUsd = 0m,
+                ModelDistribution = new Dictionary<string, int>(),
+                ProviderDistribution = new Dictionary<string, int>()
             };
         }
     }
@@ -459,26 +467,31 @@ public class AdminDashboardFacade : IAdminDashboardFacade
             var gitlabCount = await _db.AuthProviders.CountAsync(ap => ap.ProviderName == "gitlab");
 
             var regTrend = new List<DailyTrendMetricDto>();
+            var dauTrend = new List<DailyTrendMetricDto>();
             var now = DateTimeOffset.UtcNow;
+
             for (int i = 6; i >= 0; i--)
             {
                 var dt = now.Date.AddDays(-i);
                 var nextDt = dt.AddDays(1);
-                var cnt = await _db.Users.CountAsync(u => u.CreatedAt >= dt && u.CreatedAt < nextDt);
-                regTrend.Add(new DailyTrendMetricDto { Date = dt.ToString("MM-dd"), Value = cnt > 0 ? cnt : 5 + (i * 2) });
+                var regCnt = await _db.Users.CountAsync(u => u.CreatedAt >= dt && u.CreatedAt < nextDt);
+                var dauCnt = await _db.Users.CountAsync(u => (u.LastLoginAt != null && u.LastLoginAt >= dt && u.LastLoginAt < nextDt) || (u.CreatedAt >= dt && u.CreatedAt < nextDt));
+
+                regTrend.Add(new DailyTrendMetricDto { Date = dt.ToString("MM-dd"), Value = regCnt });
+                dauTrend.Add(new DailyTrendMetricDto { Date = dt.ToString("MM-dd"), Value = dauCnt });
             }
 
             var dto = new UserAnalyticsWidgetDto
             {
                 TotalUsers = totalUsers,
-                ActiveUsers24h = active24h > 0 ? active24h : 182,
+                ActiveUsers24h = active24h,
                 CandidatesCount = candidateCount,
                 RecruitersCount = recruiterCount,
                 DevelopersCount = Math.Max(totalUsers - recruiterCount, 0),
-                GithubLinkedAccounts = githubCount > 0 ? githubCount : 1420,
-                GitlabLinkedAccounts = gitlabCount > 0 ? gitlabCount : 240,
+                GithubLinkedAccounts = githubCount,
+                GitlabLinkedAccounts = gitlabCount,
                 RegistrationTrend = regTrend,
-                DauTrend = regTrend.Select(r => new DailyTrendMetricDto { Date = r.Date, Value = r.Value * 8 + 120 }).ToList()
+                DauTrend = dauTrend
             };
 
             _cache.Set(cacheKey, dto, TimeSpan.FromMinutes(2));
@@ -518,29 +531,55 @@ public class AdminDashboardFacade : IAdminDashboardFacade
 
             var totalRepos = await _db.SourceCodeRepositories.CountAsync();
             var analyzed = await _db.AnalysisJobs.CountAsync(j => j.Status == "Completed" && j.CreatedAtUtc >= startTime && j.CreatedAtUtc <= endTime);
-            var failed = await _db.AnalysisJobs.CountAsync(j => j.Status == "Failed" && j.CreatedAtUtc >= startTime && j.CreatedAtUtc <= endTime);
+            var failed = await _db.AnalysisJobs.CountAsync(j => (j.Status == "Failed" || j.Status == "Error") && j.CreatedAtUtc >= startTime && j.CreatedAtUtc <= endTime);
+
+            var completedJobDurations = await _db.AnalysisJobs
+                .Where(j => j.Status == "Completed" && j.CompletedAt != null && j.StartedAt != null)
+                .Select(j => (j.CompletedAt!.Value - j.StartedAt!.Value).TotalSeconds)
+                .ToListAsync();
+
+            double avgDuration = completedJobDurations.Count > 0 ? Math.Round(completedJobDurations.Average(), 1) : 0.0;
+
+            var langGroups = await _db.SourceCodeRepositories
+                .Where(r => !string.IsNullOrEmpty(r.PrimaryLanguage))
+                .GroupBy(r => r.PrimaryLanguage!)
+                .Select(g => new { Name = g.Key, Count = (long)g.Count() })
+                .OrderByDescending(g => g.Count)
+                .Take(5)
+                .ToListAsync();
+
+            var totalLangCount = langGroups.Sum(g => g.Count);
+            var topLanguages = langGroups.Select(g => new CategoryCountDto
+            {
+                Name = g.Name,
+                Count = g.Count,
+                Percentage = totalLangCount > 0 ? Math.Round((double)g.Count / totalLangCount * 100.0, 1) : 0.0
+            }).ToList();
+
+            var frameworkGroups = await _db.RepositoryCapabilities
+                .Where(c => !string.IsNullOrEmpty(c.Category))
+                .GroupBy(c => c.Category)
+                .Select(g => new { Name = g.Key, Count = (long)g.Count() })
+                .OrderByDescending(g => g.Count)
+                .Take(5)
+                .ToListAsync();
+
+            var totalFwCount = frameworkGroups.Sum(g => g.Count);
+            var topFrameworks = frameworkGroups.Select(g => new CategoryCountDto
+            {
+                Name = g.Name,
+                Count = g.Count,
+                Percentage = totalFwCount > 0 ? Math.Round((double)g.Count / totalFwCount * 100.0, 1) : 0.0
+            }).ToList();
 
             var dto = new RepositoryAnalyticsWidgetDto
             {
                 TotalRepositories = totalRepos,
-                SuccessfullyAnalyzed = analyzed > 0 ? analyzed : 850,
+                SuccessfullyAnalyzed = analyzed,
                 FailedAnalyses = failed,
-                AvgAnalysisDurationSeconds = 48.5,
-                TopLanguages = new List<CategoryCountDto>
-                {
-                    new CategoryCountDto { Name = "TypeScript / JavaScript", Count = 480, Percentage = 42.5 },
-                    new CategoryCountDto { Name = "C# / .NET", Count = 310, Percentage = 27.4 },
-                    new CategoryCountDto { Name = "Python", Count = 190, Percentage = 16.8 },
-                    new CategoryCountDto { Name = "Go", Count = 95, Percentage = 8.4 },
-                    new CategoryCountDto { Name = "Rust", Count = 55, Percentage = 4.9 }
-                },
-                TopFrameworks = new List<CategoryCountDto>
-                {
-                    new CategoryCountDto { Name = "Next.js / React", Count = 420, Percentage = 38.0 },
-                    new CategoryCountDto { Name = "ASP.NET Core", Count = 310, Percentage = 28.0 },
-                    new CategoryCountDto { Name = "FastAPI / PyTorch", Count = 180, Percentage = 16.2 },
-                    new CategoryCountDto { Name = "NestJS / Express", Count = 120, Percentage = 10.8 }
-                }
+                AvgAnalysisDurationSeconds = avgDuration,
+                TopLanguages = topLanguages,
+                TopFrameworks = topFrameworks
             };
 
             _cache.Set(cacheKey, dto, TimeSpan.FromMinutes(5));
@@ -573,21 +612,42 @@ public class AdminDashboardFacade : IAdminDashboardFacade
         try
         {
             var totalCv = await _db.ProfileAttachments.CountAsync();
+            var completedAssessments = await _db.CandidateAssessments.CountAsync(a => a.Status == "Completed" || a.Status == "Success");
+            var failedAssessments = await _db.CandidateAssessments.CountAsync(a => a.Status == "Failed" || a.Status == "Error");
+            var pendingAssessments = await _db.CandidateAssessments.CountAsync(a => a.Status == "Queued" || a.Status == "Running" || a.Status == "Processing");
+
+            var assessmentTimes = await _db.CandidateAssessments
+                .Where(a => a.LastAssessmentAt != null && a.CreatedAtUtc != null)
+                .Select(a => (a.LastAssessmentAt!.Value - a.CreatedAtUtc).TotalSeconds)
+                .Where(sec => sec > 0 && sec < 3600)
+                .ToListAsync();
+
+            double avgProcessingTime = assessmentTimes.Count > 0 ? Math.Round(assessmentTimes.Average(), 1) : 0.0;
+
+            var skillGroups = await _db.UserSkills
+                .Where(s => !string.IsNullOrEmpty(s.Skill))
+                .GroupBy(s => s.Skill)
+                .Select(g => new { Name = g.Key, Count = (long)g.Count() })
+                .OrderByDescending(g => g.Count)
+                .Take(5)
+                .ToListAsync();
+
+            var totalSkillsCount = skillGroups.Sum(g => g.Count);
+            var skillDistribution = skillGroups.Select(g => new CategoryCountDto
+            {
+                Name = g.Name,
+                Count = g.Count,
+                Percentage = totalSkillsCount > 0 ? Math.Round((double)g.Count / totalSkillsCount * 100.0, 1) : 0.0
+            }).ToList();
 
             var dto = new CvAnalyticsWidgetDto
             {
-                TotalCvDocuments = totalCv > 0 ? totalCv : 1240,
-                CompletedAnalyses = totalCv > 0 ? (long)(totalCv * 0.95) : 1180,
-                FailedAnalyses = 12,
-                PendingAnalyses = 8,
-                AvgProcessingTimeSeconds = 6.2,
-                SkillDistribution = new List<CategoryCountDto>
-                {
-                    new CategoryCountDto { Name = "Full-Stack Development", Count = 540, Percentage = 43.5 },
-                    new CategoryCountDto { Name = "Backend Engineering", Count = 380, Percentage = 30.6 },
-                    new CategoryCountDto { Name = "DevOps & Cloud Architecture", Count = 180, Percentage = 14.5 },
-                    new CategoryCountDto { Name = "AI / ML Engineering", Count = 140, Percentage = 11.4 }
-                }
+                TotalCvDocuments = totalCv,
+                CompletedAnalyses = completedAssessments,
+                FailedAnalyses = failedAssessments,
+                PendingAnalyses = pendingAssessments,
+                AvgProcessingTimeSeconds = avgProcessingTime,
+                SkillDistribution = skillDistribution
             };
 
             _cache.Set(cacheKey, dto, TimeSpan.FromMinutes(5));
@@ -620,16 +680,18 @@ public class AdminDashboardFacade : IAdminDashboardFacade
         try
         {
             var totalOrgs = await _db.Organizations.CountAsync();
-            var activeOrgs = await _db.Organizations.CountAsync(o => o.IsVerified);
+            var activeOrgs = await _db.Organizations.CountAsync(o => o.IsVerified || o.Status == "active");
+            var premiumOrgs = await _db.Organizations.CountAsync(o => o.VerificationLevel >= 2);
             var openJobs = await _db.JobVacancies.CountAsync(j => j.IsActive);
+            var activeRecruiters = await _db.OrganizationMemberships.Select(m => m.UserId).Distinct().CountAsync();
 
             var dto = new OrganizationAnalyticsWidgetDto
             {
                 TotalOrganizations = totalOrgs,
-                ActiveOrganizations = activeOrgs > 0 ? activeOrgs : totalOrgs,
-                PremiumOrganizations = Math.Max(totalOrgs / 2, 1),
-                OpenJobVacancies = openJobs > 0 ? openJobs : 42,
-                ActiveRecruiters = 86
+                ActiveOrganizations = activeOrgs,
+                PremiumOrganizations = premiumOrgs,
+                OpenJobVacancies = openJobs,
+                ActiveRecruiters = activeRecruiters
             };
 
             _cache.Set(cacheKey, dto, TimeSpan.FromMinutes(5));
@@ -662,16 +724,11 @@ public class AdminDashboardFacade : IAdminDashboardFacade
                 TotalTokenConsumption = 1158000,
                 ProviderBreakdownUsd = new Dictionary<string, decimal>
                 {
-                    { "Google Vertex AI", 112.40m },
-                    { "Anthropic Claude API", 22.10m },
-                    { "OpenAI Direct API", 8.00m }
+                    { "Anthropic Claude API", 142.50m }
                 },
                 ModelBreakdownUsd = new Dictionary<string, decimal>
                 {
-                    { "gemini-1.5-pro", 84.20m },
-                    { "gemini-1.5-flash", 28.20m },
-                    { "claude-3-5-sonnet", 22.10m },
-                    { "gpt-4o", 8.00m }
+                    { "Claude Haiku 4.5", 142.50m }
                 },
                 PipelineBreakdownUsd = new Dictionary<string, decimal>
                 {

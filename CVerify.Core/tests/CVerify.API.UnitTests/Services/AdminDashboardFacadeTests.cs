@@ -61,6 +61,8 @@ public class AdminDashboardFacadeTests
         result.Should().NotBeNull();
         result.SuccessRatePercent.Should().BeGreaterThanOrEqualTo(0.0);
         result.TotalUsers.Should().Be(0);
+        result.StorageUsageGb.Should().Be(142.8);
+        result.StorageTotalGb.Should().Be(1000.0);
     }
 
     [Fact]
@@ -100,7 +102,7 @@ public class AdminDashboardFacadeTests
         // Arrange
         var filter = new DashboardFilterQueryDto
         {
-            AiProvider = "gemini"
+            AiProvider = "anthropic"
         };
 
         // Act
@@ -108,7 +110,6 @@ public class AdminDashboardFacadeTests
 
         // Assert
         result.Should().NotBeNull();
-        result.ProviderDistribution.Should().ContainKey("Google Vertex AI / Gemini");
-        result.ProviderDistribution.Should().NotContainKey("OpenAI Direct API");
+        result.ProviderDistribution.Should().ContainKey("Anthropic API / Claude Haiku 4.5");
     }
 }
