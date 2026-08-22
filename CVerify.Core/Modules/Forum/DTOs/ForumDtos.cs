@@ -16,6 +16,7 @@ public class CategoryResponse
     public bool IsPrivate { get; set; }
     public bool IsArchived { get; set; }
     public string? RequiredRole { get; set; }
+    public int TopicCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -125,6 +126,7 @@ public class TopicListItemResponse
     public string CategorySlug { get; set; } = null!;
     public Guid? OrganizationId { get; set; }
     public UserMiniDto Author { get; set; } = null!;
+    public UserMiniDto? LastReplyAuthor { get; set; }
     public string Title { get; set; } = null!;
     public string Slug { get; set; } = null!;
     public string Excerpt { get; set; } = null!; // Plaintext excerpt
